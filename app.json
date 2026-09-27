@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Pulse",
+    "slug": "pulse-health",
+    "scheme": "pulse",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#000000",
+    "ios": {
+      "bundleIdentifier": "com.pulse.healthcoach",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "processing"],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.background-delivery": true
+      }
+    },
+    "android": {
+      "package": "com.pulse.healthcoach",
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "17.0" }
+        }
+      ],
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "Pulse liest HRV, Ruhepuls, Schlaf, Aktivität und Workouts, um deinen Erholungs- und Belastungs-Score zu berechnen.",
+          "healthUpdatePermission": "Pulse schreibt keine Gesundheitsdaten, benötigt diese Beschreibung aber für die HealthKit-Freigabe."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
