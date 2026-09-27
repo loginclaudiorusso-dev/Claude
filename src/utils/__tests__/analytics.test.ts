@@ -36,7 +36,7 @@ describe('stats', () => {
 
 describe('heart rate', () => {
   it('estimates max HR with Tanaka and prefers measured values', () => {
-    expect(estimateMaxHeartRate({ birthYear: 1986 }, new Date('2026-01-01'))).toBe(180);
+    expect(estimateMaxHeartRate({ birthYear: 1986 }, new Date(2026, 5, 1))).toBe(180);
     expect(estimateMaxHeartRate({ birthYear: 1986, maxHeartRate: 195 })).toBe(195);
   });
 
