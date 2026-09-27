@@ -263,7 +263,7 @@ export interface MetricTrend {
   /** Least-squares slope per day. */
   slopePerDay: number | null;
   direction: TrendDirection;
-  /** Change of the last-third mean versus the first-third mean, in %. */
+  /** Change along the regression line over the window, relative to the mean, in %. */
   changePct: number | null;
 }
 

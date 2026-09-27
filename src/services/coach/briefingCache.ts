@@ -17,9 +17,9 @@ const MAX_ENTRIES = 14;
 const file = () => new File(Paths.document, 'pulse-coach-briefings.v1.json');
 
 async function readAll(): Promise<Record<DayKey, CachedBriefing>> {
-  const f = file();
-  if (!f.exists) return {};
   try {
+    const f = file();
+    if (!f.exists) return {};
     return JSON.parse(await f.text()) as Record<DayKey, CachedBriefing>;
   } catch {
     return {};
@@ -46,12 +46,20 @@ export async function cacheBriefing(
       .sort(([a], [b]) => b.localeCompare(a))
       .slice(0, MAX_ENTRIES),
   );
-  const f = file();
-  if (!f.exists) f.create();
-  f.write(JSON.stringify(kept));
+  try {
+    const f = file();
+    if (!f.exists) f.create();
+    f.write(JSON.stringify(kept));
+  } catch {
+    // Caching is best effort (unavailable on web).
+  }
 }
 
 export function clearBriefingCache(): void {
-  const f = file();
-  if (f.exists) f.delete();
+  try {
+    const f = file();
+    if (f.exists) f.delete();
+  } catch {
+    // Nothing cached.
+  }
 }

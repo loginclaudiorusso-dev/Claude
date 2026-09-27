@@ -111,8 +111,11 @@ describe('strain', () => {
     const rest = computeStrain(makeDay(TODAY, { withHeartRate: true }), hrOpts);
     const run = computeStrain(makeDay(TODAY, { withHeartRate: true, workoutHr: 160 }), hrOpts);
     expect(rest.method).toBe('heartRate');
-    expect(rest.score).toBe(0);
+    // Only the everyday-activity term: 450 kcal × 0.04 = 18 TRIMP.
+    expect(rest.trimp).toBe(18);
+    expect(rest.score).toBeLessThan(4);
     expect(run.zoneMinutes[3]).toBe(60); // 160 bpm ≈ 78 % HRR
+    // Workout kcal (660) exceed the day's active energy, so no everyday term is added.
     expect(run.workoutTrimp).toBeCloseTo(run.trimp);
     expect(run.score).toBeGreaterThan(10);
     expect(run.score).toBeLessThan(18);
@@ -156,8 +159,9 @@ describe('sleep', () => {
   });
 
   it('raises need after strain and repays debt', () => {
-    expect(calculateSleepNeed(480, 16, 0)).toBe(516);
-    expect(calculateSleepNeed(480, 0, 400)).toBe(540);
+    expect(calculateSleepNeed(480, 16, 0)).toBe(504);
+    expect(calculateSleepNeed(480, 0, 400)).toBe(525);
+    expect(calculateSleepNeed(480, 21, 10_000)).toBe(569);
     expect(updateSleepDebt(0, 360, 480)).toBe(120);
     expect(updateSleepDebt(100, 600, 480)).toBe(0);
   });

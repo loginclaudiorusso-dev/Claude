@@ -50,16 +50,17 @@ export function totalSleepMinutes(session: SleepSession): number {
 
 /**
  * Tonight's sleep need = personal base need
- *   + strain adjustment (6 min per strain point above 10 the day before)
- *   + debt repayment (25 % of the running debt, max 60 min).
+ *   + strain adjustment (4 min per strain point above 10 the day before, ≤ 44 min)
+ *   + debt repayment (20 % of the running debt, max 45 min).
+ * Worst case ≈ base + 1.5 h, which stays achievable.
  */
 export function calculateSleepNeed(
   baseNeedMinutes: number,
   priorStrain = 0,
   priorDebtMinutes = 0,
 ): number {
-  const strainAdjustment = Math.max(0, priorStrain - 10) * 6;
-  const debtRepayment = Math.min(priorDebtMinutes * 0.25, 60);
+  const strainAdjustment = Math.max(0, priorStrain - 10) * 4;
+  const debtRepayment = Math.min(priorDebtMinutes * 0.2, 45);
   return baseNeedMinutes + strainAdjustment + debtRepayment;
 }
 

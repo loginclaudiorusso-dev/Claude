@@ -28,6 +28,11 @@ const MIN_HR_SAMPLES = 24;
 /** TRIMP-equivalents per kcal when only energy data is available. */
 const TRIMP_PER_ACTIVE_KCAL = 0.15;
 const TRIMP_PER_NON_WORKOUT_KCAL = 0.08;
+/**
+ * Everyday movement (walking, stairs) rarely lifts HR above the load threshold,
+ * so with HR data we add a small energy-based term for non-workout calories.
+ */
+const TRIMP_PER_EVERYDAY_KCAL = 0.04;
 
 export function trimpToStrain(trimp: number): number {
   return round(MAX_STRAIN * (1 - Math.exp(-Math.max(0, trimp) / STRAIN_TRIMP_SCALE)), 1);
@@ -97,7 +102,8 @@ export function heartRateLoad(
 
 /**
  * Day strain (0–21). Uses, in order of preference:
- *  1. continuous heart-rate samples (Banister TRIMP, HR zones),
+ *  1. continuous heart-rate samples (Banister TRIMP, HR zones) plus a small
+ *     everyday-activity term from non-workout active energy,
  *  2. workouts with average HR + remaining active energy,
  *  3. active energy only.
  */
@@ -113,6 +119,8 @@ export function computeStrain(day: DailyHealthData, options: StrainOptions): Str
       day.workouts,
       options,
     ));
+    const workoutKcal = day.workouts.reduce((acc, w) => acc + w.activeEnergyKcal, 0);
+    trimp += Math.max(0, day.activeEnergyKcal - workoutKcal) * TRIMP_PER_EVERYDAY_KCAL;
     method = 'heartRate';
   } else if (day.workouts.some((w) => w.avgHeartRate)) {
     let workoutKcal = 0;

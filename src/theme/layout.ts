@@ -26,3 +26,9 @@ export const springs = {
   snappy: { damping: 20, stiffness: 260, mass: 0.8 },
   bouncy: { damping: 11, stiffness: 180, mass: 0.9 },
 } as const;
+
+/**
+ * On web the native tab bar renders as a floating bar at the top and the
+ * transparent large-title header does not inset content, so screens add this.
+ */
+export const WEB_TOP_INSET = 96;
