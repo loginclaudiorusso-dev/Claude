@@ -34,6 +34,8 @@ src/
 ├── config/                   # Modell- & Keychain-Konstanten
 ├── hooks/                    # useResponsiveLayout (Size Classes compact/regular)
 ├── services/
+│   ├── claudeCoach.ts        # Coach-Fassade: Daily Briefing, Chat-Session, Key-Prüfung
+│   ├── coach/                # Prompts, Schema, Payload, Tools, SDK-Client, Keychain, Cache
 │   └── health/               # Einziger Einstieg für Gesundheitsdaten
 │       ├── index.ts          # loadHealthDays(mode), importHealthFile, detectDefaultMode
 │       ├── healthKit.ts      # react-native-health Adapter (nur iOS-Build)
@@ -57,9 +59,6 @@ src/
     └── __tests__/            # Jest-Tests
 ```
 
-Folgende Module kommen in den nächsten Schritten hinzu:
-
-- `src/services/claudeCoach.ts` – Claude-Coach (System-Prompt, Daily Briefing, Chat)
 
 ## Datenquellen
 
@@ -70,6 +69,18 @@ Folgende Module kommen in den nächsten Schritten hinzu:
 | `demo` | Generiert | Deterministisch (Seed), 45 Tage mit Wochen-Trainingsplan und Ermüdungsmodell. |
 
 Alle Quellen liefern zuerst `RawHealthRecords` und laufen dann durch `buildDailyHealthData`: Samples werden dedupliziert, Schlaf zu Sessions gruppiert (Lücke > 2 h = neue Session, Hauptschlaf = längste Session ≥ 3 h, zugeordnet zum Aufwachtag) und pro Kalendertag aggregiert. Der Cache liegt als JSON im Documents-Verzeichnis (iOS Data Protection), getrennt nach HealthKit und Import – nie in AsyncStorage.
+
+## Claude Coach
+
+| Funktion | Umsetzung |
+|---|---|
+| **Daily Briefing** | `generateDailyBriefing(ctx)` schickt einen kompakten JSON-Snapshot des Tages (`buildCoachPayload`) an Claude und erhält per Structured Outputs (zod) `headline`, `summary`, `focus` (recover/maintain/build/peak), 2–4 Empfehlungen und die Schlüsselkennzahl. Ergebnisse werden pro Tag + Daten-Fingerprint lokal zwischengespeichert. |
+| **Chat** | `CoachChatSession.send(text, { onText, onToolCall })` streamt Antworten und lässt Claude über vier lokale, schreibgeschützte Tools gezielt in der Historie nachsehen: `get_day_summary`, `get_metric_series`, `list_workouts`, `compare_after_training`. Tool-Eingaben werden mit zod validiert; die API-Historie bleibt append-only, fehlgeschlagene Turns werden zurückgerollt. |
+| **Modell & Sicherheit** | `claude-opus-5` (per `EXPO_PUBLIC_CLAUDE_MODEL` änderbar), Effort `medium`, `fallbacks: "default"` (lehnt ein Sicherheitsfilter ab, übernimmt serverseitig das empfohlene Fallback-Modell). Statischer System-Prompt + Tagesdaten im ersten Turn → cachebarer Prefix. |
+| **API-Key** | Nur im Keychain (`expo-secure-store`, `WHEN_UNLOCKED_THIS_DEVICE_ONLY`). `validateApiKey` prüft per kostenlosem Models-API-Call. |
+| **Netzwerk** | `expo/fetch` statt RN-`fetch`, da nur dieses Streaming unterstützt. Fehler werden auf verständliche Meldungen gemappt (ungültiger Key, Rate Limit, Überlastung, offline, Abbruch). |
+
+Es werden nur aggregierte Tageswerte bzw. vom Modell angefragte Tool-Ergebnisse an Anthropic gesendet, keine Rohdaten-Samples.
 
 ## Scoring-Modelle
 
