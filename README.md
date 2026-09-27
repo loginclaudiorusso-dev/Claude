@@ -33,6 +33,14 @@ src/
 │   └── ui/                   # GlassCard, Screen, PlaceholderCard …
 ├── config/                   # Modell- & Keychain-Konstanten
 ├── hooks/                    # useResponsiveLayout (Size Classes compact/regular)
+├── services/
+│   └── health/               # Einziger Einstieg für Gesundheitsdaten
+│       ├── index.ts          # loadHealthDays(mode), importHealthFile, detectDefaultMode
+│       ├── healthKit.ts      # react-native-health Adapter (nur iOS-Build)
+│       ├── importers/        # Health Auto Export JSON + CSV, Format-Erkennung
+│       ├── buildDays.ts      # Normalisierung Rohdaten → DailyHealthData
+│       ├── storage.ts        # Lokaler Cache (Documents, getrennt nach Quelle)
+│       └── demoData.ts       # Deterministische Demo-Historie (Simulator/Web)
 ├── test/                     # Synthetische Test-Fixtures
 ├── theme/                    # Farben (HIG Dark), Typografie (SF Pro), Radii, Springs
 ├── types/
@@ -51,8 +59,17 @@ src/
 
 Folgende Module kommen in den nächsten Schritten hinzu:
 
-- `src/services/health/` – HealthKit-Adapter + JSON/CSV-Import
 - `src/services/claudeCoach.ts` – Claude-Coach (System-Prompt, Daily Briefing, Chat)
+
+## Datenquellen
+
+| Modus | Quelle | Hinweise |
+|---|---|---|
+| `healthkit` | Apple Health via `react-native-health` | Nur Lesezugriff. Nur im Development/Production Build auf iOS. HRV wird von Sekunden in ms umgerechnet, Distanzen von Meilen in Meter; Workout-Puls wird aus den HF-Samples ergänzt. |
+| `import` | Health Auto Export (JSON v1/v2, CSV) | Spalten/Metriken werden über Namen erkannt; kJ → kcal, Dezimalkomma, `;`/`,`/Tab. Schlaf-Summen ohne Zeitstempel werden als Segmente nachgebildet (Summen korrekt, Reihenfolge nicht). HF-Daten gröber als 10 min werden für Strain ignoriert. |
+| `demo` | Generiert | Deterministisch (Seed), 45 Tage mit Wochen-Trainingsplan und Ermüdungsmodell. |
+
+Alle Quellen liefern zuerst `RawHealthRecords` und laufen dann durch `buildDailyHealthData`: Samples werden dedupliziert, Schlaf zu Sessions gruppiert (Lücke > 2 h = neue Session, Hauptschlaf = längste Session ≥ 3 h, zugeordnet zum Aufwachtag) und pro Kalendertag aggregiert. Der Cache liegt als JSON im Documents-Verzeichnis (iOS Data Protection), getrennt nach HealthKit und Import – nie in AsyncStorage.
 
 ## Scoring-Modelle
 
