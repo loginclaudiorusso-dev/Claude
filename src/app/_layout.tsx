@@ -2,6 +2,7 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { useAppBootstrap } from '@/hooks/useAppBootstrap';
 import { colors } from '@/theme';
 
 const navigationTheme = {
@@ -17,6 +18,7 @@ const navigationTheme = {
 };
 
 export default function RootLayout() {
+  useAppBootstrap();
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <ThemeProvider value={navigationTheme}>

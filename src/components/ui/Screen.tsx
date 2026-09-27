@@ -1,8 +1,8 @@
 import type { PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
-import { colors, spacing } from '@/theme';
+import { WEB_TOP_INSET, colors, spacing } from '@/theme';
 
 type Props = PropsWithChildren<Omit<ScrollViewProps, 'children'>>;
 
@@ -30,7 +30,11 @@ export function Screen({ children, contentContainerStyle, ...rest }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl, paddingTop: spacing.sm },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    paddingTop: Platform.OS === 'web' ? WEB_TOP_INSET : spacing.sm,
+  },
   contentTablet: { paddingHorizontal: spacing.xxxl },
   inner: { gap: spacing.lg },
   innerTablet: { width: '100%', maxWidth: 1200, alignSelf: 'center', gap: spacing.xl },

@@ -9,10 +9,10 @@ Expo / React Native App (iPhone & iPad) zur automatisierten Auswertung von Apple
 | Framework | Expo SDK 57, React Native 0.86, React 19.2, TypeScript (strict) |
 | Navigation | Expo Router (typed routes), native `UITabBarController` Tabs (Liquid Glass, iPad Sidebar) |
 | UI | `expo-blur` (Frosted Glass), `expo-symbols` (SF Symbols), `expo-haptics`, `react-native-reanimated` 4 (Spring Physics) |
-| Charts | `victory-native` (Skia) + `react-native-svg` für Ringe |
+| Charts | Eigenes Chart-Kit auf `react-native-svg` (Linien, Balken, gestapelte Schlafphasen, Hypnogramm, Body Battery, animierte Ringe) mit Touch-Scrubbing |
 | Health Data | `react-native-health` (HealthKit) · JSON/CSV-Import (`expo-document-picker`, `papaparse`) |
 | AI | `@anthropic-ai/sdk`, Standardmodell `claude-opus-5` (per `EXPO_PUBLIC_CLAUDE_MODEL` änderbar) |
-| State / Storage | `zustand`, `@react-native-async-storage/async-storage`, `expo-secure-store` (Keychain für API-Key) |
+| State / Storage | `zustand` (Settings persistiert als JSON in Documents), `expo-secure-store` (Keychain für API-Key) |
 | Validation | `zod` (Import-Parsing, Coach-Antworten) |
 
 ## Projektstruktur
@@ -29,10 +29,13 @@ src/
 │       ├── coach/            # AI Coach Chat & Insights
 │       └── settings/         # API-Key, HealthKit-Berechtigungen, Import
 ├── components/
+│   ├── charts/               # ScoreRing, TrendLineChart, DailyBarChart, SleepStagesChart, Hypnogram, BodyBatteryChart
+│   ├── coach/                # ChatBubble, Composer
+│   ├── dashboard/            # Hero-Ringe, Briefing, Schlaf, Body Battery, Kennzahlen
 │   ├── navigation/           # Gemeinsame Header-Optionen (Large Title + Blur)
-│   └── ui/                   # GlassCard, Screen, PlaceholderCard …
+│   └── ui/                   # GlassCard, Screen, SegmentedControl, StatTile, SettingsRow, Icon …
 ├── config/                   # Modell- & Keychain-Konstanten
-├── hooks/                    # useResponsiveLayout (Size Classes compact/regular)
+├── hooks/                    # useResponsiveLayout, useAppBootstrap, useCoachContext, useKeyboardHeight
 ├── services/
 │   ├── claudeCoach.ts        # Coach-Fassade: Daily Briefing, Chat-Session, Key-Prüfung
 │   ├── coach/                # Prompts, Schema, Payload, Tools, SDK-Client, Keychain, Cache
@@ -43,6 +46,7 @@ src/
 │       ├── buildDays.ts      # Normalisierung Rohdaten → DailyHealthData
 │       ├── storage.ts        # Lokaler Cache (Documents, getrennt nach Quelle)
 │       └── demoData.ts       # Deterministische Demo-Historie (Simulator/Web)
+├── store/                    # zustand: settings (persistiert), health, coach
 ├── test/                     # Synthetische Test-Fixtures
 ├── theme/                    # Farben (HIG Dark), Typografie (SF Pro), Radii, Springs
 ├── types/
@@ -59,6 +63,17 @@ src/
     └── __tests__/            # Jest-Tests
 ```
 
+
+## Screens
+
+| Screen | Inhalt |
+|---|---|
+| **Heute** | Erholungs- und Belastungsring (Spring-Animation), empfohlene Belastung, Claude-Briefing, Body-Battery-Verlauf, Schlaf mit Hypnogramm, Kennzahlen-Kacheln. iPad: zweispaltig. Pull-to-Refresh. |
+| **Trends** | 7/30 Tage umschaltbar: Erholung, HRV, Ruhepuls (Linie + Ø-Referenz), Trainingsbelastung (Balken + moderates Band), Schlafarchitektur (gestapelt), Acute:Chronic-Ratio. iPad: Raster. |
+| **Coach** | Streaming-Chat mit Vorschlägen, Status während Claude Daten abfragt, Stopp-Button, neues Gespräch. |
+| **Einstellungen** | API-Key prüfen/speichern/entfernen, Datenquelle (Apple Health, Import, Demo), Profil (Geburtsjahr, HFmax, Geschlecht, Schlafbedarf), lokale Daten löschen. |
+
+Diagramme: dünne 2-px-Linien, 4-px-gerundete Balkenenden an der Basislinie, 2-px-Abstände zwischen Füllungen, zurückhaltendes Raster, Legende bei mehreren Serien. Finger über ein Diagramm ziehen zeigt Fadenkreuz und Tooltip. Die Schlafphasen-Farben (Tief `#9085E9`, REM `#199E70`, Kern `#3987E5`, Wach `#D95926`) sind in dieser Stapelreihenfolge auf Farbfehlsichtigkeit und Kontrast gegen die dunkle Kartenfläche geprüft.
 
 ## Datenquellen
 

@@ -19,9 +19,9 @@ const storeFile = (bucket: StorageBucket) =>
   new File(Paths.document, `pulse-health-${bucket}.v1.json`);
 
 export async function loadStoredDays(bucket: StorageBucket): Promise<DailyHealthData[]> {
-  const file = storeFile(bucket);
-  if (!file.exists) return [];
   try {
+    const file = storeFile(bucket);
+    if (!file.exists) return [];
     const parsed = JSON.parse(await file.text()) as Partial<StoredDays>;
     return parsed.version === 1 && Array.isArray(parsed.days) ? parsed.days : [];
   } catch {

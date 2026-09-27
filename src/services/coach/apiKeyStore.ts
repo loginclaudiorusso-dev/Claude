@@ -16,7 +16,12 @@ export function looksLikeAnthropicKey(key: string): boolean {
 }
 
 export async function getApiKey(): Promise<string | null> {
-  return SecureStore.getItemAsync(CLAUDE_API_KEY_STORE_KEY, OPTIONS);
+  try {
+    return await SecureStore.getItemAsync(CLAUDE_API_KEY_STORE_KEY, OPTIONS);
+  } catch {
+    // SecureStore is unavailable on web; the coach then shows its "add key" state.
+    return null;
+  }
 }
 
 export async function hasApiKey(): Promise<boolean> {

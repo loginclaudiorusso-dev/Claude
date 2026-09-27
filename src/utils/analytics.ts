@@ -142,20 +142,15 @@ export function buildTrend(points: TrendPoint[]): MetricTrend {
   const average = mean(present);
   const slope = linearSlope(values);
 
+  // Direction and change both come from the regression line, so they always agree.
   let direction: TrendDirection = 'flat';
+  let changePct: number | null = null;
   if (slope !== null && average !== null && average !== 0) {
     const relChange = (slope * (points.length - 1)) / Math.abs(average);
+    changePct = round(relChange * 100, 1);
     if (relChange > FLAT_THRESHOLD) direction = 'up';
     else if (relChange < -FLAT_THRESHOLD) direction = 'down';
   }
-
-  const third = Math.max(1, Math.floor(points.length / 3));
-  const head = mean(values.slice(0, third).filter((v): v is number => v !== null));
-  const tail = mean(values.slice(-third).filter((v): v is number => v !== null));
-  const changePct =
-    head !== null && tail !== null && head !== 0
-      ? round(((tail - head) / Math.abs(head)) * 100, 1)
-      : null;
 
   return {
     points,
