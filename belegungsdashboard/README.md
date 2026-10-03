@@ -11,13 +11,13 @@ pip install -r requirements.txt
 python belegungsdashboard_gui.py              # öffnet zuletzt genutzte Datei bzw. pivot_neu.xlsx
 python belegungsdashboard_gui.py pfad\zur\pivot.xlsx
 python belegungsdashboard_export.py            # schreibt den Datenblock in Belegungsdashboard.html
-python -m pytest tests                         # 42 Tests für Pivot, Prognose, Import, Assistent, Export
+python -m pytest tests                         # Tests für Pivot, Prognose, Importe, Assistent, Export
 pyinstaller belegungsdashboard_gui.spec        # dist/Belegungsdashboard.exe + dist/Belegungsdashboard-Export.exe
 ```
 
 Einstellungen und lokale Listen liegen wie bisher neben der exe
 (`kapazitaeten_manuell.json`, `manuelle_eintraege.json`, `pivot_profile.json` werden
-weiterverwendet; neu: `einstellungen.json`, Ordner `importe/`). Mit der Umgebungsvariable
+weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
 ## Was sich gegenüber 3.x geändert hat
@@ -35,19 +35,44 @@ weiterverwendet; neu: `einstellungen.json`, Ordner `importe/`). Mit der Umgebung
 * **Stichtag = Abrufdatum der Pivot** (aus dem Pivot-Cache), nicht einfach „heute“. War die
   Datei drei Tage nicht aktualisiert, wird das angezeigt, statt Bestand als Ist auszugeben.
 
-### Import von Mieten und Anreisen (neu)
+### Anreisen Internat Goslar (neu)
 
-Unter **Daten & Import** eine Excel- oder CSV-Liste hochladen. Kopfzeile (auch unter
-Titelzeilen) und Spalten werden automatisch erkannt (z. B. „Mietbeginn“, „Anreise“,
-„Einrichtung“, „Anzahl Betten“, „Mieter / Firma“); Standorte werden normalisiert
-(„BP“, „Bad Pyrmont“, „BFW BP“ …). Vor dem Import zeigt eine Vorschau, was übernommen wird
-und welche Zeilen warum übersprungen werden. Die Zuordnung wird je Dateiname gemerkt, ein
-erneuter Upload ersetzt den alten Stand.
+Unter **Daten & Import → Anreisen Internat Goslar** eine oder mehrere Anreiselisten (.xlsx) auf
+einmal hochladen. Erkannt wird das bekannte Format „Anreiseliste TT-MM-JJJJ“ (auch mit „EMR“ im
+Titel); die Spalten dürfen von Liste zu Liste abweichen. Übernommen werden nur **Name, Maßnahme,
+Anreise (aus dem Titel), Internat ja/nein** und – falls vorhanden – TN-ID und Abreise.
 
-* **Mieten** zählen zur Netto-Belegung (ohne Ende = unbefristet; leerer Standort = Goslar wie bisher).
-* **Anreisen** ergänzen Belegung und Prognose **ab dem Tag nach dem Stichtag** – vergangene
-  Tage stehen bereits in der Pivot, sonst würde doppelt gezählt. Ohne Abreise-Spalte zählen
-  sie nur als Termin oder mit einer wählbaren Standard-Aufenthaltsdauer.
+* Zur Belegung zählen nur Personen mit Internat „ja“, und zwar **ab dem Tag nach dem Stichtag**
+  (vergangene Tage stehen bereits in der Pivot).
+* Personen werden über die TN-ID wiedererkannt: ein erneuter Upload aktualisiert die Liste,
+  eingetragene Abreisen und Erinnerungen bleiben erhalten. Wer nicht mehr auf der Liste steht,
+  wird entfernt.
+* **Abreise und Erinnerung** per Doppelklick bzw. Stift-Symbol eintragen; Personen ohne Liste über
+  „Person hinzufügen“. Erinnerungswege (Vorgabe unter Einstellungen → Erinnerungen):
+  * **Outlook-Termin** am Abreisetag mit Erinnerung X Tage vorher – erinnert auch, wenn das
+    Dashboard geschlossen ist,
+  * **E-Mail an mich**, die Outlook zeitversetzt am Erinnerungstag verschickt,
+  * **Kalenderdatei (.ics)** oder **nur im Dashboard** (Hinweis beim Start und auf der Übersicht,
+    mit „Erledigt“ quittieren).
+  Wird die Abreise geändert oder die Person gelöscht, wird der Outlook-Eintrag mit angepasst.
+* Ohne Abreise zählt eine Person nur als Termin – oder mit einer einstellbaren Standarddauer.
+
+### UWT (neu)
+
+PDF „UWT An- und Abreiseliste“ hochladen: Klassen, Anzahl und Zeitraum je Block („''“ = wie
+darüber) sowie, falls aufgeführt, die Personen mit Zimmer. Die UWT steht nicht in der Pivot und
+zählt deshalb über den ganzen Block zur Belegung Goslar (Kategorie UWT).
+
+### Mieten
+
+Excel-/CSV-Liste mit automatischer Spaltenerkennung („Mietbeginn“, „Einrichtung“, „Anzahl
+Betten“, „Mieter / Firma“ …), Vorschau vor dem Import, Zuordnung je Dateiname gemerkt. Mieten
+ohne Ende gelten als unbefristet, leerer Standort = Goslar.
+
+### Datenschutz
+
+Personennamen bleiben lokal: Der HTML-Export und die optionale KI-Anbindung bekommen statt des
+Namens nur die Maßnahme bzw. Klasse.
 
 ### Statistik
 
@@ -107,7 +132,10 @@ aus einem Textkontext abschreiben – beides unzuverlässig, der Tab war deaktiv
 ```
 belegung/            fachlicher Kern ohne Qt (testbar)
   pivot.py           Pivot-Profil, Einlesen per openpyxl oder Excel-COM
-  importe.py         Excel/CSV-Listen mit Spaltenerkennung
+  importe.py         Excel/CSV-Listen mit Spaltenerkennung (Mieten)
+  anreiseliste.py    Anreiselisten Goslar, Abreisen, fällige Erinnerungen
+  uwt.py             UWT-PDF (Blöcke und Personen)
+  erinnerung.py      Outlook-Termin/-Mail, .ics
   datenstand.py      Datenmodell, Aufschlüsselung, Ist+Prognose-Verlauf
   prognose.py        Backtest-Modellauswahl, kalibrierte Bänder
   laden.py           Quelle -> Datenstand

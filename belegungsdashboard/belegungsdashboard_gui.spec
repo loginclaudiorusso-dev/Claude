@@ -10,7 +10,7 @@ from PyInstaller.utils.hooks import collect_submodules
 
 versteckt = (
     collect_submodules("belegung")
-    + ["keyring.backends.Windows", "win32com.client", "pythoncom", "pywintypes"]
+    + ["keyring.backends.Windows", "win32com.client", "pythoncom", "pywintypes", "pypdf"]
     + ["statsmodels.tsa.holtwinters", "statsmodels.tsa.statespace._filters"]
 )
 ausschluesse = ["tkinter", "PyQt5", "PyQt6", "IPython", "jupyter", "sklearn", "llama_cpp", "pytest"]

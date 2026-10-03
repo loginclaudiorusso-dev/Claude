@@ -417,7 +417,7 @@ class Assistent:
         text = f"**{zahl(gesamt)} geplante Anreisen**{ort} im Zeitraum {z.text}"
         if standort == GESAMT:
             text += " (" + ", ".join(f"{name(s)} {je[s]}" for s in STANDORTE if je[s]) + ")"
-        zeilen = [[e.von.strftime("%d.%m.%Y"), name(e.standort), str(e.anzahl), e.bezeichnung or "–",
+        zeilen = [[e.von.strftime("%d.%m.%Y"), name(e.standort), str(e.anzahl), e.oeffentlich or "–",
                    e.bis.strftime("%d.%m.%Y") if not e.nur_termin else "–"] for e in liste[:25]]
         if len(liste) > 25:
             text += f". Die ersten 25 von {len(liste)}:"

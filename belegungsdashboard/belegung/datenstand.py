@@ -32,8 +32,14 @@ class Eintrag:
     bis: date
     anzahl: int
     bezeichnung: str = ""
-    quelle: str = "manuell"         # manuell | mieten | anreisen | excel
+    quelle: str = "manuell"         # manuell | mieten | anreisen | uwt
     nur_termin: bool = False        # Anreise ohne Abreise: zählt nicht zur Belegung
+    gruppe: str = ""                # Maßnahme/Klasse; bei Personen die namensfreie Bezeichnung
+
+    @property
+    def oeffentlich(self) -> str:
+        """Bezeichnung ohne Personennamen – für Export und externe Sprachmodelle."""
+        return self.gruppe or self.bezeichnung
 
     @staticmethod
     def aus_dict(d: dict, quelle: str) -> "Eintrag":
@@ -46,6 +52,7 @@ class Eintrag:
             bezeichnung=d.get("bezeichnung", "") or "",
             quelle=quelle,
             nur_termin=bool(d.get("nur_termin", False)),
+            gruppe=d.get("gruppe", "") or "",
         )
 
 
@@ -75,6 +82,7 @@ class Datenstand:
     importe: dict[str, dict] = field(default_factory=dict)   # art -> Metadaten des Imports
     prognose: Prognose | None = None
     hinweise: list[str] = field(default_factory=list)
+    erinnerungen: list = field(default_factory=list)   # fällige Abreise-Erinnerungen (anreiseliste.Person)
 
     # ---- Grunddaten --------------------------------------------------------------------
 

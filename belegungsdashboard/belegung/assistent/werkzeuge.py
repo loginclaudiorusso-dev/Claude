@@ -176,7 +176,7 @@ class Werkzeuge:
                 "summe_personen": sum(e.anzahl for e in treffer),
                 "eintraege": [{"von": e.von, "bis": None if e.nur_termin or e.bis.year >= 2099 else e.bis,
                                "standort": STANDORT_LABEL[e.standort], "anzahl": e.anzahl,
-                               "bezeichnung": e.bezeichnung} for e in sorted(treffer, key=lambda e: e.von)[:40]]}
+                               "bezeichnung": e.oeffentlich} for e in sorted(treffer, key=lambda e: e.von)[:40]]}
 
     def haeuser_abfragen(self, standort: str, tag: str) -> dict:
         s, t = _standort(standort), _datum(tag)

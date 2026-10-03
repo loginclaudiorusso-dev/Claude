@@ -250,6 +250,10 @@ class HauptFenster(QMainWindow):
             self.z.meldung.emit("Pivot vom Server aktualisiert.", "ok")
         elif refresh:
             self.z.meldung.emit("Server nicht erreichbar – gespeicherter Pivot-Stand wird angezeigt.", "warnung")
+        elif ds.erinnerungen and not getattr(self, "_erinnert", False):
+            self._erinnert = True
+            n = len(ds.erinnerungen)
+            self.z.meldung.emit(f"{n} Abreise-Erinnerung{'en' if n > 1 else ''} fällig – siehe Übersicht.", "info")
 
     def _ladefehler(self, text: str) -> None:
         self._stand_anzeigen()

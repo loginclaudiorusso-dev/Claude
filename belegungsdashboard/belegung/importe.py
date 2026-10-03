@@ -22,6 +22,9 @@ from .konfig import STANDARD_STANDORT_MIETER, STANDORTE, standort_normalisieren
 from .pivot import EXCEL_EPOCH
 
 ARTEN = {"mieten": "Mieten", "anreisen": "Anreisen"}
+# Über den allgemeinen Listen-Import kommen nur noch Mieten; Anreisen (Goslar) und UWT
+# haben eigene Leser (anreiseliste.py, uwt.py).
+LISTEN_ARTEN = ["mieten"]
 FELDER = ["von", "bis", "standort", "anzahl", "bezeichnung", "kategorie"]
 FELD_LABEL = {
     "von": "Von / Anreise", "bis": "Bis / Abreise", "standort": "Standort", "anzahl": "Anzahl",

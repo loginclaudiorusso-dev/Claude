@@ -126,6 +126,27 @@ class UebersichtSeite(Seite):
             if h.knopf:
                 h.knopf.clicked.connect(lambda: self.z.navigieren.emit("daten"))
             self.hinweise.addWidget(h)
+        heute = date.today()
+        faellig = self.z.ds.erinnerungen
+        for p in faellig[:5]:
+            wann = "heute" if p.abreise == heute else ("morgen" if p.abreise == heute + timedelta(days=1) else
+                                                         ("war am" if p.abreise < heute else "am"))
+            datum = "" if wann in ("heute", "morgen") else f" {p.abreise:%d.%m.%Y}"
+            h = Hinweis(f"<b>Abreise:</b> {p.name} ({p.massnahme or p.gruppe}) reist {wann}{datum} ab.",
+                        "warnung" if p.abreise <= heute + timedelta(days=1) else "info", "Erledigt")
+            h.knopf.clicked.connect(lambda _=False, p=p: self._erledigt(p))
+            self.hinweise.addWidget(h)
+        if len(faellig) > 5:
+            h = Hinweis(f"… und {len(faellig) - 5} weitere fällige Abreise-Erinnerungen.", "info", "Anzeigen")
+            h.knopf.clicked.connect(lambda: self.z.navigieren.emit("daten"))
+            self.hinweise.addWidget(h)
+
+    def _erledigt(self, person) -> None:
+        from ... import anreiseliste
+
+        person.erledigt = True
+        anreiseliste.person_speichern(person, person.schluessel)
+        self.z.listen_geaendert.emit()
 
     def _verlauf(self) -> None:
         ds, z, t = self.z.ds, self.z, theme.T
@@ -183,8 +204,8 @@ class UebersichtSeite(Seite):
         ds, z = self.z.ds, self.z
         leeren(self.anreisen_inhalt)
         if "anreisen" not in ds.importe:
-            leer = Leer("hochladen", "Noch keine Anreisen", "Excel-Liste mit geplanten Anreisen hochladen – sie fließt "
-                        "in Übersicht, Prognose und Assistent ein.", "Anreisen hochladen")
+            leer = Leer("hochladen", "Noch keine Anreisen", "Anreiselisten Goslar hochladen – sie fließen in Übersicht, "
+                        "Prognose und Assistent ein.", "Anreisen hochladen")
             leer.knopf.clicked.connect(lambda: self.z.navigieren.emit("daten"))
             self.anreisen_inhalt.addWidget(leer)
             return
@@ -193,8 +214,9 @@ class UebersichtSeite(Seite):
             self.anreisen_inhalt.addWidget(Leer("kalender", "Keine Anreisen", "In den nächsten drei Wochen sind keine Anreisen geplant."))
             return
         summe = sum(e.anzahl for e in liste)
-        self.anreisen_inhalt.addWidget(label(f"{zahl(summe)} Personen in {len(liste)} Einträgen", "muted"))
-        tab = Tabelle(["Datum", "Standort", "Anzahl", "Bezeichnung"], ["l", "l", "r", "l"])
+        tage = len({e.von for e in liste})
+        self.anreisen_inhalt.addWidget(label(f"{zahl(summe)} Personen mit Internat an {tage} Anreisetag{'en' if tage > 1 else ''}", "muted"))
+        tab = Tabelle(["Datum", "Standort", "Anzahl", "Bezeichnung"], ["l", "l", "r", "l"], dehnen=3)
         tab.fuellen([[e.von.strftime("%d.%m."), STANDORT_LABEL[e.standort], e.anzahl, e.bezeichnung or "–"] for e in liste[:12]])
         tab.hoehe_anpassen(8)
         self.anreisen_inhalt.addWidget(tab)

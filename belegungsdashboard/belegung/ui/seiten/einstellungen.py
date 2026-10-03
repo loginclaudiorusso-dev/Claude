@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QWidget
+from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QSpinBox, QWidget
 
-from ... import __version__, speicher
+from ... import __version__, erinnerung, speicher
 from ...assistent.llm import CLAUDE_STANDARDMODELL, Einstellungen, backend_erstellen, schluessel_laden, schluessel_speichern
 from ...konfig import datenordner
 from .. import theme
@@ -94,6 +94,43 @@ class EinstellungenSeite(Seite):
         ki.inhalt.addLayout(knoepfe)
         self.lay.addWidget(ki)
 
+        erin = Karte("Erinnerungen an Abreisen", "Vorgabe für neue Erinnerungen – je Person in Daten → Anreisen änderbar")
+        fe = QFormLayout()
+        fe.setHorizontalSpacing(14)
+        fe.setVerticalSpacing(8)
+        ee = e.get("erinnerung", {})
+        self.e_kanal = QComboBox()
+        for k, text in erinnerung.KANAELE.items():
+            self.e_kanal.addItem(text, k)
+            if k in ("outlook", "mail") and not erinnerung.outlook_moeglich():
+                self.e_kanal.model().item(self.e_kanal.count() - 1).setEnabled(False)
+        kanal = ee.get("kanal") or erinnerung.standard_kanal()
+        self.e_kanal.setCurrentIndex(max(0, self.e_kanal.findData(kanal)))
+        self.e_kanal.setMaximumWidth(360)
+        fe.addRow("Weg", self.e_kanal)
+        self.e_tage = QSpinBox()
+        self.e_tage.setRange(0, 60)
+        self.e_tage.setSuffix(" Tage vor der Abreise")
+        self.e_tage.setSpecialValueText("am Abreisetag")
+        self.e_tage.setValue(int(ee.get("tage", 2)))
+        self.e_tage.setFixedWidth(200)
+        fe.addRow("Zeitpunkt", self.e_tage)
+        self.e_mail = QLineEdit(ee.get("empfaenger", ""))
+        self.e_mail.setPlaceholderText("leer = eigene Outlook-Adresse")
+        self.e_mail.setMaximumWidth(360)
+        fe.addRow("E-Mail an", self.e_mail)
+        erin.inhalt.addLayout(fe)
+        self._e_form = fe
+        if not erinnerung.outlook_moeglich():
+            erin.inhalt.addWidget(Hinweis("Outlook ist hier nicht verfügbar (nur unter Windows mit installiertem Outlook). "
+                                          "Erinnerungen erscheinen dann im Dashboard oder als Kalenderdatei.", "info"))
+        for w in (self.e_kanal,):
+            w.currentIndexChanged.connect(self._erinnerung_speichern)
+        self.e_tage.valueChanged.connect(self._erinnerung_speichern)
+        self.e_mail.editingFinished.connect(self._erinnerung_speichern)
+        self._erinnerung_sichtbar()
+        self.lay.addWidget(erin)
+
         info = Karte("Über")
         info.inhalt.addWidget(label(f"Belegungsdashboard {__version__}<br>Datenordner: {datenordner()}<br>"
                                     "Tastenkürzel: Strg+1…6 Seiten wechseln · F5 neu einlesen", "muted", umbruch=True))
@@ -106,6 +143,18 @@ class EinstellungenSeite(Seite):
         speicher.einstellung_setzen("theme", modus)
         theme.setzen(modus)
         self.z.theme_geaendert.emit()
+
+    def _erinnerung_sichtbar(self) -> None:
+        mail = self.e_kanal.currentData() == "mail"
+        self.e_mail.setVisible(mail)
+        beschriftung = self._e_form.labelForField(self.e_mail)
+        if beschriftung:
+            beschriftung.setVisible(mail)
+
+    def _erinnerung_speichern(self, *_) -> None:
+        speicher.einstellung_setzen("erinnerung", {"kanal": self.e_kanal.currentData(), "tage": self.e_tage.value(),
+                                                   "empfaenger": self.e_mail.text().strip()})
+        self._erinnerung_sichtbar()
 
     def _backend(self, idx: int, speichern: bool = True) -> None:
         self.claude.setVisible(BACKENDS[idx] == "claude")

@@ -263,3 +263,138 @@ def test_claude_werkzeugschleife(datenstand):
     erster = aufrufe[0]
     assert erster["model"] == "claude-opus-5" and erster["thinking"] == {"type": "adaptive"}
     assert all(t["strict"] for t in erster["tools"])
+
+
+# ---- Anreiselisten Goslar, UWT, Erinnerungen ---------------------------------------------
+
+def _anreiseliste_xlsx(pfad, titel, kopf, zeilen):
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append([titel])
+    ws.merge_cells("A1:L1")
+    ws.append(kopf)
+    for z in zeilen:
+        ws.append(z)
+    wb.create_sheet("Tabelle2")
+    wb.save(pfad)
+    return pfad
+
+
+def test_anreiseliste_beide_formate(tmp_path):
+    from belegung import anreiseliste
+
+    voll = _anreiseliste_xlsx(
+        tmp_path / "Anreiseliste_21-10-2026.xlsx", "Anreiseliste 21-10-2026",
+        ["Status", "lfd. Nr", "TN-ID", "Uhrzeit", "Name, Vorname", "Wohnort", "Geb.-Datum", "KT", "Internat",
+         "RIM/Koord.", "Maßn.", "Bemerkung", "Anr.", "VM", "Bem. 2", "Internatsdienst"],
+        [["AU", 1, "689623", None, "Adam, David", "Lehrte", None, "BG Verkehr", "ja", "Fr. X", "RVL", "", None, "BP"],
+         ["1", 2, "687098", None, "Brackhan, Chris", "Abbenrode", None, "AA", "nein", "Fr. X", "RVL"],
+         ["E/", 3, "683631", None, "Bursian, Vanessa", "Vienenburg", None, "DRV", "ja (!)", "Fr. Y", "RVT"]])
+    l = anreiseliste.liste_lesen(voll)
+    assert l.datum == date(2026, 10, 21) and l.gruppe == "Reha"
+    assert [p.internat for p in l.personen] == [True, False, True]
+    assert l.personen[0].tn_id == "689623" and l.personen[0].massnahme == "RVL"
+
+    emr = _anreiseliste_xlsx(
+        tmp_path / "2026-10-12_Anreiseliste_12-10-2026_EMR.xlsx", "Anreiseliste 12-10-2026 EMR",
+        ["Status", "lfd. Nr", "TN-ID", "Name, Vorname", "Wohnort", "Geb.-Datum", "KT", "Internat", "RIM/Koord.",
+         "Maßn.", "Bemerkung", "Internatsdienst"],
+        [["2", 1, 691168, "Karic, Anette", "Schöningen", None, "DRV BS (EMR)", "ja", "Fr. Z", "EMR ASS"]])
+    l = anreiseliste.liste_lesen(emr)
+    assert l.datum == date(2026, 10, 12) and l.gruppe == "EMR"
+    assert l.personen[0].tn_id == "691168" and l.personen[0].gruppe == "EMR"
+
+
+def test_anreiseliste_uebernehmen_behaelt_abreise():
+    from belegung.anreiseliste import Anreiseliste, Person, eintraege, uebernehmen
+
+    def liste(*personen):
+        l = Anreiseliste("a.xlsx", date(2026, 10, 21), "Reha", list(personen))
+        for p in l.personen:
+            p.liste = l.schluessel
+        return l
+
+    bestand, b = uebernehmen([], liste(Person("A", "RVL", date(2026, 10, 21), True, tn_id="1"),
+                                       Person("B", "RVL", date(2026, 10, 21), True, tn_id="2")))
+    assert b.neu == 2
+    bestand[0].abreise, bestand[0].erinnerung_tage = date(2027, 1, 15), 2
+    bestand, b = uebernehmen(bestand, liste(Person("A neu", "RVT", date(2026, 10, 21), False, tn_id="1")))
+    assert b.aktualisiert == 1 and [p.name for p in b.entfernt] == ["B"]
+    a = bestand[0]
+    assert (a.name, a.massnahme, a.internat, a.abreise, a.erinnerung_am) == ("A neu", "RVT", False, date(2027, 1, 15), date(2027, 1, 13))
+    assert eintraege(bestand) == []  # ohne Internat zählt niemand
+    a.internat = True
+    e = eintraege(bestand)[0]
+    assert (e["von"], e["bis"], e["standort"], e["anzahl"], e["gruppe"]) == ("2026-10-21", "2027-01-15", "BFW GS", 1, "RVT")
+    a.abreise = None
+    assert eintraege(bestand)[0]["nur_termin"] is True
+    assert eintraege(bestand, standard_wochen=4)[0]["bis"] == "2026-11-17"
+
+
+def test_faellige_erinnerungen():
+    from belegung.anreiseliste import Person, faellige_erinnerungen
+
+    p = Person("A", "RVL", date(2026, 10, 1), True, abreise=date(2026, 10, 20), erinnerung_tage=3)
+    assert faellige_erinnerungen([p], date(2026, 10, 16)) == []
+    assert faellige_erinnerungen([p], date(2026, 10, 17)) == [p]
+    p.erledigt = True
+    assert faellige_erinnerungen([p], date(2026, 10, 18)) == []
+
+
+UWT_TEXT = """UWT An- und Abreiseliste
+ANZ Klasse Anreise Abreise
+7 CUK26 14.09.2026 25.09.2026 29.09.2026
+9 CUW25 '' ''
+16 CUA24 '' ''
+lfd
+NR
+TN ID Name Vorname Klasse Zimmer Sonntag
+1 685327 Bergmann Mick CUW25 3.2-109/1 x x
+4
+685332 Steinberg Fenja
+CUW25 3.2-209
+6-703
+x 26-09-14NU Zimmer dreckig
+21 685325 Augustin Jan Phillip CUW25 6-508 x x
+"""
+UWT_LAYOUT = """  1     685327        Bergmann                 Mick                     CUW25      3.2-109/1
+        685332        Steinberg                Fenja                                  6-703
+ 21     685325        Augustin                 Jan Phillip              CUW25         6-508
+"""
+
+
+def test_uwt_parse():
+    from belegung import uwt
+
+    l = uwt.parse(UWT_TEXT, UWT_LAYOUT)
+    assert [(b.klasse, b.anzahl) for b in l.bloecke] == [("CUK26", 7), ("CUW25", 9), ("CUA24", 16)]
+    assert all((b.anreise, b.abreise) == (date(2026, 9, 14), date(2026, 9, 25)) for b in l.bloecke)
+    assert [(p.name, p.zimmer) for p in l.personen] == [
+        ("Bergmann, Mick", "3.2-109/1"), ("Steinberg, Fenja", "3.2-209"), ("Augustin, Jan Phillip", "6-508")]
+    e = uwt.eintraege([{"klasse": "CUK26", "anzahl": 7, "anreise": "2026-09-14", "abreise": "2026-09-25"}])
+    assert e[0]["kategorie"] == "UWT" and e[0]["standort"] == "BFW GS"
+
+
+def test_ics_erinnerung():
+    from belegung import erinnerung
+
+    t = erinnerung.ics_text("Abreise Muster, Max – 20.10.2026", date(2026, 10, 20), 2, "Text; mit, Zeichen")
+    assert "DTSTART:20261020T080000" in t and "TRIGGER:-P2D" in t
+    assert "SUMMARY:Abreise Muster\\, Max" in t and "Text\\; mit\\, Zeichen" in t
+    assert t.endswith("\r\n") and "\r\nEND:VCALENDAR" in t
+
+
+def test_export_ohne_personennamen(datenstand):
+    from belegung import export
+    from belegung.datenstand import Eintrag
+
+    ds = datenstand
+    person = Eintrag("Anreise", "BFW GS", date(2026, 7, 1), date(2026, 9, 1), 1, "Muster, Max (RVL)", "anreisen", gruppe="RVL")
+    ds.eintraege.append(person)
+    try:
+        daten = export.baue_json(ds)
+        assert "Muster" not in str(daten["anreisen"]) and any(a["bezeichnung"] == "RVL" for a in daten["anreisen"])
+    finally:
+        ds.eintraege.remove(person)

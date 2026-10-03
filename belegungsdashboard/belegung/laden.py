@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import importe, pivot, prognose, speicher
+from . import anreiseliste, importe, pivot, prognose, speicher, uwt
 from .datenstand import Datenstand, Eintrag
 from .konfig import EXCEL_BEVORZUGTER_NAME, STANDORT_LABEL, STANDORTE, programmordner
 
@@ -66,7 +66,7 @@ def eintraege_laden() -> tuple[list[Eintrag], dict[str, dict]]:
         except (KeyError, ValueError) as exc:
             log.warning("Manueller Eintrag übersprungen (%s): %s", exc, d)
     meta: dict[str, dict] = {}
-    for art in importe.ARTEN:
+    for art in importe.LISTEN_ARTEN:
         datensatz = importe.datensatz_laden(art)
         if not datensatz:
             continue
@@ -76,7 +76,27 @@ def eintraege_laden() -> tuple[list[Eintrag], dict[str, dict]]:
                 eintraege.append(Eintrag.aus_dict(d, art))
             except (KeyError, ValueError):
                 continue
+
+    personen, listen = anreiseliste.laden()
+    if personen:
+        wochen = int(speicher.einstellungen().get("anreise_standard_wochen", 0) or 0)
+        for d in anreiseliste.eintraege(personen, wochen):
+            eintraege.append(Eintrag.aus_dict(d, "anreisen"))
+        letzte = max(listen.values(), key=lambda l: l.get("importiert_am", ""), default={})
+        meta["anreisen"] = {"quelle": letzte.get("datei", "manuell"), "importiert_am": letzte.get("importiert_am"),
+                            "anzahl": len(personen), "listen": len(listen)}
+    bloecke = uwt.laden()
+    if bloecke:
+        for d in uwt.eintraege(bloecke):
+            eintraege.append(Eintrag.aus_dict(d, "uwt"))
+        meta["uwt"] = {"quelle": bloecke[-1].get("datei"), "importiert_am": max(b.get("importiert_am", "") for b in bloecke),
+                       "anzahl": len(bloecke)}
     return eintraege, meta
+
+
+def erinnerungen_laden(heute: date | None = None) -> list:
+    personen, _ = anreiseliste.laden()
+    return anreiseliste.faellige_erinnerungen(personen, heute or date.today())
 
 
 # ---- Hauptfunktion -----------------------------------------------------------------------
@@ -99,6 +119,7 @@ def lade(quelle: Path, refresh: bool = False, fortschritt: Fortschritt | None = 
         pivot_aktualisiert=aktualisiert, importe=meta,
     )
     ds.hinweise = _hinweise(ds)
+    ds.erinnerungen = erinnerungen_laden()
 
     melden("Prognose wird berechnet (Backtest der Modelle) …")
     ds.prognose = prognose.berechne(pdaten.reha, ds.anreise_bestand(), ds.stichtag)
@@ -111,6 +132,7 @@ def neu_berechnen(ds: Datenstand) -> Datenstand:
     ds.eintraege, ds.importe = eintraege_laden()
     ds.kapazitaeten = kapazitaeten_laden()
     ds.hinweise = _hinweise(ds)
+    ds.erinnerungen = erinnerungen_laden()
     if alte_anreisen != [e for e in ds.eintraege if e.kategorie == "Anreise"] or ds.prognose is None:
         ds.prognose = prognose.berechne(ds.pivot.reha, ds.anreise_bestand(), ds.stichtag)
     return ds

@@ -1,16 +1,18 @@
-"""Daten & Import: Pivot-Quelle, Kapazitäten, Mieten, Anreisen, manuelle Einträge."""
+"""Daten & Import: Pivot-Quelle, Kapazitäten, Anreisen Goslar, Mieten, UWT, manuelle Einträge."""
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtWidgets import QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QSpinBox, QWidget
+from PySide6.QtWidgets import (
+    QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QSpinBox, QVBoxLayout, QWidget,
+)
 
-from ... import importe, laden, speicher
+from ... import anreiseliste, erinnerung, importe, laden, speicher, uwt
 from ...konfig import MANUELLE_KATEGORIEN, STANDORT_LABEL, STANDORTE
 from ..basis import Seite, Zustand
-from ..widgets import DatumFeld, Karte, Leer, Pille, Tabelle, knopf, label, leeren, zahl
+from ..widgets import DatumFeld, Karte, Leer, Pille, Segment, Tabelle, knopf, label, leeren, zahl
 
 
 class DatenSeite(Seite):
@@ -64,25 +66,70 @@ class DatenSeite(Seite):
         self.kap_karte.inhalt.addWidget(speichern, 0)
         self.zeile(self.quelle_karte, self.kap_karte, stretch=[3, 2])
 
-        # Importe
+        # Anreisen Goslar
+        self.anr_karte = Karte("Anreisen Internat Goslar",
+                               "Anreiselisten (Excel) hochladen – Datum aus dem Titel, gezählt werden Personen mit Internat. "
+                               "Abreise und Erinnerung per Doppelklick bzw. Stift eintragen.")
+        anr_knoepfe = QHBoxLayout()
+        anr_knoepfe.setSpacing(8)
+        plus_person = knopf("Person hinzufügen", "ghost", "plus")
+        plus_person.clicked.connect(lambda: self._person(None))
+        hoch = knopf("Anreiselisten hochladen", "primary", "hochladen")
+        hoch.clicked.connect(self._anreiselisten)
+        anr_knoepfe.addWidget(plus_person)
+        anr_knoepfe.addWidget(hoch)
+        anr_kopf = QWidget()
+        anr_kopf.setLayout(anr_knoepfe)
+        anr_knoepfe.setContentsMargins(0, 0, 0, 0)
+        self.anr_karte.aktion(anr_kopf)
+        filter_zeile = QHBoxLayout()
+        self.anr_filter = Segment(["Kommende", "Ohne Abreise", "Mit Erinnerung", "Alle"], 0)
+        self.anr_filter.geaendert.connect(lambda _i: self._anreisen_anzeigen())
+        filter_zeile.addWidget(self.anr_filter)
+        self.anr_info = label("", "klein")
+        filter_zeile.addWidget(self.anr_info, 1)
+        filter_zeile.addWidget(label("Ohne Abreise zählen", "klein"))
+        self.anr_wochen = QSpinBox()
+        self.anr_wochen.setRange(0, 104)
+        self.anr_wochen.setSuffix(" Wochen")
+        self.anr_wochen.setSpecialValueText("nur als Termin")
+        self.anr_wochen.setFixedWidth(130)
+        self.anr_wochen.setToolTip("Personen ohne eingetragene Abreise: angenommene Aufenthaltsdauer für Belegung und Prognose")
+        self.anr_wochen.setValue(int(speicher.einstellungen().get("anreise_standard_wochen", 0) or 0))
+        self.anr_wochen.editingFinished.connect(self._wochen_speichern)
+        filter_zeile.addWidget(self.anr_wochen)
+        self.anr_karte.inhalt.addLayout(filter_zeile)
+        self.anr_tabelle = Tabelle(["Anreise", "Name", "Maßnahme", "Internat", "Abreise", "Erinnerung", ""],
+                                   ["l", "l", "l", "l", "l", "l", "l"], dehnen=1)
+        self.anr_tabelle.cellDoubleClicked.connect(lambda r, _c: self._person(self._anr_zeilen[r]) if r < len(self._anr_zeilen) else None)
+        self.anr_karte.inhalt.addWidget(self.anr_tabelle)
+        self.anr_leer = Leer("hochladen", "Noch keine Anreisen",
+                             "Eine oder mehrere Anreiselisten wählen (z. B. „Anreiseliste 21-10-2026.xlsx“). Erneutes "
+                             "Hochladen aktualisiert die Liste, eingetragene Abreisen bleiben erhalten.")
+        self.anr_karte.inhalt.addWidget(self.anr_leer)
+        self._anr_zeilen: list = []
+        self.lay.addWidget(self.anr_karte)
+
+        # Mieten (allgemeiner Listen-Import) und UWT
         self.import_karten: dict[str, tuple[Karte, object]] = {}
-        zeile = []
-        for art, titel, text in (
-            ("mieten", "Mieten", "Mietverträge (Von, Bis, Standort, Plätze, Mieter). Zählen zur Netto-Belegung."),
-            ("anreisen", "Anreisen", "Geplante Neuaufnahmen (Anreise, ggf. Abreise, Standort, Anzahl). Ergänzen Belegung "
-                                     "und Prognose ab morgen – vergangene Tage stehen bereits in der Pivot."),
-        ):
-            karte = Karte(titel, text)
-            hoch = knopf("Excel hochladen", "primary", "hochladen")
-            hoch.clicked.connect(lambda _=False, a=art: self._import(a))
-            karte.aktion(hoch)
-            inhalt = QWidget()
-            inhalt_lay = QGridLayout(inhalt)
-            inhalt_lay.setContentsMargins(0, 0, 0, 0)
-            karte.inhalt.addWidget(inhalt)
-            self.import_karten[art] = (karte, inhalt_lay)
-            zeile.append(karte)
-        self.zeile(*zeile)
+        karte = Karte("Mieten", "Mietverträge (Von, Bis, Standort, Plätze, Mieter). Zählen zur Netto-Belegung.")
+        hoch = knopf("Excel hochladen", "primary", "hochladen")
+        hoch.clicked.connect(lambda: self._import("mieten"))
+        karte.aktion(hoch)
+        inhalt = QWidget()
+        inhalt_lay = QGridLayout(inhalt)
+        inhalt_lay.setContentsMargins(0, 0, 0, 0)
+        karte.inhalt.addWidget(inhalt)
+        self.import_karten["mieten"] = (karte, inhalt_lay)
+
+        self.uwt_karte = Karte("UWT-Blöcke", "An- und Abreiselisten (PDF). Die UWT steht nicht in der Pivot und zählt "
+                                             "über den ganzen Block zur Belegung Goslar.")
+        uwt_hoch = knopf("PDF hochladen", "primary", "hochladen")
+        uwt_hoch.clicked.connect(self._uwt)
+        self.uwt_karte.aktion(uwt_hoch)
+        self.uwt_inhalt = QVBoxLayout()
+        self.uwt_karte.inhalt.addLayout(self.uwt_inhalt)
+        self.zeile(karte, self.uwt_karte)
 
         # Manuelle Einträge
         self.man_karte = Karte("Manuelle Einträge", "Einzelne Belegungen ohne Liste, z. B. DRK, Landkreis, FRAI, Jugendhilfe")
@@ -125,8 +172,9 @@ class DatenSeite(Seite):
         for s, (n, b) in self.kap_felder.items():
             n.setValue(ds.kapazitaet(s))
             b.setValue(ds.kapazitaet(s, True))
-        for art in importe.ARTEN:
-            self._import_anzeigen(art)
+        self._import_anzeigen("mieten")
+        self._anreisen_anzeigen()
+        self._uwt_anzeigen()
         self._man_anzeigen()
 
     def _import_anzeigen(self, art: str) -> None:
@@ -158,6 +206,65 @@ class DatenSeite(Seite):
         lay.addWidget(tab, 1, 0)
         summen = importe.standorte_in([{"standort": e.standort, "anzahl": e.anzahl} for e in eintraege])
         lay.addWidget(label(" · ".join(f"{STANDORT_LABEL[s]}: {zahl(v)}" for s, v in summen.items()), "klein"), 2, 0)
+
+    def _anreisen_anzeigen(self) -> None:
+        personen, listen = anreiseliste.laden()
+        heute = date.today()
+        filt = self.anr_filter.index()
+        if filt == 0:
+            auswahl = [p for p in personen if (p.abreise or p.anreise) >= heute - timedelta(days=1)]
+        elif filt == 1:
+            auswahl = [p for p in personen if p.abreise is None]
+        elif filt == 2:
+            auswahl = [p for p in personen if p.erinnerung_tage is not None]
+        else:
+            auswahl = list(personen)
+        self._anr_zeilen = auswahl
+        zeilen = []
+        for p in auswahl:
+            stift = knopf("", "icon", "neu", "Abreise und Erinnerung bearbeiten")
+            stift.clicked.connect(lambda _=False, p=p: self._person(p))
+            if p.erinnerung_tage is None:
+                erin = "–"
+            elif p.erledigt:
+                erin = "erledigt"
+            else:
+                erin = f"{p.erinnerung_am:%d.%m.} · {erinnerung.KANAL_KURZ.get(p.erinnerung_kanal, '')}"
+            zeilen.append([p.anreise.strftime("%d.%m.%Y"), p.name, p.massnahme or p.gruppe,
+                           Pille("ja", "ok") if p.internat else Pille("nein", "neutral"),
+                           p.abreise.strftime("%d.%m.%Y") if p.abreise else Pille("offen", "knapp"), erin, stift])
+        self.anr_tabelle.fuellen(zeilen)
+        self.anr_tabelle.hoehe_anpassen(12)
+        self.anr_tabelle.setVisible(bool(zeilen))
+        self.anr_leer.setVisible(not personen)
+        if personen:
+            mit = sum(1 for p in personen if p.internat)
+            offen = sum(1 for p in personen if p.internat and p.abreise is None)
+            self.anr_info.setText(f"{len(personen)} Personen aus {len(listen)} Listen · {mit} mit Internat · "
+                                  f"{offen} davon ohne Abreise" + (f" · {len(auswahl)} angezeigt" if len(auswahl) != len(personen) else ""))
+        else:
+            self.anr_info.setText("")
+
+    def _uwt_anzeigen(self) -> None:
+        leeren(self.uwt_inhalt)
+        bloecke = uwt.laden()
+        if not bloecke:
+            self.uwt_inhalt.addWidget(Leer("hochladen", "Noch keine UWT-Blöcke",
+                                           "PDF „UWT An- und Abreiseliste“ hochladen – Klassen, Anzahl und Zeitraum werden erkannt."))
+            return
+        heute = date.today().isoformat()
+        tab = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", ""], ["l", "r", "l", "l", "l"], dehnen=0)
+        zeilen = []
+        for b in sorted(bloecke, key=lambda b: (b["abreise"] < heute, b["anreise"])):
+            weg = knopf("", "icon", "loeschen", "Block entfernen")
+            weg.clicked.connect(lambda _=False, b=b: self._uwt_loeschen(b))
+            zeilen.append([b["klasse"], b["anzahl"], date.fromisoformat(b["anreise"]).strftime("%d.%m.%Y"),
+                           date.fromisoformat(b["abreise"]).strftime("%d.%m.%Y"), weg])
+        tab.fuellen(zeilen)
+        tab.hoehe_anpassen(8)
+        self.uwt_inhalt.addWidget(tab)
+        aktiv = sum(int(b["anzahl"]) for b in bloecke if b["anreise"] <= heute <= b["abreise"])
+        self.uwt_inhalt.addWidget(label(f"{len(bloecke)} Blöcke · heute im Haus: {aktiv}", "klein"))
 
     def _man_anzeigen(self) -> None:
         roh = laden.manuelle_laden()
@@ -193,6 +300,73 @@ class DatenSeite(Seite):
         if dialog.exec():
             self.z.meldung.emit(f"{dialog.anzahl} {importe.ARTEN[art]} importiert.", "ok")
             self.z.listen_geaendert.emit()
+
+    def _datei_start(self, schluessel: str) -> str:
+        return speicher.einstellungen().get(schluessel) or str(Path.home())
+
+    def _anreiselisten(self) -> None:
+        from ..dialoge import AnreiselistenDialog, erinnerung_abgleichen
+
+        pfade, _ = QFileDialog.getOpenFileNames(self, "Anreiselisten wählen", self._datei_start("import_ordner_anreisen"),
+                                                "Excel-Listen (*.xlsx *.xlsm);;Alle Dateien (*)")
+        if not pfade:
+            return
+        speicher.einstellung_setzen("import_ordner_anreisen", str(Path(pfade[0]).parent))
+        dialog = AnreiselistenDialog([Path(p) for p in pfade], self)
+        if not dialog.exec():
+            return
+        b = dialog.bericht
+        for p in b.entfernt:
+            erinnerung_abgleichen(p, None)
+        teile = [f"{b.neu} neu", f"{b.aktualisiert} aktualisiert"] + ([f"{len(b.entfernt)} nicht mehr auf der Liste"] if b.entfernt else [])
+        self.z.meldung.emit("Anreisen importiert: " + ", ".join(teile) + ".", "ok")
+        self._anreisen_anzeigen()
+        self.z.listen_geaendert.emit()
+
+    def _person(self, person) -> None:
+        from ..dialoge import PersonDialog, erinnerung_abgleichen
+
+        dialog = PersonDialog(person, self)
+        if not dialog.exec():
+            return
+        neu = dialog.ergebnis
+        meldung = erinnerung_abgleichen(person, neu)
+        if neu is None:
+            anreiseliste.person_loeschen(person.schluessel)
+            self.z.meldung.emit(f"{person.name} entfernt.", "ok")
+        else:
+            anreiseliste.person_speichern(neu, person.schluessel if person else None)
+            self.z.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
+        self._anreisen_anzeigen()
+        self.z.listen_geaendert.emit()
+
+    def _wochen_speichern(self) -> None:
+        wert = self.anr_wochen.value()
+        if wert != int(speicher.einstellungen().get("anreise_standard_wochen", 0) or 0):
+            speicher.einstellung_setzen("anreise_standard_wochen", wert)
+            self.z.listen_geaendert.emit()
+
+    def _uwt(self) -> None:
+        from ..dialoge import UwtDialog
+
+        pfad, _ = QFileDialog.getOpenFileName(self, "UWT-Liste wählen", self._datei_start("import_ordner_uwt"),
+                                              "PDF (*.pdf);;Alle Dateien (*)")
+        if not pfad:
+            return
+        speicher.einstellung_setzen("import_ordner_uwt", str(Path(pfad).parent))
+        dialog = UwtDialog(Path(pfad), self)
+        if dialog.exec():
+            neu, ersetzt = dialog.ergebnis
+            self.z.meldung.emit(f"UWT importiert: {neu} Blöcke neu, {ersetzt} ersetzt.", "ok")
+            self._uwt_anzeigen()
+            self.z.listen_geaendert.emit()
+
+    def _uwt_loeschen(self, b: dict) -> None:
+        if QMessageBox.question(self, "Block entfernen", f"UWT {b['klasse']} ab {date.fromisoformat(b['anreise']):%d.%m.%Y} entfernen?") != QMessageBox.Yes:
+            return
+        uwt.block_loeschen(b["klasse"], b["anreise"])
+        self._uwt_anzeigen()
+        self.z.listen_geaendert.emit()
 
     def _import_loeschen(self, art: str) -> None:
         if QMessageBox.question(self, "Import entfernen", f"Alle importierten {importe.ARTEN[art]} entfernen?") != QMessageBox.Yes:
