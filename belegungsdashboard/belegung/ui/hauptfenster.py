@@ -61,11 +61,12 @@ class HauptFenster(QMainWindow):
         from .seiten.einstellungen import EinstellungenSeite
         from .seiten.prognose import PrognoseSeite
         from .seiten.uebersicht import UebersichtSeite
+        from .seiten.zimmerplan import ZimmerplanSeite
 
         self.seiten: dict[str, Seite] = {
             "uebersicht": UebersichtSeite(zustand), "belegung": BelegungSeite(zustand),
             "prognose": PrognoseSeite(zustand), "assistent": AssistentSeite(zustand),
-            "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
+            "zimmerplan": ZimmerplanSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
         }
         for s in self.seiten.values():
             self.stapel.addWidget(s)
@@ -116,10 +117,11 @@ class HauptFenster(QMainWindow):
         self.nav = QButtonGroup(self)
         self.nav_knoepfe: dict[str, QPushButton] = {}
         eintraege = [("Analyse", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
-                     ("assistent", "Assistent"), ("Verwaltung", None), ("daten", "Daten && Import"),
+                     ("assistent", "Assistent"), ("Verwaltung", None), ("zimmerplan", "Zimmerplan"),
+                     ("daten", "Daten && Import"),
                      ("einstellungen", "Einstellungen")]
         icon_name = {"uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
-                     "assistent": "assistent", "daten": "daten", "einstellungen": "einstellungen"}
+                     "assistent": "assistent", "zimmerplan": "haus", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
                 v.addWidget(label(key.upper(), "nav_gruppe"))

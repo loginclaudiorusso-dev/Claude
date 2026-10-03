@@ -63,6 +63,53 @@ PDF „UWT An- und Abreiseliste“ hochladen: Klassen, Anzahl und Zeitraum je Bl
 darüber) sowie, falls aufgeführt, die Personen mit Zimmer. Die UWT steht nicht in der Pivot und
 zählt deshalb über den ganzen Block zur Belegung Goslar (Kategorie UWT).
 
+### Zimmerplan Goslar (neu)
+
+Eigene Seite **Zimmerplan** (Strg+5). Grundlage ist der **Gebäudeplan** als Word-Export
+(.docx) aus dem Belegungssystem – regelmäßig neu importieren. Daraus kommen Zimmer, Betten,
+Belegungen mit Zeitraum, Sperrungen/Renovierungen und Zimmerfreigaben („Frei teilw.“).
+Die 17 Gästezimmer (Haus 2, Etage 6, 601–617) sind fest hinterlegt.
+
+**Zuteilen:** Anreise wählen → das Programm schlägt für jede Person ein Zimmer vor;
+Zimmer, Geschlecht und Tier lassen sich je Person ändern, dann „Übernehmen“. Übernommene
+Zuweisungen zählen bei späteren Vorschlägen als belegt, bis die Person im Gebäudeplan steht.
+**Excel-Zimmerliste**: Zimmerliste je Anreise, Übersicht je Flur (für Vorbereitung und
+Reinigung) und freie Zimmer am Anreisetag – druckfertig (A4 quer).
+
+Feste Regeln:
+
+| Gruppe | erlaubt |
+|---|---|
+| EMR | nur Haus 2, Etage 1–2 |
+| Gäste | nur Gästezimmer Haus 2, Etage 6 |
+| Mieter | nur Haus 6 |
+| UWT | Haus 3.2, 3.3 und 6 |
+| RVL | Haus 3.1 |
+| Assessment, RVT, Reha-Maßnahmen | Haus 2 (Etage 1–5), 3.1, 3.2, 3.3 – nicht Haus 6 |
+
+* Tiere nur in Haus 3.1 EG/UG · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,
+  x09) nur Männer · Doppelzimmer teilen sich nur Personen derselben UWT-Klasse und desselben
+  Geschlechts, alle anderen wohnen allein darin · nach jeder Abreise ein Tag Puffer
+  (einstellbar).
+* Wünsche: eine Anreise zusammen auf einem Flur (Flure = durch das Treppenhaus getrennte
+  Hälften), Zimmer möglichst nicht direkt nebeneinander · kurze Maßnahmen und Assessment
+  bevorzugt Haus 2 Etage 5 · Doppelzimmer für die UWT, Tier-Zimmer und Haus 2 Etage 1–2 (EMR)
+  möglichst freihalten.
+* Widersprechen sich Regeln (z. B. EMR mit Tier), bleibt die Person unzugeteilt und der Grund
+  wird angezeigt – dann von Hand festlegen.
+* Geschlecht steht in den Listen nicht; es wird aus dem Vornamen geschätzt (mit * markiert)
+  und lässt sich korrigieren. Tiere werden aus den Bemerkungen erkannt („Hund“, „Katze“ …);
+  Bemerkungen, die später kommen, unter Daten & Import an der Person ergänzen.
+* Ohne Abreise wird eine übliche Dauer angenommen (EMR/Assessment 4 Wochen, RVL/RVT 13,
+  sonst 52) und mit ≈ gekennzeichnet.
+
+**Häuser:** alle Zimmer je Haus, Etage und Flur mit Status an einem frei wählbaren Tag
+(frei, teilweise, belegt, geplant, gesperrt), Tooltip mit Bewohnern und „frei bis“.
+
+**Zimmer-Stammdaten:** Flur, Betten, Bad über den Flur, Tier-Zimmer, Gästezimmer und „im
+Internat“ (z. B. Etagen der Jugendhilfe ausblenden) – aus den Grundrissen vorbelegt, bitte
+einmal prüfen. Gespeichert werden nur Abweichungen (`zimmer_stammdaten.json`).
+
 ### Mieten
 
 Excel-/CSV-Liste mit automatischer Spaltenerkennung („Mietbeginn“, „Einrichtung“, „Anzahl
@@ -136,6 +183,9 @@ belegung/            fachlicher Kern ohne Qt (testbar)
   anreiseliste.py    Anreiselisten Goslar, Abreisen, fällige Erinnerungen
   uwt.py             UWT-PDF (Blöcke und Personen)
   erinnerung.py      Outlook-Termin/-Mail, .ics
+  gebaeudeplan.py    Gebäudeplan (.docx): Zimmer, Belegungen, Sperrungen
+  zimmerplan.py      Zimmer-Stammdaten, Regeln, Zuteilungsvorschlag
+  zimmerexport.py    Excel-Zimmerliste
   datenstand.py      Datenmodell, Aufschlüsselung, Ist+Prognose-Verlauf
   prognose.py        Backtest-Modellauswahl, kalibrierte Bänder
   laden.py           Quelle -> Datenstand

@@ -69,7 +69,7 @@ class DatenSeite(Seite):
         # Anreisen Goslar
         self.anr_karte = Karte("Anreisen Internat Goslar",
                                "Anreiselisten (Excel) hochladen – Datum aus dem Titel, gezählt werden Personen mit Internat. "
-                               "Abreise und Erinnerung per Doppelklick bzw. Stift eintragen.")
+                               "Abreise, Erinnerung, Geschlecht, Tier und Bemerkungen per Doppelklick bzw. Stift.")
         anr_knoepfe = QHBoxLayout()
         anr_knoepfe.setSpacing(8)
         plus_person = knopf("Person hinzufügen", "ghost", "plus")
@@ -230,10 +230,14 @@ class DatenSeite(Seite):
                 erin = "erledigt"
             else:
                 erin = f"{p.erinnerung_am:%d.%m.} · {erinnerung.KANAL_KURZ.get(p.erinnerung_kanal, '')}"
-            zeilen.append([p.anreise.strftime("%d.%m.%Y"), p.name, p.massnahme or p.gruppe,
+            zeilen.append([p.anreise.strftime("%d.%m.%Y"), p.name + (" · Tier" if p.tier else "") + (" · …" if p.bemerkung else ""),
+                           p.massnahme or p.gruppe,
                            Pille("ja", "ok") if p.internat else Pille("nein", "neutral"),
                            p.abreise.strftime("%d.%m.%Y") if p.abreise else Pille("offen", "knapp"), erin, stift])
         self.anr_tabelle.fuellen(zeilen)
+        for r, p in enumerate(auswahl):
+            if p.bemerkung and self.anr_tabelle.item(r, 1):
+                self.anr_tabelle.item(r, 1).setToolTip(p.bemerkung)
         self.anr_tabelle.hoehe_anpassen(12)
         self.anr_tabelle.setVisible(bool(zeilen))
         self.anr_leer.setVisible(not personen)
