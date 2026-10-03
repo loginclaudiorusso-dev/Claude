@@ -97,7 +97,8 @@ Feste Regeln:
 | RVL | bevorzugt Haus 3.1, sonst 3.2, 3.3 oder Haus 2 |
 | Assessment, RVT, Reha-Maßnahmen | Haus 2 (Etage 1–5), 3.1, 3.2, 3.3 – nicht Haus 6 |
 
-* Tiere nur in Haus 3.1 EG/UG · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,
+* Tiere nur in Haus 3.1 EG/UG – das geht der Gruppenregel vor (auch EMR mit Tier wohnt dort,
+  bevorzugt im EG) · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,
   x09) nur Männer · Doppelzimmer teilen sich nur Personen derselben UWT-Klasse und desselben
   Geschlechts, alle anderen wohnen allein darin · nach jeder Abreise ein Tag Puffer
   (einstellbar).
@@ -105,8 +106,8 @@ Feste Regeln:
   Hälften), Zimmer möglichst nicht direkt nebeneinander · kurze Maßnahmen und Assessment
   bevorzugt Haus 2 Etage 5 · Doppelzimmer für die UWT, Tier-Zimmer und Haus 2 Etage 1–2 (EMR)
   möglichst freihalten.
-* Widersprechen sich Regeln (z. B. EMR mit Tier), bleibt die Person unzugeteilt und der Grund
-  wird angezeigt – dann von Hand festlegen.
+* Findet sich kein zulässiges Zimmer, bleibt die Person unzugeteilt und der Grund wird
+  angezeigt – dann im Feld „Zimmer“ von Hand festlegen.
 * Geschlecht steht in den Listen nicht; es wird aus dem Vornamen geschätzt (mit * markiert)
   und lässt sich korrigieren. Tiere werden aus den Bemerkungen erkannt („Hund“, „Katze“ …);
   Bemerkungen, die später kommen, unter Daten & Import an der Person ergänzen.
