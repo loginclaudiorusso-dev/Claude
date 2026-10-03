@@ -242,7 +242,8 @@ class ZimmerplanSeite(Seite):
 
     def _bedarf(self) -> list[zp.Bedarf]:
         kennung = self.anreise.currentData()
-        return [b for b in self.stand.bedarf if b.anreise_kennung == kennung]
+        return sorted((b for b in self.stand.bedarf if b.von.isoformat() == kennung),
+                      key=lambda b: (b.anreise_kennung, b.name))
 
     def _anreise_gewaehlt(self, *_):
         bedarf = self._bedarf() if self.stand else []
@@ -375,8 +376,9 @@ class ZimmerplanSeite(Seite):
         if not self._zuteilungen:
             return
         b0 = self._zuteilungen[0].bedarf
-        titel = f"Zimmerliste Anreise {b0.von:%d.%m.%Y} – {zp.GRUPPE_LABEL.get(b0.anreise_kennung.split('|')[1], b0.anreise_kennung.split('|')[1])}"
-        pfad = self._speicherort(f"Zimmerliste_{b0.von:%Y-%m-%d}_{b0.anreise_kennung.split('|')[1].replace(' ', '_')}.xlsx")
+        gruppen = self.anreise.currentText().split(" · ")[1] if " · " in self.anreise.currentText() else ""
+        titel = f"Zimmerliste Anreise {b0.von:%d.%m.%Y}" + (f" – {gruppen}" if gruppen else "")
+        pfad = self._speicherort(f"Zimmerliste_{b0.von:%Y-%m-%d}.xlsx")
         if pfad:
             self._excel_schreiben(pfad, titel, self._zuteilungen, b0.von)
 

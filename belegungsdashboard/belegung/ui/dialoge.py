@@ -379,26 +379,29 @@ class AnreiselistenDialog(QDialog):
 class UwtDialog(QDialog):
     def __init__(self, pfad: Path, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("UWT-Liste importieren")
-        self.resize(820, 680)
+        self.setWindowTitle("UWT importieren")
+        self.resize(820, 760)
         self.ergebnis = (0, 0)
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 20, 24, 20)
         v.setSpacing(14)
-        v.addWidget(label("UWT-Liste importieren", "seitentitel"))
+        v.addWidget(label("UWT importieren", "seitentitel"))
         v.addWidget(label(f"{pfad.name} · Die UWT steht nicht in der Pivot – jeder Block zählt über den ganzen Zeitraum "
-                          "zur Belegung Goslar. Ein Block derselben Klasse mit derselben Anreise wird ersetzt.",
+                          "(inkl. Wochenenden) zur Belegung Goslar. Ein Block derselben Klasse, der sich mit einem "
+                          "vorhandenen überschneidet, ersetzt ihn – Personen und Zimmer aus einer PDF-Liste bleiben erhalten.",
                           "muted", umbruch=True))
         try:
-            self.liste = uwt.pdf_lesen(pfad)
+            self.liste = uwt.lesen(pfad)
         except Exception as exc:
             self.liste = None
             v.addWidget(Hinweis(f"Die Datei konnte nicht gelesen werden: {exc}", "fehler"))
         if self.liste:
-            k = Karte("Blöcke", f"{sum(b.anzahl for b in self.liste.bloecke)} Personen")
+            bl = self.liste.bloecke
+            k = Karte("Blöcke", f"{len(bl)} Blöcke · {len({b.klasse for b in bl})} Klassen · "
+                                f"{bl[0].anreise:%d.%m.%Y} bis {max(b.abreise for b in bl):%d.%m.%Y}")
             t = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", "Nächte"], ["l", "r", "l", "l", "r"], dehnen=0)
             t.fuellen([[b.klasse, b.anzahl, _d(b.anreise), _d(b.abreise), (b.abreise - b.anreise).days] for b in self.liste.bloecke])
-            t.hoehe_anpassen(6)
+            t.hoehe_anpassen(12)
             k.inhalt.addWidget(t)
             v.addWidget(k)
             if self.liste.personen:

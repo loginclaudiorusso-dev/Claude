@@ -1,4 +1,4 @@
-"""UWT-An- und Abreiselisten (PDF) für Goslar.
+"""UWT für Goslar: An- und Abreiselisten (PDF) und Anreisekalender (Excel).
 
 Die UWT kommt blockweise: Oben steht je Klasse die Anzahl und der Zeitraum
 („''“ = wie Zeile darüber), darunter optional die Personen mit Zimmer. Die UWT steht nicht in
@@ -112,7 +112,108 @@ def pdf_lesen(pfad: Path) -> UwtListe:
 
 
 # ---------------------------------------------------------------------------------------
-# Bestand: Blöcke je (Klasse, Anreise); ein neuer Upload desselben Blocks ersetzt ihn.
+# Anreisekalender (Excel): Klassen farbig, Zahl = Personen; Legende unter dem Kalender
+# ---------------------------------------------------------------------------------------
+
+_MONATE = {"januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4, "mai": 5, "juni": 6, "juli": 7,
+           "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12}
+_KLASSE = re.compile(r"^\s*([A-ZÄÖÜ]{2,5}\d{2}|Sonderfall\w*)\s*$", re.I)
+MAX_LUECKE_TAGE = 4   # Wochenende/Feiertag innerhalb eines Blocks – die Klasse bleibt im Haus
+
+
+def _farbe(zelle) -> str | None:
+    f = zelle.fill
+    if not f or f.fill_type in (None, "none"):
+        return None
+    rgb = f.fgColor.rgb if f.fgColor is not None and f.fgColor.type == "rgb" else None
+    if isinstance(rgb, str):
+        return rgb[-6:].upper()
+    return f"theme{f.fgColor.theme}:{round(f.fgColor.tint or 0, 2)}" if f.fgColor is not None else None
+
+
+def kalender_lesen(pfad: Path) -> UwtListe:
+    import openpyxl
+
+    wb = openpyxl.load_workbook(pfad, data_only=True)
+    ws = wb.active
+    hinweise: list[str] = []
+    jahr = None
+    for zeile in ws.iter_rows(min_row=1, max_row=3):
+        for c in zeile:
+            if isinstance(c.value, str) and (m := re.search(r"(20\d{2})", c.value)):
+                jahr = int(m.group(1))
+                break
+        if jahr:
+            break
+    if jahr is None:
+        m = re.search(r"(20\d{2})", Path(pfad).stem)
+        jahr = int(m.group(1)) if m else date.today().year
+
+    # Monatsköpfe: Zeile mit Monatsnamen; Spaltenbereich bis zum nächsten Monat
+    kopf_zeile, monate = None, []
+    for zeile in ws.iter_rows(min_row=1, max_row=6):
+        treffer = [(c.column, _MONATE[c.value.strip().lower()]) for c in zeile
+                   if isinstance(c.value, str) and c.value.strip().lower() in _MONATE]
+        if len(treffer) >= 1:
+            kopf_zeile, monate = zeile[0].row, treffer
+            break
+    if not monate:
+        raise ValueError("Keine Monatsnamen gefunden – ist das der UWT-Anreisekalender?")
+    grenzen = [(sp, mon, (monate[i + 1][0] - 1) if i + 1 < len(monate) else ws.max_column) for i, (sp, mon) in enumerate(monate)]
+
+    # Legende: Zellen mit Klassenname + Füllfarbe
+    legende: dict[str, tuple[str, int | None]] = {}
+    tage: dict[str, dict[date, int]] = {}
+    for zeile in ws.iter_rows(min_row=kopf_zeile + 1):
+        for c in zeile:
+            if isinstance(c.value, str) and (m := _KLASSE.match(c.value)) and (fb := _farbe(c)):
+                anzahl = next((x.value for x in zeile[c.column:] if isinstance(x.value, (int, float)) and _farbe(x) == fb), None)
+                legende[fb] = ("Sonderfall" if m.group(1).lower().startswith("sonderfall") else m.group(1).upper(),
+                               int(anzahl) if anzahl else None)
+    for start, monat, ende in grenzen:
+        jahr_m = jahr + 1 if monat < grenzen[0][1] else jahr   # Kalender über den Jahreswechsel
+        for zeile in ws.iter_rows(min_row=kopf_zeile + 1, min_col=start, max_col=ende):
+            tag_zelle = zeile[0]
+            m = re.match(r"^\s*(\d{1,2})\b", str(tag_zelle.value or ""))
+            if not m:
+                continue
+            try:
+                tag = date(jahr_m, monat, int(m.group(1)))
+            except ValueError:
+                continue
+            for c in zeile[1:]:
+                if isinstance(c.value, (int, float)) and not isinstance(c.value, bool) and (fb := _farbe(c)):
+                    tage.setdefault(fb, {})[tag] = int(c.value)
+
+    bloecke: list[Block] = []
+    for fb, werte in tage.items():
+        if fb not in legende:
+            hinweise.append(f"Farbe #{fb} ohne Eintrag in der Legende – {len(werte)} Tage übersprungen.")
+            continue
+        klasse, anzahl_legende = legende[fb]
+        datum = sorted(werte)
+        start = vorher = datum[0]
+        for d in datum[1:] + [None]:
+            if d is None or (d - vorher).days > MAX_LUECKE_TAGE:
+                anzahl = max(werte[x] for x in werte if start <= x <= vorher)
+                bloecke.append(Block(klasse, anzahl, start, vorher))
+                if anzahl_legende and anzahl != anzahl_legende:
+                    hinweise.append(f"{klasse} ab {start:%d.%m.}: {anzahl} Personen im Kalender, {anzahl_legende} laut Legende.")
+                start = d
+            vorher = d or vorher
+    if not bloecke:
+        raise ValueError("Im Kalender wurden keine farbigen Blöcke mit Personenzahlen gefunden.")
+    return UwtListe(Path(pfad).name, sorted(bloecke, key=lambda b: (b.anreise, b.klasse)), [], hinweise)
+
+
+def lesen(pfad: Path) -> UwtListe:
+    """PDF-An-/Abreiseliste oder Excel-Anreisekalender."""
+    return kalender_lesen(pfad) if Path(pfad).suffix.lower() in (".xlsx", ".xlsm") else pdf_lesen(pfad)
+
+
+# ---------------------------------------------------------------------------------------
+# Bestand: Blöcke je (Klasse, Anreise). Ein neuer Block ersetzt alle Blöcke derselben Klasse,
+# die sich mit ihm überschneiden (z. B. Kalender und später die genaue PDF-Liste).
 # ---------------------------------------------------------------------------------------
 
 def _schluessel(b: dict) -> str:
@@ -132,14 +233,17 @@ def importieren(liste: UwtListe) -> tuple[int, int]:
              "datei": liste.datei, "importiert_am": zeit,
              "personen": [{"tn_id": p.tn_id, "name": p.name, "zimmer": p.zimmer}
                           for p in liste.personen if p.klasse == b.klasse]}
-        k = _schluessel(d)
-        if k in bestand:
+        alte = [k for k, x in bestand.items() if x["klasse"] == b.klasse
+                and x["anreise"] <= d["abreise"] and d["anreise"] <= x["abreise"]]
+        if alte:
             ersetzt += 1
             if not d["personen"]:
-                d["personen"] = bestand[k].get("personen", [])
+                d["personen"] = next((bestand[k]["personen"] for k in alte if bestand[k].get("personen")), [])
+            for k in alte:
+                del bestand[k]
         else:
             neu += 1
-        bestand[k] = d
+        bestand[_schluessel(d)] = d
     speicher.schreiben(DATEI, {"bloecke": sorted(bestand.values(), key=lambda b: (b["anreise"], b["klasse"]))})
     return neu, ersetzt
 
