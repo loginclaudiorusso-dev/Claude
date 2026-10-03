@@ -418,15 +418,15 @@ def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
         w += 3
     elif not b.kurz and z.haus == "2" and z.etage == "5":
         w -= 1.5                     # Reserve für kurze Maßnahmen
-    if b.gruppe == "RVL":
-        w += 4 if z.haus == "3.1" else 0
+    if b.gruppe == "RVL" and z.haus == "3.1":
+        w += 1 if z.tiere else 4     # 3.1 bevorzugt – aber nicht auf Kosten der Tier-Zimmer
     if b.gruppe == "UWT":
         w += 3 if z.betten > 1 else 0
         w += 1 if z.haus in ("3.2", "3.3") else 0
     elif z.betten > 1:
         w -= 2                       # Doppelzimmer für UWT freihalten
     if z.tiere and not b.tier:
-        w -= 1.5                     # Tier-Zimmer freihalten
+        w -= 3                       # Tier-Zimmer freihalten – es gibt nur wenige
     if z.nur_maenner and b.gruppe != "UWT":
         w -= 0.5
     if b.gruppe in ("Reha", "RVT") and (z.haus.startswith("3") or (z.haus == "2" and z.etage in ("2", "3", "4"))):
@@ -490,12 +490,19 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
                 if grund:
                     ergebnis[b.schluessel].warnungen.append(f"Regel verletzt: {grund}")
 
-    # 2) Gruppenweise nach Flur
+    # 2) Personen mit Tier zuerst – für sie gibt es nur wenige Zimmer (Haus 3.1 EG/UG)
+    zimmer_liste = [z for z in lage.zimmer.values() if z.aktiv]
+    for b in sorted((b for b in bedarf if b.tier and b.schluessel not in ergebnis), key=lambda b: b.von):
+        kandidaten = [z for z in zimmer_liste if passt(arbeit, z, b) is None]
+        if kandidaten:
+            z = max(kandidaten, key=lambda z: zimmer_wert(z, b) - 0.001 * z.nummer)
+            belegen(b, z, f"Tier-Zimmer {flur_text(z)}")
+
+    # 3) Gruppenweise nach Flur
     offen = [b for b in bedarf if b.schluessel not in ergebnis]
     gruppen: dict[str, list[Bedarf]] = {}
     for b in sorted(offen, key=lambda b: (b.von, not b.tier, b.name)):
         gruppen.setdefault(b.anreise_kennung or b.schluessel, []).append(b)
-    zimmer_liste = [z for z in lage.zimmer.values() if z.aktiv]
     # schwierige Gruppen zuerst (wenig zulässige Zimmer)
     reihenfolge = sorted(gruppen.values(), key=lambda g: (g[0].von, len([z for z in zimmer_liste if erlaubt(z, g[0].gruppe)])))
     for gruppe in reihenfolge:
@@ -557,7 +564,7 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
                                                        [_warum_nicht(arbeit, zimmer_liste, b)])
                 break
 
-    # 3) Alternativen je Person (ohne die eigene Zuteilung)
+    # 4) Alternativen je Person (ohne die eigene Zuteilung)
     for zt in ergebnis.values():
         b = zt.bedarf
         eigene = frozenset({b.schluessel})

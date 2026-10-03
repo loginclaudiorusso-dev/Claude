@@ -334,6 +334,15 @@ class ZimmerplanSeite(Seite):
             flure[zp.flur_text(z.zimmer)] = flure.get(zp.flur_text(z.zimmer), 0) + 1
         if flure:
             self.zu_status.addWidget(label(" · ".join(f"{f}: {n}" for f, n in sorted(flure.items(), key=lambda x: -x[1])), "klein"))
+        if zts:
+            tag = zts[0].bedarf.von
+            frei = sum(1 for z in self.stand.zimmer if z.aktiv and not z.gaeste
+                       and self.stand.lage.status_am(z.id, tag)[0] in ("frei", "teilweise"))
+            p = Pille(f"{frei} Zimmer frei am {tag:%d.%m.}", "neutral")
+            p.setToolTip("Freie Zimmer im Internat (ohne Gästezimmer) am Anreisetag, vor dieser Zuteilung. "
+                         "Bleibt jemand ohne Zimmer, steht der Grund in der Hinweis-Spalte – meist eine Regel "
+                         "(z. B. Tier, Gruppe), nicht fehlender Platz.")
+            self.zu_status.addWidget(p)
         warn = sum(1 for z in zts if z.warnungen)
         if warn:
             self.zu_status.addWidget(Pille(f"{warn} Hinweise prüfen", "knapp"))

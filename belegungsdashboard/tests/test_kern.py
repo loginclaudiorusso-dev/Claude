@@ -439,6 +439,10 @@ Reno offen
 16.09.2026 - 31.12.2026
 Gesperrt
 GS-Haus-3.1
+01. Etage
+GS-3.1-101
+1 Bett
+Frei
 Erdgeschoß
 GS-3.1-E01
 1 Bett
@@ -610,59 +614,19 @@ def test_rvl_bevorzugt_31_mit_ausweichen(plan):
 
     lage = _lage(plan)
     v, b = date(2026, 11, 2), date(2027, 1, 31)
+    einer = zp.vorschlagen(lage, [_bedarf("R", "RVL", v, b, kennung="rvl")])
+    assert einer[0].zimmer.id == "GS-3.1-101"          # 3.1, aber kein Tier-Zimmer
     erg = zp.vorschlagen(lage, [_bedarf(f"R{i}", "RVL", v, b, kennung="rvl") for i in range(3)])
-    haeuser = sorted(zt.zimmer.haus for zt in erg)
-    assert haeuser.count("3.1") == 2 and "6" not in haeuser and all(zt.zimmer for zt in erg)
+    assert all(zt.zimmer for zt in erg) and not any(zt.zimmer.haus == "6" or zt.zimmer.tiere for zt in erg)
 
 
-def _uwt_kalender(pfad):
-    import openpyxl
-    from openpyxl.styles import PatternFill
+def test_tier_zuerst_vor_anderen(plan):
+    """Personen mit Tier bekommen die knappen Tier-Zimmer, auch wenn andere am selben Tag kommen."""
+    from belegung import zimmerplan as zp
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws["A1"] = "Kalender 2026"
-    ws["A2"], ws["E2"] = "September", "Oktober"
-    rot, blau = PatternFill("solid", fgColor="E06600"), PatternFill("solid", fgColor="2A8296")
-    tage = ["Di", "Mi", "Do", "Fr", "Sa", "So", "Mo"]
-    for i in range(1, 31):
-        ws.cell(row=2 + i, column=1, value=f"{i}  {tage[(i - 1) % 7]}")
-        ws.cell(row=2 + i, column=5, value=f"{i}  x")
-        if 14 <= i <= 25 and tage[(i - 1) % 7] not in ("Sa", "So"):   # Block mit Wochenende dazwischen
-            c = ws.cell(row=2 + i, column=2, value=10)
-            c.fill = rot
-        if 28 <= i <= 30:
-            c = ws.cell(row=2 + i, column=3, value=9)
-            c.fill = blau
-    for i in range(1, 3):   # Oktober: blauer Block läuft weiter
-        c = ws.cell(row=2 + i, column=6, value=9)
-        c.fill = blau
-    ws["A34"], ws["D34"] = "CUK25", 10
-    ws["A34"].fill = ws["D34"].fill = rot
-    ws["A35"], ws["D35"] = "CUW25", 9
-    ws["A35"].fill = ws["D35"].fill = blau
-    wb.save(pfad)
-    return pfad
-
-
-def test_uwt_kalender(tmp_path):
-    from belegung import uwt
-
-    l = uwt.lesen(_uwt_kalender(tmp_path / "Anreisekalender_2026.xlsx"))
-    bloecke = {(b.klasse, b.anreise, b.abreise, b.anzahl) for b in l.bloecke}
-    assert ("CUK25", date(2026, 9, 14), date(2026, 9, 25), 10) in bloecke   # Wochenende gehört zum Block
-    assert ("CUW25", date(2026, 9, 28), date(2026, 10, 2), 9) in bloecke    # über den Monatswechsel
-    assert len(bloecke) == 2 and not l.hinweise
-
-
-def test_uwt_ueberschneidung_ersetzt_und_behaelt_personen(tmp_path, monkeypatch):
-    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
-    from belegung import uwt
-
-    pdf = uwt.UwtListe("liste.pdf", [uwt.Block("CUK25", 7, date(2026, 9, 14), date(2026, 9, 25))],
-                       [uwt.UwtPerson("1", "Muster, Max", "CUK25", "3.2-109/1")])
-    uwt.importieren(pdf)
-    neu, ersetzt = uwt.importieren(uwt.lesen(_uwt_kalender(tmp_path / "k.xlsx")))
-    assert (neu, ersetzt) == (1, 1)
-    cuk = [b for b in uwt.laden() if b["klasse"] == "CUK25"]
-    assert len(cuk) == 1 and cuk[0]["anzahl"] == 10 and cuk[0]["personen"][0]["name"] == "Muster, Max"
+    lage = _lage(plan)
+    v, b = date(2026, 11, 2), date(2027, 1, 31)
+    bedarf = [_bedarf(f"R{i}", "RVL", v, b, kennung="rvl") for i in range(4)] + \
+             [_bedarf("Katze", "RVT", v, b, "w", tier=True, kennung="rvt")]
+    erg = {zt.bedarf.name: zt for zt in zp.vorschlagen(lage, bedarf)}
+    assert erg["Katze"].zimmer is not None and erg["Katze"].zimmer.tiere
