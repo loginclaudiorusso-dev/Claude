@@ -122,9 +122,9 @@ class DatenSeite(Seite):
         karte.inhalt.addWidget(inhalt)
         self.import_karten["mieten"] = (karte, inhalt_lay)
 
-        self.uwt_karte = Karte("UWT-Blöcke", "An- und Abreiselisten (PDF). Die UWT steht nicht in der Pivot und zählt "
-                                             "über den ganzen Block zur Belegung Goslar.")
-        uwt_hoch = knopf("PDF hochladen", "primary", "hochladen")
+        self.uwt_karte = Karte("UWT-Blöcke", "Anreisekalender (Excel, ganzes Halbjahr) oder An- und Abreiseliste (PDF). "
+                                             "Die UWT steht nicht in der Pivot und zählt über den ganzen Block zur Belegung Goslar.")
+        uwt_hoch = knopf("Kalender / Liste hochladen", "primary", "hochladen")
         uwt_hoch.clicked.connect(self._uwt)
         self.uwt_karte.aktion(uwt_hoch)
         self.uwt_inhalt = QVBoxLayout()
@@ -254,7 +254,8 @@ class DatenSeite(Seite):
         bloecke = uwt.laden()
         if not bloecke:
             self.uwt_inhalt.addWidget(Leer("hochladen", "Noch keine UWT-Blöcke",
-                                           "PDF „UWT An- und Abreiseliste“ hochladen – Klassen, Anzahl und Zeitraum werden erkannt."))
+                                           "Anreisekalender (Excel) oder „UWT An- und Abreiseliste“ (PDF) hochladen – "
+                                           "Klassen, Anzahl und Zeitraum werden erkannt."))
             return
         heute = date.today().isoformat()
         tab = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", ""], ["l", "r", "l", "l", "l"], dehnen=0)
@@ -265,7 +266,7 @@ class DatenSeite(Seite):
             zeilen.append([b["klasse"], b["anzahl"], date.fromisoformat(b["anreise"]).strftime("%d.%m.%Y"),
                            date.fromisoformat(b["abreise"]).strftime("%d.%m.%Y"), weg])
         tab.fuellen(zeilen)
-        tab.hoehe_anpassen(8)
+        tab.hoehe_anpassen(10)
         self.uwt_inhalt.addWidget(tab)
         aktiv = sum(int(b["anzahl"]) for b in bloecke if b["anreise"] <= heute <= b["abreise"])
         self.uwt_inhalt.addWidget(label(f"{len(bloecke)} Blöcke · heute im Haus: {aktiv}", "klein"))
@@ -353,8 +354,8 @@ class DatenSeite(Seite):
     def _uwt(self) -> None:
         from ..dialoge import UwtDialog
 
-        pfad, _ = QFileDialog.getOpenFileName(self, "UWT-Liste wählen", self._datei_start("import_ordner_uwt"),
-                                              "PDF (*.pdf);;Alle Dateien (*)")
+        pfad, _ = QFileDialog.getOpenFileName(self, "UWT-Kalender oder -Liste wählen", self._datei_start("import_ordner_uwt"),
+                                              "UWT-Kalender oder -Liste (*.xlsx *.xlsm *.pdf);;Alle Dateien (*)")
         if not pfad:
             return
         speicher.einstellung_setzen("import_ordner_uwt", str(Path(pfad).parent))

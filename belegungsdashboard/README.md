@@ -59,9 +59,18 @@ Anreise (aus dem Titel), Internat ja/nein** und – falls vorhanden – TN-ID un
 
 ### UWT (neu)
 
-PDF „UWT An- und Abreiseliste“ hochladen: Klassen, Anzahl und Zeitraum je Block („''“ = wie
-darüber) sowie, falls aufgeführt, die Personen mit Zimmer. Die UWT steht nicht in der Pivot und
-zählt deshalb über den ganzen Block zur Belegung Goslar (Kategorie UWT).
+Zwei Quellen, beide unter Daten & Import → UWT-Blöcke:
+
+* **Anreisekalender (Excel)** für das ganze Halbjahr: jede Klasse hat eine eigene Farbe, die Zahl
+  in der Zelle ist die Anzahl, die Legende unter dem Kalender ordnet Farbe → Klasse zu.
+  Zusammenhängende Tage einer Farbe bilden einen Block; Wochenenden dazwischen gehören dazu
+  (die Klasse fährt erst nach Blockende nach Hause, die Zimmer bleiben belegt).
+* **An- und Abreiseliste (PDF)** eines Blocks mit Personen und Zimmern.
+
+Ein Block ersetzt einen vorhandenen Block derselben Klasse, mit dem er sich überschneidet –
+so kann erst der Kalender und später die genaue PDF-Liste geladen werden (Personen und Zimmer
+aus der PDF bleiben erhalten). Die UWT steht nicht in der Pivot und zählt über den ganzen Block
+zur Belegung Goslar (Kategorie UWT).
 
 ### Zimmerplan Goslar (neu)
 
@@ -70,7 +79,8 @@ Eigene Seite **Zimmerplan** (Strg+5). Grundlage ist der **Gebäudeplan** als Wor
 Belegungen mit Zeitraum, Sperrungen/Renovierungen und Zimmerfreigaben („Frei teilw.“).
 Die 17 Gästezimmer (Haus 2, Etage 6, 601–617) sind fest hinterlegt.
 
-**Zuteilen:** Anreise wählen → das Programm schlägt für jede Person ein Zimmer vor;
+**Zuteilen:** Anreisetag wählen → das Programm schlägt für jede Person ein Zimmer vor. Alle
+Gruppen eines Tages (z. B. drei UWT-Klassen) werden gemeinsam geplant, jede auf eigenen Fluren;
 Zimmer, Geschlecht und Tier lassen sich je Person ändern, dann „Übernehmen“. Übernommene
 Zuweisungen zählen bei späteren Vorschlägen als belegt, bis die Person im Gebäudeplan steht.
 **Excel-Zimmerliste**: Zimmerliste je Anreise, Übersicht je Flur (für Vorbereitung und

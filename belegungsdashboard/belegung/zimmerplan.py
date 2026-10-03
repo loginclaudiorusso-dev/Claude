@@ -641,16 +641,23 @@ class Planstand:
     bedarf: list[Bedarf]
 
     def anreisen(self, ab: date) -> list[tuple[str, date, str, list[Bedarf]]]:
-        """Anreise-Gruppen ab einem Tag: (Kennung, Datum, Bezeichnung, Personen)."""
-        gruppen: dict[str, list[Bedarf]] = {}
+        """Anreisetage ab einem Tag: (Kennung, Datum, Gruppen-Text, Personen).
+
+        Alle Gruppen eines Tages werden gemeinsam geplant – sonst würden z. B. drei UWT-Klassen
+        mit derselben Anreise jeweils dieselben freien Zimmer vorgeschlagen bekommen."""
+        tage: dict[date, list[Bedarf]] = {}
         for b in self.bedarf:
             if b.von >= ab:
-                gruppen.setdefault(b.anreise_kennung, []).append(b)
+                tage.setdefault(b.von, []).append(b)
         ergebnis = []
-        for k, bs in gruppen.items():
-            titel = k.split("|", 1)[1]
-            ergebnis.append((k, bs[0].von, GRUPPE_LABEL.get(titel, titel), bs))
-        return sorted(ergebnis, key=lambda x: (x[1], x[2]))
+        for tag, bs in sorted(tage.items()):
+            gruppen: dict[str, int] = {}
+            for b in bs:
+                titel = b.anreise_kennung.split("|", 1)[1] if "|" in b.anreise_kennung else b.gruppe
+                gruppen[GRUPPE_LABEL.get(titel, titel)] = gruppen.get(GRUPPE_LABEL.get(titel, titel), 0) + 1
+            text = ", ".join(f"{g} ({n})" if len(gruppen) > 1 else g for g, n in gruppen.items())
+            ergebnis.append((tag.isoformat(), tag, text, sorted(bs, key=lambda b: (b.anreise_kennung, b.name))))
+        return ergebnis
 
     def zugewiesen(self, person: str) -> dict | None:
         return next((z for z in self.zuweisungen if z["person"] == person), None)
