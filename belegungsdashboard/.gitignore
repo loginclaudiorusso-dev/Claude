@@ -1,0 +1,17 @@
+# Laufzeitdaten (liegen neben der exe)
+einstellungen.json
+manuelle_eintraege.json
+kapazitaeten_manuell.json
+pivot_profile.json
+importe/
+*.log
+*.xlsx
+*.xlsm
+*.html
+*.html.bak
+*.gguf
+# Build
+build/
+dist/
+__pycache__/
+.pytest_cache/
