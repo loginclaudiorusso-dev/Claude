@@ -540,7 +540,7 @@ def test_regeln_emr_tier_maenner(plan):
     ])}
     assert erg["Emr"].zimmer.haus == "2" and erg["Emr"].zimmer.etage in ("1", "2")
     assert erg["Tier"].zimmer.id.startswith("GS-3.1-E")
-    assert erg["EmrTier"].zimmer is None and "widersprechen" in erg["EmrTier"].warnungen[0]
+    assert erg["EmrTier"].zimmer.id.startswith("GS-3.1-E")   # Tier geht vor Gruppenregel, bevorzugt EG
     assert not erg["Frau Uwt"].zimmer.nur_maenner
 
 

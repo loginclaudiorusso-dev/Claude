@@ -4,7 +4,8 @@ Feste Regeln (werden nie verletzt):
 * Gruppe → erlaubte Häuser/Etagen (EMR nur Haus 2 Etage 1–2, Gäste nur Haus 2 Etage 6,
   Mieter nur Haus 6, UWT nur 3.2/3.3/6, alle anderen nicht in Haus 6)
 * Gästezimmer nur für Gäste
-* Tiere nur in Zimmern mit Tier-Freigabe (Haus 3.1 EG/UG)
+* Tiere nur in Zimmern mit Tier-Freigabe (Haus 3.1 EG/UG) – das geht der Gruppenregel vor,
+  d. h. auch EMR mit Tier wohnt dort (bevorzugt EG)
 * Zimmer mit Bad über den Flur (Haus 6) nur für Männer
 * Doppelzimmer nur gleiches Geschlecht
 * gesperrte/renovierte Zeiträume und ein Puffer nach jeder Abreise (Reinigung)
@@ -390,7 +391,9 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
     """None, wenn das Zimmer für den Bedarf zulässig ist – sonst der Grund."""
     if not z.aktiv:
         return "nicht im Internat"
-    if not erlaubt(z, b.gruppe):
+    # Tier geht vor Gruppenregel: wer mit Tier kommt (auch EMR), wohnt in einem Tier-Zimmer
+    tier_ausnahme = b.tier and z.tiere and b.gruppe not in ("Gast", "Mieter")
+    if not erlaubt(z, b.gruppe) and not tier_ausnahme:
         return f"{GRUPPE_LABEL[b.gruppe]} nicht in {flur_text(z)}"
     if b.tier and not z.tiere:
         return "Tier nur in Haus 3.1 EG/UG"
@@ -427,6 +430,8 @@ def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
         w -= 2                       # Doppelzimmer für UWT freihalten
     if z.tiere and not b.tier:
         w -= 3                       # Tier-Zimmer freihalten – es gibt nur wenige
+    if b.tier and z.etage == "E":
+        w += 1                       # mit Tier bevorzugt Erdgeschoss
     if z.nur_maenner and b.gruppe != "UWT":
         w -= 0.5
     if b.gruppe in ("Reha", "RVT") and (z.haus.startswith("3") or (z.haus == "2" and z.etage in ("2", "3", "4"))):
