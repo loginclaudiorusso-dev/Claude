@@ -84,7 +84,7 @@ Feste Regeln:
 | Gäste | nur Gästezimmer Haus 2, Etage 6 |
 | Mieter | nur Haus 6 |
 | UWT | Haus 3.2, 3.3 und 6 |
-| RVL | Haus 3.1 |
+| RVL | bevorzugt Haus 3.1, sonst 3.2, 3.3 oder Haus 2 |
 | Assessment, RVT, Reha-Maßnahmen | Haus 2 (Etage 1–5), 3.1, 3.2, 3.3 – nicht Haus 6 |
 
 * Tiere nur in Haus 3.1 EG/UG · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,

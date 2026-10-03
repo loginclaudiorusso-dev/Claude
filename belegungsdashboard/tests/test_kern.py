@@ -603,3 +603,13 @@ def test_zimmer_excel(plan, tmp_path):
     assert wb.sheetnames == ["Zimmerliste", "Je Flur", "Freie Zimmer"]
     ws = wb["Zimmerliste"]
     assert ws["B5"].value == "Muster, Max" and ws["I5"].value == erg[0].zimmer.nr
+
+
+def test_rvl_bevorzugt_31_mit_ausweichen(plan):
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    v, b = date(2026, 11, 2), date(2027, 1, 31)
+    erg = zp.vorschlagen(lage, [_bedarf(f"R{i}", "RVL", v, b, kennung="rvl") for i in range(3)])
+    haeuser = sorted(zt.zimmer.haus for zt in erg)
+    assert haeuser.count("3.1") == 2 and "6" not in haeuser and all(zt.zimmer for zt in erg)
