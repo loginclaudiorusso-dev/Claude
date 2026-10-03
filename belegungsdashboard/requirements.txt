@@ -5,7 +5,8 @@ numpy>=1.26
 pandas>=2.1
 statsmodels>=0.14
 openpyxl>=3.1
-pywin32>=306; sys_platform == "win32"   # nur für "Pivot vom Server abrufen"
+pypdf>=4.0
+pywin32>=306; sys_platform == "win32"   # "Pivot vom Server abrufen" und Outlook-Erinnerungen
 keyring>=24                             # API-Schlüssel in der Windows-Anmeldeinformationsverwaltung
 anthropic>=1.0                          # optional: KI-Anbindung Claude
 

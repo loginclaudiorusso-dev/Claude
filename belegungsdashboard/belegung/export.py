@@ -41,11 +41,11 @@ def _saisonprofile(ds: Datenstand) -> dict:
 def baue_json(ds: Datenstand) -> dict:
     def liste(kategorie: str) -> list[dict]:
         return [{"von": e.von.isoformat(), "bis": e.bis.isoformat(), "anzahl": e.anzahl, "standort": e.standort,
-                 "bezeichnung": e.bezeichnung} for e in ds.eintraege if e.kategorie == kategorie]
+                 "bezeichnung": e.oeffentlich} for e in ds.eintraege if e.kategorie == kategorie]
 
     def belegungsliste(kategorien: tuple[str, ...]) -> list[dict]:
         return [{"von": e.von.isoformat(), "bis": e.bis.isoformat(), "standort": e.standort, "bereich": "",
-                 "anzahl": e.anzahl, "typ": e.kategorie, "bezeichnung": e.bezeichnung}
+                 "anzahl": e.anzahl, "typ": e.kategorie, "bezeichnung": e.oeffentlich}
                 for e in ds.eintraege if e.kategorie in kategorien]
 
     prognosen, modellinfo = {}, {}

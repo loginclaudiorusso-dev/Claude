@@ -1,20 +1,20 @@
-"""Dialoge: Listen-Import mit Spaltenzuordnung und Pivot-Struktur."""
+"""Dialoge: Listen-Import, Anreiselisten, UWT, Abreise/Erinnerung und Pivot-Struktur."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QFormLayout, QGridLayout, QHBoxLayout, QLineEdit, QSpinBox, QVBoxLayout,
+    QCheckBox, QComboBox, QDialog, QFormLayout, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QSpinBox, QVBoxLayout,
 )
 from openpyxl.utils import get_column_letter
 
-from .. import importe, pivot
+from .. import anreiseliste, erinnerung, importe, pivot, speicher, uwt
 from ..konfig import STANDORT_LABEL, STANDORTE
 from .basis import Worker
-from .widgets import Hinweis, Karte, Pille, Tabelle, knopf, label, leeren
+from .widgets import DatumFeld, Hinweis, Karte, Pille, Tabelle, knopf, label, leeren
 
 
 class ImportDialog(QDialog):
@@ -292,3 +292,321 @@ class PivotProfilDialog(QDialog):
         self._zuordnung[self.pfad.name.lower()] = p.name
         pivot.speichere_profile(self._profile, self._zuordnung)
         self.accept()
+
+
+# ---------------------------------------------------------------------------------------
+# Anreiselisten Goslar
+# ---------------------------------------------------------------------------------------
+
+def _d(x: date | None) -> str:
+    return x.strftime("%d.%m.%Y") if x else "–"
+
+
+class AnreiselistenDialog(QDialog):
+    """Vorschau für eine oder mehrere Anreiselisten (Goslar) vor dem Import."""
+
+    def __init__(self, pfade: list[Path], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Anreiselisten importieren")
+        self.resize(980, 760)
+        self.bericht = anreiseliste.Bericht()
+        self._listen: list[anreiseliste.Anreiseliste] = []
+        fehler = []
+        for p in pfade:
+            try:
+                self._listen.append(anreiseliste.liste_lesen(p))
+            except Exception as exc:
+                fehler.append(f"<b>{p.name}</b>: {exc}")
+
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(14)
+        v.addWidget(label("Anreiselisten importieren", "seitentitel"))
+        v.addWidget(label("Internat Goslar. Das Anreisedatum kommt aus dem Titel der Liste. Personen werden über die "
+                          "TN-ID wiedererkannt – eingetragene Abreisen und Erinnerungen bleiben bei einem erneuten "
+                          "Upload erhalten. Zur Belegung zählen nur Personen mit Internat „ja“.", "muted", umbruch=True), 0)
+        for f in fehler:
+            v.addWidget(Hinweis(f, "fehler"))
+
+        bestand = {p.schluessel: p for p in anreiseliste.laden()[0]}
+        listen = Karte("Listen")
+        lt = Tabelle(["Datei", "Anreise", "Gruppe", "Personen", "mit Internat", "Status"], ["l", "l", "l", "r", "r", "l"], dehnen=0)
+        lt.fuellen([[l.datei, _d(l.datum), l.gruppe, len(l.personen), l.mit_internat,
+                     "bereits importiert – wird aktualisiert" if any(p.liste == l.schluessel for p in bestand.values()) else "neu"]
+                    for l in self._listen])
+        lt.hoehe_anpassen(6)
+        listen.inhalt.addWidget(lt)
+        v.addWidget(listen)
+
+        personen = Karte("Personen")
+        pt = Tabelle(["Anreise", "Name", "Maßnahme", "Internat", "Abreise", ""], ["l", "l", "l", "l", "l", "l"], dehnen=1)
+        zeilen, hinweise = [], []
+        for l in self._listen:
+            hinweise += [f"{l.datei}: {h}" for h in l.hinweise]
+            for p in l.personen:
+                alt = bestand.get(p.schluessel)
+                zeilen.append([_d(p.anreise), p.name, p.massnahme or p.gruppe, Pille("ja", "ok") if p.internat else Pille("nein", "neutral"),
+                               _d((alt.abreise if alt else None) or p.abreise), "bekannt" if alt else "neu"])
+        pt.fuellen(zeilen)
+        pt.hoehe_anpassen(10)
+        personen.inhalt.addWidget(pt)
+        if hinweise:
+            personen.inhalt.addWidget(label("<br>".join(hinweise[:6]), "klein", umbruch=True))
+        v.addWidget(personen)
+        v.addStretch()
+
+        unten = QHBoxLayout()
+        unten.addStretch()
+        abbrechen = knopf("Abbrechen", "ghost")
+        abbrechen.clicked.connect(self.reject)
+        n = sum(len(l.personen) for l in self._listen)
+        self.ok = knopf(f"{n} Personen importieren" if n else "Importieren", "primary", "haken")
+        self.ok.setEnabled(n > 0)
+        self.ok.clicked.connect(self._importieren)
+        unten.addWidget(abbrechen)
+        unten.addWidget(self.ok)
+        v.addLayout(unten)
+
+    def _importieren(self) -> None:
+        for l in self._listen:
+            b = anreiseliste.importieren(l)
+            self.bericht.neu += b.neu
+            self.bericht.aktualisiert += b.aktualisiert
+            self.bericht.entfernt += b.entfernt
+        self.accept()
+
+
+class UwtDialog(QDialog):
+    def __init__(self, pfad: Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("UWT-Liste importieren")
+        self.resize(820, 680)
+        self.ergebnis = (0, 0)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(14)
+        v.addWidget(label("UWT-Liste importieren", "seitentitel"))
+        v.addWidget(label(f"{pfad.name} · Die UWT steht nicht in der Pivot – jeder Block zählt über den ganzen Zeitraum "
+                          "zur Belegung Goslar. Ein Block derselben Klasse mit derselben Anreise wird ersetzt.",
+                          "muted", umbruch=True))
+        try:
+            self.liste = uwt.pdf_lesen(pfad)
+        except Exception as exc:
+            self.liste = None
+            v.addWidget(Hinweis(f"Die Datei konnte nicht gelesen werden: {exc}", "fehler"))
+        if self.liste:
+            k = Karte("Blöcke", f"{sum(b.anzahl for b in self.liste.bloecke)} Personen")
+            t = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", "Nächte"], ["l", "r", "l", "l", "r"], dehnen=0)
+            t.fuellen([[b.klasse, b.anzahl, _d(b.anreise), _d(b.abreise), (b.abreise - b.anreise).days] for b in self.liste.bloecke])
+            t.hoehe_anpassen(6)
+            k.inhalt.addWidget(t)
+            v.addWidget(k)
+            if self.liste.personen:
+                kp = Karte("Personen mit Zimmer")
+                tp = Tabelle(["TN-ID", "Name", "Klasse", "Zimmer"], ["l", "l", "l", "l"], dehnen=1)
+                tp.fuellen([[p.tn_id, p.name, p.klasse, p.zimmer] for p in self.liste.personen])
+                tp.hoehe_anpassen(8)
+                kp.inhalt.addWidget(tp)
+                v.addWidget(kp)
+            for h in self.liste.hinweise:
+                v.addWidget(Hinweis(h, "warnung"))
+        v.addStretch()
+        unten = QHBoxLayout()
+        unten.addStretch()
+        abbrechen = knopf("Abbrechen", "ghost")
+        abbrechen.clicked.connect(self.reject)
+        ok = knopf("Importieren", "primary", "haken")
+        ok.setEnabled(bool(self.liste))
+        ok.clicked.connect(self._importieren)
+        unten.addWidget(abbrechen)
+        unten.addWidget(ok)
+        v.addLayout(unten)
+
+    def _importieren(self) -> None:
+        self.ergebnis = uwt.importieren(self.liste)
+        self.accept()
+
+
+class PersonDialog(QDialog):
+    """Abreise und Erinnerung einer Person pflegen – oder eine Person von Hand anlegen."""
+
+    def __init__(self, person: anreiseliste.Person | None = None, parent=None):
+        super().__init__(parent)
+        self.neu = person is None
+        self.loeschen = False
+        heute = date.today()
+        self.person = person or anreiseliste.Person(name="", massnahme="", anreise=heute, internat=True)
+        e = speicher.einstellungen().get("erinnerung", {})
+        self.setWindowTitle("Person anlegen" if self.neu else self.person.name)
+        self.setMinimumWidth(520)
+
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(14)
+        v.addWidget(label("Person anlegen" if self.neu else self.person.name, "seitentitel"))
+        if not self.neu:
+            if self.person.liste == anreiseliste.MANUELL:
+                herkunft = "von Hand angelegt"
+            else:
+                tag, gruppe = self.person.liste.split("|", 1)
+                herkunft = f"aus Anreiseliste {date.fromisoformat(tag):%d.%m.%Y}" + (" EMR" if gruppe == "EMR" else "")
+            v.addWidget(label(f"{self.person.massnahme or self.person.gruppe} · Anreise {_d(self.person.anreise)} · {herkunft}"
+                              + (f" · TN-ID {self.person.tn_id}" if self.person.tn_id else ""), "muted", umbruch=True))
+
+        form = QFormLayout()
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(10)
+        self.name = QLineEdit(self.person.name)
+        self.name.setPlaceholderText("Nachname, Vorname")
+        self.massnahme = QLineEdit(self.person.massnahme)
+        self.massnahme.setPlaceholderText("z. B. RVL, EMR ASS")
+        self.anreise = DatumFeld(self.person.anreise)
+        self.internat = QCheckBox("Wohnt im Internat")
+        self.internat.setChecked(bool(self.person.internat))
+        if self.neu:
+            form.addRow("Name", self.name)
+            form.addRow("Maßnahme", self.massnahme)
+            form.addRow("Anreise", self.anreise)
+            form.addRow("", self.internat)
+
+        abreise_zeile = QHBoxLayout()
+        self.abreise = DatumFeld(self.person.abreise or max(self.person.anreise, heute) + timedelta(days=28))
+        self.offen = QCheckBox("noch offen")
+        self.offen.setChecked(self.person.abreise is None)
+        self.offen.toggled.connect(self._aktualisieren)
+        abreise_zeile.addWidget(self.abreise)
+        abreise_zeile.addWidget(self.offen)
+        abreise_zeile.addStretch()
+        form.addRow("Abreise", abreise_zeile)
+
+        self.erinnern = QCheckBox("Erinnerung an die Abreise")
+        self.erinnern.setChecked(self.person.erinnerung_tage is not None or (self.person.abreise is None and e.get("immer", True)))
+        self.erinnern.toggled.connect(self._aktualisieren)
+        form.addRow("", self.erinnern)
+        erin = QHBoxLayout()
+        self.tage = QSpinBox()
+        self.tage.setRange(0, 60)
+        self.tage.setSuffix(" Tage vorher")
+        self.tage.setSpecialValueText("am Abreisetag")
+        self.tage.setValue(self.person.erinnerung_tage if self.person.erinnerung_tage is not None else int(e.get("tage", 2)))
+        self.kanal = QComboBox()
+        for k, text in erinnerung.KANAELE.items():
+            self.kanal.addItem(text, k)
+            if k in ("outlook", "mail") and not erinnerung.outlook_moeglich():
+                self.kanal.model().item(self.kanal.count() - 1).setEnabled(False)
+        kanal = self.person.erinnerung_kanal or e.get("kanal") or erinnerung.standard_kanal()
+        if kanal in ("outlook", "mail") and not erinnerung.outlook_moeglich():
+            kanal = "app"
+        self.kanal.setCurrentIndex(max(0, self.kanal.findData(kanal)))
+        erin.addWidget(self.tage)
+        erin.addWidget(self.kanal, 1)
+        form.addRow("", erin)
+        v.addLayout(form)
+        self.info = label("", "klein", umbruch=True)
+        v.addWidget(self.info)
+
+        unten = QHBoxLayout()
+        if not self.neu:
+            weg = knopf("Person entfernen", "gefahr", "loeschen")
+            weg.clicked.connect(self._loeschen)
+            unten.addWidget(weg)
+        unten.addStretch()
+        abbrechen = knopf("Abbrechen", "ghost")
+        abbrechen.clicked.connect(self.reject)
+        ok = knopf("Speichern", "primary", "haken")
+        ok.clicked.connect(self._speichern)
+        unten.addWidget(abbrechen)
+        unten.addWidget(ok)
+        v.addLayout(unten)
+        for w in (self.tage,):
+            w.valueChanged.connect(self._aktualisieren)
+        self.abreise.geaendert.connect(self._aktualisieren)
+        self.kanal.currentIndexChanged.connect(self._aktualisieren)
+        self._aktualisieren()
+
+    def _aktualisieren(self, *_):
+        offen = self.offen.isChecked()
+        self.abreise.setEnabled(not offen)
+        self.erinnern.setEnabled(not offen)
+        aktiv = self.erinnern.isChecked() and not offen
+        self.tage.setEnabled(aktiv)
+        self.kanal.setEnabled(aktiv)
+        if offen:
+            self.info.setText("Ohne Abreise zählt die Person nur als Anreise-Termin (oder mit der Standarddauer aus "
+                              "Daten → Anreisen).")
+        elif aktiv:
+            am = self.abreise.datum() - timedelta(days=self.tage.value())
+            wie = {"outlook": "als Termin in Ihrem Outlook-Kalender (Erinnerung um 8 Uhr)",
+                   "mail": "per E-Mail an Sie, von Outlook am Erinnerungstag um 8 Uhr verschickt",
+                   "ics": "über eine Kalenderdatei, die sich zum Import in den Kalender öffnet",
+                   "app": "beim Start des Dashboards und auf der Übersicht"}[self.kanal.currentData()]
+            self.info.setText(f"Erinnerung am <b>{am:%d.%m.%Y}</b> {wie}.")
+        else:
+            self.info.setText("")
+
+    def _speichern(self) -> None:
+        p = anreiseliste.Person(**{k: getattr(self.person, k) for k in self.person.__dataclass_fields__})
+        if self.neu:
+            if not self.name.text().strip():
+                self.info.setText("<b>Bitte einen Namen eintragen.</b>")
+                return
+            p.name, p.massnahme = self.name.text().strip(), self.massnahme.text().strip()
+            p.anreise, p.internat = self.anreise.datum(), self.internat.isChecked()
+        p.abreise = None if self.offen.isChecked() else self.abreise.datum()
+        if p.abreise and p.abreise < p.anreise:
+            self.info.setText("<b>Die Abreise liegt vor der Anreise.</b>")
+            return
+        if p.abreise and self.erinnern.isChecked():
+            p.erinnerung_tage, p.erinnerung_kanal = self.tage.value(), self.kanal.currentData()
+        else:
+            p.erinnerung_tage, p.erinnerung_kanal = None, ""
+        if (p.abreise, p.erinnerung_tage) != (self.person.abreise, self.person.erinnerung_tage):
+            p.erledigt = False
+        self.ergebnis = p
+        self.accept()
+
+    def _loeschen(self) -> None:
+        if QMessageBox.question(self, "Person entfernen", f"{self.person.name} aus den Anreisen entfernen?") == QMessageBox.Yes:
+            self.loeschen = True
+            self.ergebnis = None
+            self.accept()
+
+
+def erinnerung_abgleichen(alt: anreiseliste.Person | None, neu: anreiseliste.Person | None) -> tuple[str, str] | None:
+    """Outlook-Termin/Mail bzw. .ics an den neuen Stand anpassen (läuft im GUI-Thread).
+    Setzt ``neu.erinnerung_id``. Gibt (Meldung, Art) zurück, wenn es etwas zu melden gibt."""
+    def schluessel(p):
+        return None if p is None else (p.abreise, p.erinnerung_tage, p.erinnerung_kanal, p.name)
+
+    if schluessel(alt) == schluessel(neu):
+        if neu is not None and alt is not None:
+            neu.erinnerung_id = alt.erinnerung_id
+        return None
+    if alt is not None and alt.erinnerung_id and alt.erinnerung_kanal in ("outlook", "mail"):
+        erinnerung.outlook_entfernen(alt.erinnerung_id)
+    if neu is None or neu.erinnerung_tage is None or neu.abreise is None:
+        if neu is not None:
+            neu.erinnerung_id = ""
+        return None
+    titel = erinnerung.betreff(neu.name, neu.abreise)
+    text = (f"{neu.name} ({neu.massnahme or neu.gruppe}) reist am {neu.abreise:%d.%m.%Y} ab "
+            f"(Anreise {neu.anreise:%d.%m.%Y}, Internat Goslar).\n\nEingetragen im Belegungsdashboard.")
+    am = neu.erinnerung_am
+    try:
+        if neu.erinnerung_kanal == "outlook":
+            neu.erinnerung_id = erinnerung.outlook_termin(titel, neu.abreise, neu.erinnerung_tage, text)
+            return f"Outlook-Termin am {neu.abreise:%d.%m.%Y} angelegt, Erinnerung am {am:%d.%m.%Y}.", "ok"
+        if neu.erinnerung_kanal == "mail":
+            empfaenger = speicher.einstellungen().get("erinnerung", {}).get("empfaenger", "")
+            neu.erinnerung_id = erinnerung.outlook_mail(titel, am, text, empfaenger)
+            return f"Erinnerungs-Mail wird am {am:%d.%m.%Y} um 8 Uhr verschickt.", "ok"
+        if neu.erinnerung_kanal == "ics":
+            pfad = erinnerung.ics_speichern(titel, neu.abreise, neu.erinnerung_tage, text, f"abreise_{neu.schluessel}")
+            erinnerung.ics_oeffnen(pfad)
+            neu.erinnerung_id = ""
+            return f"Kalenderdatei erstellt: {pfad.name}", "ok"
+    except Exception as exc:
+        neu.erinnerung_kanal, neu.erinnerung_id = "app", ""
+        return (f"Outlook nicht erreichbar ({exc}) – die Erinnerung erscheint stattdessen im Dashboard.", "warnung")
+    neu.erinnerung_id = ""
+    return f"Erinnerung am {am:%d.%m.%Y} im Dashboard.", "ok"
