@@ -2,7 +2,7 @@
 
 Feste Regeln (werden nie verletzt):
 * Gruppe → erlaubte Häuser/Etagen (EMR nur Haus 2 Etage 1–2, Gäste nur Haus 2 Etage 6,
-  Mieter nur Haus 6, UWT nur 3.2/3.3/6, RVL nur 3.1, alle anderen nicht in Haus 6)
+  Mieter nur Haus 6, UWT nur 3.2/3.3/6, alle anderen nicht in Haus 6)
 * Gästezimmer nur für Gäste
 * Tiere nur in Zimmern mit Tier-Freigabe (Haus 3.1 EG/UG)
 * Zimmer mit Bad über den Flur (Haus 6) nur für Männer
@@ -11,7 +11,7 @@ Feste Regeln (werden nie verletzt):
 
 Wünsche (gewichtet):
 * eine Anreise/Maßnahme zusammen auf einem Flur – Zimmer aber nicht direkt nebeneinander
-* kurze Maßnahmen und Assessment bevorzugt Haus 2 Etage 5
+* kurze Maßnahmen und Assessment bevorzugt Haus 2 Etage 5, RVL bevorzugt Haus 3.1
 * Doppelzimmer bevorzugt für UWT, Tier-Zimmer für Personen mit Tier freihalten
 """
 
@@ -37,7 +37,7 @@ ERLAUBT: dict[str, list[tuple[str, set | None]]] = {
     "Gast": [("2", {"6"})],
     "Mieter": [("6", None)],
     "UWT": [("3.2", None), ("3.3", None), ("6", None)],
-    "RVL": [("3.1", None)],
+    "RVL": REHA_HAEUSER,              # bevorzugt 3.1 (siehe zimmer_wert), sonst 3.2, 3.3 oder Haus 2
     "ASS": REHA_HAEUSER, "RVT": REHA_HAEUSER, "Reha": REHA_HAEUSER,
 }
 # angenommene Dauer in Wochen, wenn keine Abreise eingetragen ist
@@ -418,6 +418,8 @@ def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
         w += 3
     elif not b.kurz and z.haus == "2" and z.etage == "5":
         w -= 1.5                     # Reserve für kurze Maßnahmen
+    if b.gruppe == "RVL":
+        w += 4 if z.haus == "3.1" else 0
     if b.gruppe == "UWT":
         w += 3 if z.betten > 1 else 0
         w += 1 if z.haus in ("3.2", "3.3") else 0
@@ -518,7 +520,8 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
                     plaetze = sum(arbeit.freie_betten(z.id, b0.von, b0.bis) for z in zs)
                 else:
                     plaetze = sum(1 for z in zs if passt(arbeit, z, b0) is None)
-                wert = sum(sorted((zimmer_wert(z, rest[0]) for z in zs), reverse=True)[:n]) / max(n, 1) * 2
+                beste = sorted((zimmer_wert(z, b0) for z in zs if passt(arbeit, z, b0) is None), reverse=True)[:n]
+                wert = (sum(beste) / len(beste) if beste else 0) * 2   # wie gut passt der Flur (Ø der besten Zimmer)
                 wert += 6 if plaetze >= n else 6 * plaetze / n
                 wert += 2 if plaetze >= 2 * n - 1 else 0          # Platz für Lücken
                 wert -= 0.02 * max(plaetze - 2 * n, 0)             # nicht unnötig große Flure anbrechen
