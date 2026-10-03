@@ -26,6 +26,9 @@ MANUELL = "manuell"
 
 _DATUM_TITEL = re.compile(r"(\d{1,2})[-._](\d{1,2})[-._](\d{4}|\d{2})\b")
 _DATUM_ISO = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_TIER = re.compile(r"\b(hund|hündin|katze|kater|bulldogge|haustier|tier\b|kaninchen|meerschwein|hamster|vogel|wellensittich)", re.I)
+# Spalten mit Freitext-Bemerkungen; „Bemerkung“ selbst enthält meist nur die Unterlagen-Checkliste
+_BEMERKUNG_SPALTEN = ("bem2", "bemerkung2", "internatsdienst", "hinweis", "hinweise", "anmerkung")
 
 
 @dataclass
@@ -42,6 +45,9 @@ class Person:
     erinnerung_kanal: str = ""          # outlook | mail | ics | app
     erinnerung_id: str = ""             # Outlook-EntryID, um den Termin später zu ändern/löschen
     erledigt: bool = False              # Erinnerung quittiert
+    geschlecht: str = ""                # m | w | d | "" (unbekannt)
+    tier: bool = False
+    bemerkung: str = ""
 
     @property
     def schluessel(self) -> str:
@@ -58,7 +64,8 @@ class Person:
                 "internat": self.internat, "gruppe": self.gruppe, "tn_id": self.tn_id,
                 "abreise": self.abreise.isoformat() if self.abreise else None, "liste": self.liste,
                 "erinnerung_tage": self.erinnerung_tage, "erinnerung_kanal": self.erinnerung_kanal,
-                "erinnerung_id": self.erinnerung_id, "erledigt": self.erledigt}
+                "erinnerung_id": self.erinnerung_id, "erledigt": self.erledigt, "geschlecht": self.geschlecht,
+                "tier": self.tier, "bemerkung": self.bemerkung}
 
     @staticmethod
     def aus_dict(d: dict) -> "Person":
@@ -68,6 +75,7 @@ class Person:
             abreise=date.fromisoformat(d["abreise"]) if d.get("abreise") else None, liste=d.get("liste") or MANUELL,
             erinnerung_tage=d.get("erinnerung_tage"), erinnerung_kanal=d.get("erinnerung_kanal") or "",
             erinnerung_id=d.get("erinnerung_id") or "", erledigt=bool(d.get("erledigt", False)),
+            geschlecht=d.get("geschlecht") or "", tier=bool(d.get("tier", False)), bemerkung=d.get("bemerkung") or "",
         )
 
 
@@ -129,6 +137,17 @@ def _internat(wert) -> bool | None:
     return None
 
 
+def _geschlecht(wert) -> str:
+    n = _norm(wert)
+    if n in ("m", "maennlich", "mann", "herr", "hr"):
+        return "m"
+    if n in ("w", "f", "weiblich", "frau", "fr"):
+        return "w"
+    if n in ("d", "divers"):
+        return "d"
+    return ""
+
+
 def _tn_id(wert) -> str:
     if wert is None:
         return ""
@@ -161,6 +180,9 @@ def liste_lesen(pfad: Path) -> Anreiseliste:
     sp_id = _spalte(kopf, lambda n: n in ("tnid", "tnnr", "teilnehmerid", "teilnehmernr", "id"))
     sp_kt = _spalte(kopf, lambda n: n in ("kt", "kostentraeger", "kostentrager"))
     sp_abreise = _spalte(kopf, lambda n: n.startswith("abreise"), lambda n: n in ("ende", "bis", "massnahmeende"))
+    sp_bem = [i for i, v in enumerate(kopf) if _norm(v) in _BEMERKUNG_SPALTEN]
+    sp_check = _spalte(kopf, lambda n: n == "bemerkung")
+    sp_geschlecht = _spalte(kopf, lambda n: n in ("geschlecht", "anrede", "mw", "sex"))
 
     def zelle(z: list, i: int | None):
         return z[i] if i is not None and i < len(z) else None
@@ -183,8 +205,12 @@ def liste_lesen(pfad: Path) -> Anreiseliste:
         abreise = datum_lesen(zelle(z, sp_abreise))
         if abreise is not None and abreise < datum:
             abreise = None
+        texte = [str(zelle(z, i)).strip() for i in sp_bem if zelle(z, i) not in (None, "")]
+        alles = " ".join(texte + [str(zelle(z, sp_check) or "")])
         personen.append(Person(name=name, massnahme=massnahme, anreise=datum, internat=bool(internat),
-                               gruppe=gruppe, tn_id=_tn_id(zelle(z, sp_id)), abreise=abreise))
+                               gruppe=gruppe, tn_id=_tn_id(zelle(z, sp_id)), abreise=abreise,
+                               geschlecht=_geschlecht(zelle(z, sp_geschlecht)), tier=bool(_TIER.search(alles)),
+                               bemerkung=" · ".join(texte)))
     if not personen:
         raise ValueError("In der Liste stehen keine Personen.")
     gruppe = "EMR" if emr_titel else ("EMR" if all(p.gruppe == "EMR" for p in personen) else "Reha")
@@ -226,6 +252,10 @@ def uebernehmen(bestand: list[Person], liste: Anreiseliste) -> tuple[list[Person
         vorher.liste = p.liste
         if p.abreise and not vorher.abreise:
             vorher.abreise = p.abreise
+        vorher.tier = vorher.tier or p.tier
+        if p.bemerkung and p.bemerkung not in vorher.bemerkung:
+            vorher.bemerkung = " · ".join(t for t in (vorher.bemerkung, p.bemerkung) if t)
+        vorher.geschlecht = vorher.geschlecht or p.geschlecht
         bericht.aktualisiert += 1
     for k, p in list(alt.items()):
         if p.liste == liste.schluessel and k not in neue_schluessel:

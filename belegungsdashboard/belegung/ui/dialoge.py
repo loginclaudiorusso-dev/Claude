@@ -469,6 +469,26 @@ class PersonDialog(QDialog):
             form.addRow("Anreise", self.anreise)
             form.addRow("", self.internat)
 
+        angaben = QHBoxLayout()
+        self.geschlecht = QComboBox()
+        for wert, text in (("", "unbekannt"), ("m", "männlich"), ("w", "weiblich"), ("d", "divers")):
+            self.geschlecht.addItem(text, wert)
+        self.geschlecht.setCurrentIndex(max(0, self.geschlecht.findData(self.person.geschlecht)))
+        if not self.person.geschlecht and self.person.name:
+            from ..zimmerplan import geschlecht_raten
+
+            geraten = geschlecht_raten(self.person.name)
+            self.geschlecht.setItemText(0, f"unbekannt (geschätzt: {'männlich' if geraten == 'm' else 'weiblich'})")
+        self.tier = QCheckBox("kommt mit Tier")
+        self.tier.setChecked(self.person.tier)
+        angaben.addWidget(self.geschlecht)
+        angaben.addWidget(self.tier)
+        angaben.addStretch()
+        form.addRow("Geschlecht", angaben)
+        self.bemerkung = QLineEdit(self.person.bemerkung)
+        self.bemerkung.setPlaceholderText("z. B. Hund, barrierefrei, kommt einen Tag später …")
+        form.addRow("Bemerkung", self.bemerkung)
+
         abreise_zeile = QHBoxLayout()
         self.abreise = DatumFeld(self.person.abreise or max(self.person.anreise, heute) + timedelta(days=28))
         self.offen = QCheckBox("noch offen")
@@ -552,6 +572,7 @@ class PersonDialog(QDialog):
                 return
             p.name, p.massnahme = self.name.text().strip(), self.massnahme.text().strip()
             p.anreise, p.internat = self.anreise.datum(), self.internat.isChecked()
+        p.geschlecht, p.tier, p.bemerkung = self.geschlecht.currentData(), self.tier.isChecked(), self.bemerkung.text().strip()
         p.abreise = None if self.offen.isChecked() else self.abreise.datum()
         if p.abreise and p.abreise < p.anreise:
             self.info.setText("<b>Die Abreise liegt vor der Anreise.</b>")

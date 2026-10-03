@@ -398,3 +398,208 @@ def test_export_ohne_personennamen(datenstand):
         assert "Muster" not in str(daten["anreisen"]) and any(a["bezeichnung"] == "RVL" for a in daten["anreisen"])
     finally:
         ds.eintraege.remove(person)
+
+
+# ---- Gebäudeplan und Zimmerplanung -------------------------------------------------------
+
+PLAN_ZEILEN = """Gebäudeplan
+GS-Haus-2
+01. Etage
+GS-2-101
+1 Bett
+Frei
+GS-2-102
+1 Bett
+Werner, Jessica (GS ASS PS 260909)
+09.09.2026 - 20.10.2026
+Belegt
+GS-2-103
+1 Bett
+Frei
+GS-2-104
+1 Bett
+Frei
+GS-2-121
+1 Bett
+Frei
+05. Etage
+GS-2-501
+1 Bett
+Frei
+GS-2-502
+1 Bett
+Frei teilw.
+Pham, Hai Viet (GS IK 2506)
+25.06.2025 - 24.06.2027
+Zimmerfreigabe 01.10.2026 - 31.03.2027
+Belegt
+GS-2-503
+1 Bett
+Reno offen
+16.09.2026 - 31.12.2026
+Gesperrt
+GS-Haus-3.1
+Erdgeschoß
+GS-3.1-E01
+1 Bett
+Frei
+GS-3.1-E02
+1 Bett
+Frei
+GS-Haus-3.2
+01. Etage
+GS-3.2-106
+2 Betten
+Melecis, Renars (GS UWT CUK25)
+28.09.2026 - 09.10.2026
+Belegt
+Bruns, Hannes (GS UWT CUK25)
+28.09.2026 - 09.10.2026
+Belegt
+GS-3.2-108
+2 Betten
+Frei
+GS-3.2-110
+1 Bett
+Frei
+GS-Haus-6
+05. Etage
+GS-6-501
+1 Bett
+Frei
+GS-6-503
+1 Bett
+TNin Muster als Mieterin
+10.06.2026 - 20.01.2028
+Gesperrt
+GS-6-503
+1 Bett
+Frei
+""".splitlines()
+
+
+@pytest.fixture()
+def plan():
+    from belegung import gebaeudeplan
+
+    return gebaeudeplan.parse_zeilen([z for z in PLAN_ZEILEN if z.strip()], "plan.docx", date(2026, 10, 3))
+
+
+def test_gebaeudeplan_lesen(plan):
+    ids = [z.id for z in plan.zimmer]
+    assert ids.count("GS-6-503") == 1 and any("doppelt" in h for h in plan.hinweise)
+    e01 = next(z for z in plan.zimmer if z.id == "GS-3.1-E01")
+    assert (e01.haus, e01.etage) == ("3.1", "E")
+    assert next(z for z in plan.zimmer if z.id == "GS-3.2-106").betten == 2
+    pham = [b for b in plan.belegungen if b.zimmer == "GS-2-502"]
+    assert [(b.von, b.bis) for b in pham] == [(date(2025, 6, 25), date(2026, 9, 30)), (date(2027, 4, 1), date(2027, 6, 24))]
+    reno = next(b for b in plan.belegungen if b.zimmer == "GS-2-503")
+    assert reno.art == "gesperrt" and "Reno offen" in reno.grund
+    mieter = next(b for b in plan.belegungen if b.zimmer == "GS-6-503")
+    assert mieter.art == "belegt" and mieter.massnahme == "Miete"
+    assert len([b for b in plan.belegungen if b.zimmer == "GS-3.2-106"]) == 2
+
+
+def _lage(plan, zuweisungen=(), puffer=1):
+    from belegung import zimmerplan as zp
+
+    zimmer = zp.standard_zimmer(plan.zimmer)
+    return zp.lage_bauen(zimmer, plan, list(zuweisungen), puffer)
+
+
+def _bedarf(name, gruppe, von, bis, geschlecht="m", tier=False, kennung="k", massnahme=None):
+    from belegung.zimmerplan import Bedarf
+
+    return Bedarf(f"p:{name}", name, massnahme or gruppe, gruppe, von, bis, geschlecht, False, tier, False, kennung)
+
+
+def test_standard_stammdaten(plan):
+    from belegung import zimmerplan as zp
+
+    z = {x.id: x for x in zp.standard_zimmer(plan.zimmer)}
+    assert z["GS-6-501"].nur_maenner and not z.get("GS-6-503").nur_maenner
+    assert z["GS-3.1-E01"].tiere and not z["GS-2-101"].tiere
+    assert z["GS-2-601"].gaeste and z["GS-2-617"].gaeste
+    assert z["GS-3.2-106"].flur == "West" and z["GS-3.2-110"].flur == "Ost"
+
+
+def test_regeln_emr_tier_maenner(plan):
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    v, b = date(2026, 10, 12), date(2026, 11, 8)
+    erg = {zt.bedarf.name: zt for zt in zp.vorschlagen(lage, [
+        _bedarf("Emr", "EMR", v, b, "w", kennung="a"),
+        _bedarf("Tier", "Reha", v, b, "w", tier=True, kennung="b"),
+        _bedarf("EmrTier", "EMR", v, b, "w", tier=True, kennung="c"),
+        _bedarf("Frau Uwt", "UWT", v, b, "w", kennung="d", massnahme="UWT CUK26"),
+    ])}
+    assert erg["Emr"].zimmer.haus == "2" and erg["Emr"].zimmer.etage in ("1", "2")
+    assert erg["Tier"].zimmer.id.startswith("GS-3.1-E")
+    assert erg["EmrTier"].zimmer is None and "widersprechen" in erg["EmrTier"].warnungen[0]
+    assert not erg["Frau Uwt"].zimmer.nur_maenner
+
+
+def test_puffer_nach_abreise(plan):
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    z = lage.zimmer["GS-2-102"]   # belegt bis 20.10.2026
+    assert zp.passt(lage, z, _bedarf("A", "ASS", date(2026, 10, 20), date(2026, 11, 1))) is not None
+    assert zp.passt(lage, z, _bedarf("A", "ASS", date(2026, 10, 21), date(2026, 11, 1))) is None
+    lage2 = _lage(plan, puffer=2)
+    assert zp.passt(lage2, lage2.zimmer["GS-2-102"], _bedarf("A", "ASS", date(2026, 10, 21), date(2026, 11, 1))) is not None
+
+
+def test_doppelzimmer_nur_gleiche_klasse_und_geschlecht(plan):
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    v, b = date(2026, 11, 2), date(2026, 11, 13)
+    erg = zp.vorschlagen(lage, [_bedarf(n, "UWT", v, b, g, kennung="uwt", massnahme="UWT CUW25")
+                                for n, g in (("A", "m"), ("B", "m"), ("C", "w"))])
+    zimmer = {zt.bedarf.name: zt.zimmer.id for zt in erg}
+    assert zimmer["A"] == zimmer["B"] and lage.zimmer[zimmer["A"]].betten == 2
+    assert zimmer["C"] != zimmer["A"]
+    # Nicht-UWT teilt kein Doppelzimmer mit der UWT
+    belegt = zp.lage_bauen(list(lage.zimmer.values()), plan,
+                           [{"person": "x", "name": "X", "massnahme": "UWT CUW25", "zimmer": "GS-3.2-108",
+                             "von": v.isoformat(), "bis": b.isoformat()}])
+    assert zp.passt(belegt, belegt.zimmer["GS-3.2-108"], _bedarf("R", "Reha", v, b)) is not None
+
+
+def test_gruppe_bleibt_auf_einem_flur(plan):
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    v, b = date(2026, 11, 2), date(2026, 11, 27)
+    # kurze Maßnahme -> Haus 2 Etage 5 (dort 2 freie Zimmer)
+    erg = zp.vorschlagen(lage, [_bedarf(f"P{i}", "ASS", v, b, kennung="ass") for i in range(2)])
+    assert {zt.zimmer.flur_schluessel for zt in erg} == {("2", "5", "West")}
+    # EMR: zusammen auf einem Flur, aber nicht Tür an Tür, solange Platz ist
+    erg = zp.vorschlagen(lage, [_bedarf(f"E{i}", "EMR", v, b, kennung="emr") for i in range(2)])
+    assert len({zt.zimmer.flur_schluessel for zt in erg}) == 1
+    a, c = sorted(zt.zimmer.nummer for zt in erg)
+    assert c - a > 1
+
+
+def test_geschlecht_raten():
+    from belegung.zimmerplan import geschlecht_raten
+
+    assert [geschlecht_raten(n) for n in ("Hell, Ann-Christin", "Meyer, René", "Karic, Anette", "Le, Hoang-Phuong",
+                                          "Mc Callum, Sascha", "Boyes, Shannon Victoria")] == ["w", "m", "w", "m", "m", "w"]
+
+
+def test_zimmer_excel(plan, tmp_path):
+    import openpyxl
+
+    from belegung import zimmerexport
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    erg = zp.vorschlagen(lage, [_bedarf("Muster, Max", "ASS", date(2026, 11, 2), date(2026, 11, 27))])
+    pfad = zimmerexport.exportieren(tmp_path / "liste.xlsx", "Zimmerliste", erg, lage, date(2026, 11, 2))
+    wb = openpyxl.load_workbook(pfad)
+    assert wb.sheetnames == ["Zimmerliste", "Je Flur", "Freie Zimmer"]
+    ws = wb["Zimmerliste"]
+    assert ws["B5"].value == "Muster, Max" and ws["I5"].value == erg[0].zimmer.nr
