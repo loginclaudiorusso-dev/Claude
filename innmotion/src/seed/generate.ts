@@ -279,7 +279,7 @@ export function generateSeed(now = new Date()): DB {
   const db: DB = {
     version: DB_VERSION,
     generatedAt: now.toISOString(),
-    codeSecret: Math.floor(rnd() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36),
+    codeSecret: Math.floor(rnd() * 1e9).toString(36) + Math.floor(rnd() * 1e9).toString(36),
     sites,
     places,
     persons,

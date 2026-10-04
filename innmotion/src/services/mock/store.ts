@@ -29,6 +29,13 @@ export const useDbStore = create<DbState>()(
   ),
 );
 
+// Frisch erzeugte Demo-Daten sofort speichern, damit sie nach dem Neuladen gleich bleiben.
+try {
+  if (!localStorage.getItem('innmotion-db')) useDbStore.getState().setDb((db) => ({ ...db }));
+} catch {
+  /* Speicher nicht verfügbar (z. B. privater Modus) – Demo läuft dann nur im Arbeitsspeicher. */
+}
+
 export interface Session {
   role: Role;
   /** Aktive Demo-Person je Rolle. */
