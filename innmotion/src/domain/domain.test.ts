@@ -5,6 +5,7 @@ import { eventCode, placeCode, qrPayload } from './codes';
 import { individualLeaderboard, siteStandings, teamBand } from './league';
 import { buildKnockout, champion, groupTable, buildGroupStage } from './tournament';
 import { dashboardCsv } from './stats';
+import { earnedBadges } from './badges';
 import { HOUR, MIN } from './time';
 import type { DB } from './types';
 
@@ -102,6 +103,24 @@ describe('Check-in-Regeln', () => {
     const r = checkIn(db, DEMO_IDS.participant, placeCode(db.codeSecret, 'gs-gym', NOW), NOW);
     expect(r.ok && r.value.points).toBe(12);
     expect(r.ok && r.value.capped).toBe(true);
+  });
+});
+
+describe('Demo-Ablauf', () => {
+  it('Kalle wird beim Badminton-Treff Allrounder und schafft das Wochenziel', () => {
+    for (const day of [4, 5, 6, 7, 8, 9, 10]) {
+      const now = new Date(2026, 9, day, 18, 0);
+      const db = generateSeed(now);
+      const offers = new Set(db.checkins.filter((c) => c.personId === DEMO_IDS.participant).map((c) => c.offer));
+      expect([...offers].sort()).toEqual(['Fitnessraum', 'Halle', 'Tischtennis']);
+      const r = checkIn(db, DEMO_IDS.participant, eventCode(db.codeSecret, 'ev-badminton'), now);
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.value.newOffer).toBe(true);
+        expect(r.value.weeklyGoalReached).toBe(true);
+      }
+      expect(earnedBadges(db, DEMO_IDS.participant, new Date(now.getTime() + 1)).has('allrounder')).toBe(true);
+    }
   });
 });
 
