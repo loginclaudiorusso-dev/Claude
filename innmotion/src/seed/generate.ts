@@ -254,7 +254,7 @@ export function generateSeed(now = new Date()): DB {
     const pool = bySite(t.siteId).filter((p) => (propensity.get(p.id) ?? 0) > 0.2);
     // Die Demo-Person war bisher nur beim Tischtennis-Cup – so kann sie in der Demo „Allrounder“ werden.
     const registered = pool
-      .filter((p) => rnd() < 0.7 && (p.id !== DEMO_IDS.participant || t.sport === 'Tischtennis'))
+      .filter((p) => (p.id === DEMO_IDS.participant ? t.sport === 'Tischtennis' : rnd() < 0.7))
       .slice(0, t.capacity)
       .map((p) => p.id);
     events.push(
@@ -328,7 +328,7 @@ export function generateSeed(now = new Date()): DB {
   for (const e of events) {
     if (Date.parse(e.end) > now.getTime()) continue;
     for (const pid of e.registered) {
-      if (rnd() < 0.85) candidates.push({ personId: pid, at: new Date(Date.parse(e.start) + between(-10, 15) * MIN), target: { type: 'event', eventId: e.id } });
+      if (rnd() < 0.85 || pid === DEMO_IDS.participant) candidates.push({ personId: pid, at: new Date(Date.parse(e.start) + between(-10, 15) * MIN), target: { type: 'event', eventId: e.id } });
     }
   }
   // Demo-Person „Kalle“: zwei Aktivitäten in der laufenden Woche, damit der nächste Check-in das Wochenziel knackt.

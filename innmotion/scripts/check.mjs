@@ -29,6 +29,8 @@ for (const scheme of ['light', 'dark']) {
   page.on('console', (m) => m.type() === 'error' && problems.push(`[${scheme}] console: ${m.text()}`));
   page.on('pageerror', (e) => problems.push(`[${scheme}] pageerror: ${e.message}`));
   await page.goto(base);
+  // LARGE=1: alle Screens zusätzlich mit „Größere Schrift“ prüfen
+  if (process.env.LARGE) await page.evaluate(() => localStorage.setItem('innmotion-prefs', JSON.stringify({ state: { theme: 'system', largeText: true }, version: 1 })));
   for (const [role, routes] of Object.entries(ROUTES)) {
     for (const route of routes) {
       const name = `${role}${route === '/' ? '_home' : route.replace(/\//g, '_')}`;
