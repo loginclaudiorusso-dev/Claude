@@ -240,7 +240,8 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
           className={cx(
-            'press min-h-11 flex-1 truncate rounded-pill px-2 text-[14px] font-semibold',
+            'press min-h-11 flex-1 truncate rounded-pill px-1.5 font-semibold',
+            options.length >= 4 ? 'text-[13px]' : 'text-[14px]',
             o.value === value ? 'bg-surface text-ink shadow-card' : 'text-muted hover:text-ink',
           )}
         >

@@ -6,25 +6,27 @@ import type { Role } from './domain/types';
 import { Home } from './screens/participant/Home';
 import { EventDetail, Events } from './screens/participant/Events';
 import { Profile } from './screens/shared/Profile';
-import { Checkin } from './screens/participant/Checkin';
 import { Challenges } from './screens/participant/Challenges';
 import { Liga } from './screens/participant/Liga';
 import { Badges, Ideas, MyData, Survey } from './screens/participant/ProfilePages';
 import { useMe } from './services/hooks';
-import { StaffToday } from './screens/staff/Today';
-import { StaffCode } from './screens/staff/Code';
-import { Announcement, NewEvent, StaffEvents } from './screens/staff/StaffEvents';
-import { StaffTournamentDetail, StaffTournaments } from './screens/staff/StaffTournament';
-import { Page, LargeTitle } from './components/ui';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <Page>
-      <LargeTitle title={title} subtitle="Wird in der nächsten Etappe gebaut." />
-    </Page>
-  );
-}
+// Betreuung, Leitung und Scanner (Kamera/QR-Bibliotheken) erst bei Bedarf laden.
+const Checkin = lazy(() => import('./screens/participant/Checkin').then((m) => ({ default: m.Checkin })));
+const Dashboard = lazy(() => import('./screens/lead/Dashboard').then((m) => ({ default: m.Dashboard })));
+const SurveyResults = lazy(() => import('./screens/lead/SurveyResults').then((m) => ({ default: m.SurveyResults })));
+const Poster = lazy(() => import('./screens/lead/Poster').then((m) => ({ default: m.Poster })));
+const StaffToday = lazy(() => import('./screens/staff/Today').then((m) => ({ default: m.StaffToday })));
+const StaffCode = lazy(() => import('./screens/staff/Code').then((m) => ({ default: m.StaffCode })));
+const Admin = lazy(() => import('./screens/lead/Admin').then((m) => ({ default: m.Admin })));
+const LeadLiga = lazy(() => import('./screens/lead/Admin').then((m) => ({ default: m.LeadLiga })));
+const Privacy = lazy(() => import('./screens/lead/Admin').then((m) => ({ default: m.Privacy })));
+const Announcement = lazy(() => import('./screens/staff/StaffEvents').then((m) => ({ default: m.Announcement })));
+const NewEvent = lazy(() => import('./screens/staff/StaffEvents').then((m) => ({ default: m.NewEvent })));
+const StaffEvents = lazy(() => import('./screens/staff/StaffEvents').then((m) => ({ default: m.StaffEvents })));
+const StaffTournamentDetail = lazy(() => import('./screens/staff/StaffTournament').then((m) => ({ default: m.StaffTournamentDetail })));
+const StaffTournaments = lazy(() => import('./screens/staff/StaffTournament').then((m) => ({ default: m.StaffTournaments })));
 
 /** Schützt Bereiche einer Rolle – bei falscher Rolle zur Startseite der aktiven Rolle. */
 function RoleGate({ role, children }: { role: Role; children: ReactNode }) {
@@ -39,6 +41,7 @@ export function App() {
   return (
     <>
       <ThemeSync />
+      <Suspense fallback={<div className="min-h-dvh bg-bg" aria-busy="true" />}>
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<RoleGate role="participant"><Home /></RoleGate>} />
@@ -59,11 +62,17 @@ export function App() {
           <Route path="betreuung/turnier/:id" element={<RoleGate role="staff"><StaffTournamentDetail /></RoleGate>} />
           <Route path="betreuung/ankuendigung" element={<RoleGate role="staff"><Announcement /></RoleGate>} />
           <Route path="betreuung/ideen" element={<RoleGate role="staff"><Ideas staffMode /></RoleGate>} />
-          <Route path="leitung" element={<RoleGate role="lead"><Placeholder title="Dashboard" /></RoleGate>} />
+          <Route path="leitung" element={<RoleGate role="lead"><Dashboard /></RoleGate>} />
+          <Route path="leitung/liga" element={<RoleGate role="lead"><LeadLiga /></RoleGate>} />
+          <Route path="leitung/umfrage" element={<RoleGate role="lead"><SurveyResults /></RoleGate>} />
+          <Route path="leitung/verwaltung" element={<RoleGate role="lead"><Admin /></RoleGate>} />
+          <Route path="leitung/datenschutz" element={<RoleGate role="lead"><Privacy /></RoleGate>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
+ <Route path="aushang/:siteId" element={<RoleGate role="lead"><Poster /></RoleGate>} />
         <Route path="checkin" element={<RoleGate role="participant"><Checkin /></RoleGate>} />
       </Routes>
+      </Suspense>
     </>
   );
 }

@@ -77,7 +77,7 @@ export function surveyStats(db: DB, surveyId: string): { responses: number; ques
     const distribution = [1, 2, 3, 4, 5].map((n) => vals.filter((v) => v === n).length);
     return { questionId: q.id, text: q.text, avg: avg(vals), count: vals.length, bySite, distribution };
   });
-  const comments = rs.flatMap((r) => Object.values(r.comments)).filter((c) => c.trim().length > 0);
+  const comments = [...new Set(rs.flatMap((r) => Object.values(r.comments)).filter((c) => c.trim().length > 0))];
   return { responses: rs.length, questions, comments };
 }
 
