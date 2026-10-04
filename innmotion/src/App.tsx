@@ -11,6 +11,10 @@ import { Challenges } from './screens/participant/Challenges';
 import { Liga } from './screens/participant/Liga';
 import { Badges, Ideas, MyData, Survey } from './screens/participant/ProfilePages';
 import { useMe } from './services/hooks';
+import { StaffToday } from './screens/staff/Today';
+import { StaffCode } from './screens/staff/Code';
+import { Announcement, NewEvent, StaffEvents } from './screens/staff/StaffEvents';
+import { StaffTournamentDetail, StaffTournaments } from './screens/staff/StaffTournament';
 import { Page, LargeTitle } from './components/ui';
 import type { ReactNode } from 'react';
 
@@ -47,7 +51,14 @@ export function App() {
           <Route path="profil/ideen" element={<RoleGate role="participant"><Ideas /></RoleGate>} />
           <Route path="profil/umfrage" element={<RoleGate role="participant"><Survey /></RoleGate>} />
           <Route path="profil/daten" element={<RoleGate role="participant"><MyData /></RoleGate>} />
-          <Route path="betreuung" element={<RoleGate role="staff"><Placeholder title="Heute" /></RoleGate>} />
+          <Route path="betreuung" element={<RoleGate role="staff"><StaffToday /></RoleGate>} />
+          <Route path="betreuung/code" element={<RoleGate role="staff"><StaffCode /></RoleGate>} />
+          <Route path="betreuung/events" element={<RoleGate role="staff"><StaffEvents /></RoleGate>} />
+          <Route path="betreuung/events/neu" element={<RoleGate role="staff"><NewEvent /></RoleGate>} />
+          <Route path="betreuung/turnier" element={<RoleGate role="staff"><StaffTournaments /></RoleGate>} />
+          <Route path="betreuung/turnier/:id" element={<RoleGate role="staff"><StaffTournamentDetail /></RoleGate>} />
+          <Route path="betreuung/ankuendigung" element={<RoleGate role="staff"><Announcement /></RoleGate>} />
+          <Route path="betreuung/ideen" element={<RoleGate role="staff"><Ideas staffMode /></RoleGate>} />
           <Route path="leitung" element={<RoleGate role="lead"><Placeholder title="Dashboard" /></RoleGate>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

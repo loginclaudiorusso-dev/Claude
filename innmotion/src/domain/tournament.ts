@@ -98,7 +98,7 @@ export function slotLabel(t: Tournament, slot: Slot): string {
   if (slot.kind === 'group') return `${slot.rank}. Gruppe ${slot.group}`;
   if (slot.kind === 'winner') {
     const m = t.matches.find((x) => x.id === slot.match);
-    return `Sieger ${m?.label ?? ''}`.trim();
+    return `Sieger ${(m?.label ?? '').replace('Halbfinale', 'HF').replace('Viertelfinale', 'VF')}`.trim();
   }
   return 'offen';
 }

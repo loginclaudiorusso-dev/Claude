@@ -165,12 +165,12 @@ function Celebration({ result, onDone }: { result: CheckinSuccess; onDone: () =>
             <span className="tnum text-[56px] font-black text-[#042420]">+{points}</span>
           </div>
         </div>
-        <h1 className="anim-rise mt-8 text-[30px] font-extrabold tracking-tight" role="status">
-          Eingecheckt!
-        </h1>
-        <p className="anim-rise mt-1 text-[17px] text-white/80">
-          {result.label} · {result.points} Punkte für dein Team
-        </p>
+        <div role="status">
+          <h1 className="anim-rise mt-8 text-[30px] font-extrabold tracking-tight">Eingecheckt!</h1>
+          <p className="anim-rise mt-1 text-[17px] text-white/80">
+            {result.label} · {result.points} Punkte für dein Team
+          </p>
+        </div>
         {result.weeklyGoalReached && (
           <p className="anim-rise mt-4 rounded-pill bg-[#c6f432]/15 px-4 py-2 text-[15px] font-bold text-[#c6f432]">Wochenziel geschafft!</p>
         )}
