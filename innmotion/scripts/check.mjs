@@ -42,7 +42,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(base + route, { waitUntil: 'networkidle' });
       await page.waitForTimeout(900);
       const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: window.innerWidth, path: location.pathname }));
-      if (m.sw > m.w) problems.push(`[${scheme}] ${route} (${role}): horizontales Scrollen ${m.sw}px > ${m.w}px`);
+      if (m.sw > 390 || m.w > 390) problems.push(`[${scheme}] ${route} (${role}): horizontales Scrollen ${m.sw}px > ${m.w}px`);
       if (m.path !== route) problems.push(`[${scheme}] ${route} (${role}): umgeleitet nach ${m.path}`);
       // Abgeschnittene Texte: Elemente, deren Inhalt breiter ist als sie selbst, ohne bewusstes truncate
       const clipped = await page.evaluate(() => {
