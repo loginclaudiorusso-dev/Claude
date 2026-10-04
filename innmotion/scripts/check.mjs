@@ -12,7 +12,7 @@ mkdirSync(out, { recursive: true });
 const ROUTES = {
   participant: ['/', '/challenges', '/events', '/events/ev-bouldern', '/liga', '/profil', '/profil/abzeichen', '/profil/ideen', '/profil/umfrage', '/profil/daten', '/checkin'],
   staff: ['/betreuung', '/betreuung/code', '/betreuung/events', '/betreuung/events/neu', '/betreuung/turnier', '/betreuung/turnier/t-herbstcup', '/betreuung/ankuendigung', '/betreuung/ideen', '/profil'],
-  lead: ['/leitung', '/leitung/liga', '/leitung/umfrage', '/leitung/verwaltung', '/leitung/datenschutz', '/profil'],
+  lead: ['/leitung', '/leitung/liga', '/leitung/umfrage', '/leitung/verwaltung', '/leitung/datenschutz', '/aushang/gs', '/profil'],
 };
 const PERSON = { participant: 'p-gs-01', staff: 's-gs', lead: 'lead' };
 

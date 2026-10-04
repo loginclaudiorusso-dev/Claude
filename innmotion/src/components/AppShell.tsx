@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   CalendarDays, ChartColumn, ClipboardList, House, LayoutDashboard, QrCode, Settings, Star, Swords, Trophy, UserRound, Target,
@@ -41,7 +42,9 @@ export function AppShell() {
         Zum Inhalt springen
       </a>
       <main id="main">
-        <Outlet />
+        <Suspense fallback={<div className="min-h-dvh" aria-busy="true" />}>
+          <Outlet />
+        </Suspense>
       </main>
       <BottomNav items={NAV[role]} />
     </div>

@@ -9,7 +9,7 @@ import { Button, Card, Chip, LargeTitle, Page, cx } from '../../components/ui';
 
 type Target = { kind: 'P' | 'E'; id: string; label: string; sub: string; code: string };
 
-function useQrSvg(text: string) {
+export function useQrSvg(text: string) {
   const [svg, setSvg] = useState('');
   useEffect(() => {
     let alive = true;

@@ -54,7 +54,7 @@ export function LineChart({
             </g>
           ))}
           {xLabels.map((l, i) =>
-            i % labelEvery === 0 || i === n - 1 ? (
+            (n - 1 - i) % labelEvery === 0 ? (
               <text key={i} x={x(i)} y={H - 6} textAnchor={i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'} className="fill-muted text-[10px]">
                 {l}
               </text>

@@ -43,12 +43,13 @@ export function rotationSlot(at: Date): number {
   return Math.floor(at.getTime() / ROTATION_MS);
 }
 
-export function qrPayload(kind: 'P' | 'E', id: string, code: string, at: Date): string {
-  return `${QR_PREFIX}:${kind}:${id}:${code}:${rotationSlot(at)}`;
+/** QR-Inhalt. Mit `at` rotierend (Handy der Betreuung), ohne `at` als gedruckter Tages-Aushang. */
+export function qrPayload(kind: 'P' | 'E', id: string, code: string, at?: Date): string {
+  return at ? `${QR_PREFIX}:${kind}:${id}:${code}:${rotationSlot(at)}` : `${QR_PREFIX}:${kind}:${id}:${code}`;
 }
 
 export type ParsedCode =
-  | { kind: 'P' | 'E'; id: string; code: string; slot: number }
+  | { kind: 'P' | 'E'; id: string; code: string; slot?: number }
   | { kind: 'manual'; code: string }
   | { kind: 'invalid' };
 
@@ -60,8 +61,8 @@ export function parseCode(raw: string): ParsedCode {
   const trimmed = raw.trim();
   if (trimmed.startsWith(`${QR_PREFIX}:`)) {
     const [, kind, id, code, slot] = trimmed.split(':');
-    if ((kind === 'P' || kind === 'E') && id && code && slot && /^\d+$/.test(slot)) {
-      return { kind, id, code, slot: Number(slot) };
+    if ((kind === 'P' || kind === 'E') && id && code && (slot === undefined || /^\d+$/.test(slot))) {
+      return { kind, id, code, slot: slot === undefined ? undefined : Number(slot) };
     }
     return { kind: 'invalid' };
   }

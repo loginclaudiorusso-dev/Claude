@@ -87,7 +87,7 @@ export function resolveCode(db: DB, personId: string, raw: string, now: Date): R
   };
 
   if (parsed.kind === 'P' || parsed.kind === 'E') {
-    if (Math.abs(rotationSlot(now) - parsed.slot) > ROTATION_TOLERANCE) {
+    if (parsed.slot !== undefined && Math.abs(rotationSlot(now) - parsed.slot) > ROTATION_TOLERANCE) {
       return fail('Dieser QR-Code ist abgelaufen. Bitte scanne den aktuellen Code direkt vor Ort.');
     }
     if (parsed.kind === 'P') {
