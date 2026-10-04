@@ -42,3 +42,7 @@ yarn-error.*
 
 # local env
 .env
+
+# INNmotion
+innmotion/screenshots/
+innmotion/dev-dist/
