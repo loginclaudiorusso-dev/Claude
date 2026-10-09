@@ -1,0 +1,12 @@
+Ordner „Listen“
+
+Hier Einheitslisten ablegen (Excel .xlsx oder CSV mit Semikolon) – z. B. die von Claude
+umgebauten Listen (Prompt: Vorlagen/Prompt_Einheitsliste.md). Beim Start des Programms
+werden neue oder geänderte Dateien automatisch übernommen:
+
+* Art „Anreise“: wie eine Anreiseliste – je Anreisetag (EMR und übrige getrennt) ersetzt die
+  Datei die bisherige Liste dieses Tages. Deshalb pro Anreisetag immer ALLE Personen aufführen.
+* Art „UWT“: je Klasse und Zeitraum ein Block mit Namen; DZ-Partner gehen in die Klassenliste.
+
+Aufbau siehe Vorlagen/Einheitsliste_Vorlage.xlsx. Alternativ: Daten & Import → Anreisen →
+„Anreiselisten hochladen“ und die Einheitsliste wählen (mit Vorschau).

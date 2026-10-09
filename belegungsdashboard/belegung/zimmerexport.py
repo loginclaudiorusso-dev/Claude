@@ -62,6 +62,13 @@ def _geschlecht(z: Zuteilung) -> str:
     return g + ("*" if z.bedarf.geschlecht_geschaetzt and z.bedarf.geschlecht else "")
 
 
+def _haus(h: str) -> float:
+    try:
+        return float(h)
+    except ValueError:
+        return 99.0
+
+
 def exportieren(pfad: Path, titel: str, zuteilungen: list[Zuteilung], lage: Lage, stichtag: date) -> Path:
     from openpyxl import Workbook
 
@@ -70,13 +77,13 @@ def exportieren(pfad: Path, titel: str, zuteilungen: list[Zuteilung], lage: Lage
     ws.title = "Zimmerliste"
     zeilen, markierung = [], {}
     sortiert = sorted(zuteilungen, key=lambda z: (z.bedarf.von, z.zimmer is None,
-                                                  (z.zimmer.haus, z.zimmer.etage, z.zimmer.flur, z.zimmer.nummer) if z.zimmer else (),
+                                                  (_haus(z.zimmer.haus), z.zimmer.nummer) if z.zimmer else (),
                                                   z.bedarf.name))
     for i, zt in enumerate(sortiert):
         b, z = zt.bedarf, zt.zimmer
         hinweis = "; ".join(([] if z else [zt.grund]) + zt.warnungen)
         zeilen.append([i + 1, b.name, b.massnahme, GRUPPE_LABEL.get(b.gruppe, b.gruppe), _geschlecht(zt),
-                       f"Haus {z.haus}" if z else "–", etage_text(z.etage) if z else "", z.flur if z else "",
+                       f"Haus {z.haus}" if z else "–", etage_text(z.etage) if z else "",
                        z.nr if z else "NICHT ZUGETEILT", "Doppel" if z and z.betten > 1 else "", b.von, b.bis,
                        "ja" if b.tier else "", b.bemerkung, hinweis])
         if z is None:
@@ -86,29 +93,29 @@ def exportieren(pfad: Path, titel: str, zuteilungen: list[Zuteilung], lage: Lage
     zugeteilt = sum(1 for z in zuteilungen if z.zimmer)
     _tabelle(ws, titel, f"Internat Goslar · {zugeteilt} von {len(zuteilungen)} Personen zugeteilt · erstellt "
                         f"{datetime.now():%d.%m.%Y %H:%M} · * Geschlecht aus dem Vornamen geschätzt",
-             ["Nr", "Name", "Maßnahme", "Gruppe", "m/w", "Haus", "Etage", "Flur", "Zimmer", "Typ", "Anreise", "Abreise",
-              "Tier", "Bemerkung", "Hinweis"], zeilen, [5, 28, 18, 13, 6, 9, 8, 8, 14, 8, 11, 11, 6, 30, 40], markierung)
+             ["Nr", "Name", "Maßnahme", "Gruppe", "m/w", "Haus", "Etage", "Zimmer", "Typ", "Anreise", "Abreise",
+              "Tier", "Bemerkung", "Hinweis"], zeilen, [5, 28, 18, 13, 6, 9, 8, 14, 8, 11, 11, 6, 30, 40], markierung)
 
-    # Reinigung / Vorbereitung je Flur
-    ws2 = wb.create_sheet("Je Flur")
+    # Reinigung / Vorbereitung je Etage
+    ws2 = wb.create_sheet("Je Etage")
     flure: dict[tuple, list[Zuteilung]] = {}
     for zt in sortiert:
         if zt.zimmer:
-            flure.setdefault((zt.zimmer.haus, zt.zimmer.etage, zt.zimmer.flur), []).append(zt)
+            flure.setdefault((zt.zimmer.haus, zt.zimmer.etage), []).append(zt)
     zeilen2 = []
-    for (haus, etage, flur), zts in flure.items():
+    for (haus, etage), zts in sorted(flure.items(), key=lambda x: (_haus(x[0][0]), x[0][1])):
         zimmer = sorted({zt.zimmer.nr for zt in zts}, key=lambda n: (len(n), n))
         anreise = min(zt.bedarf.von for zt in zts)
         abreise = max(zt.bedarf.bis for zt in zts)
-        zeilen2.append([f"Haus {haus}", etage_text(etage), flur, len(zts), len(zimmer), anreise, abreise, ", ".join(zimmer)])
-    _tabelle(ws2, f"{titel} – je Flur", "Für Vorbereitung und Reinigung zum Start und Ende",
-             ["Haus", "Etage", "Flur", "Personen", "Zimmer", "Anreise", "Abreise bis", "Zimmernummern"],
-             zeilen2, [9, 8, 8, 10, 9, 11, 12, 60])
+        zeilen2.append([f"Haus {haus}", etage_text(etage), len(zts), len(zimmer), anreise, abreise, ", ".join(zimmer)])
+    _tabelle(ws2, f"{titel} – je Etage", "Für Vorbereitung und Reinigung zum Start und Ende",
+             ["Haus", "Etage", "Personen", "Zimmer", "Anreise", "Abreise bis", "Zimmernummern"],
+             zeilen2, [9, 8, 10, 9, 11, 12, 60])
 
     # Freie Zimmer am Stichtag
     ws3 = wb.create_sheet("Freie Zimmer")
     zeilen3 = []
-    for z in sorted(lage.zimmer.values(), key=lambda z: (float(z.haus), z.etage.zfill(2) if z.etage.isdigit() else z.etage, z.flur, z.nummer)):
+    for z in sorted(lage.zimmer.values(), key=lambda z: (_haus(z.haus), z.nummer)):
         if not z.aktiv:
             continue
         status, _ = lage.status_am(z.id, stichtag)
@@ -117,11 +124,11 @@ def exportieren(pfad: Path, titel: str, zuteilungen: list[Zuteilung], lage: Lage
         frei_bis = lage.frei_bis(z.id, stichtag)
         merkmale = ", ".join(t for t, an in (("Doppel", z.betten > 1), ("Tiere", z.tiere), ("nur Männer", z.nur_maenner),
                                              ("Gäste", z.gaeste)) if an)
-        zeilen3.append([f"Haus {z.haus}", etage_text(z.etage), z.flur, z.nr,
+        zeilen3.append([f"Haus {z.haus}", etage_text(z.etage), z.nr,
                         lage.freie_betten(z.id, stichtag, stichtag), frei_bis or "offen", merkmale, z.notiz])
     _tabelle(ws3, f"Freie Zimmer am {stichtag:%d.%m.%Y}", "Nach Abzug von Belegung, Sperrungen und geplanten Zuweisungen",
-             ["Haus", "Etage", "Flur", "Zimmer", "Betten frei", "frei bis", "Merkmale", "Notiz"],
-             zeilen3, [9, 8, 8, 10, 11, 12, 22, 40])
+             ["Haus", "Etage", "Zimmer", "Betten frei", "frei bis", "Merkmale", "Notiz"],
+             zeilen3, [9, 8, 10, 11, 12, 22, 40])
 
     pfad = Path(pfad)
     wb.save(pfad)

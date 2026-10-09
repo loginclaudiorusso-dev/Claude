@@ -15,3 +15,14 @@ build/
 dist/
 __pycache__/
 .pytest_cache/
+# echte Daten des Nutzers – nie versionieren
+Gebaeudeplan/
+UWT/
+Listen/*.xlsx
+Listen/*.csv
+*.docx
+*.pdf
+inventar.json
+reinigung_erledigt.json
+# Vorlage mit erfundenen Beispielen darf rein
+!Vorlagen/*.xlsx

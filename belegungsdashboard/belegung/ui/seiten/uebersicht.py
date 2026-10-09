@@ -129,10 +129,15 @@ class UebersichtSeite(Seite):
         heute = date.today()
         faellig = self.z.ds.erinnerungen
         for p in faellig[:5]:
-            wann = "heute" if p.abreise == heute else ("morgen" if p.abreise == heute + timedelta(days=1) else
-                                                         ("war am" if p.abreise < heute else "am"))
-            datum = "" if wann in ("heute", "morgen") else f" {p.abreise:%d.%m.%Y}"
-            h = Hinweis(f"<b>Abreise:</b> {p.name} ({p.massnahme or p.gruppe}) reist {wann}{datum} ab.",
+            if p.abreise < heute:
+                satz = f"ist am {p.abreise:%d.%m.%Y} abgereist"
+            elif p.abreise == heute:
+                satz = "reist heute ab"
+            elif p.abreise == heute + timedelta(days=1):
+                satz = "reist morgen ab"
+            else:
+                satz = f"reist am {p.abreise:%d.%m.%Y} ab"
+            h = Hinweis(f"<b>Abreise:</b> {p.name} ({p.massnahme or p.gruppe}) {satz}.",
                         "warnung" if p.abreise <= heute + timedelta(days=1) else "info", "Erledigt")
             h.knopf.clicked.connect(lambda _=False, p=p: self._erledigt(p))
             self.hinweise.addWidget(h)

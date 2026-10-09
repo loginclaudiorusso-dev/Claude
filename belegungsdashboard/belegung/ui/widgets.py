@@ -7,12 +7,12 @@ import math
 from datetime import date, timedelta
 
 from PySide6.QtCore import (
-    QDate, QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer, Signal,
+    QDate, QEasingCurve, QEvent, QObject, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer, Signal,
 )
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCalendarWidget, QDateEdit, QFrame, QGraphicsOpacityEffect, QGridLayout,
-    QHBoxLayout, QHeaderView, QLabel, QLayout, QPushButton, QSizePolicy, QTableWidget, QTableWidgetItem,
+    QHBoxLayout, QHeaderView, QLabel, QLayout, QMenu, QPushButton, QSizePolicy, QTableWidget, QTableWidgetItem,
     QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -51,8 +51,27 @@ def label(text: str = "", r: str | None = None, umbruch: bool = False) -> QLabel
     return lbl
 
 
+class FettKnopf(QPushButton):
+    """Knopf, der genug Platz für fette Schrift reserviert – gewählte Reiter/Chips werden fett und
+    würden sonst abgeschnitten („Reinigung“ → „Reinigunc“)."""
+
+    def sizeHint(self):
+        s = super().sizeHint()
+        if not self.text():
+            return s
+        from PySide6.QtGui import QFont, QFontMetrics
+
+        fett = QFont(self.font())
+        fett.setBold(True)
+        mehr = QFontMetrics(fett).horizontalAdvance(self.text()) - self.fontMetrics().horizontalAdvance(self.text())
+        return QSize(s.width() + max(mehr, 0) + 4, s.height())
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+
 def knopf(text: str = "", variant: str | None = None, icon_name: str | None = None, tooltip: str | None = None) -> QPushButton:
-    b = QPushButton(text)
+    b = FettKnopf(text) if variant == "chip" else QPushButton(text)
     if variant:
         b.setProperty("variant", variant)
     b.setCursor(Qt.PointingHandCursor)
@@ -86,6 +105,7 @@ def leeren(layout: QLayout) -> None:
     while layout.count():
         item = layout.takeAt(0)
         if item.widget():
+            item.widget().hide()          # sofort weg – gelöscht wird erst später
             item.widget().deleteLater()
         elif item.layout():
             leeren(item.layout())
@@ -184,7 +204,7 @@ class Segment(QFrame):
         self._gruppe = QButtonGroup(self)
         self._gruppe.setExclusive(True)
         for i, text in enumerate(optionen):
-            b = QPushButton(text)
+            b = FettKnopf(text)
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
             self._gruppe.addButton(b, i)
@@ -196,6 +216,12 @@ class Segment(QFrame):
 
     def index(self) -> int:
         return self._gruppe.checkedId()
+
+    def text_setzen(self, index: int, text: str) -> None:
+        b = self._gruppe.button(index)
+        if b is not None and b.text() != text:
+            b.setText(text)
+            b.updateGeometry()
 
     def setzen(self, index: int, still: bool = True) -> None:
         b = self._gruppe.button(index)
@@ -490,9 +516,21 @@ class DatumFeld(QWidget):
         self._kal.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self._kal.setFirstDayOfWeek(Qt.Monday)
         self._kal.clicked.connect(self._gewaehlt)
+        self._kal_farben()
 
     def icon_aktualisieren(self) -> None:
         self.btn.setIcon(icons.icon("kalender", theme.T.text_2, 16))
+        if hasattr(self, "_kal"):
+            self._kal_farben()
+
+    def _kal_farben(self) -> None:
+        """Wochenende nicht rot einfärben (Qt-Standard) – ruhiger, passend zum Theme."""
+        from PySide6.QtGui import QTextCharFormat
+
+        f = QTextCharFormat()
+        f.setForeground(QColor(theme.T.text_2))
+        for tag in (Qt.Saturday, Qt.Sunday):
+            self._kal.setWeekdayTextFormat(tag, f)
 
     def _oeffnen(self):
         self._kal.setSelectedDate(self.feld.date())
@@ -624,6 +662,39 @@ class ZeitraumLeiste(QWidget):
 # Tabelle
 # ---------------------------------------------------------------------------------------
 
+class MausradSperre(QObject):
+    """Mausrad über Auswahllisten und Zahlenfeldern ändert nichts – die Seite scrollt einfach weiter.
+    Erst in der per Klick geöffneten Liste wirkt das Rad. Als Event-Filter an der QApplication."""
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.Wheel:
+            from PySide6.QtWidgets import QAbstractSpinBox, QComboBox
+
+            if isinstance(obj, (QComboBox, QAbstractSpinBox)):
+                self._weiterreichen(obj, e)
+                return True
+        return False
+
+    @staticmethod
+    def _weiterreichen(obj, e) -> None:
+        """An den nächsten Bildlaufbereich darüber (Tabelle, dann Seite), der in diese Richtung noch scrollen kann."""
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtWidgets import QAbstractScrollArea, QApplication
+
+        runter = e.angleDelta().y() < 0 or e.pixelDelta().y() < 0
+        w = obj.parentWidget()
+        while w is not None:
+            if isinstance(w, QAbstractScrollArea):
+                bar = w.verticalScrollBar()
+                if (bar.value() < bar.maximum()) if runter else (bar.value() > bar.minimum()):
+                    vp = w.viewport()
+                    pos = vp.mapFromGlobal(e.globalPosition().toPoint())
+                    QApplication.sendEvent(vp, QWheelEvent(pos, e.globalPosition(), e.pixelDelta(), e.angleDelta(),
+                                                           e.buttons(), e.modifiers(), e.phase(), e.inverted()))
+                    return
+            w = w.parentWidget()
+
+
 class Tabelle(QTableWidget):
     def __init__(self, kopf: list[str], ausrichtung: list[str] | None = None, dehnen: int = 0, parent=None):
         super().__init__(0, len(kopf), parent)
@@ -643,21 +714,44 @@ class Tabelle(QTableWidget):
         kh.setStretchLastSection(False)
         kh.setSectionResizeMode(QHeaderView.ResizeToContents)
         kh.setSectionResizeMode(dehnen, QHeaderView.Stretch)
-        self.verticalHeader().setDefaultSectionSize(36)
+        self.verticalHeader().setDefaultSectionSize(max(36, self.fontMetrics().height() + 18))
 
     def fuellen(self, zeilen: list[list], farben: dict[tuple[int, int], str] | None = None) -> None:
         self.setRowCount(len(zeilen))
         for r, zeile in enumerate(zeilen):
             for c, wert in enumerate(zeile):
                 if isinstance(wert, QWidget):
+                    if self.item(r, c) is not None:
+                        self.takeItem(r, c)          # sonst scheint alter Text unter dem Widget durch
                     self.setCellWidget(r, c, wert)
                     continue
+                if self.cellWidget(r, c) is not None:
+                    self.removeCellWidget(r, c)      # sonst liegt eine alte Pille über dem neuen Text
                 item = QTableWidgetItem("" if wert is None else str(wert))
                 links = self._ausrichtung[c] == "l" if c < len(self._ausrichtung) else True
                 item.setTextAlignment((Qt.AlignLeft if links else Qt.AlignRight) | Qt.AlignVCenter)
                 if farben and (r, c) in farben:
                     item.setForeground(QColor(farben[(r, c)]))
                 self.setItem(r, c, item)
+
+    def widgets_einpassen(self, rand: int = 14) -> None:
+        """Spalten und Zeilen mit eingebetteten Widgets (Auswahllisten, Häkchen, Pillen) so groß machen,
+        dass nichts abgeschnitten wird – auch bei Windows-Skalierung 125/150 %."""
+        kh = self.horizontalHeader()
+        hoehe = max(self.verticalHeader().defaultSectionSize(), self.fontMetrics().height() + 18)
+        for c in range(self.columnCount()):
+            breite = 0
+            for r in range(self.rowCount()):
+                w = self.cellWidget(r, c)
+                if w is not None:
+                    w.adjustSize()
+                    sh = w.sizeHint()
+                    breite = max(breite, sh.width())
+                    hoehe = max(hoehe, sh.height() + 6)
+            if breite and kh.sectionResizeMode(c) != QHeaderView.Stretch:
+                kh.setSectionResizeMode(c, QHeaderView.Fixed)
+                self.setColumnWidth(c, max(breite + rand, kh.sectionSizeHint(c), self.sizeHintForColumn(c)))
+        self.verticalHeader().setDefaultSectionSize(hoehe)
 
     def hoehe_anpassen(self, max_zeilen: int = 14) -> None:
         n = min(self.rowCount(), max_zeilen)
@@ -676,6 +770,11 @@ class FlowLayout(QLayout):
         self._items: list = []
         self._abstand = abstand
         self.setContentsMargins(0, 0, 0, 0)
+        if isinstance(parent, QWidget):
+            # Höhe hängt von der Breite ab – sonst rechnen umgebende Layouts mit zu wenig Zeilen
+            sp = parent.sizePolicy()
+            sp.setHeightForWidth(True)
+            parent.setSizePolicy(sp)
 
     def addItem(self, item):
         self._items.append(item)
@@ -700,7 +799,12 @@ class FlowLayout(QLayout):
         self._anordnen(rect)
 
     def sizeHint(self):
-        return self.minimumSize()
+        # bevorzugt: alles in einer Zeile – sonst rechnen umgebende Layouts mit der Breite eines
+        # einzelnen Elements und reservieren viel zu viel Höhe; schmaler geht trotzdem (minimumSize)
+        if not self._items:
+            return QSize()
+        breite = sum(i.sizeHint().width() for i in self._items) + self._abstand * (len(self._items) - 1)
+        return QSize(breite, max(i.sizeHint().height() for i in self._items))
 
     def minimumSize(self):
         s = QSize()
@@ -798,3 +902,71 @@ class Leer(QWidget):
         if aktion:
             self.knopf = knopf(aktion, "primary")
             lay.addWidget(self.knopf, 0, Qt.AlignCenter)
+
+
+# ---------------------------------------------------------------------------------------
+# Mehrfachauswahl (z. B. Personengruppen)
+# ---------------------------------------------------------------------------------------
+
+class _OffenesMenue(QMenu):
+    """Menü, das beim Anhaken offen bleibt – so lassen sich mehrere Einträge nacheinander wählen."""
+
+    def mouseReleaseEvent(self, e):
+        a = self.activeAction()
+        if a is not None and a.isCheckable() and a.isEnabled():
+            a.trigger()
+            return
+        super().mouseReleaseEvent(e)
+
+
+class Mehrfachauswahl(QPushButton):
+    """Knopf mit Häkchen-Menü. ``geaendert`` liefert die Menge der gewählten Schlüssel (leer = alle)."""
+
+    geaendert = Signal(object)
+
+    def __init__(self, eintraege: list[tuple[str, str]], alle_text: str = "Alle", parent=None):
+        super().__init__(parent)
+        self._alle_text = alle_text
+        self._menue = _OffenesMenue(self)
+        self._aktionen: dict[str, object] = {}
+        alle = self._menue.addAction("Alle zeigen")
+        alle.triggered.connect(lambda: self.setzen(set()))
+        self._menue.addSeparator()
+        for schluessel, text in eintraege:
+            a = self._menue.addAction(text)
+            a.setCheckable(True)
+            a.setData(text)
+            a.toggled.connect(lambda _an: self._melden())
+            self._aktionen[schluessel] = a
+        self.setMenu(self._menue)
+        self.setProperty("variant", "chip")          # mit Rahmen – als Auswahlfeld erkennbar
+        self._beschriften()
+
+    def auswahl(self) -> set[str]:
+        return {k for k, a in self._aktionen.items() if a.isChecked()}
+
+    def setzen(self, schluessel: set[str]) -> None:
+        for k, a in self._aktionen.items():
+            a.blockSignals(True)
+            a.setChecked(k in schluessel)
+            a.blockSignals(False)
+        self._melden()
+
+    def anzahl_setzen(self, zahlen: dict[str, int]) -> None:
+        """Zahl hinter jedem Eintrag, z. B. „EMR (6)“."""
+        for k, a in self._aktionen.items():
+            a.setText(f"{a.data()} ({zahlen.get(k, 0)})" if k in zahlen else a.data())
+
+    def _beschriften(self) -> None:
+        gewaehlt = [a.data() for a in self._aktionen.values() if a.isChecked()]
+        if not gewaehlt:
+            self.setText(self._alle_text)
+        elif len(gewaehlt) <= 3:
+            self.setText(", ".join(gewaehlt))
+        else:
+            self.setText(f"{len(gewaehlt)} Gruppen")
+        self.setToolTip("Mehrere Gruppen anhaken – angezeigt wird alles, was zu einer davon passt")
+
+    def _melden(self) -> None:
+        self._beschriften()
+        self.geaendert.emit(self.auswahl())

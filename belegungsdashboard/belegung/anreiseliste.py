@@ -48,6 +48,7 @@ class Person:
     geschlecht: str = ""                # m | w | d | "" (unbekannt)
     tier: bool = False
     bemerkung: str = ""
+    abreise_quelle: str = ""            # "" | "emr" (automatisch: Mittwoch) | "hand" (von Hand gesetzt/gelöscht)
 
     @property
     def schluessel(self) -> str:
@@ -65,7 +66,7 @@ class Person:
                 "abreise": self.abreise.isoformat() if self.abreise else None, "liste": self.liste,
                 "erinnerung_tage": self.erinnerung_tage, "erinnerung_kanal": self.erinnerung_kanal,
                 "erinnerung_id": self.erinnerung_id, "erledigt": self.erledigt, "geschlecht": self.geschlecht,
-                "tier": self.tier, "bemerkung": self.bemerkung}
+                "tier": self.tier, "bemerkung": self.bemerkung, "abreise_quelle": self.abreise_quelle}
 
     @staticmethod
     def aus_dict(d: dict) -> "Person":
@@ -76,6 +77,7 @@ class Person:
             erinnerung_tage=d.get("erinnerung_tage"), erinnerung_kanal=d.get("erinnerung_kanal") or "",
             erinnerung_id=d.get("erinnerung_id") or "", erledigt=bool(d.get("erledigt", False)),
             geschlecht=d.get("geschlecht") or "", tier=bool(d.get("tier", False)), bemerkung=d.get("bemerkung") or "",
+            abreise_quelle=d.get("abreise_quelle") or "",
         )
 
 
@@ -247,6 +249,8 @@ def uebernehmen(bestand: list[Person], liste: Anreiseliste) -> tuple[list[Person
         vorher.name, vorher.massnahme, vorher.internat, vorher.gruppe = p.name, p.massnahme, p.internat, p.gruppe
         if vorher.anreise != p.anreise:   # Anreise verschoben
             vorher.anreise = p.anreise
+            if vorher.abreise_quelle == "emr":          # automatische EMR-Abreise neu berechnen
+                vorher.abreise, vorher.abreise_quelle = None, ""
             if vorher.abreise and vorher.abreise < p.anreise:
                 vorher.abreise = None
         vorher.liste = p.liste
@@ -271,6 +275,8 @@ def laden() -> tuple[list[Person], dict]:
             personen.append(Person.aus_dict(d))
         except (KeyError, ValueError):
             continue
+    if emr_abreisen_setzen(personen):
+        speichern(personen, roh.get("listen", {}))
     return personen, roh.get("listen", {})
 
 
@@ -310,19 +316,51 @@ def alle_loeschen() -> list[Person]:
 # Auswertung
 # ---------------------------------------------------------------------------------------
 
+def ist_emr(p: Person) -> bool:
+    return p.gruppe == "EMR" or "emr" in p.massnahme.lower()
+
+
+def ankunft(p: Person) -> date:
+    """Tag, an dem die Person tatsächlich da ist: EMR einen Tag vor dem Listendatum."""
+    return p.anreise - timedelta(days=1) if ist_emr(p) else p.anreise
+
+
+def emr_abreise(p: Person) -> date:
+    """EMR reisen Sonntag (bzw. Montag) an und Mittwoch ab; sonst nach drei Nächten."""
+    da = ankunft(p)
+    if da.weekday() in (6, 0):
+        return da + timedelta(days=(2 - da.weekday()) % 7)
+    return da + timedelta(days=3)
+
+
+def emr_abreisen_setzen(personen: list[Person]) -> int:
+    """Trägt bei EMR ohne Abreise den Mittwoch ein (einmalig – von Hand Geändertes bleibt)."""
+    n = 0
+    for p in personen:
+        if ist_emr(p) and p.abreise is None and not p.abreise_quelle:
+            p.abreise, p.abreise_quelle = emr_abreise(p), "emr"
+            n += 1
+    return n
+
+
 def eintraege(personen: list[Person], standard_wochen: int = 0) -> list[dict]:
     """Nur Personen mit Internat zählen zur Belegung. Ohne Abreise: Standarddauer oder nur Termin."""
     ergebnis = []
     for p in personen:
         if not p.internat:
             continue
-        bis, nur_termin = p.abreise, False
+        von, bis, nur_termin = ankunft(p), p.abreise, False
+        emr = ist_emr(p)                                # EMR sind schon am Vortag da (Liste 05.10. → ab 04.10.)
+        if emr and bis is not None:
+            bis = max(von, bis - timedelta(days=1))     # gezählt werden Nächte: Abreisetag selbst nicht
         if bis is None:
-            if standard_wochen > 0:
+            if emr:
+                bis = von + timedelta(days=2)           # drei Übernachtungen (04.–06.10.), Abreise am Morgen danach
+            elif standard_wochen > 0:
                 bis = p.anreise + timedelta(weeks=standard_wochen) - timedelta(days=1)
             else:
                 bis, nur_termin = p.anreise, True
-        ergebnis.append({"kategorie": "Anreise", "standort": STANDORT, "von": p.anreise.isoformat(),
+        ergebnis.append({"kategorie": "Anreise", "standort": STANDORT, "von": von.isoformat(),
                          "bis": bis.isoformat(), "anzahl": 1, "bezeichnung": f"{p.name} ({p.massnahme or p.gruppe})",
                          "gruppe": p.massnahme or p.gruppe, "nur_termin": nur_termin})
     return ergebnis

@@ -20,7 +20,7 @@ from pathlib import Path
 from .konfig import datenordner
 
 KANAELE = {"outlook": "Outlook-Termin mit Erinnerung", "mail": "E-Mail an mich (zeitversetzt)",
-           "ics": "Kalenderdatei (.ics)", "app": "Nur im Dashboard"}
+           "ics": "Kalenderdatei (.ics)", "app": "Terminkalender im Dashboard"}
 KANAL_KURZ = {"outlook": "Outlook", "mail": "E-Mail", "ics": "Kalenderdatei", "app": "Dashboard"}
 KATEGORIE = "Belegungsdashboard"
 UHRZEIT = time(8, 0)
@@ -33,7 +33,8 @@ def outlook_moeglich() -> bool:
 
 
 def standard_kanal() -> str:
-    return "outlook" if outlook_moeglich() else "app"
+    # Dashboard-Kalender als Standard: zuverlässig, auch wenn Outlook (z. B. das „neue Outlook“) kein COM bietet
+    return "app"
 
 
 def betreff(name: str, abreise: date) -> str:

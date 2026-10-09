@@ -3,7 +3,7 @@
 Aufbau des Exports (je Zimmer untereinander):
     GS-2-109                     Zimmer-ID
     1 Bett | 2 Betten
-    Werner, Jessica (GS ASS PS 260909)      je Bett: Name (Maßnahme) …
+    Weiler, Jessica (GS ASS PS 260909)      je Bett: Name (Maßnahme) …
     09.09.2026 - 20.10.2026                 … Zeitraum
     Belegt                                  … Status
     -- oder --
@@ -26,6 +26,8 @@ from pathlib import Path
 from . import speicher
 
 DATEI = f"{speicher.IMPORT_ORDNER}/gebaeudeplan.json"
+# Neue Gebäudepläne (.docx) hier ablegen – sie werden beim Öffnen des Zimmerplans übernommen
+EINGANG = "Gebaeudeplan"
 
 _ZIMMER = re.compile(r"^GS-([\d.]+)-([A-Z]?\d+)$")
 _HAUS = re.compile(r"^GS-Haus-([\d.]+)$")
@@ -41,7 +43,7 @@ class Belegung:
     zimmer: str
     von: date
     bis: date
-    art: str                 # belegt | gesperrt | geplant
+    art: str                 # belegt | gesperrt | geplant | freigabe
     name: str = ""
     massnahme: str = ""
     grund: str = ""          # bei Sperrung: Renoviert, Reno offen, Mieter …
@@ -98,6 +100,40 @@ def _zeilen_docx(pfad: Path) -> tuple[list[str], date | None]:
     for alt, neu in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'), ("&apos;", "'")):
         text = text.replace(alt, neu)
     return [z.strip() for z in text.splitlines() if z.strip()], stand
+
+
+def zeilen_aus_text(text: str) -> list[str]:
+    """Kopierter Text (z. B. Strg+A/Strg+C im Belegungssystem): Zellen sind durch Tabs, Zeilen durch
+    Umbrüche getrennt – beides wird zu einzelnen Zeilen wie im Word-Export."""
+    teile = re.split(r"[\t\r\n]+", text.replace("\u00a0", " "))
+    return [t.strip() for t in teile if t.strip()]
+
+
+def zeilen_aus_html(html: str) -> list[str]:
+    """HTML aus der Zwischenablage (Browser): Block-Elemente und Tabellenzellen werden zu Zeilen."""
+    import html as html_mod
+
+    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", "", html)
+    html = re.sub(r"(?i)<br\s*/?>|</(p|div|td|th|tr|li|h\d|table|section)>", "\n", html)
+    text = html_mod.unescape(re.sub(r"<[^>]+>", "", html))
+    return zeilen_aus_text(text)
+
+
+def aus_zwischenablage(text: str = "", html: str = "", stand: date | None = None) -> Gebaeudeplan:
+    """Gebäudeplan aus eingefügtem Text/HTML – genommen wird die Variante, die mehr Zimmer erkennt."""
+    stand = stand or date.today()
+    kandidaten = []
+    if html:
+        kandidaten.append(parse_zeilen(zeilen_aus_html(html), "aus Zwischenablage", stand))
+    if text:
+        kandidaten.append(parse_zeilen(zeilen_aus_text(text), "aus Zwischenablage", stand))
+    if not kandidaten:
+        raise ValueError("Die Zwischenablage ist leer.")
+    plan = max(kandidaten, key=lambda p: (len(p.zimmer), len(p.belegungen)))
+    if not plan.zimmer:
+        raise ValueError("Im eingefügten Text wurden keine Zimmer (GS-…-…) erkannt. Bitte im Belegungssystem die "
+                         "Gebäudeansicht komplett markieren (Strg+A) und kopieren (Strg+C).")
+    return plan
 
 
 def parse_zeilen(zeilen: list[str], datei: str = "", stand: date | None = None) -> Gebaeudeplan:
@@ -202,6 +238,9 @@ def _block_auswerten(zid: str, block: list[str], hinweise: list[str]) -> list[Be
             if b.bis > f_bis:
                 neu.append(Belegung(**{**asdict(b), "von": f_bis + timedelta(days=1)}))
         ergebnis = neu
+    # Freigabe-Zeitraum merken: dort gilt das Zimmer als frei, auch wenn andere Quellen
+    # (Zimmer-Pivot) es noch als belegt führen
+    ergebnis += [Belegung(zid, f_von, f_bis, "freigabe", grund="Zimmerfreigabe") for f_von, f_bis in freigaben]
     return ergebnis
 
 
@@ -220,10 +259,11 @@ def lesen(pfad: Path) -> Gebaeudeplan:
 # Ablage
 # ---------------------------------------------------------------------------------------
 
-def speichern(plan: Gebaeudeplan) -> None:
+def speichern(plan: Gebaeudeplan, quelle: dict | None = None) -> None:
     speicher.schreiben(DATEI, {
         "datei": plan.datei, "stand": plan.stand.isoformat() if plan.stand else None,
         "importiert_am": datetime.now().isoformat(timespec="seconds"),
+        "quelle": quelle or {},
         "zimmer": [asdict(z) for z in plan.zimmer],
         "belegungen": [b.zu_dict() for b in plan.belegungen],
         "hinweise": plan.hinweise,
@@ -239,4 +279,47 @@ def laden() -> tuple[Gebaeudeplan | None, dict]:
         [PlanZimmer(**z) for z in roh.get("zimmer", [])],
         [Belegung.aus_dict(b) for b in roh.get("belegungen", [])], roh.get("hinweise", []),
     )
-    return plan, {"importiert_am": roh.get("importiert_am")}
+    return plan, {"importiert_am": roh.get("importiert_am"), "quelle": roh.get("quelle") or {}}
+
+
+def eingangsordner() -> Path:
+    return speicher.pfad(EINGANG)
+
+
+def neuer_plan_da(ordner: Path | None = None) -> bool:
+    """Schneller Check (ohne Einlesen): liegt im Eingangsordner eine neue/geänderte Word-Datei?"""
+    ordner = ordner or eingangsordner()
+    if not ordner.is_dir():
+        return False
+    dateien = [p for p in ordner.glob("*.docx") if not p.name.startswith("~$")]
+    if not dateien:
+        return False
+    neueste = max(dateien, key=lambda p: p.stat().st_mtime)
+    _plan, meta = laden()
+    return meta.get("quelle") != {"pfad": neueste.name, "geaendert": int(neueste.stat().st_mtime)}
+
+
+def automatisch_importieren(ordner: Path | None = None) -> Gebaeudeplan | None:
+    """Übernimmt den neuesten Gebäudeplan aus dem Eingangsordner, wenn er neu oder geändert ist.
+
+    Ein älterer Plan (Stand vor dem bereits importierten) ersetzt einen neueren nicht.
+    Gibt den übernommenen Plan zurück, sonst None."""
+    ordner = ordner or eingangsordner()
+    if not ordner.is_dir():
+        return None
+    dateien = [p for p in ordner.glob("*.docx") if not p.name.startswith("~$")]
+    if not dateien:
+        return None
+    neueste = max(dateien, key=lambda p: p.stat().st_mtime)
+    kennung = {"pfad": neueste.name, "geaendert": int(neueste.stat().st_mtime)}
+    bisher, meta = laden()
+    if bisher is not None and meta.get("quelle") == kennung:
+        return None
+    try:
+        plan = lesen(neueste)
+    except Exception:
+        return None
+    if bisher is not None and bisher.stand and plan.stand and plan.stand < bisher.stand:
+        return None
+    speichern(plan, kennung)
+    return plan
