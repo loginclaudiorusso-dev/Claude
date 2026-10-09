@@ -226,7 +226,7 @@ QFrame[hinweis="fehler"] {{ background: {alpha(t.ueber, .12)}; }}
 /* ---------- Knöpfe ---------- */
 QPushButton {{
     background: {t.surface}; color: {t.text}; border: 1px solid {t.border_strong};
-    border-radius: {RADIUS_KLEIN}px; padding: 7px 14px; font-weight: 500;
+    border-radius: {RADIUS_KLEIN}px; padding: 8px 16px; font-weight: 500; min-height: 18px;
 }}
 QPushButton:hover {{ background: {t.hover}; }}
 QPushButton:pressed {{ background: {t.surface_2}; }}
@@ -241,10 +241,11 @@ QPushButton[variant="gefahr"] {{ color: {t.ueber}; border-color: {alpha(t.ueber,
 QPushButton[variant="gefahr"]:hover {{ background: {alpha(t.ueber, .10)}; }}
 QPushButton[variant="chip"] {{
     background: {t.surface}; border: 1px solid {t.border_strong}; border-radius: 15px;
-    padding: 5px 12px; color: {t.text_2}; font-size: 12.5px;
+    padding: 7px 14px; color: {t.text_2}; font-size: 13px;
 }}
 QPushButton[variant="chip"]:hover {{ border-color: {t.accent}; color: {t.accent}; background: {t.accent_soft}; }}
-QPushButton[variant="icon"] {{ background: transparent; border: none; padding: 5px; border-radius: 6px; }}
+QPushButton[variant="chip"]:checked, QPushButton[variant="chip"][aktiv="true"] {{ border-color: {t.accent}; color: {t.accent}; background: {t.accent_soft}; font-weight: 600; }}
+QPushButton[variant="icon"] {{ background: transparent; border: none; padding: 8px; border-radius: 6px; min-width: 20px; }}
 QPushButton[variant="icon"]:hover {{ background: {t.hover}; }}
 QToolButton {{ background: transparent; border: none; border-radius: 6px; padding: 4px; }}
 QToolButton:hover {{ background: {t.hover}; }}
@@ -252,7 +253,7 @@ QToolButton:hover {{ background: {t.hover}; }}
 /* ---------- Segmentierte Auswahl ---------- */
 QFrame[segment="true"] {{ background: {t.surface_2}; border: 1px solid {t.border}; border-radius: 9px; }}
 QFrame[segment="true"] QPushButton {{
-    border: none; background: transparent; color: {t.text_2}; padding: 5px 12px; border-radius: 6px; font-weight: 500;
+    border: none; background: transparent; color: {t.text_2}; padding: 8px 16px; border-radius: 6px; font-weight: 500;
 }}
 QFrame[segment="true"] QPushButton:hover {{ color: {t.text}; }}
 QFrame[segment="true"] QPushButton:checked {{ background: {t.surface}; color: {t.text}; font-weight: 600; border: 1px solid {t.border}; }}
@@ -260,7 +261,7 @@ QFrame[segment="true"] QPushButton:checked {{ background: {t.surface}; color: {t
 /* ---------- Eingaben ---------- */
 QLineEdit, QSpinBox, QDateEdit, QComboBox, QPlainTextEdit, QTextEdit {{
     background: {t.surface}; color: {t.text}; border: 1px solid {t.border_strong};
-    border-radius: {RADIUS_KLEIN}px; padding: 6px 9px; selection-background-color: {t.accent}; selection-color: {t.accent_text};
+    border-radius: {RADIUS_KLEIN}px; padding: 8px 10px; min-height: 18px; selection-background-color: {t.accent}; selection-color: {t.accent_text};
 }}
 QLineEdit:focus, QSpinBox:focus, QDateEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {t.fokus}; }}
 QLineEdit:disabled, QComboBox:disabled {{ color: {t.text_3}; background: {t.surface_2}; }}
@@ -271,6 +272,7 @@ QComboBox QAbstractItemView {{
     background: {t.surface}; color: {t.text}; border: 1px solid {t.border}; border-radius: 6px;
     selection-background-color: {t.accent_soft}; selection-color: {t.text}; padding: 4px;
 }}
+QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 4px 8px; }}
 QLineEdit#chat_eingabe {{ border-radius: 12px; padding: 11px 14px; font-size: 14px; }}
 
 /* ---------- Kalender ---------- */
@@ -302,11 +304,12 @@ QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::su
 /* ---------- Sonstiges ---------- */
 QProgressBar {{ background: {t.surface_2}; border: none; border-radius: 3px; height: 6px; text-align: center; color: transparent; }}
 QProgressBar::chunk {{ background: {t.accent}; border-radius: 3px; }}
-QCheckBox {{ spacing: 8px; }}
-QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 1px solid {t.border_strong}; background: {t.surface}; }}
+QCheckBox {{ spacing: 9px; padding: 3px 0; }}
+QCheckBox::indicator {{ width: 19px; height: 19px; border-radius: 4px; border: 1px solid {t.border_strong}; background: {t.surface}; }}
 QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent}; image: url({haken}); }}
-QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 5px; }}
-QMenu::item {{ padding: 7px 14px; border-radius: 5px; }}
+QMenu {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 6px; font-size: 13.5px; }}
+QMenu::item {{ padding: 10px 26px 10px 16px; border-radius: 5px; min-width: 180px; }}
+QMenu::indicator {{ width: 18px; height: 18px; left: 6px; }}
 QMenu::item:selected {{ background: {t.hover}; }}
 QFrame[trenner="true"] {{ background: {t.border}; max-height: 1px; min-height: 1px; border: none; }}
 #toast {{ background: {t.tooltip_bg}; border-radius: 10px; }}

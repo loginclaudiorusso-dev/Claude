@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QScrollAre
 from ... import speicher
 from ...assistent import Antwort, Assistent
 from ...assistent.antworten import BEISPIELE
+from ...assistent.vervollstaendigen import kandidaten
 from ...assistent.llm import Einstellungen, backend_erstellen
 from .. import icons, theme
 from ..basis import Seite, Worker, Zustand
@@ -178,9 +179,15 @@ class AssistentSeite(Seite):
         eingabe.setSpacing(8)
         self.feld = QLineEdit()
         self.feld.setObjectName("chat_eingabe")
-        self.feld.setPlaceholderText("z. B. „Wie viele Plätze sind im November in Goslar frei?“")
+        self.feld.setPlaceholderText("z. B. „Wie viele Plätze sind im November in Goslar frei?“ · Tab = Vorschlag übernehmen")
+        self.feld.setToolTip("Tab: Vorschlag übernehmen bzw. Eingabe vervollständigen – erneut Tab für den nächsten, "
+                             "Umschalt+Tab zurück. Pfeil hoch/runter: frühere Fragen.")
         self.feld.returnPressed.connect(self.senden)
+        self.feld.textEdited.connect(lambda _t: self._tab_zuruecksetzen())
         self.feld.installEventFilter(self)
+        self._tab: tuple[list[str], int] | None = None
+        self._vorschlag_texte: list[str] = []
+        self._chips: list = []
         eingabe.addWidget(self.feld, 1)
         self.btn = knopf("Senden", "primary", "senden")
         self.btn.clicked.connect(self.senden)
@@ -229,6 +236,9 @@ class AssistentSeite(Seite):
             self.assistent.brutto_standard = self.z.brutto
 
     def eventFilter(self, obj, e):
+        if obj is self.feld and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Tab, Qt.Key_Backtab):
+            self._tab_vervollstaendigen(rueckwaerts=e.key() == Qt.Key_Backtab)
+            return True    # Tab bleibt im Eingabefeld
         if obj is self.feld and e.type() == QEvent.KeyPress and self._historie:
             if e.key() == Qt.Key_Up:
                 self._hist_pos = max(0, self._hist_pos - 1)
@@ -276,11 +286,43 @@ class AssistentSeite(Seite):
 
     def _vorschlaege_setzen(self, texte: list[str]) -> None:
         leeren(self.vorschlaege_lay)
-        for t in texte[:6]:
-            chip = knopf(t, "chip")
+        self._vorschlag_texte = list(texte[:6])
+        self._chips = []
+        for i, t in enumerate(self._vorschlag_texte):
+            chip = knopf(t, "chip", tooltip="Klicken zum Senden · Tab im Eingabefeld übernimmt den Vorschlag")
             chip.clicked.connect(lambda _=False, t=t: self.senden(t))
             self.vorschlaege_lay.addWidget(chip)
+            self._chips.append(chip)
         self.vorschlaege.setVisible(bool(texte))
+        self._tab_zuruecksetzen()
+
+    # ---- Tab-Vervollständigung ------------------------------------------------------------
+
+    def _tab_zuruecksetzen(self) -> None:
+        self._tab = None
+        self._chip_markieren(None)
+
+    def _tab_vervollstaendigen(self, rueckwaerts: bool = False) -> None:
+        if self._tab is None:
+            treffer = kandidaten(self.feld.text(), self._vorschlag_texte, self._historie)
+            if not treffer:
+                return
+            self._tab = (treffer, len(treffer) - 1 if rueckwaerts else 0)
+        else:
+            treffer, i = self._tab
+            self._tab = (treffer, (i + (-1 if rueckwaerts else 1)) % len(treffer))
+        treffer, i = self._tab
+        self.feld.setText(treffer[i])          # setText löst kein textEdited aus – der Zyklus bleibt erhalten
+        self.feld.end(False)
+        self._chip_markieren(treffer[i])
+
+    def _chip_markieren(self, text: str | None) -> None:
+        for chip in self._chips:
+            an = text is not None and chip.text() == text
+            if chip.property("aktiv") != an:
+                chip.setProperty("aktiv", an)
+                chip.style().unpolish(chip)
+                chip.style().polish(chip)
 
     def neues_gespraech(self) -> None:
         leeren(self.chat)

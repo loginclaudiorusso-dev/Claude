@@ -11,10 +11,49 @@ from PySide6.QtWidgets import (
 )
 from openpyxl.utils import get_column_letter
 
-from .. import anreiseliste, erinnerung, importe, pivot, speicher, uwt
+from .. import anreiseliste, einheitsliste, erinnerung, importe, pivot, speicher, termine, uwt
 from ..konfig import STANDORT_LABEL, STANDORTE
+from . import theme
 from .basis import Worker
 from .widgets import DatumFeld, Hinweis, Karte, Pille, Tabelle, knopf, label, leeren
+
+
+def scrollbar_machen(dialog: QDialog, breite: int, hoehe: int) -> None:
+    """Inhalt eines Dialogs scrollbar machen; die Knopfleiste (letzter Eintrag) bleibt immer sichtbar.
+    Die Größe wird auf den Bildschirm begrenzt – auch bei vielen Einträgen oder Windows-Skalierung."""
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtWidgets import QFrame, QScrollArea, QWidget
+
+    v = dialog.layout()
+    unten = v.takeAt(v.count() - 1)
+    inhalt = QWidget()
+    inhalt.setObjectName("seiteninhalt")
+    iv = QVBoxLayout(inhalt)
+    iv.setContentsMargins(0, 0, 10, 0)
+    iv.setSpacing(v.spacing())
+    while v.count():
+        item = v.takeAt(0)
+        if item.widget() is not None:
+            iv.addWidget(item.widget())
+        elif item.layout() is not None:
+            lay = item.layout()
+            lay.setParent(None)
+            iv.addLayout(lay)
+        else:
+            iv.addItem(item)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QFrame.NoFrame)
+    scroll.setWidget(inhalt)
+    v.addWidget(scroll, 1)
+    if unten is not None and unten.layout() is not None:
+        lay = unten.layout()
+        lay.setParent(None)
+        v.addLayout(lay)
+    bildschirm = (dialog.screen() or QGuiApplication.primaryScreen()).availableGeometry()
+    # mindestens so breit wie der Inhalt (sonst würde rechts etwas abgeschnitten), höchstens Bildschirm
+    breite = max(breite, inhalt.minimumSizeHint().width() + scroll.verticalScrollBar().sizeHint().width() + 60)
+    dialog.resize(min(breite, int(bildschirm.width() * 0.94)), min(hoehe, int(bildschirm.height() * 0.9)))
 
 
 class ImportDialog(QDialog):
@@ -115,6 +154,7 @@ class ImportDialog(QDialog):
         v.addLayout(unten)
         self._spalten_fuellen()
         self._vorschau()
+        scrollbar_machen(self, 980, 720)
 
     def _spalten_fuellen(self) -> None:
         kopf = self.tabelle.zeilen[self.zuordnung.kopfzeile] if self.tabelle.zeilen else []
@@ -137,6 +177,7 @@ class ImportDialog(QDialog):
         self.kopfzeile.blockSignals(False)
         self._spalten_fuellen()
         self._vorschau()
+        scrollbar_machen(self, 980, 720)
 
     def _kopf_wechsel(self, wert: int) -> None:
         self.zuordnung.kopfzeile = wert - 1
@@ -145,6 +186,7 @@ class ImportDialog(QDialog):
         self.zuordnung.spalten = neu.spalten
         self._spalten_fuellen()
         self._vorschau()
+        scrollbar_machen(self, 980, 720)
 
     def _vorschau(self, *_):
         self.zuordnung.spalten = {f: (self.felder[f].currentData() if f in self.felder else None) for f in importe.FELDER}
@@ -311,10 +353,21 @@ class AnreiselistenDialog(QDialog):
         self.resize(980, 760)
         self.bericht = anreiseliste.Bericht()
         self._listen: list[anreiseliste.Anreiseliste] = []
-        fehler = []
+        self._einheit: list = []                 # Einheitslisten: UWT-Teil wird mit übernommen
+        fehler, einheit_hinweise = [], []
         for p in pfade:
             try:
-                self._listen.append(anreiseliste.liste_lesen(p))
+                if einheitsliste.ist_einheitsliste(p):
+                    erg = einheitsliste.lesen(p)
+                    self._listen += erg.anreisen
+                    self._einheit.append(erg)
+                    einheit_hinweise += [f"<b>{p.name}</b>: {h}" for h in erg.hinweise]
+                    if erg.uwt is not None:
+                        einheit_hinweise.append(f"<b>{p.name}</b>: UWT – {len(erg.uwt.bloecke)} Blöcke mit "
+                                                f"{len(erg.uwt.personen)} Personen werden mit übernommen"
+                                                + (f" (DZ-Partner für {', '.join(erg.klassen)})" if erg.klassen else "") + ".")
+                else:
+                    self._listen.append(anreiseliste.liste_lesen(p))
             except Exception as exc:
                 fehler.append(f"<b>{p.name}</b>: {exc}")
 
@@ -327,6 +380,8 @@ class AnreiselistenDialog(QDialog):
                           "Upload erhalten. Zur Belegung zählen nur Personen mit Internat „ja“.", "muted", umbruch=True), 0)
         for f in fehler:
             v.addWidget(Hinweis(f, "fehler"))
+        for h in einheit_hinweise:
+            v.addWidget(Hinweis(h, "warnung" if "ohne Abreise" in h else "info"))
 
         bestand = {p.schluessel: p for p in anreiseliste.laden()[0]}
         listen = Karte("Listen")
@@ -338,17 +393,68 @@ class AnreiselistenDialog(QDialog):
         listen.inhalt.addWidget(lt)
         v.addWidget(listen)
 
-        personen = Karte("Personen")
-        pt = Tabelle(["Anreise", "Name", "Maßnahme", "Internat", "Abreise", ""], ["l", "l", "l", "l", "l", "l"], dehnen=1)
-        zeilen, hinweise = [], []
+        personen = Karte("Personen", "Gruppe, Geschlecht und Tier bestimmen die Zimmerwahl – bitte prüfen, wo etwas "
+                                     "nicht eindeutig ist (gelb).")
+        from .. import zimmerplan as zp
+
+        angaben = zp.angaben_laden()
+        self._zeilen: list[tuple] = []          # (Person, Gruppe-Combo, erkannt, m/w-Combo, geschätzt, Tier-Box)
+        pt = Tabelle(["Anreise", "Name", "Maßnahme", "Gruppe", "m/w", "Tier", "Internat", ""],
+                     ["l", "l", "l", "l", "l", "l", "l", "l"], dehnen=1)
+        pt.verticalHeader().setDefaultSectionSize(42)
+        zeilen, hinweise, farben = [], [], {}
+        t = theme.T
+        offen = 0
         for l in self._listen:
             hinweise += [f"{l.datei}: {h}" for h in l.hinweise]
             for p in l.personen:
                 alt = bestand.get(p.schluessel)
-                zeilen.append([_d(p.anreise), p.name, p.massnahme or p.gruppe, Pille("ja", "ok") if p.internat else Pille("nein", "neutral"),
-                               _d((alt.abreise if alt else None) or p.abreise), "bekannt" if alt else "neu"])
-        pt.fuellen(zeilen)
-        pt.hoehe_anpassen(10)
+                a = angaben.get(p.schluessel, {})
+                erkannt = zp.gruppe_von(p.massnahme, "EMR" if p.gruppe == "EMR" else "")
+                gruppe = QComboBox()
+                if not erkannt and not a.get("gruppe"):
+                    gruppe.addItem("— bitte wählen —", "")
+                for g in ("EMR", "ASS", "RVL", "RVT", "Reha"):
+                    gruppe.addItem(zp.GRUPPE_LABEL[g], g)
+                gruppe.setCurrentIndex(max(0, gruppe.findData(a.get("gruppe") or erkannt or "")))
+                gruppe.setMinimumWidth(150)
+                geschaetzt = p.geschlecht or zp.geschlecht_raten(p.name)
+                mw = QComboBox()
+                for wert, text in (("m", "m"), ("w", "w"), ("d", "d"), ("", "?")):
+                    mw.addItem(text + ("*" if wert == geschaetzt and not p.geschlecht and not a.get("geschlecht") else ""), wert)
+                mw.setCurrentIndex(max(0, mw.findData(a.get("geschlecht") or p.geschlecht or geschaetzt)))
+                mw.setToolTip("* aus dem Vornamen geschätzt")
+                mw.setMinimumWidth(66)
+                tier = QCheckBox()
+                tier.setChecked(bool(a.get("tier", p.tier)))
+                if p.bemerkung:
+                    tier.setToolTip(p.bemerkung)
+                unklar = p.internat and not erkannt and not a.get("gruppe")
+                offen += bool(unklar)
+                self._zeilen.append((p, gruppe, erkannt, mw, geschaetzt, tier))
+                r = len(zeilen)
+                zeilen.append([_d(p.anreise), p.name + (" · " + p.bemerkung if p.bemerkung else ""), p.massnahme or "–",
+                               self._zelle(gruppe), self._zelle(mw), self._zelle(tier, 14),
+                               Pille("ja", "ok") if p.internat else Pille("nein", "neutral"), "bekannt" if alt else "neu"])
+                if unklar:
+                    farben[(r, 2)] = t.knapp
+        pt.fuellen(zeilen, farben)
+        for r, (p, *_rest) in enumerate(self._zeilen):
+            if p.bemerkung and pt.item(r, 1):
+                pt.item(r, 1).setToolTip(p.bemerkung)
+        pt.widgets_einpassen()
+        pt.hoehe_anpassen(12)
+        if offen:
+            alle = QHBoxLayout()
+            alle.addWidget(Hinweis(f"Bei {offen} Person{'en' if offen > 1 else ''} ist die Maßnahme nicht erkennbar – "
+                                   "bitte die Gruppe wählen (wichtig für Haus und Etage).", "warnung"), 1)
+            setzen = QComboBox()
+            setzen.addItem("Für alle offenen setzen …", "")
+            for g in ("EMR", "ASS", "RVL", "RVT", "Reha"):
+                setzen.addItem(zp.GRUPPE_LABEL[g], g)
+            setzen.currentIndexChanged.connect(lambda _i: self._alle_setzen(setzen.currentData()))
+            alle.addWidget(setzen)
+            personen.inhalt.addLayout(alle)
         personen.inhalt.addWidget(pt)
         if hinweise:
             personen.inhalt.addWidget(label("<br>".join(hinweise[:6]), "klein", umbruch=True))
@@ -359,29 +465,67 @@ class AnreiselistenDialog(QDialog):
         unten.addStretch()
         abbrechen = knopf("Abbrechen", "ghost")
         abbrechen.clicked.connect(self.reject)
-        n = sum(len(l.personen) for l in self._listen)
+        n = sum(len(l.personen) for l in self._listen) + sum(len(e.uwt.personen) for e in self._einheit if e.uwt)
         self.ok = knopf(f"{n} Personen importieren" if n else "Importieren", "primary", "haken")
         self.ok.setEnabled(n > 0)
         self.ok.clicked.connect(self._importieren)
         unten.addWidget(abbrechen)
         unten.addWidget(self.ok)
         v.addLayout(unten)
+        self.anreisetage: list[date] = []
+        scrollbar_machen(self, 1080, 820)
+
+    @staticmethod
+    def _zelle(w, links: int = 4):
+        from PySide6.QtWidgets import QWidget
+
+        h = QWidget()
+        lay = QHBoxLayout(h)
+        lay.setContentsMargins(links, 0, 4, 0)
+        lay.addWidget(w, 0, Qt.AlignVCenter)
+        lay.addStretch()
+        return h
+
+    def _alle_setzen(self, gruppe: str) -> None:
+        if not gruppe:
+            return
+        for p, combo, erkannt, *_ in self._zeilen:
+            if not erkannt and combo.currentData() == "":
+                combo.setCurrentIndex(combo.findData(gruppe))
 
     def _importieren(self) -> None:
+        from .. import zimmerplan as zp
+
         for l in self._listen:
             b = anreiseliste.importieren(l)
             self.bericht.neu += b.neu
             self.bericht.aktualisiert += b.aktualisiert
             self.bericht.entfernt += b.entfernt
+        for e in self._einheit:
+            if e.uwt is not None:
+                einheitsliste.importieren(einheitsliste.Ergebnis(uwt=e.uwt, klassen=e.klassen))
+        for p, gruppe, erkannt, mw, geschaetzt, tier in self._zeilen:
+            werte = {}
+            if gruppe.currentData() and gruppe.currentData() != erkannt:
+                werte["gruppe"] = gruppe.currentData()
+            if mw.currentData() != (p.geschlecht or geschaetzt):
+                werte["geschlecht"] = mw.currentData()
+            if tier.isChecked() != p.tier:
+                werte["tier"] = tier.isChecked()
+            if werte:
+                zp.angabe_setzen(p.schluessel, **werte)
+        self.anreisetage = sorted({p.anreise for l in self._listen for p in l.personen if p.internat})
         self.accept()
 
 
 class UwtDialog(QDialog):
+    """UWT importieren: Anreisekalender (Excel), Blockbeschulungsplan (PDF) oder An-/Abreiseliste (PDF)."""
+
     def __init__(self, pfad: Path, parent=None):
         super().__init__(parent)
         self.setWindowTitle("UWT importieren")
-        self.resize(820, 760)
         self.ergebnis = (0, 0)
+        self._spins: dict[str, QSpinBox] = {}
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 20, 24, 20)
         v.setSpacing(14)
@@ -396,14 +540,30 @@ class UwtDialog(QDialog):
             self.liste = None
             v.addWidget(Hinweis(f"Die Datei konnte nicht gelesen werden: {exc}", "fehler"))
         if self.liste:
-            bl = self.liste.bloecke
-            k = Karte("Blöcke", f"{len(bl)} Blöcke · {len({b.klasse for b in bl})} Klassen · "
-                                f"{bl[0].anreise:%d.%m.%Y} bis {max(b.abreise for b in bl):%d.%m.%Y}")
-            t = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", "Nächte"], ["l", "r", "l", "l", "r"], dehnen=0)
-            t.fuellen([[b.klasse, b.anzahl, _d(b.anreise), _d(b.abreise), (b.abreise - b.anreise).days] for b in self.liste.bloecke])
-            t.hoehe_anpassen(12)
-            k.inhalt.addWidget(t)
-            v.addWidget(k)
+            klassen = sorted({b.klasse for b in self.liste.bloecke})
+            if not self.liste.personen and pfad.suffix.lower() == ".pdf":
+                # Blockplan: Anzahl je Klasse kommt aus den Klassenstärken (UWTler im Internat)
+                staerken = uwt.klassenstaerken()
+                kk = Karte("Klassenstärken im Internat", "Wie viele Schüler/-innen je Klasse im Internat wohnen – "
+                                                         "0 = Klasse zählt nicht (z. B. Chemikanten). Wird gespeichert.")
+                gitter = QGridLayout()
+                gitter.setHorizontalSpacing(18)
+                gitter.setVerticalSpacing(8)
+                for i, k in enumerate(klassen):
+                    sp = QSpinBox()
+                    sp.setRange(0, 60)
+                    sp.setValue(int(staerken.get(k, 0)))
+                    sp.setMinimumWidth(70)
+                    sp.valueChanged.connect(self._bloecke_zeigen)
+                    self._spins[k] = sp
+                    gitter.addWidget(label(k, "fett"), i // 4 * 2, i % 4)
+                    gitter.addWidget(sp, i // 4 * 2 + 1, i % 4)
+                kk.inhalt.addLayout(gitter)
+                v.addWidget(kk)
+            self.bloecke_karte = Karte("Blöcke", "")
+            self.bloecke_tab = Tabelle(["Klasse", "Anzahl", "Anreise", "Abreise", "Nächte"], ["l", "r", "l", "l", "r"], dehnen=0)
+            self.bloecke_karte.inhalt.addWidget(self.bloecke_tab)
+            v.addWidget(self.bloecke_karte)
             if self.liste.personen:
                 kp = Karte("Personen mit Zimmer")
                 tp = Tabelle(["TN-ID", "Name", "Klasse", "Zimmer"], ["l", "l", "l", "l"], dehnen=1)
@@ -412,7 +572,8 @@ class UwtDialog(QDialog):
                 kp.inhalt.addWidget(tp)
                 v.addWidget(kp)
             for h in self.liste.hinweise:
-                v.addWidget(Hinweis(h, "warnung"))
+                v.addWidget(Hinweis(h, "info"))
+            self._bloecke_zeigen()
         v.addStretch()
         unten = QHBoxLayout()
         unten.addStretch()
@@ -424,8 +585,30 @@ class UwtDialog(QDialog):
         unten.addWidget(abbrechen)
         unten.addWidget(ok)
         v.addLayout(unten)
+        scrollbar_machen(self, 900, 820)
+
+    def _bloecke_zeigen(self, *_):
+        for b in self.liste.bloecke:
+            if b.klasse in self._spins:
+                b.anzahl = self._spins[b.klasse].value()
+        bl = self.liste.bloecke
+        zaehlen = [b for b in bl if b.anzahl > 0]
+        self.bloecke_karte.untertitel(f"{len(zaehlen)} Blöcke · {len({b.klasse for b in zaehlen})} Klassen · "
+                                      f"{bl[0].anreise:%d.%m.%Y} bis {max(b.abreise for b in bl):%d.%m.%Y}"
+                                      + (f" · {len(bl) - len(zaehlen)} ohne Internat" if len(zaehlen) < len(bl) else ""))
+        farben = {}
+        zeilen = []
+        for r, b in enumerate(bl):
+            zeilen.append([b.klasse, b.anzahl, _d(b.anreise), _d(b.abreise), (b.abreise - b.anreise).days])
+            if b.anzahl <= 0:
+                for c in range(5):
+                    farben[(r, c)] = theme.T.text_3
+        self.bloecke_tab.fuellen(zeilen, farben)
+        self.bloecke_tab.hoehe_anpassen(12)
 
     def _importieren(self) -> None:
+        if self._spins:
+            uwt.klassenstaerken_speichern({k: sp.value() for k, sp in self._spins.items()})
         self.ergebnis = uwt.importieren(self.liste)
         self.accept()
 
@@ -433,12 +616,12 @@ class UwtDialog(QDialog):
 class PersonDialog(QDialog):
     """Abreise und Erinnerung einer Person pflegen – oder eine Person von Hand anlegen."""
 
-    def __init__(self, person: anreiseliste.Person | None = None, parent=None):
+    def __init__(self, person: anreiseliste.Person | None = None, parent=None, anreise: date | None = None):
         super().__init__(parent)
         self.neu = person is None
         self.loeschen = False
         heute = date.today()
-        self.person = person or anreiseliste.Person(name="", massnahme="", anreise=heute, internat=True)
+        self.person = person or anreiseliste.Person(name="", massnahme="", anreise=anreise or heute, internat=True)
         e = speicher.einstellungen().get("erinnerung", {})
         self.setWindowTitle("Person anlegen" if self.neu else self.person.name)
         self.setMinimumWidth(520)
@@ -488,8 +671,19 @@ class PersonDialog(QDialog):
         angaben.addWidget(self.tier)
         angaben.addStretch()
         form.addRow("Geschlecht", angaben)
+        from .. import zimmerplan as zp
+
+        self.gruppe = QComboBox()
+        gespeichert = zp.angaben_laden().get(self.person.schluessel, {}).get("gruppe") if not self.neu else None
+        self._gruppe_erkannt = zp.gruppe_von(self.person.massnahme, "EMR" if self.person.gruppe == "EMR" else "")
+        for g in ("EMR", "ASS", "RVL", "RVT", "Reha"):
+            self.gruppe.addItem(zp.GRUPPE_LABEL[g], g)
+        self.gruppe.setCurrentIndex(max(0, self.gruppe.findData(gespeichert or self._gruppe_erkannt or "Reha")))
+        self.gruppe.setToolTip("Bestimmt Haus und Etage im Zimmerplan (z. B. EMR nur Haus 2, Etage 1–2)")
+        form.addRow("Gruppe", self.gruppe)
         self.bemerkung = QLineEdit(self.person.bemerkung)
         self.bemerkung.setPlaceholderText("z. B. Hund, barrierefrei, kommt einen Tag später …")
+        self.bemerkung.setToolTip("Notizen zur Anreise erscheinen als Erinnerung im Terminkalender (Seite Termine)")
         form.addRow("Bemerkung", self.bemerkung)
 
         abreise_zeile = QHBoxLayout()
@@ -546,6 +740,7 @@ class PersonDialog(QDialog):
         self.abreise.geaendert.connect(self._aktualisieren)
         self.kanal.currentIndexChanged.connect(self._aktualisieren)
         self._aktualisieren()
+        scrollbar_machen(self, 620, 720)
 
     def _aktualisieren(self, *_):
         offen = self.offen.isChecked()
@@ -562,7 +757,7 @@ class PersonDialog(QDialog):
             wie = {"outlook": "als Termin in Ihrem Outlook-Kalender (Erinnerung um 8 Uhr)",
                    "mail": "per E-Mail an Sie, von Outlook am Erinnerungstag um 8 Uhr verschickt",
                    "ics": "über eine Kalenderdatei, die sich zum Import in den Kalender öffnet",
-                   "app": "beim Start des Dashboards und auf der Übersicht"}[self.kanal.currentData()]
+                   "app": "im Terminkalender des Dashboards (Seite Termine, mit Windows-Benachrichtigung)"}[self.kanal.currentData()]
             self.info.setText(f"Erinnerung am <b>{am:%d.%m.%Y}</b> {wie}.")
         else:
             self.info.setText("")
@@ -577,6 +772,8 @@ class PersonDialog(QDialog):
             p.anreise, p.internat = self.anreise.datum(), self.internat.isChecked()
         p.geschlecht, p.tier, p.bemerkung = self.geschlecht.currentData(), self.tier.isChecked(), self.bemerkung.text().strip()
         p.abreise = None if self.offen.isChecked() else self.abreise.datum()
+        if p.abreise != self.person.abreise and (not self.neu or p.abreise is not None):
+            p.abreise_quelle = "hand"      # von Hand geändert – die automatische EMR-Abreise greift nicht mehr
         if p.abreise and p.abreise < p.anreise:
             self.info.setText("<b>Die Abreise liegt vor der Anreise.</b>")
             return
@@ -586,6 +783,12 @@ class PersonDialog(QDialog):
             p.erinnerung_tage, p.erinnerung_kanal = None, ""
         if (p.abreise, p.erinnerung_tage) != (self.person.abreise, self.person.erinnerung_tage):
             p.erledigt = False
+        from .. import zimmerplan as zp
+
+        if self.gruppe.currentData() != self._gruppe_erkannt or not self.neu:
+            zp.angabe_setzen(p.schluessel, gruppe=self.gruppe.currentData())
+        if p.gruppe != "EMR" and self.gruppe.currentData() == "EMR":
+            p.gruppe = "EMR"
         self.ergebnis = p
         self.accept()
 
@@ -634,3 +837,78 @@ def erinnerung_abgleichen(alt: anreiseliste.Person | None, neu: anreiseliste.Per
         return (f"Outlook nicht erreichbar ({exc}) – die Erinnerung erscheint stattdessen im Dashboard.", "warnung")
     neu.erinnerung_id = ""
     return f"Erinnerung am {am:%d.%m.%Y} im Dashboard.", "ok"
+
+
+class TerminDialog(QDialog):
+    """Eigenen Termin mit Erinnerung anlegen oder ändern."""
+
+    def __init__(self, termin=None, parent=None, datum: date | None = None):
+        from PySide6.QtWidgets import QPlainTextEdit
+
+        super().__init__(parent)
+        self.termin = termin
+        self.ergebnis = None
+        self.loeschen = False
+        self.setWindowTitle("Termin" if termin is None else termin.titel)
+        self.setMinimumWidth(460)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(22, 20, 22, 18)
+        v.setSpacing(12)
+        form = QFormLayout()
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(10)
+        self.datum = DatumFeld(termin.datum if termin else (datum or date.today()))
+        form.addRow("Datum", self.datum)
+        self.titel = QLineEdit(termin.titel if termin else "")
+        self.titel.setPlaceholderText("z. B. Duschstuhl für Herrn M. bereitstellen")
+        form.addRow("Was", self.titel)
+        self.text = QPlainTextEdit(termin.text if termin else "")
+        self.text.setPlaceholderText("Notiz (optional)")
+        self.text.setFixedHeight(90)
+        form.addRow("Notiz", self.text)
+        self.vorlauf = QSpinBox()
+        self.vorlauf.setRange(-1, 90)
+        self.vorlauf.setSpecialValueText("keine Erinnerung")
+        self.vorlauf.setSuffix(" Tage vorher")
+        self.vorlauf.setValue(termin.vorlauf if termin else 1)
+        self.vorlauf.setFixedWidth(200)
+        form.addRow("Erinnern", self.vorlauf)
+        v.addLayout(form)
+        self.info = label("", "klein", umbruch=True)
+        v.addWidget(self.info)
+        unten = QHBoxLayout()
+        if termin is not None:
+            weg = knopf("Löschen", "gefahr", "loeschen")
+            weg.clicked.connect(self._loeschen)
+            unten.addWidget(weg)
+        unten.addStretch()
+        abbrechen = knopf("Abbrechen", "ghost")
+        abbrechen.clicked.connect(self.reject)
+        ok = knopf("Speichern", "primary", "haken")
+        ok.clicked.connect(self._speichern)
+        unten.addWidget(abbrechen)
+        unten.addWidget(ok)
+        v.addLayout(unten)
+        self.vorlauf.valueChanged.connect(self._info)
+        self.datum.geaendert.connect(self._info)
+        self._info()
+        scrollbar_machen(self, 520, 480)
+
+    def _info(self, *_):
+        if self.vorlauf.value() < 0:
+            self.info.setText("Steht nur im Kalender, ohne Erinnerung.")
+            return
+        am = self.datum.datum() - timedelta(days=self.vorlauf.value())
+        self.info.setText(f"Erinnerung ab <b>{am:%d.%m.%Y}</b> – jeden Tag, bis der Termin als erledigt abgehakt ist.")
+
+    def _loeschen(self):
+        self.loeschen = True
+        self.accept()
+
+    def _speichern(self):
+        if not self.titel.text().strip():
+            self.info.setText("<b>Bitte eintragen, worum es geht.</b>")
+            return
+        self.ergebnis = termine.Termin(self.termin.id if self.termin else "", self.datum.datum(), self.titel.text().strip(),
+                                            self.text.toPlainText().strip(), "eigen", vorlauf=self.vorlauf.value())
+        self.accept()

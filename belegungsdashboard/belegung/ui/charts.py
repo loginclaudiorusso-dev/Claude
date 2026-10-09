@@ -75,6 +75,7 @@ class Diagramm(FigureCanvasQTAgg):
         ax.yaxis.set_major_locator(MaxNLocator(5, integer=True))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: zahl(v)))
         self._hover_x, self._hover_reihen, self._tip, self._vline = None, [], None, None
+        self._mit_legende = False
 
     def _abschliessen(self, x_von=None, x_bis=None) -> None:
         if x_von is not None and x_bis is not None:
@@ -94,14 +95,22 @@ class Diagramm(FigureCanvasQTAgg):
             self.ax.xaxis.set_major_locator(locator)
             self.ax.xaxis.set_major_formatter(_datum_formatter(spanne))
             self.ax.set_xlim(x_von, x_bis)
-        self.fig.subplots_adjust(left=0.06, right=0.985, top=0.93, bottom=0.13)
+        # Legende sitzt oberhalb der Achse in einem festen Streifen (in Punkt, unabhängig von der
+        # Windows-Skalierung) – so wird sie nie oben abgeschnitten
+        hoehe_pt = self.fig.get_figheight() * 72
+        top = 1 - (30 if getattr(self, "_mit_legende", False) else 12) / hoehe_pt
+        self.fig.subplots_adjust(left=0.06, right=0.985, top=top, bottom=0.13)
         self.draw_idle()
 
     def _legende(self, anzahl: int) -> None:
         if anzahl >= 2:
             t = theme.T
-            leg = self.ax.legend(loc="upper left", bbox_to_anchor=(0, 1.13), ncols=min(anzahl, 6), frameon=False,
-                                 fontsize=8.5, handlelength=1.4, columnspacing=1.4)
+            griffe, namen = self.ax.get_legend_handles_labels()
+            if not griffe:
+                return
+            leg = self.fig.legend(griffe, namen, loc="upper left", bbox_to_anchor=(0.05, 1.0), ncols=min(anzahl, 6),
+                                  frameon=False, fontsize=8.5, handlelength=1.4, columnspacing=1.4, borderaxespad=0.3)
+            self._mit_legende = True
             for txt in leg.get_texts():
                 txt.set_color(t.text_2)
 

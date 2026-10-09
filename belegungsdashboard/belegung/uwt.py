@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import speicher
@@ -206,9 +206,153 @@ def kalender_lesen(pfad: Path) -> UwtListe:
     return UwtListe(Path(pfad).name, sorted(bloecke, key=lambda b: (b.anreise, b.klasse)), [], hinweise)
 
 
+# ---------------------------------------------------------------------------------------
+# Blockbeschulungsplan der BBS (PDF): Klassen als Spalten, Wochen als Zeilen, Zeichen = Schulwoche
+# ---------------------------------------------------------------------------------------
+
+# Klassenstärken der UWTler im Internat (Stand Oktober 2026) – in der App änderbar
+KLASSEN_STANDARD = {"CUA26": 15, "CUA25": 10, "CUA24": 16, "CUW26": 11, "CUW25": 9, "CUW24": 16,
+                    "CUK26": 8, "CUK25": 9, "CUK24": 9}
+
+
+def klassenstaerken() -> dict[str, int]:
+    gespeichert = speicher.einstellungen().get("uwt_klassen", {})
+    return {**KLASSEN_STANDARD, **{k: int(v) for k, v in gespeichert.items()}}
+
+
+def klassenstaerken_speichern(werte: dict[str, int]) -> None:
+    speicher.einstellung_setzen("uwt_klassen", {k: int(v) for k, v in werte.items()})
+
+
+def _zeichen_pdf(pfad: Path) -> list[tuple[float, float, str]]:
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LTChar
+
+    zeichen: list[tuple[float, float, str]] = []
+
+    def lauf(obj):
+        if isinstance(obj, LTChar):
+            zeichen.append((obj.x0, (obj.y0 + obj.y1) / 2, obj.get_text()))
+        elif hasattr(obj, "__iter__"):
+            for kind in obj:
+                lauf(kind)
+
+    for seite in extract_pages(str(pfad), maxpages=1):
+        lauf(seite)
+    return zeichen
+
+
+def _woerter(zeichen: list[tuple[float, float, str]]) -> list[tuple[float, float, str]]:
+    """Zeichen zu Wörtern je Zeile zusammenfassen: (x-Mitte, y, Text)."""
+    zeilen: dict[int, list] = {}
+    for x, y, t in zeichen:
+        zeilen.setdefault(round(y / 2), []).append((x, y, t))
+    woerter = []
+    for zs in zeilen.values():
+        zs.sort()
+        akt: list = []
+        for z in zs:
+            if akt and (z[0] - akt[-1][0] > 7 or not z[2].strip()):
+                woerter.append(akt)
+                akt = []
+            if z[2].strip():
+                akt.append(z)
+        if akt:
+            woerter.append(akt)
+    return [((w[0][0] + w[-1][0]) / 2 + 2, w[0][1], "".join(z[2] for z in w)) for w in woerter]
+
+
+def blockplan_parse(zeichen: list[tuple[float, float, str]], datei: str = "",
+                    staerken: dict[str, int] | None = None) -> UwtListe:
+    staerken = klassenstaerken() if staerken is None else staerken
+    woerter = _woerter(zeichen)
+    kurz = [w for w in woerter if re.fullmatch(r"CU[AWK]|CC[K]", w[2])]
+    if len(kurz) < 3:
+        raise ValueError("Keine Klassenspalten (CUA/CUW/CUK) gefunden – ist das der Blockbeschulungsplan?")
+    kopf_y = max(set(round(w[1]) for w in kurz), key=lambda y: sum(1 for w in kurz if round(w[1]) == y))
+    kurz = [w for w in kurz if abs(w[1] - kopf_y) < 2]
+    jahrgaenge = [w for w in woerter if re.fullmatch(r"\d{2}", w[2]) and 5 < kopf_y - w[1] < 20]
+    spalten = []
+    for x, _y, name in sorted(kurz):
+        jg = min(jahrgaenge, key=lambda w: abs(w[0] - x), default=None)
+        if jg is None or abs(jg[0] - x) > 8:
+            continue
+        spalten.append((x, f"{name}{jg[2]}"))
+    text = " ".join(w[2] for w in woerter)
+    m = re.search(r"(20\d{2})\s*/\s*(20\d{2})", text)
+    jahr1 = int(m.group(1)) if m else date.today().year
+    abstand = min(b[0] - a[0] for a, b in zip(spalten, spalten[1:])) if len(spalten) > 1 else 18
+
+    # Zeilen: erstes Datum links = Montag; Zeichen in einer Klassenspalte = Schulwoche
+    zeilen: dict[int, list] = {}
+    for w in woerter:
+        zeilen.setdefault(round(w[1]), []).append(w)
+    wochen: dict[str, set[date]] = {name: set() for _x, name in spalten}
+    for y, ws in zeilen.items():
+        if y >= kopf_y - 5:
+            continue
+        daten = sorted((w for w in ws if re.fullmatch(r"\d{1,2}\.\d{1,2}\.?", w[2])), key=lambda w: w[0])
+        if not daten:
+            continue
+        t, mo = (int(x) for x in daten[0][2].rstrip(".").split("."))
+        try:
+            montag = date(jahr1 if mo >= 8 else jahr1 + 1, mo, t)
+        except ValueError:
+            continue
+        rechts = daten[-1][0]
+        for x, _y, zeichen_text in ws:
+            if x <= rechts + 5 or re.fullmatch(r"\d+|\d{1,2}\.\d{1,2}\.?", zeichen_text):
+                continue
+            sp = min(spalten, key=lambda s: abs(s[0] - x))
+            if abs(sp[0] - x) <= abstand / 2:
+                wochen[sp[1]].add(montag)
+
+    bloecke, hinweise = [], []
+    for klasse, montage in wochen.items():
+        if not montage:
+            continue
+        anzahl = int(staerken.get(klasse, 0))
+        folge = sorted(montage)
+        start = vorher = folge[0]
+        for d in folge[1:] + [None]:
+            if d is None or (d - vorher).days != 7:
+                bloecke.append(Block(klasse, anzahl, start, vorher + timedelta(days=4)))
+                start = d
+            vorher = d or vorher
+    ohne = sorted({b.klasse for b in bloecke if b.anzahl <= 0})
+    if ohne:
+        hinweise.append("Ohne Klassenstärke (zählen nicht, z. B. Chemikanten ohne Internat): " + ", ".join(ohne))
+    if not bloecke:
+        raise ValueError("Im Plan wurden keine Schulwochen erkannt.")
+    return UwtListe(datei, sorted(bloecke, key=lambda b: (b.anreise, b.klasse)), [], hinweise)
+
+
+def blockplan_lesen(pfad: Path, staerken: dict[str, int] | None = None) -> UwtListe:
+    try:
+        zeichen = _zeichen_pdf(Path(pfad))
+    except ImportError as exc:  # pragma: no cover
+        raise ValueError("Zum Lesen des Blockplans wird das Paket „pdfminer.six“ benötigt (pip install pdfminer.six).") from exc
+    return blockplan_parse(zeichen, Path(pfad).name, staerken)
+
+
+def ist_blockplan(pfad: Path) -> bool:
+    try:
+        from pypdf import PdfReader
+
+        text = PdfReader(str(pfad)).pages[0].extract_text() or ""
+    except Exception:
+        return False
+    return "blockbeschulung" in text.lower() or "schuljahr" in text.lower()
+
+
 def lesen(pfad: Path) -> UwtListe:
-    """PDF-An-/Abreiseliste oder Excel-Anreisekalender."""
-    return kalender_lesen(pfad) if Path(pfad).suffix.lower() in (".xlsx", ".xlsm") else pdf_lesen(pfad)
+    """Excel-Anreisekalender, Blockbeschulungsplan (PDF) oder An-/Abreiseliste eines Blocks (PDF)."""
+    pfad = Path(pfad)
+    if pfad.suffix.lower() in (".xlsx", ".xlsm"):
+        return kalender_lesen(pfad)
+    if ist_blockplan(pfad):
+        return blockplan_lesen(pfad)
+    return pdf_lesen(pfad)
 
 
 # ---------------------------------------------------------------------------------------
@@ -229,6 +373,8 @@ def importieren(liste: UwtListe) -> tuple[int, int]:
     neu = ersetzt = 0
     zeit = datetime.now().isoformat(timespec="seconds")
     for b in liste.bloecke:
+        if b.anzahl <= 0:
+            continue    # Klasse ohne Internat (z. B. Chemikanten)
         d = {"klasse": b.klasse, "anzahl": b.anzahl, "anreise": b.anreise.isoformat(), "abreise": b.abreise.isoformat(),
              "datei": liste.datei, "importiert_am": zeit,
              "personen": [{"tn_id": p.tn_id, "name": p.name, "zimmer": p.zimmer}
@@ -256,3 +402,189 @@ def eintraege(bloecke: list[dict]) -> list[dict]:
     return [{"kategorie": "UWT", "standort": STANDORT, "von": b["anreise"], "bis": b["abreise"],
              "anzahl": int(b["anzahl"]), "bezeichnung": f"UWT {b['klasse']}", "gruppe": f"UWT {b['klasse']}"}
             for b in bloecke]
+
+
+# ---------------------------------------------------------------------------------------
+# Eingangsordner „UWT“: Blockbeschulungsplan, Anreisekalender oder Listen dort ablegen –
+# beim Start bzw. Öffnen des Zimmerplans werden neue/geänderte Dateien übernommen.
+# ---------------------------------------------------------------------------------------
+
+EINGANG = "UWT"
+_KENNUNGEN = f"{speicher.IMPORT_ORDNER}/uwt_eingang.json"
+
+
+def eingangsordner() -> Path:
+    return speicher.pfad(EINGANG)
+
+
+def automatisch_importieren(ordner: Path | None = None) -> list[str]:
+    """Liest alle neuen oder geänderten PDF/Excel-Dateien im Ordner „UWT“ ein (älteste zuerst, damit die
+    neueste gewinnt) – Blockpläne, Kalender, Listen und die Klassenübersicht. Gibt je Datei eine Meldung zurück."""
+    ordner = ordner or eingangsordner()
+    if not ordner.is_dir():
+        return []
+    dateien = sorted((p for p in ordner.iterdir() if p.suffix.lower() in (".pdf", ".xlsx", ".xlsm")
+                      and not p.name.startswith("~$")), key=lambda p: p.stat().st_mtime)
+    bekannt = speicher.lesen(_KENNUNGEN, {})
+    ergebnis = []
+    for p in dateien:
+        kennung = int(p.stat().st_mtime)
+        if bekannt.get(p.name) == kennung:
+            continue
+        try:
+            if ist_klassenliste(p):
+                klassen, hinweise = klassen_lesen(p)
+                klassen_importieren(klassen, p.name, hinweise)
+                n = sum(len(v) for v in klassen.values())
+                ergebnis.append(f"{p.name} ({len(klassen)} Klassen, {n} Personen, "
+                                f"{sum(1 for v in klassen.values() for x in v if x.partner)} mit DZ-Partner)")
+            else:
+                neu, ersetzt = importieren(lesen(p))
+                ergebnis.append(f"{p.name} ({neu} Blöcke neu, {ersetzt} aktualisiert)")
+        except Exception:
+            continue
+        bekannt[p.name] = kennung
+    if ergebnis:
+        speicher.schreiben(_KENNUNGEN, bekannt)
+    return ergebnis
+
+
+# ---------------------------------------------------------------------------------------
+# Klassenübersicht (Excel, ein Blatt je Klasse): Teilnehmende mit „DZ Partner“ – gleiche Nummer =
+# gemeinsames Doppelzimmer, „-“ = allein. Alles unter „STORNO“ zählt nicht mehr.
+# ---------------------------------------------------------------------------------------
+
+KLASSEN_DATEI = f"{speicher.IMPORT_ORDNER}/uwt_klassen.json"
+_KLASSE = re.compile(r"^[A-ZÄÖÜ]{2,5}\d{2}$")
+
+
+@dataclass
+class KlassenPerson:
+    tn_id: str
+    name: str            # „Nachname, Vorname“
+    geschlecht: str      # "w" bei „(w)“ im Vornamen, sonst ""
+    dz: str              # "" = Klasse ohne DZ-Liste | "allein" | "<Klasse>:<Nr>" = DZ-Gruppe
+    bemerkung: str = ""
+
+    @property
+    def partner(self) -> bool:
+        return self.dz not in ("", "allein")
+
+
+def _kopf(zeile: tuple) -> dict[str, int] | None:
+    texte = [str(c).strip().lower() if c is not None else "" for c in zeile]
+    if "id" not in texte or "name" not in texte:
+        return None
+    spalten = {t: i for i, t in enumerate(texte) if t}
+    return {k: spalten[t] for k, t in (("id", "id"), ("name", "name"), ("vorname", "vorname"),
+                                         ("dz", "dz partner"), ("bemerkung", "bemerkung")) if t in spalten}
+
+
+def ist_klassenliste(pfad: Path) -> bool:
+    if Path(pfad).suffix.lower() not in (".xlsx", ".xlsm"):
+        return False
+    from openpyxl import load_workbook
+
+    wb = load_workbook(pfad, read_only=True, data_only=True)
+    try:
+        for ws in wb.worksheets:
+            for zeile in ws.iter_rows(max_row=6, values_only=True):
+                k = _kopf(zeile)
+                if k and "dz" in k:
+                    return True
+        return False
+    finally:
+        wb.close()
+
+
+def klassen_lesen(pfad: Path) -> tuple[dict[str, list[KlassenPerson]], list[str]]:
+    """Klassen → aktive Teilnehmende; dazu Hinweise (DZ-Gruppen, die nicht genau zwei Personen haben)."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(pfad, read_only=True, data_only=True)
+    klassen: dict[str, list[KlassenPerson]] = {}
+    hinweise: list[str] = []
+    try:
+        for ws in wb.worksheets:
+            klasse = ws.title.strip().upper().replace(" ", "")
+            if not _KLASSE.match(klasse):
+                continue
+            kopf = None
+            roh: list[tuple[str, str, str, str, str]] = []
+            for zeile in ws.iter_rows(values_only=True):
+                if kopf is None:
+                    kopf = _kopf(zeile)
+                    continue
+                texte = [str(c).strip() for c in zeile if c is not None]
+                if any(t.upper().startswith(("STORNO", "ANMERKUNG")) for t in texte):
+                    break
+                wert = lambda k: zeile[kopf[k]] if k in kopf and kopf[k] < len(zeile) else None
+                tn, name = wert("id"), wert("name")
+                if tn is None or not name or not re.fullmatch(r"\d+(\.0)?", str(tn).strip()):
+                    continue
+                vorname = str(wert("vorname") or "").strip()
+                geschlecht = "w" if re.search(r"\(\s*w\s*\)", vorname) else "m" if re.search(r"\(\s*m\s*\)", vorname) else ""
+                vorname = re.sub(r"\s*\([wmd]\)\s*", " ", vorname).strip()
+                dz = wert("dz")
+                roh.append((str(int(float(tn))), f"{str(name).strip()}, {vorname}" if vorname else str(name).strip(),
+                            geschlecht, "" if dz is None else str(dz).strip(), str(wert("bemerkung") or "").strip()))
+            if not roh:
+                continue
+            mit_liste = any(d for *_x, d, _b in roh)
+            gruppen: dict[str, list[str]] = {}
+            for tn, name, _g, d, _b in roh:
+                m = re.match(r"^(\d+)", d)
+                if m:
+                    gruppen.setdefault(m.group(1), []).append(name)
+            personen = []
+            for tn, name, g, d, bem in roh:
+                m = re.match(r"^(\d+)", d)
+                if not mit_liste:
+                    dz = ""
+                elif m and len(gruppen[m.group(1)]) >= 2:
+                    dz = f"{klasse}:{m.group(1)}"
+                else:
+                    dz = "allein"
+                personen.append(KlassenPerson(tn, name, g, dz, bem))
+            for nr, namen in sorted(gruppen.items()):
+                if len(namen) == 1:
+                    hinweise.append(f"{klasse}: DZ-Partner von {namen[0]} fehlt (storniert?) – wohnt allein.")
+                elif len(namen) > 2:
+                    hinweise.append(f"{klasse}: DZ-Nr. {nr} hat {len(namen)} Personen ({'; '.join(namen)}) – "
+                                    "nur zwei passen in ein Doppelzimmer, bitte klären.")
+            if not mit_liste:
+                hinweise.append(f"{klasse}: noch keine DZ-Liste – Doppelzimmer werden innerhalb der Klasse vorgeschlagen.")
+            klassen[klasse] = personen
+    finally:
+        wb.close()
+    return klassen, hinweise
+
+
+def klassen_importieren(klassen: dict[str, list[KlassenPerson]], datei: str = "", hinweise: list[str] | None = None) -> None:
+    """Speichert die Klassen (ersetzt nur die enthaltenen) und setzt die Klassenstärke auf die Zahl der
+    Teilnehmenden – kommende Blöcke ohne Namensliste übernehmen sie."""
+    from dataclasses import asdict
+
+    roh = speicher.lesen(KLASSEN_DATEI, {})
+    alle = roh.get("klassen", {})
+    for k, personen in klassen.items():
+        alle[k] = [asdict(p) for p in personen]
+    speicher.schreiben(KLASSEN_DATEI, {"klassen": alle, "datei": datei, "hinweise": hinweise or [],
+                                       "importiert_am": datetime.now().isoformat(timespec="seconds")})
+    klassenstaerken_speichern({**klassenstaerken(), **{k: len(v) for k, v in klassen.items()}})
+    heute = date.today().isoformat()
+    bloecke = laden()
+    for b in bloecke:
+        if b["klasse"] in klassen and b["abreise"] >= heute and not b.get("personen"):
+            b["anzahl"] = len(klassen[b["klasse"]])
+    speicher.schreiben(DATEI, {"bloecke": bloecke})
+
+
+def klassen_laden() -> dict[str, list[dict]]:
+    return speicher.lesen(KLASSEN_DATEI, {}).get("klassen", {})
+
+
+def klassen_info() -> dict:
+    """Datei, Importzeit und Hinweise der zuletzt übernommenen Klassenübersicht."""
+    roh = speicher.lesen(KLASSEN_DATEI, {})
+    return {k: roh.get(k) for k in ("datei", "importiert_am", "hinweise")}
