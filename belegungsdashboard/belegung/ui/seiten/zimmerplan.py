@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from ... import gebaeudeplan, speicher, uwt, zimmerexport
+from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
 from ... import zimmerplan as zp
 from .. import drucken, theme
 from ..basis import Seite, Worker, Zustand
@@ -622,13 +622,24 @@ class ZimmerplanSeite(Seite):
         if dz_hinweise:
             self.hinweise.addWidget(Hinweis("<b>UWT-Klassenübersicht:</b> " + " ".join(dz_hinweise), "info"))
         anders = [a for a in st.lage.abgleich if a.art == "anders"]
-        fehlt = [a for a in st.lage.abgleich if a.art == "fehlt"]
+        # „fehlt“ nur, wenn der Gebäudeplan nach der Anreise erstellt wurde (sonst kann die Person gar nicht
+        # drinstehen) und die Buchung unter Aufgaben noch nicht als eingetragen abgehakt ist
+        haken = eintragen._haken()
+        fehlt = [a for a in st.lage.abgleich if a.art == "fehlt"
+                 and f"{a.person}|{a.geplant}|{a.von.isoformat()}" not in haken
+                 and (st.plan.stand is None or st.plan.stand >= a.von)]
         for liste, titel, art in ((anders, "Im Gebäudeplan anders gebucht als geplant", "info"),
                                   (fehlt, "Angereist? Im Gebäudeplan noch nicht gebucht", "warnung")):
             if not liste:
                 continue
             zeilen = [a.text for a in liste[:6]] + ([f"… und {len(liste) - 6} weitere"] if len(liste) > 6 else [])
-            h = Hinweis(f"<b>{titel} ({len(liste)}):</b><br>" + "<br>".join(zeilen), art)
+            if liste is fehlt:
+                zeilen.append("<i>Schon im Belegungssystem eingetragen? Unter „Aufgaben“ abhaken – dann verschwindet "
+                              "der Hinweis; mit dem nächsten Gebäudeplan wird ohnehin neu abgeglichen.</i>")
+            h = Hinweis(f"<b>{titel} ({len(liste)}):</b><br>" + "<br>".join(zeilen), art,
+                        "Zu Aufgaben" if liste is fehlt else None)
+            if liste is fehlt:
+                h.knopf.clicked.connect(lambda: (self.tabs.setzen(TABS.index("Aufgaben")), self._tab(TABS.index("Aufgaben"))))
             h.setToolTip("<br>".join(a.text for a in liste))
             self.hinweise.addWidget(h)
 

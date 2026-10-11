@@ -140,7 +140,9 @@ Sperrungen/Renovierungen und Zimmerfreigaben („Frei teilw.“).
   überschneidet sich) – egal in welchem Zimmer –, gilt die Buchung dort und unsere Planung entfällt.
   Hinweise oben im Zimmerplan und in der Zuteilung: „anders gebucht als geplant“ (z. B. 2-109 statt
   2-201) und „Angereist? Im Gebäudeplan noch nicht gebucht“, wenn die Anreise vorbei ist und die Person
-  im Gebäudeplan fehlt.
+  im Gebäudeplan fehlt. Dieser Hinweis kommt nur, wenn der Gebäudeplan nach der Anreise erstellt wurde (ein
+  älterer Plan kann die Person noch gar nicht enthalten) und die Buchung unter Aufgaben → „Im Belegungssystem
+  eintragen“ noch nicht abgehakt ist.
 * **Ohne Word:** Im Belegungssystem die Gebäudeansicht markieren (Strg+A), kopieren (Strg+C) und unter
   Zimmerplan → Quellen „Aus Zwischenablage einfügen“ klicken. Das Programm zeigt, wie viele Zimmer und
   Belegungen erkannt wurden, und übernimmt erst nach Bestätigung (Stand = heute).
@@ -229,8 +231,15 @@ Feste Regeln:
 | Gäste | nur Gästezimmer Haus 2, Etage 6 (für andere nie vorgeschlagen) |
 | Mieter | nur Haus 6 |
 | UWT | Haus 3.2, 3.3 und 6 |
-| RVL | bevorzugt Haus 3.1, sonst 3.2, 3.3 oder Haus 2 |
+| RVL | bevorzugt Haus 3.1, sonst 3.2, 3.3 oder Haus 2 (nicht 1. OG) |
 | Assessment, RVT, Reha-Maßnahmen | Haus 2 (Etage 1–5), 3.1, 3.2, 3.3 – nicht Haus 6 |
+
+* **Haus 2, 1. OG (Zimmer 101–124) nur für Kurzmaßnahmen** (EMR, Assessment, Aufenthalte bis 8 Wochen) –
+  RVL, RVT und andere lange Aufenthalte kommen auf die anderen Etagen (von Hand als Ausnahme „nur Kurzmaßnahmen“).
+* **Lange Aufenthalte auf einen Flur:** Bei der Flurwahl zählt, wer dort im Zeitraum wohnt – Hauptmaßnahmen und
+  lange Aufenthalte kommen bevorzugt auf Flure, auf denen schon lange Aufenthalte wohnen, kurze auf die anderen.
+  So pendelt es sich mit jeder Planung weiter ein. Das ist ein Wunsch, keine feste Regel: Geht es nicht anders
+  (oder würde sonst jemand kein Zimmer bekommen), kommt die Person auf einen gemischten Flur.
 
 * **Von Hand geht jedes freie Zimmer:** In der Zimmerauswahl stehen oben alle zulässigen Zimmer (nach Haus und
   Nummer), darunter – abgesetzt – alle übrigen Zimmer mit freiem Bett als **Ausnahme** mit kurzem Grund

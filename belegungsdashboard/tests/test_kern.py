@@ -1681,3 +1681,45 @@ def test_facility_check_nach_langem_aufenthalt(tmp_path, monkeypatch):
     from belegung import speicher
     speicher.einstellung_setzen("facility_monate", 1)
     assert {c.zimmer for c in eintragen.facility_checks(lage, fr, fr)} == {"GS-3.2-201", "GS-3.2-202"}
+
+
+def test_haus2_erste_etage_nur_kurzmassnahmen(plan):
+    """Haus 2, 1. OG (101–124): nur Kurzmaßnahmen – RVL/RVT/Reha nie, auch nicht in 111–124."""
+    from belegung import zimmerplan as zp
+
+    lage = _lage(plan)
+    v = date(2026, 10, 12)
+    z = zp.Zimmer("GS-2-115", "2", "1", "115")
+    lang = _bedarf("Lang", "RVL", v, v + timedelta(days=90))
+    kurz = _bedarf("Kurz", "ASS", v, v + timedelta(days=27))
+    assert zp.nur_kurz(z) and lang.kurz is False and kurz.kurz
+    lage.zimmer[z.id] = z
+    lage.belegungen.setdefault(z.id, [])
+    assert zp.passt(lage, z, lang) == "Haus 2, 1. OG nur für Kurzmaßnahmen"
+    assert zp.passt(lage, z, kurz) is None
+    assert zp.ausnahme_grund(lage, z, lang) == "nur Kurzmaßnahmen"
+    for zt in zp.vorschlagen(lage, [_bedarf(f"R{i}", g, v, v + timedelta(days=200), kennung=g)
+                                    for i, g in enumerate(["RVL", "RVT", "Reha"] * 3)]):
+        assert zt.zimmer is None or not zp.nur_kurz(zt.zimmer)
+        assert zt.zimmer is None or zt.zimmer.id != z.id
+
+
+def test_lange_aufenthalte_auf_einen_flur():
+    """Lange Aufenthalte kommen auf den Flur, auf dem schon Lange wohnen – Kurze auf den anderen."""
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung
+
+    v = date(2026, 10, 12)
+    zimmer = [zp.Zimmer(f"GS-3.2-{n}", "3.2", "1", str(n), flur="A" if n < 110 else "B") for n in range(101, 121)]
+    lage = zp.Lage({z.id: z for z in zimmer}, {z.id: [] for z in zimmer})
+    # Flur A: zwei lange Aufenthalte, Flur B: zwei kurze
+    for zid, mn, tage in (("GS-3.2-101", "RVL", 200), ("GS-3.2-104", "RVL", 200),
+                          ("GS-3.2-111", "ASS", 28), ("GS-3.2-114", "ASS", 28)):
+        lage.belegungen[zid].append(Belegung(zid, v - timedelta(days=5), v + timedelta(days=tage), "belegt", "X", mn))
+    lang = _bedarf("Lang", "RVL", v, v + timedelta(days=90), kennung="l")
+    kurz = _bedarf("Kurz", "ASS", v, v + timedelta(days=27), kennung="a")
+    ids_a = [z.id for z in zimmer if z.flur == "A"]
+    assert zp.flur_mischung(lage, ids_a, lang) > 0 > zp.flur_mischung(lage, ids_a, kurz)
+    assert zp.flur_mischung(lage, ["GS-3.2-120"], lang) == 0      # leerer Flur: neutral
+    zt_lang, zt_kurz = zp.vorschlagen(lage, [lang, kurz])
+    assert zt_lang.zimmer.flur == "A" and zt_kurz.zimmer.flur == "B"

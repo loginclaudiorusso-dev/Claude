@@ -469,6 +469,12 @@ def nur_emr(z: Zimmer) -> bool:
     return z.haus == "2" and z.etage == "1" and 101 <= z.nummer <= 110
 
 
+def nur_kurz(z: Zimmer) -> bool:
+    """Haus 2, 1. Etage (Zimmer 101–124): nur Kurzmaßnahmen (EMR, Assessment, bis 8 Wochen) – RVL, RVT und
+    andere lange Aufenthalte wohnen auf den anderen Etagen."""
+    return z.haus == "2" and z.etage == "1"
+
+
 def erlaubt(z: Zimmer, gruppe: str) -> bool:
     if z.gaeste != (gruppe == "Gast"):
         return False
@@ -500,6 +506,8 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
     tier_ausnahme = b.tier and z.tiere and b.gruppe not in ("Gast", "Mieter")
     if not erlaubt(z, b.gruppe) and not tier_ausnahme:
         return f"{GRUPPE_LABEL[b.gruppe]} nicht in {flur_text(z)}"
+    if nur_kurz(z) and not b.kurz and not tier_ausnahme:
+        return "Haus 2, 1. OG nur für Kurzmaßnahmen"
     if b.tier and not z.tiere:
         return "Tier nur in Haus 3.1 EG/UG"
     if z.nur_maenner and b.geschlecht != "m":
@@ -574,6 +582,36 @@ def anschluss_wert(lage: Lage, z: Zimmer, b: Bedarf) -> float:
     return w
 
 
+def langzeit(b: Belegung) -> bool | None:
+    """Langer Aufenthalt (Hauptmaßnahme, mehr als 8 Wochen)? None = unbekannt (Sperrung, Pivot-Ergänzung)."""
+    if b.art not in ("belegt", "geplant") or b.name == PIVOT_NAME:
+        return None
+    if gruppe_von(b.massnahme, "Reha") in ("EMR", "ASS", "UWT", "Gast"):
+        return False
+    return (b.bis - b.von).days + 1 > KURZ_WOCHEN * 7
+
+
+def flur_mischung(lage: Lage, zimmer_ids: list[str], b: Bedarf) -> float:
+    """−1 … +1: Wie gut passt der Flur zur Aufenthaltsdauer? Lange Aufenthalte sollen sich auf denselben
+    Fluren sammeln, kurze auf anderen – so pendelt es sich mit jeder Planung weiter ein. Gezählt werden die
+    Personentage langer bzw. kurzer Aufenthalte auf dem Flur in den ersten 13 Wochen des Zeitraums;
+    bei wenig Belegung zählt der Wert entsprechend weniger."""
+    von, bis = b.von, min(b.bis, b.von + timedelta(days=91))
+    lang = kurz = 0
+    for zid in zimmer_ids:
+        for x in lage.belegungen.get(zid, []):
+            if x.person == b.schluessel or (art := langzeit(x)) is None:
+                continue
+            tage = (min(x.bis, bis) - max(x.von, von)).days + 1
+            if tage > 0:
+                lang, kurz = (lang + tage, kurz) if art else (lang, kurz + tage)
+    if not lang + kurz:
+        return 0.0
+    anteil = (lang - kurz) / (lang + kurz) * min(1.0, (lang + kurz) / 60)
+    return -anteil if b.kurz else anteil
+
+
+FLUR_GEWICHT = 3          # Gewicht „Lange zu Langen“ bei der Flurwahl (vgl. Platz auf dem Flur: 6)
 REINIGUNGS_ABSTAND = 2   # Tage von Auszug bis Anreise, damit ein ganzer Tag zum Reinigen bleibt
 
 
@@ -709,6 +747,10 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
     def doppel_frei(z: Zimmer, b: Bedarf) -> bool:
         return z.betten > 1 and arbeit.freie_betten(z.id, b.von, b.bis) >= 2 and passt(arbeit, z, b) is None
 
+    flur_ids: dict[tuple, list[str]] = {}
+    for z in zimmer_liste:
+        flur_ids.setdefault(z.flur_schluessel, []).append(z.id)
+
     for gruppe in reihenfolge:
         rest = list(gruppe)
         genutzte_flure: list[tuple] = []
@@ -740,6 +782,7 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
                 if paare:                                          # Doppelzimmer für die DZ-Paare
                     wert += 4 * min(sum(1 for z in zs if doppel_frei(z, b0)), paare) / paare
                 wert -= 0.02 * max(plaetze - 2 * n, 0)             # nicht unnötig große Flure anbrechen
+                wert += FLUR_GEWICHT * flur_mischung(arbeit, flur_ids[schluessel], b0)   # Lange zu Langen, Kurze zu Kurzen
                 if genutzte_flure and schluessel[:2] == genutzte_flure[-1][:2]:
                     wert += 1                                      # Folge-Flur auf derselben Etage
                 return wert
@@ -843,6 +886,8 @@ def ausnahme_grund(lage: Lage, z: Zimmer, b: Bedarf) -> str:
         return "Gästezimmer"
     if nur_emr(z) and b.gruppe != "EMR":
         return "nur EMR"
+    if nur_kurz(z) and not b.kurz:
+        return "nur Kurzmaßnahmen"
     grund = passt(lage, z, b, frozenset({b.schluessel})) or ""
     if grund.startswith("Tier"):
         return "kein Tier-Zimmer"
@@ -873,7 +918,7 @@ def _erlaubt_text(gruppe: str) -> str:
 
 def _warum_nicht(lage: Lage, zimmer: list[Zimmer], b: Bedarf) -> str:
     """Verständlicher Grund, warum es für eine Person kein zulässiges Zimmer gibt."""
-    zulaessig = [z for z in zimmer if z.aktiv and erlaubt(z, b.gruppe)]
+    zulaessig = [z for z in zimmer if z.aktiv and erlaubt(z, b.gruppe) and (b.kurz or not nur_kurz(z))]
     if b.tier and not any(z.tiere for z in zulaessig):
         return (f"Regeln widersprechen sich: Tier nur in Tier-Zimmern (Haus 3.1 EG/UG), "
                 f"{GRUPPE_LABEL[b.gruppe]} aber nur {_erlaubt_text(b.gruppe)} – bitte Zimmer von Hand festlegen.")
