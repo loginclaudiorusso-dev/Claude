@@ -1723,3 +1723,35 @@ def test_lange_aufenthalte_auf_einen_flur():
     assert zp.flur_mischung(lage, ["GS-3.2-120"], lang) == 0      # leerer Flur: neutral
     zt_lang, zt_kurz = zp.vorschlagen(lage, [lang, kurz])
     assert zt_lang.zimmer.flur == "A" and zt_kurz.zimmer.flur == "B"
+
+
+def test_doppelzimmer_nur_uwt_und_gaeste():
+    """Doppelzimmer nur für UWT und Gäste – auch nicht von Hand, nicht per Verschieben; alte Planung = Konflikt."""
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung
+
+    v = date(2026, 10, 12)
+    dz = zp.Zimmer("GS-3.2-101", "3.2", "1", "101", betten=2)
+    ez = zp.Zimmer("GS-3.2-102", "3.2", "1", "102")
+    lage = zp.Lage({dz.id: dz, ez.id: ez}, {dz.id: [], ez.id: []})
+    reha = _bedarf("Reha", "Reha", v, v + timedelta(days=200))
+    uwt = _bedarf("Uwt", "UWT", v, v + timedelta(days=13), massnahme="UWT CUK25")
+    assert zp.passt(lage, dz, reha) == zp.DOPPEL_GRUND and zp.passt(lage, dz, uwt) is None
+    zt = zp.vorschlagen(lage, [reha], fest={reha.schluessel: dz.id})[0]
+    assert zt.zimmer.id == ez.id and any("Doppelzimmer nur" in w for w in zt.warnungen)
+    assert dz not in zt.alternativen and dz not in zt.ausnahmen
+    lage.belegungen[dz.id].append(Belegung(dz.id, v, v + timedelta(days=200), "geplant", "Reha", "RVL", "", "p:x"))
+    assert [k.grund for k in zp.konflikte(lage, v - timedelta(days=1))] == [zp.DOPPEL_GRUND]
+    assert zp.konflikte(lage, v) == []          # schon angereist – kein Umzug mehr
+
+
+def test_tier_zuerst_untergeschoss():
+    from belegung import zimmerplan as zp
+
+    v = date(2026, 10, 12)
+    zimmer = [zp.Zimmer("GS-3.1-E01", "3.1", "E", "E01", tiere=True), zp.Zimmer("GS-3.1-E02", "3.1", "E", "E02", tiere=True),
+              zp.Zimmer("GS-3.1-U05", "3.1", "U", "U05", tiere=True)]
+    lage = zp.Lage({z.id: z for z in zimmer}, {z.id: [] for z in zimmer})
+    for gruppe in ("RVL", "EMR", "ASS"):
+        zt = zp.vorschlagen(lage, [_bedarf("Hund", gruppe, v, v + timedelta(days=20), tier=True)])[0]
+        assert zt.zimmer.id == "GS-3.1-U05", gruppe

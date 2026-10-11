@@ -612,7 +612,7 @@ class ZimmerplanSeite(Seite):
             k = self._konflikte
             zeilen = [x.text for x in k[:6]] + ([f"… und {len(k) - 6} weitere"] if len(k) > 6 else [])
             h = Hinweis(f"<b>Konflikt mit dem Gebäudeplan – {len(k)} geplante "
-                        f"{'Zimmer ist' if len(k) == 1 else 'Zimmer sind'} inzwischen belegt oder gesperrt:</b><br>"
+                        f"{'Zimmer ist' if len(k) == 1 else 'Zimmer sind'} inzwischen belegt, gesperrt oder nicht mehr zulässig:</b><br>"
                         + "<br>".join(zeilen), "fehler", "Neu planen")
             h.setToolTip("<br>".join(x.text for x in k))
             h.knopf.setToolTip("Für diese Personen (und ihre DZ-Partner) ein freies Zimmer suchen und speichern")

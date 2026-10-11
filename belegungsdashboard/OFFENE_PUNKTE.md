@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v5.15.0, 11.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v5.16.0, 11.10.2026)
 
 ## Als Nächstes
 
@@ -27,6 +27,7 @@
 ## Wichtige Regeln (Kurzfassung)
 
 - EMR nur Haus 2, Etage 1–2; Haus 2 Zimmer 101–110 ausschließlich EMR; Haus 2, 1. OG (101–124) nur Kurzmaßnahmen.
+- Doppelzimmer nur UWT und Gäste – ohne Ausnahme (auch nicht von Hand). Tiere: zuerst Haus 3.1 UG, dann EG.
 - Lange Aufenthalte (Hauptmaßnahmen) bei der Flurwahl auf Flure mit langen Aufenthalten (`flur_mischung`, Gewicht 3 – höher lässt Personen ohne Zimmer). UWT nur Haus 3.2, 3.3, 6.
   Gästezimmer Haus 2, 6. OG nie vorschlagen, von Hand als Ausnahme möglich; von Hand geht jedes freie Zimmer.
 - UWT: DZ-Partner laut Klassenübersicht zusammen, „-“/ohne Partner allein; kommende Blöcke automatisch zuteilen.

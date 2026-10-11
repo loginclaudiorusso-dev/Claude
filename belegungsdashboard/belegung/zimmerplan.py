@@ -475,10 +475,19 @@ def nur_kurz(z: Zimmer) -> bool:
     return z.haus == "2" and z.etage == "1"
 
 
+DOPPEL_GRUPPEN = ("UWT", "Gast")
+DOPPEL_GRUND = "Doppelzimmer nur für UWT und Gäste"
+
+
+def nur_doppel(z: Zimmer, gruppe: str) -> bool:
+    """Doppelzimmer sind ausschließlich für UWT und Gäste – ohne Ausnahme, auch nicht von Hand."""
+    return z.betten > 1 and gruppe not in DOPPEL_GRUPPEN
+
+
 def erlaubt(z: Zimmer, gruppe: str) -> bool:
     if z.gaeste != (gruppe == "Gast"):
         return False
-    if nur_emr(z) and gruppe != "EMR":
+    if nur_emr(z) and gruppe != "EMR" or nur_doppel(z, gruppe):
         return False
     for haus, etagen in ERLAUBT.get(gruppe, REHA_HAEUSER):
         if z.haus == haus and (etagen is None or z.etage in etagen):
@@ -502,6 +511,8 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
     """None, wenn das Zimmer für den Bedarf zulässig ist – sonst der Grund."""
     if not z.aktiv:
         return "nicht im Internat"
+    if nur_doppel(z, b.gruppe):
+        return DOPPEL_GRUND
     # Tier geht vor Gruppenregel: wer mit Tier kommt (auch EMR), wohnt in einem Tier-Zimmer
     tier_ausnahme = b.tier and z.tiere and b.gruppe not in ("Gast", "Mieter")
     if not erlaubt(z, b.gruppe) and not tier_ausnahme:
@@ -516,7 +527,7 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
         return "im Zeitraum belegt oder gesperrt"
     if z.betten > 1:
         mit = lage.mitbewohner(z.id, b.von, b.bis, ohne)
-        # Doppelzimmer teilen sich nur UWT-Teilnehmende derselben Klasse; alle anderen wohnen allein darin
+        # Doppelzimmer teilen sich nur UWT-Teilnehmende derselben Klasse (Gäste wohnen allein darin)
         if mit and (b.gruppe != "UWT" or any(gruppe_von(m.massnahme, "") != "UWT" or m.massnahme.split()[-1:] != b.massnahme.split()[-1:]
                                               for m in mit)):
             return "Doppelzimmer – nur gemeinsam mit derselben UWT-Klasse"
@@ -547,12 +558,10 @@ def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
         else:
             w += 3 if z.betten > 1 else 0
         w += 1 if z.haus in ("3.2", "3.3") else 0
-    elif z.betten > 1:
-        w -= 2                       # Doppelzimmer für UWT freihalten
     if z.tiere and not b.tier:
         w -= 3                       # Tier-Zimmer freihalten – es gibt nur wenige
-    if b.tier and z.etage == "E":
-        w += 1                       # mit Tier bevorzugt Erdgeschoss
+    if b.tier and z.tiere and z.etage == "U":
+        w += 4                       # mit Tier immer zuerst Haus 3.1 Untergeschoss
     if z.nur_maenner and b.gruppe != "UWT":
         w -= 0.5
     if b.gruppe in ("Reha", "RVT") and (z.haus.startswith("3") or (z.haus == "2" and z.etage in ("2", "3", "4"))):
@@ -709,11 +718,15 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
         ergebnis[b.schluessel] = Zuteilung(b, z, grund, warn)
 
     # 1) Vorgaben: vom Nutzer festgelegt oder aus der UWT-Liste bekannt
+    verworfen: dict[str, str] = {}
     for b in bedarf:
         zid = fest.get(b.schluessel) or _zimmer_aus_kurz(b.zimmer_vorgabe, lage)
         if zid and zid in lage.zimmer:
             z = lage.zimmer[zid]
             grund = passt(arbeit, z, b)
+            if grund == DOPPEL_GRUND:
+                verworfen[b.schluessel] = z.kurz
+                continue
             if grund is None or b.schluessel in fest:
                 belegen(b, z, "festgelegt" if b.schluessel in fest else "laut UWT-Liste")
                 if grund:
@@ -839,6 +852,8 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
     # 4) Alternativen je Person (ohne die eigene Zuteilung)
     for zt in ergebnis.values():
         b = zt.bedarf
+        if b.schluessel in verworfen:
+            zt.warnungen.append(f"{verworfen[b.schluessel]} geht nicht ({DOPPEL_GRUND}) – neu vorgeschlagen")
         eigene = frozenset({b.schluessel})
         alt = [z for z in zimmer_liste if passt(arbeit, z, b, eigene) is None]
         # alle zulässigen Zimmer – angezeigt nach Haus und Nummer
@@ -848,7 +863,7 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
         # Von Hand geht jedes Zimmer, das im Zeitraum ein freies Bett hat – auch gegen die Regeln
         # (Gästezimmer, anderes Haus …). Vorgeschlagen werden solche Zimmer nie.
         # Zimmer, in denen im Zeitraum schon jemand anderes wohnt, nicht (keine Fremden ins Doppelzimmer).
-        zt.ausnahmen = sorted((z for z in zimmer_liste if z not in zt.alternativen
+        zt.ausnahmen = sorted((z for z in zimmer_liste if z not in zt.alternativen and not nur_doppel(z, b.gruppe)
                                and arbeit.freie_betten(z.id, b.von, b.bis, eigene) > 0
                                and not arbeit.mitbewohner(z.id, b.von, b.bis, eigene)),
                               key=lambda z: (_haus_sort(z.haus), z.nummer))
@@ -870,6 +885,8 @@ def verschieben_pruefen(stand: "Planstand", person: str, nach: str) -> tuple[str
                and (stand.zugewiesen(x.schluessel) or {}).get("zimmer") == zw["zimmer"]]
     ohne = frozenset({person})
     lage = stand.lage
+    if nur_doppel(z, b.gruppe):
+        return f"{z.kurz} ist ein Doppelzimmer – {DOPPEL_GRUND}.", None, partner
     if lage.freie_betten(nach, b.von, b.bis, ohne) <= 0:
         return f"{z.kurz} ist vom {b.von:%d.%m.} bis {b.bis:%d.%m.%Y} belegt oder gesperrt.", None, partner
     grund = passt(lage, z, b, ohne)
@@ -1086,7 +1103,7 @@ class Konflikt:
 
 def konflikte(lage: Lage, heute: date | None = None) -> list[Konflikt]:
     """Unsere (noch nicht abgelaufenen) Planungen, deren Zimmer laut Gebäudeplan inzwischen anderweitig
-    belegt oder gesperrt ist – also nach denselben Regeln wie beim Planen (inkl. Puffer) nicht mehr frei."""
+    belegt oder gesperrt ist oder die gegen eine feste Regel verstoßen (Doppelzimmer nur UWT/Gäste, vor der Anreise) – also nach denselben Regeln wie beim Planen (inkl. Puffer) nicht mehr frei."""
     heute = heute or date.today()
     ergebnis = []
     for zid, bs in lage.belegungen.items():
@@ -1097,7 +1114,10 @@ def konflikte(lage: Lage, heute: date | None = None) -> list[Konflikt]:
             andere = lage._relevant(zid, b.von, b.bis, ohne)
             gesperrt = [x for x in andere if x.art == "gesperrt"]
             fremd = [x for x in andere if x.art == "belegt"]
-            if gesperrt:
+            z = lage.zimmer.get(zid)
+            if z is not None and b.von > heute and nur_doppel(z, belegung_gruppe(b) or ""):
+                grund = DOPPEL_GRUND
+            elif gesperrt:
                 grund = "gesperrt" + (f" ({gesperrt[0].grund})" if gesperrt[0].grund else "")
             elif fremd and lage.freie_betten(zid, b.von, b.bis, ohne) <= 0:
                 namen = ", ".join(f"{x.name} (bis {x.bis:%d.%m.})" for x in fremd[:2])

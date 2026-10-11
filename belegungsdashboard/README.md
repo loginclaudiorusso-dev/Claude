@@ -234,6 +234,10 @@ Feste Regeln:
 | RVL | bevorzugt Haus 3.1, sonst 3.2, 3.3 oder Haus 2 (nicht 1. OG) |
 | Assessment, RVT, Reha-Maßnahmen | Haus 2 (Etage 1–5), 3.1, 3.2, 3.3 – nicht Haus 6 |
 
+* **Doppelzimmer nur für UWT und Gäste – ohne Ausnahme:** andere Gruppen bekommen kein Doppelzimmer, auch nicht
+  von Hand oder per Verschieben im Zeitstrahl. Ältere Planungen im Doppelzimmer erscheinen vor der Anreise als
+  Konflikt („Neu planen“).
+* **Tiere:** immer zuerst Haus 3.1 Untergeschoss, erst wenn dort nichts frei ist das Erdgeschoss.
 * **Haus 2, 1. OG (Zimmer 101–124) nur für Kurzmaßnahmen** (EMR, Assessment, Aufenthalte bis 8 Wochen) –
   RVL, RVT und andere lange Aufenthalte kommen auf die anderen Etagen (von Hand als Ausnahme „nur Kurzmaßnahmen“).
 * **Lange Aufenthalte auf einen Flur:** Bei der Flurwahl zählt, wer dort im Zeitraum wohnt – Hauptmaßnahmen und
@@ -248,9 +252,9 @@ Feste Regeln:
 * **Mausrad:** Über Auswahllisten und Zahlenfeldern verstellt das Mausrad nichts – die Tabelle bzw. Seite scrollt
   weiter. Erst in der per Klick geöffneten Liste wirkt das Rad.
 * Tiere nur in Haus 3.1 EG/UG – das geht der Gruppenregel vor (auch EMR mit Tier wohnt dort,
-  bevorzugt im EG) · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,
+  zuerst im UG) · Zimmer mit Bad über den Flur (Haus 6: x01, x02, x05, x08,
   x09) nur Männer · Doppelzimmer teilen sich nur Personen derselben UWT-Klasse und desselben
-  Geschlechts – bei Klassen mit DZ-Liste nur die eingetragenen Partner –, alle anderen wohnen allein darin · nach jeder Abreise ein Tag Puffer
+  Geschlechts – bei Klassen mit DZ-Liste nur die eingetragenen Partner –, UWT ohne Partner wohnen allein darin · nach jeder Abreise ein Tag Puffer
   (einstellbar).
 * Wünsche: eine Anreise zusammen auf einem Flur (Flure = durch das Treppenhaus getrennte
   Hälften), Zimmer möglichst nicht direkt nebeneinander · kurze Maßnahmen und Assessment
