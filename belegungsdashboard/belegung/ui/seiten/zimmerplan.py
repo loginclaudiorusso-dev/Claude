@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout,
+    QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -48,7 +48,7 @@ class ZimmerplanSeite(Seite):
     zeigt_filter = False
     zeigt_bezug = False
 
-    def __init__(self, zustand: Zustand):
+    def __init__(self, zustand: Zustand, nebenfenster: bool = False):
         super().__init__(zustand)
         self.stand: zp.Planstand | None = None
         self._zuteilungen: list[zp.Zuteilung] = []
@@ -58,6 +58,8 @@ class ZimmerplanSeite(Seite):
         self._haus_filter: str | None = None
         self._monat = date.today().replace(day=1)
         zustand.listen_geaendert.connect(self.anstossen)   # auch ohne geladene Pivot aktualisieren
+        zustand.zimmer_geaendert.connect(self._fremd_geaendert)   # anderes Fenster / Zimmerkarte hat gespeichert
+        self._eigene_aenderung = False
 
         # Reiter + kompakte Kennzahlen (statt großer Kacheln – passt auch bei 125/150 % Skalierung)
         kopf = QHBoxLayout()
@@ -66,6 +68,13 @@ class ZimmerplanSeite(Seite):
         self.tabs.geaendert.connect(self._tab)
         kopf.addWidget(self.tabs, 0, Qt.AlignTop)
         kopf.addStretch()
+        self.nebenfenster = nebenfenster
+        self.kopf_aktion = None             # Hauptfenster legt den Knopf neben den Seitentitel
+        if not nebenfenster:
+            self.kopf_aktion = knopf("Neues Fenster", "ghost", "fenster")
+            self.kopf_aktion.setToolTip("Den aktuellen Reiter zusätzlich in einem eigenen Fenster öffnen – z. B. den "
+                                        "Zeitstrahl neben „Zuteilen“. Änderungen erscheinen in allen Fenstern.")
+            self.kopf_aktion.clicked.connect(self._neues_fenster)
         self.lay.addLayout(kopf)
         # Kennzahlen in eigener Zeile unter den Reitern – brechen bei schmalem Fenster sauber um
         kz = QWidget()
@@ -125,12 +134,13 @@ class ZimmerplanSeite(Seite):
         self.alle.toggled.connect(lambda _a: self._anreisen_fuellen())
         wahl.addWidget(self.alle)
         self.zu_karte.inhalt.addLayout(wahl)
-        # Zeile 2: Zusammenfassung (bricht bei wenig Platz um) und Aktionen
+        # Zeile 2: Zusammenfassung (bricht bei wenig Platz um), Zeile 3: Aktionen – „Übernehmen“ rechts
+        status = QWidget()
+        status.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self.zu_status = FlowLayout(status, abstand=6)
+        self.zu_karte.inhalt.addWidget(status)
         unter = QHBoxLayout()
         unter.setSpacing(8)
-        status = QWidget()
-        self.zu_status = FlowLayout(status, abstand=6)
-        unter.addWidget(status, 1)
         self.b_plus = knopf("Person", "ghost", "plus", "Person von Hand zu dieser Anreise hinzufügen")
         self.b_plus.clicked.connect(self._person_hinzufuegen)
         neu = knopf("Neu", "ghost", "funke", "Eigene Änderungen verwerfen und neu vorschlagen")
@@ -154,9 +164,10 @@ class ZimmerplanSeite(Seite):
         self.b_zurueck.setMenu(menue)
         aktionen = QWidget()            # Knöpfe brechen im schmalen Fenster um, statt die Seite zu verbreitern
         knoepfe = FlowLayout(aktionen, abstand=8)
-        for x in (self.b_plus, neu, self.b_zurueck, self.b_excel, self.b_ok):
+        for x in (self.b_plus, neu, self.b_zurueck, self.b_excel):
             knoepfe.addWidget(x)
-        unter.addWidget(aktionen, 0, Qt.AlignTop)
+        unter.addWidget(aktionen, 1, Qt.AlignTop)
+        unter.addWidget(self.b_ok, 0, Qt.AlignTop)
         self.zu_karte.inhalt.addLayout(unter)
         # Name und Maßnahme zweizeilig in einer Spalte – so bleibt der Name auch im schmalen Fenster lesbar
         self.zu_tabelle = Tabelle(["Name", "m/w", "Tier", "Zeitraum", "Zimmer", ""],
@@ -513,6 +524,14 @@ class ZimmerplanSeite(Seite):
         self.neu_laden()
 
     def neu_laden(self) -> None:
+        if self.nebenfenster:              # Importe und automatische UWT-Zuteilung nur im Hauptfenster
+            self.stand = zp.laden()
+            self._kopf_zeigen()
+            self._aufgaben_zaehler()
+            self._quellen_zeigen()
+            self._anreisen_fuellen()
+            self._tab_inhalt(self.tabs.index())
+            return
         neu = gebaeudeplan.automatisch_importieren()
         if neu is not None:
             belegt = sum(1 for b in neu.belegungen if b.art == "belegt")
@@ -553,6 +572,26 @@ class ZimmerplanSeite(Seite):
     def _tab(self, i: int) -> None:
         self._tab_anzeigen(i)
         self._tab_inhalt(i)
+        if self.nebenfenster and self.window() is not None:
+            self.window().setWindowTitle(f"Zimmerplan – {TABS[i]}")
+
+    def _nach_aenderung(self) -> None:
+        """Nach dem Speichern: andere Fenster und Zimmerkarten benachrichtigen, selbst neu laden."""
+        self._eigene_aenderung = True
+        try:
+            self.z.zimmer_geaendert.emit()
+        finally:
+            self._eigene_aenderung = False
+        self.neu_laden()
+
+    def _fremd_geaendert(self) -> None:
+        if not self._eigene_aenderung:
+            self.anstossen()
+
+    def _neues_fenster(self) -> None:
+        from ..fenster import zimmerplan_fenster
+
+        zimmerplan_fenster(self.z, self.tabs.index())
 
     def _tab_anzeigen(self, i: int) -> None:
         for k, w in enumerate(self.seiten):
@@ -642,6 +681,31 @@ class ZimmerplanSeite(Seite):
                 h.knopf.clicked.connect(lambda: (self.tabs.setzen(TABS.index("Aufgaben")), self._tab(TABS.index("Aufgaben"))))
             h.setToolTip("<br>".join(a.text for a in liste))
             self.hinweise.addWidget(h)
+        self._hinweise_falten()
+
+    def _hinweise_falten(self) -> None:
+        """Info-Hinweise hinter einen Knopf in der Kennzahlen-Zeile – Warnungen und Konflikte bleiben sichtbar.
+        So bleibt auf jedem Reiter Platz für den eigentlichen Inhalt."""
+        alle = [self.hinweise.itemAt(i).widget() for i in range(self.hinweise.count())]
+        infos = [h for h in alle if isinstance(h, Hinweis) and h.property("hinweis") == "info"]
+        if not infos:
+            return
+        offen = bool(speicher.einstellungen().get("zp_hinweise_offen", False))
+        b = knopf(f"{len(infos)} Hinweis{'e' if len(infos) > 1 else ''}", "chip", "info")
+        b.setCheckable(True)
+        b.setChecked(offen)
+        texte = [h.findChildren(QLabel)[1].text() for h in infos if len(h.findChildren(QLabel)) > 1]
+        b.setToolTip("Ein- oder ausblenden:<br>• " + "<br>• ".join(t.split("<br>")[0][:120] for t in texte))
+
+        def umschalten(an: bool) -> None:
+            for h in infos:
+                h.setVisible(an)
+            speicher.einstellung_setzen("zp_hinweise_offen", an)
+
+        b.toggled.connect(umschalten)
+        for h in infos:
+            h.setVisible(offen)
+        self.kennzahlen.addWidget(b)
 
     # ================================================================== Zuteilen
 
@@ -866,7 +930,7 @@ class ZimmerplanSeite(Seite):
         zp.zuweisungen_entfernen(set(ohne))
         self.z.meldung.emit(f"{n} Zuweisungen übernommen" + (f", {len(ohne)} ohne Zimmer." if ohne else "."),
                             "ok" if not ohne else "warnung")
-        self.neu_laden()
+        self._nach_aenderung()
 
     # ---- Aufgaben ----------------------------------------------------------------------
 
@@ -1095,7 +1159,7 @@ class ZimmerplanSeite(Seite):
         zp.zuweisungen_speichern([zp.Zuteilung(x, z_neu) for x in [b] + mit], "Zeitstrahl verschoben")
         namen = ", ".join(x.name for x in [b] + mit)
         self.z.meldung.emit(f"{namen} nach {z_neu.kurz} verschoben.", "warnung" if hinweis else "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     # ---- Zurücknehmen und Konflikte -----------------------------------------------------
 
@@ -1121,7 +1185,7 @@ class ZimmerplanSeite(Seite):
             return
         n = zp.planung_zuruecknehmen(geplant)
         self.z.meldung.emit(f"Planung zurückgenommen: {n} Personen ohne Zimmer.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     def _uwt_zuruecknehmen(self) -> None:
         personen = self._kommende_uwt()
@@ -1132,7 +1196,7 @@ class ZimmerplanSeite(Seite):
             return
         n = zp.planung_zuruecknehmen(personen)
         self.z.meldung.emit(f"UWT-Planungen zurückgenommen: {n} Personen.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     def _uwt_neu(self) -> None:
         if QMessageBox.question(
@@ -1141,7 +1205,7 @@ class ZimmerplanSeite(Seite):
             return
         neu = zp.uwt_neu_zuteilen(self.stand)
         self.z.meldung.emit(f"UWT neu zugeteilt: {len(neu)} Personen.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     def _konflikte_loesen(self) -> None:
         personen = {k.person for k in getattr(self, "_konflikte", [])}
@@ -1153,7 +1217,7 @@ class ZimmerplanSeite(Seite):
             text += f" Kein freies Zimmer für {', '.join(b.name for b in ohne[:4])}" + (" …" if len(ohne) > 4 else "") + \
                     " – bitte unter Zuteilen von Hand festlegen."
         self.z.meldung.emit(text, "warnung" if ohne else "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     # ---- Excel -------------------------------------------------------------------------
 
@@ -1640,7 +1704,7 @@ class ZimmerplanSeite(Seite):
             ziel.notiz = tab.item(r, 8).text().strip() if tab.item(r, 8) else ""
         zp.stammdaten_speichern(list(alle.values()), self.stand.plan)
         self.z.meldung.emit("Zimmer-Stammdaten gespeichert.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     # ================================================================== Quellen
 
@@ -1713,7 +1777,7 @@ class ZimmerplanSeite(Seite):
         gebaeudeplan.speichern(plan, kennung)
         belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
         self.z.meldung.emit(f"Gebäudeplan importiert: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     def _plan_einfuegen(self) -> None:
         from PySide6.QtWidgets import QApplication, QMessageBox
@@ -1738,7 +1802,7 @@ class ZimmerplanSeite(Seite):
                            {"text": text, "html": html[:2_000_000]})       # Rohdaten zur Nachkontrolle
         gebaeudeplan.speichern(plan, {"pfad": "Zwischenablage", "geaendert": 0})
         self.z.meldung.emit(f"Gebäudeplan eingefügt: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-        self.neu_laden()
+        self._nach_aenderung()
 
     def _eingang_oeffnen(self) -> None:
         from PySide6.QtCore import QUrl
@@ -1763,7 +1827,7 @@ class ZimmerplanSeite(Seite):
             zimmerpivot.speichern(ergebnis)
             self.z.meldung.emit(f"Zimmer-Pivot importiert: {ergebnis.zimmer} Zimmer, "
                                 f"{ergebnis.zeitraum[0]:%d.%m.%Y} – {ergebnis.zeitraum[1]:%d.%m.%Y}.", "ok")
-            self.neu_laden()
+            self._nach_aenderung()
 
         self._pivot_worker = Worker(zimmerpivot.lesen, Path(pfad), parent=self)
         self._pivot_worker.fertig.connect(fertig)

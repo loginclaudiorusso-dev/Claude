@@ -93,6 +93,9 @@ class HauptFenster(QMainWindow):
         }
         for s in self.seiten.values():
             self.stapel.addWidget(s)
+            if (aktion := getattr(s, "kopf_aktion", None)) is not None:
+                self._kopf_h.insertWidget(1, aktion, 0, Qt.AlignVCenter)
+                aktion.hide()
 
         self.toast = Toast(wurzel)
         zustand.meldung.connect(self.toast.zeigen)
@@ -231,6 +234,7 @@ class HauptFenster(QMainWindow):
         texte.addWidget(self.titel)
         texte.addWidget(self.untertitel)
         h.addLayout(texte, 1)
+        self._kopf_h = h                      # Seiten können eine eigene Aktion in den Kopf legen (kopf_aktion)
         self.standort_filter = Segment([STANDORT_LABEL[s] for s in FILTER_STANDORTE], 0)
         self.standort_filter.setToolTip("Standort für alle Auswertungen")
         self.standort_filter.geaendert.connect(lambda i: self.z.standort_setzen(FILTER_STANDORTE[i]))
@@ -251,6 +255,9 @@ class HauptFenster(QMainWindow):
         self.untertitel.setText(seite.untertitel)
         self.standort_filter.setVisible(seite.zeigt_filter)
         self.bezug_filter.setVisible(seite.zeigt_bezug)
+        for s in self.seiten.values():
+            if (aktion := getattr(s, "kopf_aktion", None)) is not None:
+                aktion.setVisible(s is seite)
 
     def _filter_anzeigen(self) -> None:
         self.standort_filter.setzen(FILTER_STANDORTE.index(self.z.standort))

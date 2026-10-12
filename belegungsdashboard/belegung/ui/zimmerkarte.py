@@ -93,9 +93,10 @@ class ZimmerKarte(QDialog):
         aussen.addWidget(scroll)
         self._neu_timer = QTimer(self, singleShot=True, interval=150, timeout=self._neu_laden)
         zustand.listen_geaendert.connect(self._von_aussen)
+        zustand.zimmer_geaendert.connect(self._von_aussen)
         self._aufbauen()
         bildschirm = self.screen().availableGeometry() if self.screen() else None
-        b, h = (1040, 820) if zid else (640, 640)
+        b, h = (1120, 840) if zid else (640, 640)
         if bildschirm is not None:
             b, h = min(b, int(bildschirm.width() * 0.94)), min(h, int(bildschirm.height() * 0.9))
         self.resize(b, h)
@@ -223,7 +224,7 @@ class ZimmerKarte(QDialog):
 
     def _spalten_anpassen(self) -> None:
         if getattr(self, "spalten", None) is not None and self.zid:
-            self.spalten.setDirection(QBoxLayout.LeftToRight if self.width() >= 900 else QBoxLayout.TopToBottom)
+            self.spalten.setDirection(QBoxLayout.LeftToRight if self.width() >= 1060 else QBoxLayout.TopToBottom)
 
     # ------------------------------------------------------------------ Aktualisieren
 
@@ -247,7 +248,7 @@ class ZimmerKarte(QDialog):
         try:
             if meldung:
                 self.z.meldung.emit(meldung, "ok")
-            self.z.listen_geaendert.emit()
+            self.z.zimmer_geaendert.emit()
         finally:
             self._speichert = False
         self._neu_laden()
@@ -347,7 +348,7 @@ class PersonBlock(QWidget):
                 person_uebernehmen(p, neu_p, k.z, neu_zimmer)
             else:
                 k.z.meldung.emit(f"{self.bw.name}: Zimmer {neu_zimmer.removeprefix('GS-') or 'entfernt'}.", "ok")
-                k.z.listen_geaendert.emit()
+                k.z.zimmer_geaendert.emit()
         finally:
             k._speichert = False
         if neu_zimmer is not None and k.zid and neu_zimmer != k.zid:
