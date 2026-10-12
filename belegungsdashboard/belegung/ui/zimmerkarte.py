@@ -229,7 +229,19 @@ class ZimmerKarte(QDialog):
     # ------------------------------------------------------------------ Aktualisieren
 
     def _von_aussen(self) -> None:
-        if not self._speichert:
+        if self._speichert:
+            return
+        if self.isMinimized():                 # beim Zurückholen nachladen
+            self._nachladen = True
+        else:
+            self._neu_timer.start()
+
+    def changeEvent(self, e) -> None:
+        super().changeEvent(e)
+        from PySide6.QtCore import QEvent
+
+        if e.type() == QEvent.WindowStateChange and not self.isMinimized() and getattr(self, "_nachladen", False):
+            self._nachladen = False
             self._neu_timer.start()
 
     def _neu_laden(self) -> None:

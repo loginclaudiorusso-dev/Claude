@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
 from ... import zimmerplan as zp
 from .. import drucken, theme
-from ..basis import Seite, Worker, Zustand
+from ..basis import Seite, Worker, Zustand, sichtbar
 from ..widgets import FlowLayout, Hinweis, Karte, Leer, Mehrfachauswahl, Pille, Segment, Tabelle, DatumFeld, knopf, label, leeren
 from ..zeitstrahl import Zeitstrahl
 
@@ -98,7 +98,7 @@ class ZimmerplanSeite(Seite):
 
     def anstossen(self) -> None:
         self._veraltet = True
-        if self.isVisible():
+        if sichtbar(self):              # minimiert/im Infobereich: beim Zurückholen nachholen
             self._ausfuehren()
 
     def showEvent(self, e):

@@ -13,10 +13,22 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 _fenster: list[QWidget] = []
 
 
+class _Fenster(QWidget):
+    """Eigenes Fenster; holt nach dem Minimieren nach, was liegen geblieben ist."""
+
+    def changeEvent(self, e) -> None:
+        super().changeEvent(e)
+        from PySide6.QtCore import QEvent, QTimer
+
+        seite = getattr(self, "seite", None)
+        if e.type() == QEvent.WindowStateChange and not self.isMinimized() and getattr(seite, "_veraltet", False):
+            QTimer.singleShot(0, seite.anstossen)
+
+
 def zimmerplan_fenster(zustand, tab: int = 0) -> QWidget:
     from .seiten.zimmerplan import TABS, ZimmerplanSeite
 
-    w = QWidget(None, Qt.Window)
+    w = _Fenster(None, Qt.Window)
     w.setObjectName("wurzel")
     w.setAttribute(Qt.WA_DeleteOnClose, True)
     w.setAttribute(Qt.WA_StyledBackground, True)

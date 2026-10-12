@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from ... import gebaeudeplan, inventar, speicher
 from ... import zimmerplan as zp
 from .. import drucken, theme
-from ..basis import Seite, Zustand
+from ..basis import Seite, Zustand, sichtbar
 from ..widgets import FlowLayout, Karte, Pille, Segment, Tabelle, knopf, label, leeren
 
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
@@ -46,7 +46,7 @@ class InventarSeite(Seite):
 
     def anstossen(self) -> None:
         self._veraltet = True
-        if self.isVisible():
+        if sichtbar(self):              # minimiert/im Infobereich: beim Zurückholen nachholen
             self._ausfuehren()
 
     def showEvent(self, e):

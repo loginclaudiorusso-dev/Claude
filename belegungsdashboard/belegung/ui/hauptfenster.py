@@ -6,7 +6,7 @@ import logging
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QMainWindow, QMenu, QProgressBar, QPushButton,
@@ -17,7 +17,7 @@ from .. import laden, speicher
 from .. import termine as tm
 from ..konfig import GESAMT, STANDORT_LABEL, STANDORTE, programmordner, ressourcenordner
 from . import icons, theme
-from .basis import Seite, Worker, Zustand
+from .basis import Seite, Worker, Zustand, arbeitsspeicher_freigeben, sichtbar
 from .widgets import DatumFeld, Karte, Pille, Segment, Toast, icon_setzen, knopf, label
 
 log = logging.getLogger(__name__)
@@ -326,6 +326,9 @@ class HauptFenster(QMainWindow):
     def _listen_geaendert(self) -> None:
         if self.z.ds is None:
             return
+        if not sichtbar(self):                 # minimiert/im Infobereich: Statistik erst beim Zurückholen
+            self._neuberechnen_offen = True
+            return
         self.fortschritt.setVisible(True)
         w = Worker(laden.neu_berechnen, self.z.ds, parent=self)
         w.fertig.connect(lambda ds: (setattr(self.z, "ds", ds), self.z.daten_geaendert.emit(), self._stand_anzeigen()))
@@ -470,6 +473,39 @@ class HauptFenster(QMainWindow):
         for w in (self._worker, getattr(self, "_neu_worker", None)):
             if w is not None and w.isRunning() and not w.wait(5000):
                 os._exit(0)     # hängt z. B. am Server-Abruf; Daten werden atomar gespeichert
+
+    # ---- minimiert / im Infobereich: nichts neu zeichnen, Speicher freigeben ------------------
+
+    def changeEvent(self, e) -> None:
+        super().changeEvent(e)
+        if e.type() == QEvent.WindowStateChange:
+            if self.isMinimized():
+                self._ruhen()
+            else:
+                QTimer.singleShot(0, self._aufwachen)
+
+    def hideEvent(self, e) -> None:
+        super().hideEvent(e)
+        if not e.spontaneous():                # in den Infobereich geschlossen
+            self._ruhen()
+
+    def showEvent(self, e) -> None:
+        super().showEvent(e)
+        QTimer.singleShot(0, self._aufwachen)
+
+    def _ruhen(self) -> None:
+        QTimer.singleShot(500, arbeitsspeicher_freigeben)   # nach dem Minimieren, nicht mittendrin
+
+    def _aufwachen(self) -> None:
+        """Was während des Minimierens liegen geblieben ist, jetzt nachholen – nur die sichtbare Seite."""
+        if not sichtbar(self):
+            return
+        if getattr(self, "_neuberechnen_offen", False):
+            self._neuberechnen_offen = False
+            self._listen_geaendert()
+        seite = self.stapel.currentWidget()
+        if getattr(seite, "_veraltet", False):
+            seite.anstossen()
 
     def closeEvent(self, e):
         if not self._beenden and self.tray is not None and tm.einstellungen()["hintergrund"]:

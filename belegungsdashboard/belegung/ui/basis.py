@@ -77,6 +77,31 @@ class Worker(QThread):
                 pythoncom.CoUninitialize()
 
 
+def sichtbar(w: QWidget) -> bool:
+    """Wirklich zu sehen: sichtbar und das Fenster nicht minimiert bzw. im Infobereich versteckt.
+    Nur dann wird neu gerechnet und gezeichnet – sonst wird es beim Zurückholen nachgeholt."""
+    fenster = w.window()
+    return w.isVisible() and fenster is not None and not fenster.isMinimized()
+
+
+def arbeitsspeicher_freigeben() -> None:
+    """Beim Minimieren: Zwischenspeicher leeren und (unter Windows) ungenutzten Arbeitsspeicher abgeben."""
+    import gc
+    import sys
+
+    from PySide6.QtGui import QPixmapCache
+
+    QPixmapCache.clear()
+    gc.collect()
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.psapi.EmptyWorkingSet(ctypes.windll.kernel32.GetCurrentProcess())
+        except Exception:          # noqa: BLE001 – rein kosmetisch, darf nie stören
+            pass
+
+
 class Seite(QWidget):
     """Scrollbare Seite. ``aktualisieren`` läuft nur, wenn die Seite sichtbar ist; sonst
     wird sie als veraltet markiert und beim nächsten Anzeigen neu gezeichnet."""
@@ -125,7 +150,7 @@ class Seite(QWidget):
 
     def anstossen(self) -> None:
         self._veraltet = True
-        if self.isVisible() and self.z.ds is not None:
+        if sichtbar(self) and self.z.ds is not None:
             self._ausfuehren()
 
     def showEvent(self, e):

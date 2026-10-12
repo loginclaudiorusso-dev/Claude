@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 from ... import autostart
 from ... import termine as tm
 from .. import theme
-from ..basis import Seite, Zustand
+from ..basis import Seite, Zustand, sichtbar
 from ..kalender import KalenderRaster, art_farbe
 from ..widgets import Hinweis, Karte, Leer, Pille, Segment, Tabelle, knopf, label, leeren
 
@@ -75,7 +75,7 @@ class TermineSeite(Seite):
 
     def anstossen(self) -> None:
         self._veraltet = True
-        if self.isVisible():
+        if sichtbar(self):              # minimiert/im Infobereich: beim Zurückholen nachholen
             self._ausfuehren()
 
     def showEvent(self, e):
