@@ -11,7 +11,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCalendarWidget, QDateEdit, QFrame, QGraphicsOpacityEffect, QGridLayout,
+    QAbstractItemView, QButtonGroup, QDateEdit, QFrame, QGraphicsOpacityEffect, QGridLayout,
     QHBoxLayout, QHeaderView, QLabel, QLayout, QMenu, QPushButton, QSizePolicy, QTableWidget, QTableWidgetItem,
     QToolButton, QVBoxLayout, QWidget,
 )
@@ -489,6 +489,150 @@ def pydate(q: QDate) -> date:
     return date(q.year(), q.month(), q.day())
 
 
+WOCHENTAGE_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+class KalenderPopup(QFrame):
+    """Eigener Monatskalender (statt QCalendarWidget, dessen Zellen die Tabellen-Abstände erben und „…“ zeigen).
+    Feste Zellgröße, Heute umrandet, Auswahl gefüllt, Tage der Nachbarmonate blass, Wochenende ruhig.
+    Pfeile/Mausrad blättern Monate, „Heute“ springt zurück."""
+
+    gewaehlt = Signal(object)
+    ZELLE = QSize(36, 32)
+
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.Popup)
+        self.setObjectName("kalender")
+        self._auswahl = date.today()
+        self._monat = self._auswahl.replace(day=1)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 12)
+        lay.setSpacing(6)
+        kopf = QHBoxLayout()
+        kopf.setSpacing(4)
+        self._zurueck = QToolButton()
+        self._vor = QToolButton()
+        for b, d, tip in ((self._zurueck, -1, "Vorheriger Monat"), (self._vor, 1, "Nächster Monat")):
+            b.setObjectName("kal_pfeil")
+            b.setCursor(Qt.PointingHandCursor)
+            b.setToolTip(tip)
+            b.setFixedSize(30, 30)
+            b.clicked.connect(lambda _=False, d=d: self._blaettern(d))
+        self._titel = QLabel()
+        self._titel.setObjectName("kal_titel")
+        self._titel.setAlignment(Qt.AlignCenter)
+        kopf.addWidget(self._zurueck)
+        kopf.addWidget(self._titel, 1)
+        kopf.addWidget(self._vor)
+        lay.addLayout(kopf)
+        self._gitter = QGridLayout()
+        self._gitter.setSpacing(2)
+        for i, name in enumerate(WOCHENTAGE_KURZ):
+            l = QLabel(name)
+            l.setObjectName("kal_wotag")
+            l.setAlignment(Qt.AlignCenter)
+            self._gitter.addWidget(l, 0, i)
+        self._tage: list[QPushButton] = []
+        for r in range(6):
+            for c in range(7):
+                b = QPushButton()
+                b.setObjectName("kal_tag")
+                b.setFixedSize(self.ZELLE)
+                b.setCursor(Qt.PointingHandCursor)
+                b.setFocusPolicy(Qt.NoFocus)
+                b.clicked.connect(lambda _=False, b=b: self._klick(b))
+                self._gitter.addWidget(b, r + 1, c)
+                self._tage.append(b)
+        lay.addLayout(self._gitter)
+        fuss = QHBoxLayout()
+        heute = QPushButton("Heute")
+        heute.setObjectName("kal_heute")
+        heute.setCursor(Qt.PointingHandCursor)
+        heute.clicked.connect(lambda: self._waehlen(date.today()))
+        fuss.addStretch()
+        fuss.addWidget(heute)
+        lay.addLayout(fuss)
+        self.stil()
+
+    def stil(self) -> None:
+        t = theme.T
+        self.setStyleSheet(f"""
+            QFrame#kalender {{ background: {t.surface}; border: 1px solid {t.border_strong}; border-radius: 10px; }}
+            QLabel#kal_titel {{ color: {t.text}; font-weight: 600; font-size: 14px; }}
+            QLabel#kal_wotag {{ color: {t.text_3}; font-size: 11px; font-weight: 600; padding: 2px 0; }}
+            QToolButton#kal_pfeil {{ border: none; border-radius: 6px; background: transparent; }}
+            QToolButton#kal_pfeil:hover {{ background: {t.hover}; }}
+            QPushButton#kal_tag {{ border: 1px solid transparent; border-radius: 7px; background: transparent;
+                                   color: {t.text}; padding: 0; font-size: 13px;
+                                   min-width: {self.ZELLE.width()}px; max-width: {self.ZELLE.width()}px;
+                                   min-height: {self.ZELLE.height()}px; max-height: {self.ZELLE.height()}px; }}
+            QPushButton#kal_tag:hover {{ background: {t.hover}; }}
+            QPushButton#kal_tag[art="wochenende"] {{ color: {t.text_2}; }}
+            QPushButton#kal_tag[art="fremd"] {{ color: {t.text_3}; }}
+            QPushButton#kal_tag[heute="true"] {{ border-color: {t.accent}; color: {t.accent}; font-weight: 700; }}
+            QPushButton#kal_tag[gewaehlt="true"] {{ background: {t.accent}; color: {t.accent_text}; font-weight: 700; }}
+            QPushButton#kal_heute {{ border: none; background: transparent; color: {t.accent}; font-weight: 600;
+                                     padding: 4px 8px; min-height: 0; }}
+            QPushButton#kal_heute:hover {{ background: {t.accent_soft}; border-radius: 6px; }}
+        """)
+        self._zurueck.setIcon(icons.icon("links", t.text_2, 16))
+        self._vor.setIcon(icons.icon("rechts", t.text_2, 16))
+
+    def zeigen(self, d: date, pos: QPoint) -> None:
+        self._auswahl = d
+        self._monat = d.replace(day=1)
+        self.stil()
+        self._fuellen()
+        self.adjustSize()
+        bildschirm = self.screen().availableGeometry() if self.screen() else None
+        if bildschirm is not None:           # nicht aus dem Bildschirm ragen (z. B. Feld ganz unten)
+            pos.setX(min(pos.x(), bildschirm.right() - self.width()))
+            if pos.y() + self.height() > bildschirm.bottom():
+                pos.setY(pos.y() - self.height() - 40)
+        self.move(pos)
+        self.show()
+
+    def _fuellen(self) -> None:
+        self._titel.setText(f"{DEUTSCHE_MONATE[self._monat.month - 1]} {self._monat.year}")
+        start = self._monat - timedelta(days=self._monat.weekday())
+        heute = date.today()
+        for i, b in enumerate(self._tage):
+            d = start + timedelta(days=i)
+            b.tag = d
+            b.setText(str(d.day))
+            b.setProperty("art", "fremd" if d.month != self._monat.month else ("wochenende" if d.weekday() >= 5 else ""))
+            b.setProperty("heute", d == heute)
+            b.setProperty("gewaehlt", d == self._auswahl)
+            b.setToolTip(f"{WOCHENTAGE_KURZ[d.weekday()]} {d:%d.%m.%Y}")
+            b.style().unpolish(b)
+            b.style().polish(b)
+
+    def _blaettern(self, d: int) -> None:
+        m = self._monat.month - 1 + d
+        self._monat = date(self._monat.year + m // 12, m % 12 + 1, 1)
+        self._fuellen()
+
+    def _klick(self, b: QPushButton) -> None:
+        self._waehlen(b.tag)
+
+    def _waehlen(self, d: date) -> None:
+        self._auswahl = d
+        self.hide()
+        self.gewaehlt.emit(d)
+
+    def wheelEvent(self, e) -> None:
+        self._blaettern(-1 if e.angleDelta().y() > 0 else 1)
+        e.accept()
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() in (Qt.Key_PageUp, Qt.Key_Left):
+            self._blaettern(-1)
+        elif e.key() in (Qt.Key_PageDown, Qt.Key_Right):
+            self._blaettern(1)
+        else:
+            super().keyPressEvent(e)
+
+
 class DatumFeld(QWidget):
     geaendert = Signal(object)
 
@@ -510,37 +654,19 @@ class DatumFeld(QWidget):
         self.btn.setFixedSize(26, 26)
         self.icon_aktualisieren()
         lay.addWidget(self.btn)
-        self._kal = QCalendarWidget()
-        self._kal.setWindowFlags(Qt.Popup)
-        self._kal.setGridVisible(False)
-        self._kal.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
-        self._kal.setFirstDayOfWeek(Qt.Monday)
-        self._kal.clicked.connect(self._gewaehlt)
-        self._kal_farben()
+        self._kal: KalenderPopup | None = None        # erst beim ersten Öffnen bauen (spart Start-Zeit)
 
     def icon_aktualisieren(self) -> None:
         self.btn.setIcon(icons.icon("kalender", theme.T.text_2, 16))
-        if hasattr(self, "_kal"):
-            self._kal_farben()
-
-    def _kal_farben(self) -> None:
-        """Wochenende nicht rot einfärben (Qt-Standard) – ruhiger, passend zum Theme."""
-        from PySide6.QtGui import QTextCharFormat
-
-        f = QTextCharFormat()
-        f.setForeground(QColor(theme.T.text_2))
-        for tag in (Qt.Saturday, Qt.Sunday):
-            self._kal.setWeekdayTextFormat(tag, f)
 
     def _oeffnen(self):
-        self._kal.setSelectedDate(self.feld.date())
-        pos = self.mapToGlobal(QPoint(0, self.height() + 4))
-        self._kal.move(pos)
-        self._kal.show()
+        if self._kal is None:
+            self._kal = KalenderPopup(self)
+            self._kal.gewaehlt.connect(self._gewaehlt)
+        self._kal.zeigen(self.datum(), self.mapToGlobal(QPoint(0, self.height() + 4)))
 
-    def _gewaehlt(self, q: QDate):
-        self._kal.hide()
-        self.feld.setDate(q)
+    def _gewaehlt(self, d: date):
+        self.feld.setDate(qdate(d))
 
     def datum(self) -> date:
         return pydate(self.feld.date())

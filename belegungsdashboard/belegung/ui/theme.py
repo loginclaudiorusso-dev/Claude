@@ -276,10 +276,6 @@ QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 4px 8px; }}
 QLineEdit#chat_eingabe {{ border-radius: 12px; padding: 11px 14px; font-size: 14px; }}
 
 /* ---------- Kalender ---------- */
-QCalendarWidget QWidget {{ alternate-background-color: {t.surface_2}; }}
-QCalendarWidget QToolButton {{ color: {t.text}; font-weight: 600; padding: 4px 8px; }}
-QCalendarWidget QAbstractItemView {{ background: {t.surface}; color: {t.text}; selection-background-color: {t.accent}; selection-color: {t.accent_text}; }}
-QCalendarWidget #qt_calendar_navigationbar {{ background: {t.surface_2}; }}
 
 /* ---------- Tabellen ---------- */
 QTableView, QTableWidget {{
