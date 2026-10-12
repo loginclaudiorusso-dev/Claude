@@ -151,6 +151,7 @@ def main() -> int:
         app.setWindowIcon(QIcon(str(icon_pfad)))
 
     modus = os.environ.get("BELEGUNG_THEME") or speicher.einstellungen().get("theme", "system")
+    theme.design_setzen(os.environ.get("BELEGUNG_DESIGN") or speicher.einstellungen().get("design", "klassisch"))
     theme.setzen(modus)
 
     zustand = Zustand()

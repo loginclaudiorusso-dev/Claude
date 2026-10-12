@@ -66,7 +66,7 @@ class UebersichtSeite(Seite):
         zus.addWidget(self.legende)
         zus.addStretch()
         self.zus_karte.inhalt.addLayout(zus)
-        self.zus_karte.setMinimumWidth(280)
+        self.zus_karte.setMinimumWidth(260)
         self.zeile(self.verlauf_karte, self.zus_karte, stretch=[3, 1])
 
         self.monate_karte = Karte("Die nächsten Monate", "Ø belegte Plätze inkl. Verträge")

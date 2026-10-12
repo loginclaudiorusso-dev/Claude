@@ -34,7 +34,40 @@ class EinstellungenSeite(Seite):
                                   THEME_OPTIONEN.index(e.get("theme", "system")) if e.get("theme", "system") in THEME_OPTIONEN else 3)
         self.theme_wahl.geaendert.connect(self._theme_waehlen)
         aussehen.inhalt.addWidget(self.theme_wahl)
+        aussehen.inhalt.addWidget(label("Design", "fett"))
+        designs = list(theme.DESIGNS)
+        self.design_wahl = Segment(list(theme.DESIGNS.values()), designs.index(theme.design()))
+        self.design_wahl.geaendert.connect(self._design_waehlen)
+        aussehen.inhalt.addWidget(self.design_wahl)
+        self.design_info = label(theme.DESIGN_TEXT[theme.design()], "klein", umbruch=True)
+        aussehen.inhalt.addWidget(self.design_info)
         self.lay.addWidget(aussehen)
+
+        name, zusatz = speicher.anzeige_name()
+        namen = Karte("Name des Dashboards", "Steht oben in der Seitenleiste, im Fenstertitel und im Infobereich")
+        form = QFormLayout()
+        form.setHorizontalSpacing(14)
+        self.n_name = QLineEdit(name)
+        self.n_name.setMaxLength(40)
+        self.n_name.setPlaceholderText(speicher.NAME_STANDARD[0])
+        self.n_zusatz = QLineEdit(zusatz)
+        self.n_zusatz.setMaxLength(60)
+        self.n_zusatz.setPlaceholderText("z. B. Internat Goslar (leer = keine Zusatzzeile)")
+        for feld in (self.n_name, self.n_zusatz):
+            feld.returnPressed.connect(self._name_speichern)
+        form.addRow("Name", self.n_name)
+        form.addRow("Zusatzzeile", self.n_zusatz)
+        namen.inhalt.addLayout(form)
+        zeile = QHBoxLayout()
+        ok = knopf("Übernehmen", "primary", "haken")
+        ok.clicked.connect(self._name_speichern)
+        zurueck = knopf("Zurücksetzen", "ghost", None, f"„{speicher.NAME_STANDARD[0]}“ / „{speicher.NAME_STANDARD[1]}“")
+        zurueck.clicked.connect(self._name_zuruecksetzen)
+        zeile.addWidget(ok)
+        zeile.addWidget(zurueck)
+        zeile.addStretch()
+        namen.inhalt.addLayout(zeile)
+        self.lay.addWidget(namen)
 
         ki = Karte("KI für freie Fragen",
                    "Präzise Datenfragen beantwortet der Assistent immer selbst und offline. Ein Sprachmodell hilft "
@@ -214,6 +247,27 @@ class EinstellungenSeite(Seite):
         ordner = datenordner() / datensicherung.ORDNER
         ordner.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(ordner)))
+
+    def _name_speichern(self) -> None:
+        speicher.anzeige_name_setzen(self.n_name.text(), self.n_zusatz.text())
+        name, zusatz = speicher.anzeige_name()
+        self.n_name.setText(name)
+        self.z.name_geaendert.emit()
+        self.z.meldung.emit(f"Name geändert: „{name}“.", "ok")
+
+    def _name_zuruecksetzen(self) -> None:
+        self.n_name.setText(speicher.NAME_STANDARD[0])
+        self.n_zusatz.setText(speicher.NAME_STANDARD[1])
+        self._name_speichern()
+
+    def _design_waehlen(self, idx: int) -> None:
+        name = list(theme.DESIGNS)[idx]
+        speicher.einstellung_setzen("design", name)
+        theme.design_setzen(name)
+        theme.setzen(speicher.einstellungen().get("theme", "system"))
+        self.design_info.setText(theme.DESIGN_TEXT[name] + (" – im Hochkontrast-Modus nicht wirksam."
+                                                            if theme.T.name == "hochkontrast" else ""))
+        self.z.theme_geaendert.emit()
 
     def _theme_waehlen(self, idx: int) -> None:
         modus = THEME_OPTIONEN[idx]

@@ -45,6 +45,12 @@ class Theme:
     raster: str = ""
     tooltip_bg: str = ""
     tooltip_text: str = ""
+    # Seitenleiste (leer = wie die Karten); Designs mit farbiger Seitenleiste setzen diese Werte
+    sb_bg: str = ""
+    sb_text: str = ""
+    sb_text_2: str = ""
+    sb_aktiv_bg: str = ""
+    sb_aktiv_text: str = ""
 
 
 _KAT_HELL = {
@@ -107,9 +113,134 @@ def aufloesen(modus: str) -> Theme:
     return THEMES.get(modus, HELL)
 
 
+# ---------------------------------------------------------------------------------------
+# Designs: Farben, Rundungen, Dichte und Seitenleiste – unabhängig von Hell/Dunkel wählbar
+# ---------------------------------------------------------------------------------------
+
+DESIGNS = {"klassisch": "Klassisch", "modern": "Modern", "kompakt": "Kompakt", "warm": "Warm"}
+DESIGN_TEXT = {
+    "klassisch": "Bisheriges Aussehen – ruhig, Petrol-Akzent",
+    "modern": "Indigo, dunkle Seitenleiste, größere Rundungen und Titel",
+    "kompakt": "Dichter: kleinere Schrift und Abstände – mehr auf dem Bildschirm",
+    "warm": "Sandtöne, grüne Seitenleiste, freundlich und weich",
+}
+_design = "klassisch"
+
+
+def design_setzen(name: str) -> None:
+    """Design merken; wirksam mit dem nächsten ``setzen``."""
+    global _design
+    _design = name if name in DESIGNS else "klassisch"
+
+
+def design() -> str:
+    return _design
+
+
+def _design_farben(t: Theme, name: str) -> Theme:
+    if name == "modern":
+        if t.dunkel:
+            return replace(t, bg="#0B0D14", surface="#131722", surface_2="#1A1F2D", hover="#202638", border="#232A3B",
+                           border_strong="#323B52", text="#E8EAF2", text_2="#A7AEC2", text_3="#6B7389",
+                           accent="#818CF8", accent_hover="#A5B4FC", accent_text="#0B0D14", accent_soft="#1E2142",
+                           fokus="#A5B4FC", raster="#1A1F2D",
+                           sb_bg="#07090F", sb_text="#E8EAF2", sb_text_2="#8C93A8", sb_aktiv_bg="#818CF8",
+                           sb_aktiv_text="#0B0D14")
+        return replace(t, bg="#F4F5FA", surface="#FFFFFF", surface_2="#F1F2F8", hover="#E9EBF4", border="#E4E7F0",
+                       border_strong="#CDD2E1", text="#0F172A", text_2="#475569", text_3="#94A3B8",
+                       accent="#4F46E5", accent_hover="#4338CA", accent_text="#FFFFFF", accent_soft="#EEF0FF",
+                       fokus="#6366F1", raster="#EEF0F6",
+                       sb_bg="#111827", sb_text="#F3F4F6", sb_text_2="#9CA3AF", sb_aktiv_bg="#4F46E5",
+                       sb_aktiv_text="#FFFFFF")
+    if name == "kompakt":
+        return t                                     # Farben wie Klassisch, nur dichter (siehe _design_qss)
+    if name == "warm":
+        if t.dunkel:
+            return replace(t, bg="#16130F", surface="#1F1B16", surface_2="#26211B", hover="#2E2820", border="#352E25",
+                           border_strong="#463D31", text="#F1EADF", text_2="#C2B6A6", text_3="#8C8172",
+                           accent="#5FB88A", accent_hover="#7CC9A0", accent_text="#10241A", accent_soft="#1E3328",
+                           fokus="#7CC9A0", raster="#26211B",
+                           sb_bg="#10241A", sb_text="#EEF3EE", sb_text_2="#9DB5A6", sb_aktiv_bg="#5FB88A",
+                           sb_aktiv_text="#10241A")
+        return replace(t, bg="#F7F3EC", surface="#FFFDF9", surface_2="#F2ECE2", hover="#EDE6DA", border="#E8E0D2",
+                       border_strong="#D4C9B7", text="#2B2118", text_2="#6B5D4F", text_3="#A09282",
+                       accent="#2F6F4F", accent_hover="#255C41", accent_text="#FFFFFF", accent_soft="#E4EFE7",
+                       fokus="#3C8A63", raster="#F0EAE0",
+                       sb_bg="#1F4636", sb_text="#F6F2EA", sb_text_2="#B7CABD", sb_aktiv_bg="#F6F2EA",
+                       sb_aktiv_text="#1F4636")
+    return t
+
+
+def _design_qss(t: Theme, name: str) -> str:
+    """Zusätzliche Regeln je Design (stehen am Ende und überschreiben die Grundregeln)."""
+    teile = []
+    if t.sb_bg:
+        teile.append(f"""
+#sidebar {{ background: {t.sb_bg}; border-right: 1px solid {t.sb_bg}; }}
+#sidebar QLabel#marke {{ color: {t.sb_text}; }}
+#sidebar QLabel#marke_sub, #sidebar QLabel[rolle="nav_gruppe"], #sidebar QLabel[rolle="klein"] {{ color: {t.sb_text_2}; }}
+#sidebar QLabel {{ color: {t.sb_text}; }}
+#sidebar QPushButton[nav="true"] {{ color: {t.sb_text_2}; }}
+#sidebar QPushButton[nav="true"]:hover {{ background: {alpha(t.sb_text, .08)}; color: {t.sb_text}; }}
+#sidebar QPushButton[nav="true"]:checked {{ background: {t.sb_aktiv_bg}; color: {t.sb_aktiv_text}; }}
+#sidebar QLineEdit {{ background: {alpha(t.sb_text, .07)}; border: 1px solid {alpha(t.sb_text, .16)}; color: {t.sb_text}; }}
+#sidebar QFrame[karte="true"] {{ background: {alpha(t.sb_text, .06)}; border: 1px solid {alpha(t.sb_text, .10)}; }}
+#sidebar QLabel[pille] {{ background: {alpha(t.sb_text, .12)}; color: {t.sb_text}; }}
+""")
+    if name == "modern":
+        teile.append(f"""
+QFrame[karte="true"] {{ border-radius: 14px; border-color: {t.border}; }}
+QPushButton, QLineEdit, QSpinBox, QDateEdit, QComboBox {{ border-radius: 9px; }}
+QFrame[segment="true"] {{ border-radius: 19px; }}
+QFrame[segment="true"] QPushButton {{ border-radius: 15px; }}
+QPushButton[nav="true"] {{ border-radius: 9px; padding: 10px 12px; }}
+QLabel[rolle="seitentitel"] {{ font-size: 26px; font-weight: 800; }}
+QLabel[rolle="kartentitel"] {{ font-size: 15px; font-weight: 700; }}
+QLabel[rolle="kpi_wert"] {{ font-size: 30px; font-weight: 800; }}
+QLabel[pille] {{ border-radius: 11px; }}
+QTabBar#ansichten::tab {{ border-top-left-radius: 10px; border-top-right-radius: 10px; }}
+""")
+    elif name == "kompakt":
+        teile.append(f"#sidebar {{{{ background: {t.surface_2}; }}}}\n".replace("{{", "{").replace("}}", "}"))
+        teile.append("""
+QWidget { font-size: 12px; }
+QFrame[karte="true"] { border-radius: 6px; }
+QPushButton { padding: 5px 11px; border-radius: 5px; min-height: 16px; }
+QPushButton[nav="true"] { padding: 6px 10px; border-radius: 5px; }
+QLineEdit, QSpinBox, QDateEdit, QComboBox { padding: 4px 8px; border-radius: 5px; min-height: 16px; }
+QFrame[segment="true"] { border-radius: 6px; }
+QFrame[segment="true"] QPushButton { padding: 5px 11px; border-radius: 4px; }
+QPushButton[variant="chip"] { padding: 4px 10px; font-size: 12px; }
+QTableView::item { padding: 3px 6px; }
+QHeaderView::section { padding: 5px; }
+QLabel[rolle="seitentitel"] { font-size: 18px; }
+QLabel[rolle="seitenuntertitel"], QLabel[rolle="kartenuntertitel"] { font-size: 11px; }
+QLabel[rolle="kartentitel"] { font-size: 13px; }
+QLabel[rolle="kpi_wert"] { font-size: 21px; }
+QMenu::item { padding: 6px 20px 6px 12px; }
+QTabBar#ansichten::tab { padding: 5px 8px 5px 10px; }
+""")
+    elif name == "warm":
+        teile.append(f"""
+QFrame[karte="true"] {{ border-radius: 16px; }}
+QPushButton, QLineEdit, QSpinBox, QDateEdit, QComboBox {{ border-radius: 10px; }}
+QFrame[segment="true"] {{ border-radius: 12px; }}
+QFrame[segment="true"] QPushButton {{ border-radius: 9px; }}
+QPushButton[nav="true"] {{ border-radius: 10px; }}
+QLabel[rolle="seitentitel"] {{ font-size: 24px; font-weight: 700; color: {t.accent}; }}
+#sidebar QPushButton[variant="primary"] {{ background: {"#3C8A63" if not t.dunkel else t.accent};
+    border-color: {"#3C8A63" if not t.dunkel else t.accent}; }}
+QLabel[rolle="kartentitel"] {{ font-size: 15px; }}
+QTabBar#ansichten::tab {{ border-top-left-radius: 12px; border-top-right-radius: 12px; }}
+""")
+    return "".join(teile)
+
+
 def setzen(modus: str) -> Theme:
     global T
     T = aufloesen(modus)
+    if T.name != "hochkontrast":                      # Hochkontrast bleibt unverändert (Barrierefreiheit)
+        T = _design_farben(T, _design)
     app = QApplication.instance()
     if app is not None:
         app.setStyleSheet(stylesheet(T))
@@ -333,4 +464,4 @@ QFrame[blase="nutzer"] {{ background: {t.accent}; border-radius: 14px; }}
 QFrame[blase="nutzer"] QLabel {{ color: {t.accent_text}; }}
 QFrame[blase="assistent"] {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
 QFrame[blase="hinweis"] {{ background: {t.surface_2}; border-radius: 14px; }}
-"""
+""" + (_design_qss(t, _design) if t.name != "hochkontrast" else "")

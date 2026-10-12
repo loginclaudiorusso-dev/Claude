@@ -57,6 +57,21 @@ def einstellungen() -> dict:
     return lesen(EINSTELLUNGEN, {})
 
 
+NAME_STANDARD = ("Belegung", "INN-tegrativ · Internat")
+
+
+def anzeige_name() -> tuple[str, str]:
+    """(Name, Zusatzzeile) des Dashboards – in den Einstellungen änderbar."""
+    roh = einstellungen().get("anzeige_name") or {}
+    name = str(roh.get("name") or "").strip() or NAME_STANDARD[0]
+    zusatz = roh.get("zusatz")
+    return name, (NAME_STANDARD[1] if zusatz is None else str(zusatz).strip())
+
+
+def anzeige_name_setzen(name: str, zusatz: str) -> None:
+    einstellung_setzen("anzeige_name", {"name": name.strip()[:40], "zusatz": zusatz.strip()[:60]})
+
+
 def einstellung_setzen(schluessel: str, wert: Any) -> None:
     daten = einstellungen()
     daten[schluessel] = wert

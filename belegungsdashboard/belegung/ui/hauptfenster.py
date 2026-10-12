@@ -55,7 +55,7 @@ class HauptFenster(QMainWindow):
         self._worker: Worker | None = None
         from .. import __version__
 
-        self.setWindowTitle(f"Belegungsdashboard {__version__}")
+        self.setWindowTitle(f"{speicher.anzeige_name()[0]} – v{__version__}")
         self.resize(1440, 920)
         self.setMinimumSize(900, 600)
 
@@ -119,6 +119,8 @@ class HauptFenster(QMainWindow):
                 self._kopf_h.insertWidget(1, aktion, 0, Qt.AlignVCenter)
                 aktion.hide()
 
+        self.name_anzeigen()
+        zustand.name_geaendert.connect(self.name_anzeigen)
         self.toast = Toast(wurzel)
         zustand.meldung.connect(self.toast.zeigen)
         zustand.navigieren.connect(self.zeigen)
@@ -173,12 +175,11 @@ class HauptFenster(QMainWindow):
             marke.addWidget(self.logo)
         texte = QVBoxLayout()
         texte.setSpacing(0)
-        t1 = label("Belegung")
+        t1 = KurzLabel()                       # Name und Zusatz: Einstellungen → Name des Dashboards
         t1.setObjectName("marke")
-        from .. import __version__
-
-        t2 = label(f"INN-tegrativ · Internat · v{__version__}")
+        t2 = KurzLabel()
         t2.setObjectName("marke_sub")
+        self.marke_name, self.marke_zusatz = t1, t2
         texte.addWidget(t1)
         texte.addWidget(t2)
         marke.addLayout(texte, 1)
@@ -251,7 +252,8 @@ class HauptFenster(QMainWindow):
     def _nav_icons(self) -> None:
         t = theme.T
         for b in self.nav_knoepfe.values():
-            b.setIcon(icons.icon(b.property("icon_key"), t.text_2, 18, farbe_aktiv=t.accent))
+            b.setIcon(icons.icon(b.property("icon_key"), t.sb_text_2 or t.text_2, 18,
+                                 farbe_aktiv=t.sb_aktiv_text or t.accent))
         if hasattr(self, "tab_plus"):
             self.tab_plus.setIcon(icons.icon("plus", t.text_2, 16))
             for i in range(self.tabs.count()):
@@ -409,8 +411,9 @@ class HauptFenster(QMainWindow):
         text = f"{seite.titel} · {zusatz}" if zusatz else seite.titel
         self.tabs.setTabText(i, text.replace("&", "&&"))          # „&“ sonst als Tastenkürzel gelesen
         self.tabs.setTabToolTip(i, f"{seite.titel}{' – ' + zusatz if zusatz else ''}")
-        if hasattr(self, "nav_knoepfe") and d.get("seite") in self.nav_knoepfe:
-            self.tabs.setTabIcon(i, self.nav_knoepfe[d["seite"]].icon())
+        if hasattr(self, "nav_knoepfe") and d.get("seite") in self.nav_knoepfe:   # Farben der Tab-Leiste, nicht der Seitenleiste
+            self.tabs.setTabIcon(i, icons.icon(self.nav_knoepfe[d["seite"]].property("icon_key"), theme.T.text_2, 16,
+                                               farbe_aktiv=theme.T.accent))
         zu = self.tabs.tabButton(i, QTabBar.RightSide)
         if zu is None:
             zu = QToolButton()
@@ -487,6 +490,16 @@ class HauptFenster(QMainWindow):
         for s in self.seiten.values():
             if (aktion := getattr(s, "kopf_aktion", None)) is not None:
                 aktion.setVisible(s is seite)
+
+    def name_anzeigen(self) -> None:
+        from .. import __version__
+
+        name, zusatz = speicher.anzeige_name()
+        self.marke_name.setText(name)
+        self.marke_zusatz.setText(" · ".join(x for x in (zusatz, f"v{__version__}") if x))
+        self.setWindowTitle(f"{name} – v{__version__}")
+        if getattr(self, "tray", None) is not None:
+            self.erinnerungen_pruefen()
 
     def _nav_menue(self, key: str, b: QPushButton) -> None:
         m = QMenu(self)
@@ -609,7 +622,7 @@ class HauptFenster(QMainWindow):
         if ic.isNull():
             ic = icons.icon("kalender", theme.T.accent, 32)
         self.tray = QSystemTrayIcon(ic, self)
-        self.tray.setToolTip("Belegungsdashboard")
+        self.tray.setToolTip(speicher.anzeige_name()[0])
         menue = QMenu()
         menue.addAction("Öffnen", self.vorholen)
         menue.addAction("Termine", lambda: self.vorholen("termine"))
@@ -645,7 +658,8 @@ class HauptFenster(QMainWindow):
         offen = [t for t in alle if t.faellig(heute)]
         self.nav_knoepfe["termine"].setText(f"  Termine ({len(offen)})" if offen else "  Termine")
         if self.tray is not None:
-            self.tray.setToolTip(f"Belegungsdashboard – {len(offen)} Erinnerung(en) offen" if offen else "Belegungsdashboard")
+            name = speicher.anzeige_name()[0]
+            self.tray.setToolTip(f"{name} – {len(offen)} Erinnerung(en) offen" if offen else name)
         self._reinigung_pruefen(heute, melden)
         if not melden:
             return

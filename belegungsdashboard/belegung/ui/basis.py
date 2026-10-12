@@ -27,6 +27,7 @@ class Zustand(QObject):
     neu_laden = Signal(bool)            # refresh vom Server?
     listen_geaendert = Signal()         # Import/Kapazität/manuell -> neu berechnen
     termine_geaendert = Signal()        # Termin angelegt/erledigt -> Kalender und Erinnerungen neu
+    name_geaendert = Signal()           # Name des Dashboards geändert (Seitenleiste, Fenstertitel)
     zimmer_geaendert = Signal()         # Zimmerplan (Zuweisung, Stammdaten, Gebäudeplan) -> andere Fenster neu
 
     def __init__(self):

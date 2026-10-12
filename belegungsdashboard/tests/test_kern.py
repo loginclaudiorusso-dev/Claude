@@ -1878,3 +1878,14 @@ def test_cockpit_anordnung_und_daten(tmp_path, monkeypatch, plan):
     assert cockpit.anreisen(stand, heute, tage=1) == []
     ab = cockpit.abreisen(stand, date(2026, 10, 20), tage=0)
     assert any("Weiler" in x.name and x.zimmer == "GS-2-102" for x in ab)
+
+
+def test_anzeige_name(tmp_path, monkeypatch):
+    from belegung import speicher
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert speicher.anzeige_name() == speicher.NAME_STANDARD
+    speicher.anzeige_name_setzen("  Internat Goslar ", "")
+    assert speicher.anzeige_name() == ("Internat Goslar", "")          # leere Zusatzzeile bleibt leer
+    speicher.anzeige_name_setzen("", "Haus 2")
+    assert speicher.anzeige_name() == (speicher.NAME_STANDARD[0], "Haus 2")   # leerer Name → Standard
