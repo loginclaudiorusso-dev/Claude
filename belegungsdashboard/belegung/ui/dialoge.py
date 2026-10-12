@@ -641,8 +641,7 @@ class PersonDialog(QDialog):
 
         self._wahl = None
         self.zimmer_geaendert: str | None = None
-        self._notizen: list[termine.Notiz] = []
-        self._notizen_weg: set[str] = set()
+        self.notizen = None
         if not self.neu:
             self._zimmer_bereich(v)
             v.addWidget(label("Angaben", "abschnitt"))
@@ -771,23 +770,9 @@ class PersonDialog(QDialog):
                               "Belegungssystem gilt; ein Umzug bitte dort eintragen.", "muted", umbruch=True))
             return
         zeile = QHBoxLayout()
-        self.zimmer = QComboBox()
-        self.zimmer.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.zimmer.setMinimumContentsLength(22)
-        self.zimmer.addItem("– kein Zimmer –", "")
-        ids = {z.id for z in w.alternativen} | {z.id for z, _g in w.ausnahmen}
-        if w.geplant and w.geplant not in ids and w.geplant in self._stand.lage.zimmer:
-            self.zimmer.addItem(f"{self._stand.lage.zimmer[w.geplant].kurz} · bisher (Regel verletzt)", w.geplant)
-        for z in w.alternativen:
-            self.zimmer.addItem(z.kurz + (" · DZ" if z.betten > 1 else ""), z.id)
-            self.zimmer.setItemData(self.zimmer.count() - 1, zp.flur_text(z), Qt.ToolTipRole)
-        if w.ausnahmen:
-            self.zimmer.insertSeparator(self.zimmer.count())
-            for z, grund in w.ausnahmen:
-                self.zimmer.addItem(f"{z.kurz} · {grund}", z.id)
-                self.zimmer.setItemData(self.zimmer.count() - 1, f"Ausnahme: {grund}", Qt.ToolTipRole)
-        self.zimmer.setCurrentIndex(max(0, self.zimmer.findData(w.geplant)))
-        self.zimmer.setToolTip("Oben die zulässigen Zimmer, unter dem Strich Ausnahmen (nur von Hand)")
+        from .zimmerkarte import zimmer_auswahl
+
+        self.zimmer = zimmer_auswahl(w, self._stand)
         self.zimmer.currentIndexChanged.connect(self._aktualisieren)
         zeile.addWidget(self.zimmer)
         zeile.addStretch()
@@ -807,78 +792,19 @@ class PersonDialog(QDialog):
     # ---- Notizen mit Wiedervorlage -----------------------------------------------------------
 
     def _notizen_bereich(self, v: QVBoxLayout) -> None:
-        self._notizen = termine.notizen(self.person.schluessel)
+        from .notizen import NotizenWidget
+
         v.addWidget(label("Notizen", "abschnitt"))
-        self._notiz_liste = QVBoxLayout()
-        self._notiz_liste.setSpacing(6)
-        v.addLayout(self._notiz_liste)
-        self.notiz_text = QLineEdit()
-        self.notiz_text.setPlaceholderText("Neue Notiz, z. B. „Kostenzusage nachfragen“")
-        self.notiz_text.returnPressed.connect(self._notiz_hinzu)
-        v.addWidget(self.notiz_text)
-        zeile = QHBoxLayout()
-        self.wv = QCheckBox("Wiedervorlage am")
-        self.wv.setToolTip("Erinnert an diesem Tag im Terminkalender (Seite Termine, mit Windows-Benachrichtigung)")
-        self.wv_datum = DatumFeld(date.today() + timedelta(days=7))
-        self.wv_datum.setEnabled(False)
-        self.wv.toggled.connect(self.wv_datum.setEnabled)
-        hinzu = knopf("Hinzufügen", "ghost", "plus")
-        hinzu.clicked.connect(self._notiz_hinzu)
-        zeile.addWidget(self.wv)
-        zeile.addWidget(self.wv_datum)
-        zeile.addStretch()
-        zeile.addWidget(hinzu)
-        v.addLayout(zeile)
-        self._notizen_zeigen()
-
-    def _notizen_zeigen(self) -> None:
-        leeren(self._notiz_liste)
-        sichtbar = [n for n in self._notizen if n.id not in self._notizen_weg]
-        if not sichtbar:
-            self._notiz_liste.addWidget(label("Noch keine Notizen.", "klein"))
-        heute = date.today()
-        for n in sichtbar:
-            zeile = QHBoxLayout()
-            text = label(f"<span style='color:{theme.T.text_3}'>{n.erstellt:%d.%m.%Y}</span> &nbsp;"
-                         + n.text.replace("<", "&lt;"), umbruch=True)
-            text.setTextFormat(Qt.RichText)
-            zeile.addWidget(text, 1)
-            if n.wiedervorlage:
-                zeile.addWidget(Pille(f"WV {n.wiedervorlage:%d.%m.%Y}", "knapp" if n.wiedervorlage <= heute else "neutral"),
-                                0, Qt.AlignTop)
-            weg = knopf("", "ghost", "loeschen", "Notiz löschen")
-            weg.clicked.connect(lambda _=False, n=n: self._notiz_weg(n))
-            zeile.addWidget(weg, 0, Qt.AlignTop)
-            self._notiz_liste.addLayout(zeile)
-
-    def _notiz_hinzu(self) -> None:
-        text = self.notiz_text.text().strip()
-        if not text:
-            return
-        wv = self.wv_datum.datum() if self.wv.isChecked() else None
-        self._notizen.insert(0, termine.Notiz(self.person.schluessel, self.person.name, text, date.today(), wv))
-        self.notiz_text.clear()
-        self.wv.setChecked(False)
-        self._notizen_zeigen()
-
-    def _notiz_weg(self, n: termine.Notiz) -> None:
-        if n.id:
-            self._notizen_weg.add(n.id)
-        else:
-            self._notizen.remove(n)
-        self._notizen_zeigen()
+        self.notizen = NotizenWidget(self.person.schluessel, self.person.name, sofort=False,
+                                     platzhalter="Neue Notiz, z. B. „Kostenzusage nachfragen“")
+        v.addWidget(self.notizen)
 
     def _nebenbei_speichern(self) -> None:
         """Zimmer und Notizen sofort speichern (unter dem bisherigen Schlüssel – ``person_umbenannt`` zieht nach)."""
         from .. import zimmerplan as zp
 
-        if self.notiz_text.text().strip() if hasattr(self, "notiz_text") else False:
-            self._notiz_hinzu()                      # nicht vergessen, wenn nur getippt und gleich gespeichert
-        for nid in self._notizen_weg:
-            termine.notiz_loeschen(nid)
-        for n in self._notizen:
-            if not n.id:
-                termine.notiz_speichern(n)
+        if self.notizen is not None:
+            self.notizen.speichern()
         neu = self._zimmer_neu()
         if neu is not None:
             zp.zuweisung_setzen(self._stand, self.person.schluessel, neu, "Person öffnen")
@@ -942,6 +868,36 @@ class PersonDialog(QDialog):
             self.loeschen = True
             self.ergebnis = None
             self.accept()
+
+
+def person_uebernehmen(alt: anreiseliste.Person | None, neu: anreiseliste.Person | None, zustand,
+                       zimmer: str | None = None) -> None:
+    """Geänderte (oder gelöschte) Person speichern – Erinnerung, Zuweisung und Notizen ziehen mit."""
+    from .. import zimmerplan as zp
+
+    meldung = erinnerung_abgleichen(alt, neu)
+    if neu is None and alt is not None:
+        anreiseliste.person_loeschen(alt.schluessel)
+        zp.person_geloescht(alt.schluessel)          # sonst blockiert die alte Zuweisung das Zimmer
+        zustand.meldung.emit(f"{alt.name} entfernt.", "ok")
+    elif neu is not None:
+        anreiseliste.person_speichern(neu, alt.schluessel if alt else None)
+        zp.person_umbenannt(alt.schluessel if alt else None, neu.schluessel)
+        if zimmer is not None and not meldung:
+            meldung = (f"Gespeichert – Zimmer: {zimmer.removeprefix('GS-') or 'Planung entfernt'}.", "ok")
+        zustand.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
+    zustand.listen_geaendert.emit()
+    zustand.termine_geaendert.emit()
+
+
+def person_bearbeiten(parent, zustand, person: anreiseliste.Person | None) -> bool:
+    """Personendialog öffnen (None = Person von Hand anlegen) und das Ergebnis übernehmen.
+    True, wenn gespeichert wurde."""
+    dialog = PersonDialog(person, parent)
+    if not dialog.exec():
+        return False
+    person_uebernehmen(person, dialog.ergebnis, zustand, dialog.zimmer_geaendert)
+    return True
 
 
 def erinnerung_abgleichen(alt: anreiseliste.Person | None, neu: anreiseliste.Person | None) -> tuple[str, str] | None:

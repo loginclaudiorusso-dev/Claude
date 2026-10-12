@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
 )
 
 from ... import anreiseliste, erinnerung, importe, laden, speicher, uwt
-from ... import zimmerplan as zp
 from ...konfig import MANUELLE_KATEGORIEN, STANDORT_LABEL, STANDORTE
 from ..basis import Seite, Zustand
 from ..widgets import DatumFeld, FlowLayout, Karte, Leer, Pille, Segment, Tabelle, knopf, label, leeren, zahl
@@ -370,26 +369,10 @@ class DatenSeite(Seite):
             self.z.navigieren.emit("zimmerplan")
 
     def _person(self, person) -> None:
-        from ..dialoge import PersonDialog, erinnerung_abgleichen
+        from ..dialoge import person_bearbeiten
 
-        dialog = PersonDialog(person, self)
-        if not dialog.exec():
-            return
-        neu = dialog.ergebnis
-        meldung = erinnerung_abgleichen(person, neu)
-        if neu is None:
-            anreiseliste.person_loeschen(person.schluessel)
-            zp.person_geloescht(person.schluessel)          # sonst blockiert die alte Zuweisung das Zimmer
-            self.z.meldung.emit(f"{person.name} entfernt.", "ok")
-        else:
-            anreiseliste.person_speichern(neu, person.schluessel if person else None)
-            zp.person_umbenannt(person.schluessel if person else None, neu.schluessel)
-            if dialog.zimmer_geaendert is not None and not meldung:
-                meldung = (f"Gespeichert – Zimmer: {dialog.zimmer_geaendert.removeprefix('GS-') or 'Planung entfernt'}.", "ok")
-            self.z.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
-        self._anreisen_anzeigen()
-        self.z.listen_geaendert.emit()
-        self.z.termine_geaendert.emit()
+        if person_bearbeiten(self, self.z, person):
+            self._anreisen_anzeigen()
 
     def _wochen_speichern(self) -> None:
         wert = self.anr_wochen.value()

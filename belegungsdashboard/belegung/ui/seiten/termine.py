@@ -9,9 +9,8 @@ from PySide6.QtWidgets import (
     QCheckBox, QDialog, QComboBox, QFormLayout, QHBoxLayout, QSpinBox, QVBoxLayout, QWidget,
 )
 
-from ... import anreiseliste, autostart
+from ... import autostart
 from ... import termine as tm
-from ... import zimmerplan as zp
 from .. import theme
 from ..basis import Seite, Zustand
 from ..kalender import KalenderRaster, art_farbe
@@ -417,29 +416,10 @@ class TermineSeite(Seite):
         self._oeffnen(t)
 
     def _person_oeffnen(self, schluessel: str) -> None:
-        from ..dialoge import PersonDialog, erinnerung_abgleichen
+        """Person bzw. Zimmer zu einem Termin öffnen (Anreise-Person: Personendialog, sonst Zimmerkarte)."""
+        from ..zimmerkarte import karte_oeffnen
 
-        personen, _ = anreiseliste.laden()
-        p = next((p for p in personen if p.schluessel == schluessel), None)
-        if p is None:
-            return
-        dialog = PersonDialog(p, self)
-        if not dialog.exec():
-            return
-        neu = dialog.ergebnis
-        meldung = erinnerung_abgleichen(p, neu)
-        if neu is None:
-            anreiseliste.person_loeschen(p.schluessel)
-            zp.person_geloescht(p.schluessel)          # sonst blockiert die alte Zuweisung das Zimmer
-            self.z.meldung.emit(f"{p.name} entfernt.", "ok")
-        else:
-            anreiseliste.person_speichern(neu, p.schluessel)
-            zp.person_umbenannt(p.schluessel, neu.schluessel)
-            if dialog.zimmer_geaendert is not None and not meldung:
-                meldung = (f"Gespeichert – Zimmer: {dialog.zimmer_geaendert.removeprefix('GS-') or 'Planung entfernt'}.", "ok")
-            self.z.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
-        self.z.listen_geaendert.emit()
-        self.z.termine_geaendert.emit()
+        karte_oeffnen(self, self.z, person=schluessel)
 
     def _eigener(self, t: tm.Termin | None = None, datum: date | None = None) -> None:
         from ..dialoge import TerminDialog

@@ -36,16 +36,17 @@ class SuchDialog(QDialog):
                            ["l", "l", "l", "l", "l", "l", "l"], dehnen=6)
         self.tab.setTextElideMode(Qt.ElideRight)
         self.tab.itemSelectionChanged.connect(self._auswahl)
-        self.tab.doubleClicked.connect(lambda _i: self._zimmer())
+        self.tab.doubleClicked.connect(lambda _i: self._oeffnen())
         v.addWidget(self.tab, 1)
         unten = QHBoxLayout()
-        self.b_zimmer = knopf("Zimmer anzeigen", "primary", "haus")
-        self.b_zimmer.clicked.connect(self._zimmer)
-        self.b_person = knopf("Person öffnen", "ghost")
-        self.b_person.setToolTip("Abreise, Erinnerung, Notiz und Angaben der Person bearbeiten")
-        self.b_person.clicked.connect(self._person)
-        unten.addWidget(self.b_zimmer)
-        unten.addWidget(self.b_person)
+        self.b_oeffnen = knopf("Öffnen", "primary", "haus")
+        self.b_oeffnen.setToolTip("Zimmer- und Personenkarte: Zimmer ändern, Abreise, Notizen mit Wiedervorlage")
+        self.b_oeffnen.clicked.connect(self._oeffnen)
+        self.b_zeitstrahl = knopf("Im Zeitstrahl", "ghost")
+        self.b_zeitstrahl.setToolTip("Zimmerplan → Zeitstrahl mit diesem Zimmer")
+        self.b_zeitstrahl.clicked.connect(self._zeitstrahl)
+        unten.addWidget(self.b_oeffnen)
+        unten.addWidget(self.b_zeitstrahl)
         unten.addStretch()
         zu = knopf("Schließen", "ghost")
         zu.clicked.connect(self.reject)
@@ -79,7 +80,7 @@ class SuchDialog(QDialog):
         else:
             art = "Zimmer-Suche" if suche.ist_zimmersuche(self.feld.text()) else "Namenssuche"
             self.info.setText(f"{art}: {len(self.treffer)} Treffer"
-                              + (" – Doppelklick zeigt das Zimmer" if self.treffer else ""))
+                              + (" – Doppelklick öffnet Zimmer und Person" if self.treffer else ""))
         if self.treffer:
             self.tab.selectRow(0)
         self._auswahl()
@@ -90,21 +91,22 @@ class SuchDialog(QDialog):
 
     def _auswahl(self) -> None:
         t = self._gewaehlt()
-        self.b_zimmer.setEnabled(bool(t and t.zimmer_id))
-        self.b_person.setEnabled(bool(t and t.person))
+        self.b_oeffnen.setEnabled(bool(t and (t.zimmer_id or t.person)))
+        self.b_zeitstrahl.setEnabled(bool(t and t.zimmer_id))
 
-    def _zimmer(self) -> None:
+    def _oeffnen(self) -> None:
+        from .zimmerkarte import karte_oeffnen
+
+        t = self._gewaehlt()
+        if not t or not (t.zimmer_id or t.person):
+            return
+        self.accept()
+        karte_oeffnen(self.fenster, self.fenster.z, t.zimmer_id or None, t.person or None)
+
+    def _zeitstrahl(self) -> None:
         t = self._gewaehlt()
         if not t or not t.zimmer_id:
             return
         self.accept()
         self.fenster.zeigen("zimmerplan")
-        self.fenster.seiten["zimmerplan"]._zimmer_details(t.zimmer_id)
-
-    def _person(self) -> None:
-        t = self._gewaehlt()
-        if not t or not t.person:
-            return
-        self.fenster.seiten["termine"]._person_oeffnen(t.person)
-        self.stand = zp.laden()
-        self._suchen()
+        self.fenster.seiten["zimmerplan"].zimmer_im_zeitstrahl(t.zimmer_id)

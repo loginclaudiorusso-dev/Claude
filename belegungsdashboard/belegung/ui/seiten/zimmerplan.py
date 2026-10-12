@@ -1581,8 +1581,22 @@ class ZimmerplanSeite(Seite):
         return "<br>".join(zeilen)
 
     def _zimmer_details(self, zid: str) -> None:
+        """Zimmer- und Personenkarte (eigenes Fenster, mehrere gleichzeitig möglich)."""
+        from ..zimmerkarte import karte_oeffnen
+
         if self.stand and zid in self.stand.lage.zimmer:
-            ZimmerDialog(self.stand, zid, self).exec()
+            karte_oeffnen(self, self.z, zid)
+
+    def zimmer_im_zeitstrahl(self, zid: str) -> None:
+        """Zeitstrahl mit dem Haus des Zimmers und dem Zimmer im Suchfeld zeigen."""
+        if self.stand is None or zid not in self.stand.lage.zimmer:
+            return
+        z = self.stand.lage.zimmer[zid]
+        self.zs_haus.setzen(HAEUSER.index(z.haus) if z.haus in HAEUSER else 5)
+        self.zs_suche.setText(z.id)
+        i = TABS.index("Zeitstrahl")
+        self.tabs.setzen(i)
+        self._tab(i)
 
     # ================================================================== Stammdaten
 
@@ -1756,76 +1770,3 @@ class ZimmerplanSeite(Seite):
         self._pivot_worker.fehler.connect(lambda t: self.z.meldung.emit(f"Zimmer-Pivot konnte nicht gelesen werden: {t}", "fehler"))
         self._pivot_worker.finished.connect(lambda: (self.b_pivot.setEnabled(True), self.b_pivot.setText("Zimmer-Pivot importieren")))
         self._pivot_worker.start()
-
-
-# ======================================================================== Zimmer-Details
-
-class ZimmerDialog(QDialog):
-    """Wer wohnt wann im Zimmer – Liste und Zeitstrahl über drei Monate."""
-
-    def __init__(self, stand: zp.Planstand, zid: str, parent=None):
-        super().__init__(parent)
-        z = stand.lage.zimmer[zid]
-        self.setWindowTitle(z.id)
-        v = QVBoxLayout(self)
-        v.setContentsMargins(24, 20, 24, 20)
-        v.setSpacing(12)
-        v.addWidget(label(f"Zimmer {z.kurz}", "seitentitel"))
-        heute = date.today()
-        status, _ = stand.lage.status_am(z.id, heute)
-        merkmale = QHBoxLayout()
-        merkmale.setSpacing(6)
-        merkmale.addWidget(Pille(STATUS_TEXT[status].capitalize() + " heute",
-                                 {"frei": "ok", "teilweise": "knapp", "gesperrt": "ueber"}.get(status, "neutral")))
-        merkmale.addWidget(label(f"{zp.flur_text(z)} · {z.betten} Bett{'en' if z.betten > 1 else ''}", "muted"))
-        for text, an in (("Tiere erlaubt", z.tiere), ("nur Männer (Bad über den Flur)", z.nur_maenner),
-                         ("Gästezimmer", z.gaeste)):
-            if an:
-                merkmale.addWidget(Pille(text, "akzent"))
-        merkmale.addStretch()
-        v.addLayout(merkmale)
-        if status in ("frei", "teilweise"):
-            bis = stand.lage.frei_bis(z.id, heute)
-            v.addWidget(label(f"Frei bis {bis:%d.%m.%Y}" if bis else "Frei ohne Folgebelegung", "fett"))
-        if z.notiz:
-            v.addWidget(label(z.notiz, "klein", umbruch=True))
-        from ... import inventar
-
-        ausstattung = inventar.laden().kurztext(z.id)
-        v.addWidget(label(f"<b>Ausstattung:</b> {ausstattung}" if ausstattung else
-                          "Ausstattung: noch nichts erfasst (Seite „Inventar“)", "klein", umbruch=True))
-
-        karte = Karte("Zeitstrahl", "letzte Woche bis in drei Monaten")
-        zs = Zeitstrahl()
-        zs.SPUR = 28
-        von, bis = heute - timedelta(days=7), heute + timedelta(days=83)
-        zs.setzen(zp.zeitstrahl(stand.lage, [z], von, bis), von, bis)
-        karte.inhalt.addWidget(zs)
-        v.addWidget(karte)
-
-        liste = Karte("Belegungen", "")
-        tab = Tabelle(["Von", "Bis", "Tage", "Wer / Was", "Art"], ["l", "l", "r", "l", "l"], dehnen=3)
-        zeilen = []
-        for b in sorted(stand.lage.belegungen.get(z.id, []), key=lambda b: b.von):
-            if b.art == "freigabe":
-                text, art = f"Zimmerfreigabe ({b.grund})", "Freigabe"
-            else:
-                text, art = zp.balken_text(b)
-                art = {"belegt": "belegt", "geplant": "geplant (übernommen)", "pivot": "laut Zimmer-Pivot",
-                       "gesperrt": "gesperrt"}[art]
-            if b.bis < heute - timedelta(days=60):
-                continue
-            zeilen.append([f"{b.von:%d.%m.%Y}", f"{b.bis:%d.%m.%Y}", (b.bis - b.von).days + 1, text, art])
-        tab.fuellen(zeilen)
-        tab.hoehe_anpassen(10)
-        liste.inhalt.addWidget(tab if zeilen else label("Keine Belegungen in den letzten 60 Tagen und danach.", "muted"))
-        v.addWidget(liste)
-        unten = QHBoxLayout()
-        unten.addStretch()
-        zu = knopf("Schließen", "primary")
-        zu.clicked.connect(self.accept)
-        unten.addWidget(zu)
-        v.addLayout(unten)
-        from ..dialoge import scrollbar_machen
-
-        scrollbar_machen(self, 980, 680)
