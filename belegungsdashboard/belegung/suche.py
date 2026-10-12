@@ -85,7 +85,7 @@ def zimmer_suchen(suche: str, stand: zp.Planstand, heute: date) -> list[Treffer]
             quelle = ("Zimmer-Pivot" if b.name == zp.PIVOT_NAME else "Zimmerplan (geplant)" if b.art == "geplant"
                       else "Gebäudeplan")
             ergebnis.append(Treffer(b.name, b.massnahme, zp.belegung_gruppe(b) or "", b.von, b.bis, z.id, quelle,
-                                    person=b.person if b.art == "geplant" else ""))
+                                    person="" if b.name == zp.PIVOT_NAME else zp.bewohner_aus(stand, b).schluessel))
         da = sum(1 for b in aktuell if b.von <= heute)
         if da < z.betten and not gesperrt:
             frei_bis = min((b.von for b in aktuell if b.von > heute), default=None)
@@ -116,7 +116,7 @@ def suchen(suche: str, stand: zp.Planstand, personen: list[anreiseliste.Person] 
         zid = zuw["zimmer"] if zuw else ""
         p = next((p for p in personen if p.schluessel == b.schluessel), None)
         ergebnis.append(Treffer(b.name, b.massnahme, b.gruppe, b.von, b.bis, zid,
-                                "UWT" if b.gruppe == "UWT" else "Anreiseliste", b.bemerkung, p.schluessel if p else ""))
+                                "UWT" if b.gruppe == "UWT" else "Anreiseliste", b.bemerkung, b.schluessel))
         gesehen.add((b.name.lower(), zid))
     # 2) Anreisen ohne Internat (stehen nicht im Zimmerplan)
     for p in personen:
@@ -131,6 +131,7 @@ def suchen(suche: str, stand: zp.Planstand, personen: list[anreiseliste.Person] 
             if (b.name.lower(), zid) in gesehen:
                 continue
             gesehen.add((b.name.lower(), zid))
-            ergebnis.append(Treffer(b.name, b.massnahme, zp.belegung_gruppe(b) or "", b.von, b.bis, zid, "Gebäudeplan"))
+            ergebnis.append(Treffer(b.name, b.massnahme, zp.belegung_gruppe(b) or "", b.von, b.bis, zid, "Gebäudeplan",
+                                    person=zp.bewohner_aus(stand, b).schluessel))
     # im Haus / kommt zuerst, dann nach Anreise; Abgereiste ans Ende
     return sorted(ergebnis, key=lambda t: (t.status(heute) == "abgereist", t.von, t.name.lower()))

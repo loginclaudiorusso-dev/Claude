@@ -1825,3 +1825,27 @@ def test_datensicherung(tmp_path, monkeypatch):
     for i in range(ds.BEHALTEN + 5):
         ds.sichern("test", jetzt=datetime(2026, 11, 1, 0, 0, i))
     assert len(ds.liste()) == ds.BEHALTEN
+
+
+def test_bewohner_schluessel_und_suche(tmp_path, monkeypatch, plan):
+    """Gebäudeplan-Bewohner lassen sich öffnen: Schlüssel aus dem Namen bzw. der passenden Anreise-Person."""
+    from belegung import suche
+    from belegung import termine as tm
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 5)
+    lage = _lage(plan)
+    stand = zp.Planstand(plan, {}, zp.standard_zimmer(plan.zimmer), lage, [], [])
+    bw = [b for b in zp.bewohner_im_zimmer(stand, "GS-2-102", heute) if "Weiler" in b.name][0]
+    assert bw.schluessel == zp.gp_schluessel("Jessica Weiler") == "gp:jessica weiler" and bw.art == "belegt"
+    # dieselbe Person steht in einer Anreiseliste → deren Schlüssel
+    b = _bedarf("Weiler, Jessica", "ASS", date(2026, 10, 1), date(2026, 10, 20))
+    stand.bedarf.append(b)
+    assert zp.bewohner_aus(stand, next(x for x in lage.belegungen["GS-2-102"] if "Weiler" in x.name)).schluessel == b.schluessel
+    treffer = suche.suchen("Weiler", stand, personen=[], heute=heute)
+    assert treffer and all(t.person for t in treffer)
+    assert zp.bewohner_finden(stand, b.schluessel, heute).zimmer == "GS-2-102"
+    # Zimmer-Notiz mit Wiedervorlage
+    tm.notiz_speichern(tm.Notiz(zp.zimmer_schluessel("GS-2-102"), "Zimmer 2-102", "Heizung prüfen", heute, date(2026, 10, 7)))
+    assert [t.person for t in tm.aus_notizen()] == ["zimmer:GS-2-102"]

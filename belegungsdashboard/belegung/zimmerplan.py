@@ -1095,6 +1095,69 @@ def zimmer_wahl(stand: "Planstand", person: str) -> ZimmerWahl | None:
     return w
 
 
+# ---------------------------------------------------------------------------------------
+# Bewohner: einheitlicher Schlüssel für Notizen – auch für Personen, die nur im Gebäudeplan stehen
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class Bewohner:
+    schluessel: str          # Anreise-/UWT-Person, sonst "gp:<Namenswörter>" (Gebäudeplan)
+    name: str
+    massnahme: str
+    gruppe: str
+    von: date
+    bis: date
+    zimmer: str              # Zimmer-ID
+    art: str                 # "belegt" (Gebäudeplan) | "geplant" (Zimmerplan)
+    bedarf: Bedarf | None = None   # Person aus Anreiseliste/UWT (Zimmer hier änderbar, wenn geplant)
+
+    @property
+    def quelle(self) -> str:
+        return "Zimmerplan (geplant)" if self.art == "geplant" else "Gebäudeplan"
+
+
+def zimmer_schluessel(zid: str) -> str:
+    """Schlüssel für Notizen zum Zimmer selbst."""
+    return f"zimmer:{zid}"
+
+
+def gp_schluessel(name: str) -> str:
+    return "gp:" + " ".join(sorted(_namenswoerter(name)))
+
+
+def bewohner_aus(stand: "Planstand", b: Belegung) -> Bewohner:
+    """Bewohner zu einer Belegung. Gebäudeplan-Einträge werden – wie beim Abgleich – über den Namen und den
+    Zeitraum einer Person aus Anreiseliste/UWT zugeordnet, sonst gilt der Name als Schlüssel."""
+    bedarf = None
+    if b.art == "geplant" and b.person:
+        bedarf = next((x for x in stand.bedarf if x.schluessel == b.person), None)
+    elif b.name:
+        woerter = _namenswoerter(b.name)
+        toleranz = timedelta(days=3)
+        bedarf = next((x for x in stand.bedarf if (w := _namenswoerter(x.name)) and w <= woerter
+                       and x.von <= b.bis + toleranz and b.von - toleranz <= x.bis), None)
+    schluessel = bedarf.schluessel if bedarf else (b.person or gp_schluessel(b.name))
+    return Bewohner(schluessel, b.name, b.massnahme, belegung_gruppe(b) or "", b.von, b.bis, b.zimmer, b.art, bedarf)
+
+
+def bewohner_im_zimmer(stand: "Planstand", zid: str, heute: date | None = None, rueckblick: int = 0) -> list[Bewohner]:
+    """Wer wohnt im Zimmer bzw. kommt noch (ohne Sperrungen und Pivot-Ergänzungen), nach Anreise sortiert."""
+    heute = heute or date.today()
+    grenze = heute - timedelta(days=rueckblick)
+    return [bewohner_aus(stand, b) for b in sorted(stand.lage.belegungen.get(zid, []), key=lambda b: b.von)
+            if b.art in ("belegt", "geplant") and b.name and b.name != PIVOT_NAME and b.bis >= grenze]
+
+
+def bewohner_finden(stand: "Planstand", schluessel: str, heute: date | None = None) -> Bewohner | None:
+    """Aktuelle bzw. nächste Belegung zu einem Schlüssel (für „Öffnen“ aus Terminen und Suche)."""
+    heute = heute or date.today()
+    treffer = [bw for zid in stand.lage.belegungen for bw in bewohner_im_zimmer(stand, zid, heute, 60)
+               if bw.schluessel == schluessel]
+    if not treffer:
+        return None
+    return min(treffer, key=lambda bw: (bw.bis < heute, abs((bw.von - heute).days) if bw.von > heute else 0))
+
+
 def zuweisung_setzen(stand: "Planstand", person: str, zimmer: str, quelle: str = "Person") -> None:
     """Zimmer einer Person von Hand setzen ("" = Planung entfernen)."""
     b = next(x for x in stand.bedarf if x.schluessel == person)
