@@ -70,7 +70,8 @@ Kein `git reset --hard`, kein Force-Push nötig – der Ausgangsstand bleibt auf
 | `61d77a8` | UI | Zimmer- und Personenkarte, Suche/Termine öffnen alle Bewohner (`ui/zimmerkarte.py`, `ui/notizen.py`) | `4098d18` |
 | `c5ec862` | UI | Mehrere Fenster, einklappbare Hinweise, Zuteilen-Leiste (`ui/fenster.py`, `ui/basis.py`) | `61d77a8` |
 | `c19bbb3` | UI | Datensicherung in den Einstellungen | `178baef` |
-| (letzter) | Doku | Version 6.0.0, README, ROLLBACK.md | – |
+| `db37470` | Doku | Version 6.0.0, README, ROLLBACK.md | – |
+| `49819ad` | Daten | erste Sicherung einer neuen Version heißt „vor Update“ | `178baef` |
 
 ## 6. Was sich geändert hat – und was nicht
 
