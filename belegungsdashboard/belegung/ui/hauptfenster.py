@@ -102,11 +102,13 @@ class HauptFenster(QMainWindow):
         from .seiten.einstellungen import EinstellungenSeite
         from .seiten.inventar import InventarSeite
         from .seiten.prognose import PrognoseSeite
+        from .seiten.start import StartSeite
         from .seiten.termine import TermineSeite
         from .seiten.uebersicht import UebersichtSeite
         from .seiten.zimmerplan import ZimmerplanSeite
 
         self.seiten: dict[str, Seite] = {
+            "start": StartSeite(zustand),
             "uebersicht": UebersichtSeite(zustand), "belegung": BelegungSeite(zustand),
             "prognose": PrognoseSeite(zustand), "assistent": AssistentSeite(zustand),
             "termine": TermineSeite(zustand), "zimmerplan": ZimmerplanSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
@@ -195,12 +197,12 @@ class HauptFenster(QMainWindow):
 
         self.nav = QButtonGroup(self)
         self.nav_knoepfe: dict[str, QPushButton] = {}
-        eintraege = [("Analyse", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
+        eintraege = [("start", "Start"), ("Analyse", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
                      ("assistent", "Assistent"), ("Verwaltung", None), ("termine", "Termine"), ("zimmerplan", "Zimmerplan"),
                      ("inventar", "Inventar"),
                      ("daten", "Daten && Import"),
                      ("einstellungen", "Einstellungen")]
-        icon_name = {"uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
+        icon_name = {"start": "start", "uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
                      "assistent": "assistent", "termine": "kalender", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
@@ -363,7 +365,7 @@ class HauptFenster(QMainWindow):
     def _tab_duplizieren(self) -> None:
         d = self._tab_daten(self.tabs.currentIndex())
         seite = self.seiten.get(d.get("seite"))
-        self.tab_oeffnen(d.get("seite", "uebersicht"), seite.ansicht_lesen() if seite is not None else {})
+        self.tab_oeffnen(d.get("seite", "start"), seite.ansicht_lesen() if seite is not None else {})
 
     def _tab_gewechselt(self, i: int) -> None:
         if i < 0:
@@ -372,7 +374,7 @@ class HauptFenster(QMainWindow):
             self._tab_merken()
         d = self._tab_daten(i)
         self._aktiv_id = d.get("id")
-        key = d.get("seite") if d.get("seite") in self.seiten else "uebersicht"
+        key = d.get("seite") if d.get("seite") in self.seiten else "start"
         self._seite_zeigen(key)
         if d.get("ansicht"):
             try:
@@ -441,7 +443,7 @@ class HauptFenster(QMainWindow):
         tabs = [t for t in roh.get("tabs", []) if isinstance(t, dict) and t.get("seite") in self.seiten][:12]
         self._tabs_laden = True
         try:
-            for t in tabs or [{"seite": "uebersicht", "ansicht": {}}]:
+            for t in tabs or [{"seite": "start", "ansicht": {}}]:
                 self.tab_oeffnen(t["seite"], t.get("ansicht") if isinstance(t.get("ansicht"), dict) else {},
                                  aktivieren=False)
         finally:

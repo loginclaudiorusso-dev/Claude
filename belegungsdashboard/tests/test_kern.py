@@ -1850,3 +1850,31 @@ def test_bewohner_schluessel_und_suche(tmp_path, monkeypatch, plan):
     # Zimmer-Notiz mit Wiedervorlage
     tm.notiz_speichern(tm.Notiz(zp.zimmer_schluessel("GS-2-102"), "Zimmer 2-102", "Heizung prüfen", heute, date(2026, 10, 7)))
     assert [t.person for t in tm.aus_notizen()] == ["zimmer:GS-2-102"]
+
+
+def test_cockpit_anordnung_und_daten(tmp_path, monkeypatch, plan):
+    """Startseite: Anordnung speichern/umordnen, Standard bei leerer Einstellung, Kachel-Daten."""
+    from belegung import cockpit
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert [k["id"] for k in cockpit.anordnung()] == cockpit.STANDARD
+    k = cockpit.verschieben(cockpit.anordnung(), "engpaesse", "heute")
+    assert [x["id"] for x in k][:2] == ["engpaesse", "heute"]
+    assert [x["id"] for x in cockpit.verschieben(k, "engpaesse", None)][-1] == "engpaesse"
+    cockpit.anordnung_speichern([{"id": "notizen", "breite": 2}, {"id": "gibtsnicht"}, {"id": "notizen"}])
+    assert cockpit.anordnung() == [{"id": "notizen", "breite": 2}]
+    cockpit.anordnung_speichern([])
+    assert cockpit.anordnung() == []                         # alles entfernt bleibt leer (nicht Standard)
+    heute = date(2026, 10, 5)
+    v = date(2026, 10, 7)
+    b = _bedarf("Neu", "RVL", v, v + timedelta(days=90))
+    lage = _lage(plan)
+    stand = zp.Planstand(plan, {}, zp.standard_zimmer(plan.zimmer), lage, [], [b])
+    z = cockpit.zimmer_heute(stand, heute)
+    assert z["ohne_zimmer"] == 1 and z["frei"] + z["belegt"] + z["gesperrt"] > 0
+    a = cockpit.anreisen(stand, heute)
+    assert [(x.tag, x.personen, x.mit_zimmer) for x in a] == [(v, 1, 0)]
+    assert cockpit.anreisen(stand, heute, tage=1) == []
+    ab = cockpit.abreisen(stand, date(2026, 10, 20), tage=0)
+    assert any("Weiler" in x.name and x.zimmer == "GS-2-102" for x in ab)

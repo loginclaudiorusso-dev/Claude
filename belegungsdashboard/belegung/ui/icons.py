@@ -13,6 +13,7 @@ from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 _PFADE = {
+    "start": '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
     "uebersicht": '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
     "belegung": '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
     "prognose": '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',

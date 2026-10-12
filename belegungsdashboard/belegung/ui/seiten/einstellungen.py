@@ -155,7 +155,7 @@ class EinstellungenSeite(Seite):
 
         info = Karte("Über")
         info.inhalt.addWidget(label(f"Belegungsdashboard {__version__}<br>Datenordner: {datenordner()}<br>"
-                                    "Tastenkürzel: Strg+1…8 Seiten wechseln · F5 neu einlesen", "muted", umbruch=True))
+                                    "Tastenkürzel: Strg+1…9 Seiten wechseln · Strg+T/W neuer/geschlossener Tab · F5 neu einlesen", "muted", umbruch=True))
         self.lay.addWidget(info)
         self.lay.addStretch()
         self._backend(BACKENDS.index(self.ki_e.backend), speichern=False)

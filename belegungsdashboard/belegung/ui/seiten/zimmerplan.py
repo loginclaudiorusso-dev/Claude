@@ -1675,6 +1675,16 @@ class ZimmerplanSeite(Seite):
         if self.stand and zid in self.stand.lage.zimmer:
             karte_oeffnen(self, self.z, zid)
 
+    def anreise_zeigen(self, tag: date) -> None:
+        """Reiter „Zuteilen“ mit der Anreise dieses Tages (z. B. aus der Startseite)."""
+        self._anreise_kennung = tag.isoformat()
+        i = TABS.index("Zuteilen")
+        self.tabs.setzen(i)
+        self._tab_anzeigen(i)
+        if self.stand is not None:
+            self._anreisen_fuellen()
+            self._tab_inhalt(i)
+
     def zimmer_im_zeitstrahl(self, zid: str) -> None:
         """Zeitstrahl mit dem Haus des Zimmers und dem Zimmer im Suchfeld zeigen."""
         if self.stand is None or zid not in self.stand.lage.zimmer:

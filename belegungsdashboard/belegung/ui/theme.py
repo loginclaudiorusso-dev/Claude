@@ -179,6 +179,11 @@ QStackedWidget {{ background: transparent; }}
 /* ---------- Sidebar ---------- */
 #sidebar {{ background: {t.surface}; border-right: 1px solid {t.border}; }}
 #tableiste {{ background: {t.bg}; border-bottom: 1px solid {t.border}; }}
+QFrame[kachel="true"][ablegen="true"] {{ border: 2px dashed {t.accent}; background: {t.accent_soft}; }}
+QLabel[ablage="true"] {{ border: 2px dashed {t.border_strong}; border-radius: 10px; color: {t.text_3}; }}
+QPushButton[variant="zeile"] {{ text-align: left; border: none; background: transparent; color: {t.text};
+    padding: 6px 8px; border-radius: 6px; font-weight: 400; }}
+QPushButton[variant="zeile"]:hover {{ background: {t.hover}; color: {t.accent}; }}
 QTabBar#ansichten {{ background: transparent; }}
 QTabBar#ansichten::tab {{ background: transparent; color: {t.text_2}; border: 1px solid transparent; border-bottom: none;
     border-top-left-radius: 8px; border-top-right-radius: 8px; padding: 7px 10px 7px 12px; margin-right: 2px;
