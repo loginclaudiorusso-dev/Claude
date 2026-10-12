@@ -1,11 +1,11 @@
-# Offene Punkte und Arbeitsweise (Stand v6.1.0, 12.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.2.0, 12.10.2026)
 
 ## Als Nächstes
 
 - Erledigt in 6.0/6.1: Zimmer-/Personenkarte, mehrere Fenster, Datensicherung, Tabs, Startseite mit Kacheln,
   neuer Kalender, minimiert sparsam, kein Überlauf bei 1000 px. Rückweg: ROLLBACK.md.
 - Offen: Nutzer-Satz „außerdem wäre es gut wenn man.“ (12.10.) war unvollständig – nachfragen.
-- Möglich als Nächstes: optisches Redesign (Farben/Schrift/Abstände) – vorher Varianten als Bild zeigen.
+- 6.2: Design wählbar (Klassisch/Modern/Kompakt/Warm), Name änderbar. Nutzer wählt sein Design – ggf. nachjustieren.
 - Weitere Punkte sammelt der Nutzer übers Wochenende – zusammen als nächstes Update einspielen.
 - Noch offen von früher: UWT-Zimmervorschlags-Maske wie im anderen System (Screenshots folgen vom Nutzer).
 - Zu klären (siehe v5.3.0): CUW24 DZ-Nr. 1 mit drei Personen; Einzelzimmer-Wünsche trotz DZ-Liste

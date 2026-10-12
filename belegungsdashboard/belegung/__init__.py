@@ -11,4 +11,4 @@ Aufbau:
     assistent   Chat-Assistent (präzise Datenantworten + optional LLM mit Werkzeugen)
 """
 
-__version__ = "6.1.0"
+__version__ = "6.2.0"

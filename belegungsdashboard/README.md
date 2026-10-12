@@ -1,4 +1,4 @@
-# Belegungsdashboard 6.1
+# Belegungsdashboard 6.2
 
 Desktop-Dashboard für die Internatsbelegung der INN-tegrativ gGmbH (Bad Pyrmont, Goslar,
 Weser-Ems): Lage heute, Verlauf, Prognose mit ehrlicher Unsicherheit, Listen-Import und ein
@@ -27,9 +27,18 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.2
+
+* **Name änderbar:** Einstellungen → „Name des Dashboards“ – Name und Zusatzzeile (z. B. „Internat Goslar“)
+  stehen in der Seitenleiste, im Fenstertitel und im Infobereich. „Zurücksetzen“ stellt „Belegung“ wieder her.
+* **Design wählbar:** Einstellungen → Erscheinungsbild → Design: **Klassisch** (bisheriges Aussehen, Standard),
+  **Modern** (Indigo, dunkle Seitenleiste, größere Rundungen und Titel), **Kompakt** (kleinere Schrift und
+  Abstände – mehr auf einen Blick), **Warm** (Sandtöne, grüne Seitenleiste, weich). Jedes Design gibt es hell
+  und dunkel; Hochkontrast bleibt unverändert. Umschalten wirkt sofort, ohne Neustart.
+
 ## Neu in 6.1
 
-Rückweg zu 6.0.0 oder 5.17.0: siehe **ROLLBACK.md**.
+Rückweg zu älteren Ständen: siehe **ROLLBACK.md**.
 
 * **Startseite „Mein Dashboard“** (erster Eintrag in der Seitenleiste): Kacheln mit dem, was heute zu tun ist –
   Zimmer heute, Jetzt erinnern (mit „Erledigt“), Anreisen der nächsten 7 Tage (Klick → Zuteilen), Abreisen,
