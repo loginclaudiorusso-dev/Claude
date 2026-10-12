@@ -1,17 +1,17 @@
-"""Einstellungen: Erscheinungsbild und KI-Anbindung."""
+"""Einstellungen: Erscheinungsbild, KI-Anbindung, Erinnerungen und Datensicherung."""
 
 from __future__ import annotations
 
 from datetime import date
 
-from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QSpinBox, QWidget
+from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLineEdit, QMessageBox, QSpinBox, QWidget
 
-from ... import __version__, erinnerung, speicher
+from ... import __version__, datensicherung, erinnerung, speicher
 from ...assistent.llm import CLAUDE_STANDARDMODELL, Einstellungen, backend_erstellen, schluessel_laden, schluessel_speichern
 from ...konfig import datenordner
 from .. import theme
 from ..basis import Seite, Worker, Zustand
-from ..widgets import Hinweis, Karte, Segment, knopf, label
+from ..widgets import Hinweis, Karte, Segment, Tabelle, knopf, label
 
 THEME_OPTIONEN = ["hell", "dunkel", "hochkontrast", "system"]
 BACKENDS = ["aus", "claude", "lokal"]
@@ -131,12 +131,89 @@ class EinstellungenSeite(Seite):
         self._erinnerung_sichtbar()
         self.lay.addWidget(erin)
 
+        sich = Karte("Datensicherung", "Alle Arbeitsdaten (Zuweisungen, Termine, Notizen, Importe, Einstellungen) – "
+                                       "automatisch beim Start einmal am Tag und vor jedem Update")
+        self.sich_tab = Tabelle(["Zeitpunkt", "Version", "Anlass", "Dateien"], ["l", "l", "l", "r"], dehnen=2)
+        sich.inhalt.addWidget(self.sich_tab)
+        zeile = QHBoxLayout()
+        jetzt = knopf("Jetzt sichern", "ghost", "haken")
+        jetzt.clicked.connect(self._sichern)
+        self.b_wieder = knopf("Wiederherstellen …", "ghost", "aktualisieren")
+        self.b_wieder.setToolTip("Gewählte Sicherung zurückspielen – der aktuelle Stand wird vorher gesichert")
+        self.b_wieder.clicked.connect(self._wiederherstellen)
+        ordner = knopf("Ordner öffnen", "ghost", "datei")
+        ordner.clicked.connect(self._sicherung_ordner)
+        for b in (jetzt, self.b_wieder, ordner):
+            zeile.addWidget(b)
+        zeile.addStretch()
+        sich.inhalt.addLayout(zeile)
+        sich.inhalt.addWidget(label(f"Ablage: {datenordner() / datensicherung.ORDNER} · die neuesten "
+                                    f"{datensicherung.BEHALTEN} bleiben. Gebäudeplan-, UWT- und Excel-Dateien werden "
+                                    "nicht verändert und daher nicht mitkopiert.", "klein", umbruch=True))
+        self.lay.addWidget(sich)
+        self._sicherungen_zeigen()
+
         info = Karte("Über")
         info.inhalt.addWidget(label(f"Belegungsdashboard {__version__}<br>Datenordner: {datenordner()}<br>"
                                     "Tastenkürzel: Strg+1…8 Seiten wechseln · F5 neu einlesen", "muted", umbruch=True))
         self.lay.addWidget(info)
         self.lay.addStretch()
         self._backend(BACKENDS.index(self.ki_e.backend), speichern=False)
+
+    # ---- Datensicherung -------------------------------------------------------------------
+
+    def showEvent(self, e) -> None:
+        super().showEvent(e)
+        self._sicherungen_zeigen()
+
+    def _sicherungen_zeigen(self) -> None:
+        self._sicherungen = datensicherung.liste()[:12]
+        self.sich_tab.fuellen([[f"{s.zeit:%d.%m.%Y %H:%M}", f"v{s.version}", s.anlass, s.dateien]
+                               for s in self._sicherungen])
+        self.sich_tab.hoehe_anpassen(6)
+        if self._sicherungen:
+            self.sich_tab.selectRow(0)
+        self.b_wieder.setEnabled(bool(self._sicherungen))
+
+    def _sichern(self) -> None:
+        try:
+            s = datensicherung.sichern("manuell")
+        except OSError as exc:
+            self.z.meldung.emit(f"Sicherung fehlgeschlagen: {exc}", "fehler")
+            return
+        self.z.meldung.emit(f"Gesichert: {s.dateien} Dateien." if s else "Noch keine Daten zum Sichern.", "ok")
+        self._sicherungen_zeigen()
+
+    def _wiederherstellen(self) -> None:
+        zeilen = self.sich_tab.selectionModel().selectedRows() if self.sich_tab.selectionModel() else []
+        if not zeilen or zeilen[0].row() >= len(self._sicherungen):
+            return
+        s = self._sicherungen[zeilen[0].row()]
+        if QMessageBox.question(
+                self, "Sicherung wiederherstellen",
+                f"Arbeitsdaten vom {s.zeit:%d.%m.%Y %H:%M} (v{s.version}) zurückspielen?\n\n"
+                "Der aktuelle Stand wird vorher als eigene Sicherung abgelegt – Sie können also jederzeit "
+                "wieder zurück.") != QMessageBox.Yes:
+            return
+        try:
+            vorher = datensicherung.wiederherstellen(s)
+        except OSError as exc:
+            self.z.meldung.emit(f"Wiederherstellen fehlgeschlagen: {exc}", "fehler")
+            return
+        self.z.meldung.emit(f"Sicherung vom {s.zeit:%d.%m.%Y %H:%M} wiederhergestellt"
+                            + (f" – vorheriger Stand gesichert ({vorher.zeit:%H:%M})." if vorher else "."), "ok")
+        self._sicherungen_zeigen()
+        self.z.listen_geaendert.emit()
+        self.z.zimmer_geaendert.emit()
+        self.z.termine_geaendert.emit()
+
+    def _sicherung_ordner(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        ordner = datenordner() / datensicherung.ORDNER
+        ordner.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(ordner)))
 
     def _theme_waehlen(self, idx: int) -> None:
         modus = THEME_OPTIONEN[idx]
