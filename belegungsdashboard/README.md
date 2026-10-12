@@ -1,4 +1,4 @@
-# Belegungsdashboard 4.0
+# Belegungsdashboard 6.0
 
 Desktop-Dashboard für die Internatsbelegung der INN-tegrativ gGmbH (Bad Pyrmont, Goslar,
 Weser-Ems): Lage heute, Verlauf, Prognose mit ehrlicher Unsicherheit, Listen-Import und ein
@@ -26,6 +26,33 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 (`kapazitaeten_manuell.json`, `manuelle_eintraege.json`, `pivot_profile.json` werden
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
+
+## Neu in 6.0 (Oberfläche überarbeitet)
+
+Rückweg zur Version 5.17.0: siehe **ROLLBACK.md**. Die Datenformate sind unverändert – 5.17.0 läuft mit
+denselben Daten weiter.
+
+* **Zimmer- und Personenkarte:** Klick auf ein Zimmer (Häuser, Zeitstrahl), „Öffnen“ in der Suche oder
+  „Öffnen“ bei einer Wiedervorlage zeigt eine Karte in einem eigenen Fenster – mehrere gleichzeitig möglich:
+  * **Bewohner** (heute und kommende, jeweils anklickbar): Zimmer ändern (wenn hier geplant), Abreise,
+    Notizen mit Wiedervorlage, „Alle Angaben …“ (Geschlecht, Tier, Gruppe, Bemerkung, Erinnerung).
+    Wer nur im Gebäudeplan steht, ist im Belegungssystem gebucht – Zimmer/Abreise dort ändern,
+    Notizen und Wiedervorlagen gehen trotzdem.
+  * **Zum Zimmer:** dauerhafter Hinweis (z. B. „bodentiefe Dusche“), Notizen mit Wiedervorlage
+    (z. B. „Heizung defekt – Hausmeister“), Ausstattung aus dem Inventar.
+  * Darunter Zeitstrahl und alle Belegungen.
+* **Suche:** „Öffnen“ geht jetzt für alle Treffer – auch für Bewohner aus dem Gebäudeplan und UWT
+  (vorher war „Person öffnen“ dort gesperrt). „Im Zeitstrahl“ springt zum Zimmer im Zeitstrahl.
+* **Mehrere Ansichten gleichzeitig:** Zimmerplan → „Neues Fenster“ (oben rechts) öffnet den aktuellen Reiter
+  zusätzlich als eigenes Fenster, z. B. Zeitstrahl neben Zuteilen. Was in einem Fenster gespeichert wird,
+  erscheint sofort in allen anderen.
+* **Mehr Platz im Zimmerplan:** Info-Hinweise (Gebäudeplan-Alter, EMR-Zimmer, UWT-Liste) stecken hinter
+  „n Hinweise“ in der Kennzahlenzeile; Warnungen und Konflikte bleiben immer sichtbar.
+  Zuteilen: „Übernehmen“ steht rechts neben den Aktionen.
+* **Datensicherung:** Beim Start einmal am Tag und vor jedem Update werden alle Arbeitsdaten
+  (Zuweisungen, Termine, Notizen, Importe, Einstellungen) nach `Sicherungen/` kopiert (die neuesten 30 bleiben).
+  Einstellungen → Datensicherung: Liste, „Jetzt sichern“, „Wiederherstellen …“ (der aktuelle Stand wird
+  vorher gesichert), „Ordner öffnen“.
 
 ## Was sich gegenüber 3.x geändert hat
 
@@ -181,8 +208,7 @@ Weitere Reiter:
 * **Zeitstrahl** – Zimmer als Zeilen, Tage als Spalten, Belegungen als Balken mit Namen
   (wie im Belegungssystem); Monat blättern, Haus wählen, nach Name/Zimmer suchen.
 * **Häuser** – alle Zimmer je Haus/Etage/Flur an einem Tag; Filter Frei / Teilweise / Belegt /
-  Geplant / Gesperrt mit Anzahl. Klick auf ein Zimmer zeigt, wer wann darin wohnt (Liste und
-  Zeitstrahl über drei Monate).
+  Geplant / Gesperrt mit Anzahl. Klick auf ein Zimmer öffnet die Zimmer- und Personenkarte (siehe „Neu in 6.0“).
 * **Zimmer** – Stammdaten (siehe unten).
 * **Häuser** – Filter nach Status (frei, belegt …) und nach **Personengruppen** (Mehrfachauswahl) (UWT, EMR, Assessment,
   RVL, RVT, Reha, Gäste, Mieter): „wohnt dort“ zeigt die Zimmer, in denen die Gruppe am gewählten
@@ -317,9 +343,9 @@ Oben in der Seitenleiste „Name oder Zimmer …“ (Strg+F):
 * **Zimmer** („322“, „2-322“, „3.1-E01“, „E01“): alle Zimmer mit der Nummer in allen Häusern – wer drin
   ist und wer kommt, leere Zimmer als „frei“ (bis zur nächsten Anreise), Doppelzimmer mit freien Betten,
   gesperrte Zimmer.
-„Zimmer anzeigen“ springt zum Zimmer, „Person öffnen“ zu Abreise, Erinnerung und Notiz.
+„Öffnen“ (oder Doppelklick) zeigt die Zimmer- und Personenkarte, „Im Zeitstrahl“ das Zimmer im Zeitstrahl.
 
-**Person öffnen** (aus der Suche, aus Termine oder Daten → Anreisen):
+**Personendialog** (Daten → Anreisen, „Alle Angaben …“ in der Karte):
 * **Zimmer direkt ändern:** oben die Zimmerauswahl wie beim Zuteilen – zulässige Zimmer, unter dem Strich
   Ausnahmen mit kurzem Grund, „– kein Zimmer –“ nimmt die Planung zurück. „Speichern“ übernimmt sofort
   (Änderungsprotokoll, Aufgaben → Eintragen). Steht die Person schon im Gebäudeplan, zeigt der Dialog das

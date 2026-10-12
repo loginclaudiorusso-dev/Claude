@@ -1,11 +1,11 @@
-# Offene Punkte und Arbeitsweise (Stand v5.17.0, 12.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.0.0, 12.10.2026)
 
 ## Als Nächstes
 
-- **Mehrere Ansichten gleichzeitig** (Wunsch vom 09.10.): z. B. Zeitstrahl und Zuteilen nebeneinander oder zwei
-  Anreisen gleichzeitig offen. Idee: Reiter des Zimmerplans (und andere Seiten) per Rechtsklick/Knopf
-  „In neuem Fenster öffnen“ als eigenes Fenster abkoppeln; Änderungen in einem Fenster aktualisieren die anderen
-  (gemeinsamer Zustand über `Zustand.listen_geaendert`).
+- Erledigt in 6.0: mehrere Ansichten (Zimmerplan-Reiter als eigenes Fenster, Zimmerkarten nebeneinander),
+  Zimmer-/Personenkarte, Datensicherung. Rückweg: ROLLBACK.md (Branch `backup/v5.17.0-vor-ui-overhaul`).
+- Möglich als Nächstes: weitere Seiten (Termine, Inventar) als eigenes Fenster; Überlauf der Seiten Übersicht/
+  Belegung/Prognose/Daten bei 1000 px ohne geladene Pivot-Daten prüfen (bestand schon in 5.17.0).
 - Weitere Punkte sammelt der Nutzer übers Wochenende – zusammen als nächstes Update einspielen.
 - Noch offen von früher: UWT-Zimmervorschlags-Maske wie im anderen System (Screenshots folgen vom Nutzer).
 - Zu klären (siehe v5.3.0): CUW24 DZ-Nr. 1 mit drei Personen; Einzelzimmer-Wünsche trotz DZ-Liste
@@ -16,6 +16,7 @@
 - Der Nutzer arbeitet **lokal**, nicht mit Git: Lieferung als `INNternat_Update.zip` (Inhalt des Programmordners
   ohne Hülle, ohne `.venv`, `__pycache__`, `.pytest_cache`), entpacken nach
   `C:\Users\claudio.russo\Documents\GitClaude\INNternat`, Start mit `Start.bat`.
+- Vor größeren Umbauten: Sicherungs-Branch + Zip + ROLLBACK.md; Overhaul auf eigenem Branch.
 - Bei jeder Lieferung die Version in `belegung/__init__.py` erhöhen (der Nutzer prüft „v…“ in der Seitenleiste)
   und die README ergänzen.
 - Oberfläche: nichts abschneiden, nichts überladen (lieber Menü/Reiter als viele Knöpfe), bei 125 %/150 % und
