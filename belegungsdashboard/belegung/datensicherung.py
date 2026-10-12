@@ -96,8 +96,8 @@ def beim_start(ordner: Path | None = None, jetzt: datetime | None = None) -> Sic
     vorhanden = liste(ordner)
     if vorhanden and vorhanden[0].zeit.date() == jetzt.date() and any(s.version == __version__ for s in vorhanden):
         return None
-    neu = not any(s.version == __version__ for s in vorhanden)
-    return sichern("vor Update" if neu and vorhanden else "Start", ordner, jetzt)
+    neu = not any(s.version == __version__ for s in vorhanden)     # erster Start dieser Version
+    return sichern("vor Update" if neu else "Start", ordner, jetzt)
 
 
 def wiederherstellen(sicherung: Sicherung, ordner: Path | None = None) -> Sicherung | None:

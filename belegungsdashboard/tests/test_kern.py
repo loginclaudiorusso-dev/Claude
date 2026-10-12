@@ -1813,9 +1813,10 @@ def test_datensicherung(tmp_path, monkeypatch):
     (tmp_path / "Gebaeudeplan").mkdir()
     (tmp_path / "Gebaeudeplan" / "plan.docx").write_bytes(b"x")
     s = ds.beim_start(jetzt=datetime(2026, 10, 12, 8, 0))
-    assert s is not None and s.dateien == 2 and s.anlass == "Start"
+    assert s is not None and s.dateien == 2 and s.anlass == "vor Update"         # erster Start dieser Version
     assert (s.pfad / "importe" / "anreisen.json").exists() and not (s.pfad / "Gebaeudeplan").exists()
     assert ds.beim_start(jetzt=datetime(2026, 10, 12, 9, 0)) is None          # heute schon gesichert
+    assert ds.beim_start(jetzt=datetime(2026, 10, 13, 8, 0)).anlass == "Start"   # neuer Tag
     monkeypatch.setattr(ds, "__version__", "99.0.0")
     assert ds.beim_start(jetzt=datetime(2026, 10, 12, 10, 0)).anlass == "vor Update"
     (tmp_path / "zimmer_zuweisungen.json").write_text(json.dumps({"zuweisungen": []}), encoding="utf-8")
