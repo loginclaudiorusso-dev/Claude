@@ -31,6 +31,7 @@ class TermineSeite(Seite):
     untertitel = "Erinnerungen an Anreise-Notizen, Abreisen und eigene Termine – ohne Outlook"
     zeigt_filter = False
     zeigt_bezug = False
+    reiter_attr = "tabs"
 
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)

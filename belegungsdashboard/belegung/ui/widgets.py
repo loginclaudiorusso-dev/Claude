@@ -51,6 +51,36 @@ def label(text: str = "", r: str | None = None, umbruch: bool = False) -> QLabel
     return lbl
 
 
+class KurzLabel(QLabel):
+    """Einzeiliges Label, das bei wenig Platz mit „…“ kürzt (voller Text im Tooltip) statt zu verbreitern."""
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(parent)
+        self._voll = ""
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        self._voll = text
+        self.setToolTip(text)
+        self._kuerzen()
+
+    def text_voll(self) -> str:
+        return self._voll
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(60, super().minimumSizeHint().height())
+
+    def sizeHint(self) -> QSize:
+        return QSize(self.fontMetrics().horizontalAdvance(self._voll) + 4, super().sizeHint().height())
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._kuerzen()
+
+    def _kuerzen(self) -> None:
+        QLabel.setText(self, self.fontMetrics().elidedText(self._voll, Qt.ElideRight, max(self.width(), 60)))
+
+
 class FettKnopf(QPushButton):
     """Knopf, der genug Platz für fette Schrift reserviert – gewählte Reiter/Chips werden fett und
     würden sonst abgeschnitten („Reinigung“ → „Reinigunc“)."""
@@ -216,6 +246,10 @@ class Segment(QFrame):
 
     def index(self) -> int:
         return self._gruppe.checkedId()
+
+    def beschriftung(self, index: int) -> str:
+        b = self._gruppe.button(index)
+        return b.text().replace("&&", "&") if b is not None else ""
 
     def text_setzen(self, index: int, text: str) -> None:
         b = self._gruppe.button(index)
@@ -442,6 +476,7 @@ class KpiKarte(Karte):
         self.punkt.setVisible(farbe_punkt is not None)
         kopf.addWidget(self.punkt, 0, Qt.AlignVCenter)
         self.titel = label(titel, "kpi_label")
+        self.titel.setWordWrap(True)                 # lange Titel umbrechen statt die Zeile zu verbreitern
         kopf.addWidget(self.titel, 1)
         self.pille = Pille()
         self.pille.setVisible(False)
@@ -725,13 +760,15 @@ class ZeitraumLeiste(QWidget):
     def __init__(self, ende: date, vorgabe: int = 1, parent=None):
         super().__init__(parent)
         self._ende = ende
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
+        fluss = FlowLayout(self, abstand=10)           # Schnellwahl und Von/Bis brechen im schmalen Fenster um
         self.segment = Segment([n for n, _ in self.VORGABEN], vorgabe)
         self.segment.geaendert.connect(self._vorgabe)
-        lay.addWidget(self.segment)
-        lay.addSpacing(6)
+        fluss.addWidget(self.segment)
+        datum = QWidget()
+        lay = QHBoxLayout(datum)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        fluss.addWidget(datum)
         self.von = DatumFeld(ende)
         self.bis = DatumFeld(ende)
         self.von.geaendert.connect(self._manuell)
@@ -742,7 +779,6 @@ class ZeitraumLeiste(QWidget):
         self.monat = knopf("Monat", "ghost", "kalender", "Direkt zu einem Monat springen")
         self.monat.clicked.connect(self._monat_popup)
         lay.addWidget(self.monat)
-        lay.addStretch()
         self._vorgabe(vorgabe, melden=False)
 
     def ende_setzen(self, ende: date) -> None:

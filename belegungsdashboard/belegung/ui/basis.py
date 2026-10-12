@@ -111,6 +111,7 @@ class Seite(QWidget):
     zeigt_filter = True
     zeigt_bezug = True
     scrollbar = True
+    reiter_attr: str | None = None      # Name des Segments mit Unterreitern (für Tabs: Ansicht merken)
 
     def __init__(self, zustand: Zustand, parent=None):
         super().__init__(parent)
@@ -147,6 +148,27 @@ class Seite(QWidget):
             h.addWidget(w, (stretch or [1] * len(widgets))[i])
         self.lay.addWidget(behaelter)
         return h
+
+    # ---- Ansicht für Tabs: welcher Unterreiter usw. ----------------------------------------
+
+    def _reiter_segment(self):
+        return getattr(self, self.reiter_attr, None) if self.reiter_attr else None
+
+    def ansicht_lesen(self) -> dict:
+        r = self._reiter_segment()
+        return {"reiter": r.index()} if r is not None else {}
+
+    def ansicht_setzen(self, ansicht: dict) -> None:
+        r, i = self._reiter_segment(), ansicht.get("reiter")
+        if r is not None and isinstance(i, int) and i >= 0 and i != r.index():
+            r.setzen(i, still=False)
+
+    def ansicht_titel(self) -> str:
+        """Kurzer Zusatz für den Tab, z. B. „Zeitstrahl“ (ohne Zähler wie „(27)“)."""
+        import re
+
+        r = self._reiter_segment()
+        return re.sub(r"\s*\(\d+\)$", "", r.beschriftung(r.index())) if r is not None else ""
 
     def anstossen(self) -> None:
         self._veraltet = True

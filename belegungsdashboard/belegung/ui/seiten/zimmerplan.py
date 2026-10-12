@@ -47,6 +47,7 @@ class ZimmerplanSeite(Seite):
     untertitel = "Internat Goslar – Zimmer zuteilen und Belegung im Blick"
     zeigt_filter = False
     zeigt_bezug = False
+    reiter_attr = "tabs"
 
     def __init__(self, zustand: Zustand, nebenfenster: bool = False):
         super().__init__(zustand)
@@ -574,6 +575,29 @@ class ZimmerplanSeite(Seite):
         self._tab_inhalt(i)
         if self.nebenfenster and self.window() is not None:
             self.window().setWindowTitle(f"Zimmerplan – {TABS[i]}")
+
+    def ansicht_lesen(self) -> dict:
+        a = super().ansicht_lesen()
+        a.update(zs_haus=self.zs_haus.index(), zs_suche=self.zs_suche.text(), monat=self._monat.isoformat())
+        return a
+
+    def ansicht_setzen(self, ansicht: dict) -> None:
+        """Tab gewechselt: Reiter, Haus, Suche und Monat des Zeitstrahls wie zuletzt in diesem Tab."""
+        if isinstance(ansicht.get("zs_haus"), int):
+            self.zs_haus.setzen(ansicht["zs_haus"])
+        if isinstance(ansicht.get("zs_suche"), str):
+            self.zs_suche.blockSignals(True)
+            self.zs_suche.setText(ansicht["zs_suche"])
+            self.zs_suche.blockSignals(False)
+        try:
+            self._monat = date.fromisoformat(ansicht["monat"]).replace(day=1)
+        except (KeyError, TypeError, ValueError):
+            pass
+        reiter = ansicht.get("reiter")
+        if isinstance(reiter, int) and 0 <= reiter < len(TABS) and reiter != self.tabs.index():
+            super().ansicht_setzen(ansicht)               # zeigt den Reiter (inkl. Inhalt)
+        elif self.stand is not None:
+            self._tab_inhalt(self.tabs.index())
 
     def _nach_aenderung(self) -> None:
         """Nach dem Speichern: andere Fenster und Zimmerkarten benachrichtigen, selbst neu laden."""

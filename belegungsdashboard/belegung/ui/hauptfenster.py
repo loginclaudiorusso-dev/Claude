@@ -10,7 +10,7 @@ from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QMainWindow, QMenu, QProgressBar, QPushButton,
-    QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget,
+    QStackedWidget, QSystemTrayIcon, QTabBar, QToolButton, QVBoxLayout, QWidget,
 )
 
 from .. import laden, speicher
@@ -18,7 +18,7 @@ from .. import termine as tm
 from ..konfig import GESAMT, STANDORT_LABEL, STANDORTE, programmordner, ressourcenordner
 from . import icons, theme
 from .basis import Seite, Worker, Zustand, arbeitsspeicher_freigeben, sichtbar
-from .widgets import DatumFeld, Karte, Pille, Segment, Toast, icon_setzen, knopf, label
+from .widgets import DatumFeld, Karte, KurzLabel, Pille, Segment, Toast, icon_setzen, knopf, label
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +27,25 @@ FILTER_STANDORTE = [GESAMT] + STANDORTE
 
 def uwt_meldung(neu: list[str]) -> str:
     return "UWT übernommen: " + "; ".join(neu)
+
+
+class _TabLeiste(QTabBar):
+    """Tab-Leiste, die bei vielen Tabs schrumpft (Blätter-Pfeile) statt das Fenster zu verbreitern."""
+
+    def minimumSizeHint(self) -> QSize:
+        s = super().minimumSizeHint()
+        return QSize(min(s.width(), 180), s.height())
+
+
+def _reiter_text(seite, ansicht: dict) -> str:
+    """Unterreiter-Name aus einer gemerkten Ansicht (Tab im Hintergrund)."""
+    import re
+
+    r = seite._reiter_segment()
+    i = ansicht.get("reiter")
+    if r is None or not isinstance(i, int):
+        return ""
+    return re.sub(r"\s*\(\d+\)$", "", r.beschriftung(i))
 
 
 class HauptFenster(QMainWindow):
@@ -51,6 +70,7 @@ class HauptFenster(QMainWindow):
         rechts = QVBoxLayout()
         rechts.setContentsMargins(0, 0, 0, 0)
         rechts.setSpacing(0)
+        rechts.addWidget(self._tableiste())
         rechts.addWidget(self._kopf())
         self.fortschritt = QProgressBar()
         self.fortschritt.setRange(0, 0)
@@ -108,7 +128,14 @@ class HauptFenster(QMainWindow):
             QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self, activated=lambda k=key: self.zeigen(k))
         QShortcut(QKeySequence("F5"), self, activated=lambda: self.laden(False))
         QShortcut(QKeySequence("Ctrl+F"), self, activated=lambda: (self.suche.setFocus(), self.suche.selectAll()))
-        self.zeigen("uebersicht")
+        QShortcut(QKeySequence("Ctrl+T"), self, activated=self._tab_duplizieren)
+        QShortcut(QKeySequence("Ctrl+W"), self, activated=lambda: self._tab_schliessen(self.tabs.currentIndex()))
+        QShortcut(QKeySequence("Ctrl+Tab"), self, activated=lambda: self._tab_blaettern(1))
+        QShortcut(QKeySequence("Ctrl+Shift+Tab"), self, activated=lambda: self._tab_blaettern(-1))
+        for s in self.seiten.values():            # Unterreiter gewechselt → Tab-Titel anpassen
+            if (r := s._reiter_segment()) is not None:
+                r.geaendert.connect(lambda _i: self._tab_titel())
+        self._tabs_wiederherstellen()
         self._beenden = False
         self._tray_einrichten()
         zustand.termine_geaendert.connect(self.erinnerungen_pruefen)
@@ -185,7 +212,10 @@ class HauptFenster(QMainWindow):
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
             b.setIconSize(QSize(18, 18))
-            b.clicked.connect(lambda _=False, k=key: self.zeigen(k))
+            b.clicked.connect(lambda _=False, k=key: self._nav_klick(k))
+            b.installEventFilter(self)                 # mittlere Maustaste: neuer Tab
+            b.setContextMenuPolicy(Qt.CustomContextMenu)
+            b.customContextMenuRequested.connect(lambda _p, k=key, b=b: self._nav_menue(k, b))
             self.nav.addButton(b)
             self.nav_knoepfe[key] = b
             v.addWidget(b)
@@ -220,6 +250,10 @@ class HauptFenster(QMainWindow):
         t = theme.T
         for b in self.nav_knoepfe.values():
             b.setIcon(icons.icon(b.property("icon_key"), t.text_2, 18, farbe_aktiv=t.accent))
+        if hasattr(self, "tab_plus"):
+            self.tab_plus.setIcon(icons.icon("plus", t.text_2, 16))
+            for i in range(self.tabs.count()):
+                self._tab_titel(i)
 
     def _kopf(self) -> QWidget:
         kopf = QFrame()
@@ -230,7 +264,8 @@ class HauptFenster(QMainWindow):
         texte = QVBoxLayout()
         texte.setSpacing(2)
         self.titel = label("", "seitentitel")
-        self.untertitel = label("", "seitenuntertitel")
+        self.untertitel = KurzLabel()                # kürzt im schmalen Fenster mit „…“ statt zu verbreitern
+        self.untertitel.setProperty("rolle", "seitenuntertitel")
         texte.addWidget(self.titel)
         texte.addWidget(self.untertitel)
         h.addLayout(texte, 1)
@@ -247,7 +282,199 @@ class HauptFenster(QMainWindow):
 
     # ---- Navigation / Filter ------------------------------------------------------------
 
+    # ---- Tabs: mehrere Ansichten (Seite + Unterreiter) wie im Browser ------------------------
+
+    def _tableiste(self) -> QWidget:
+        leiste = QFrame()
+        leiste.setObjectName("tableiste")
+        h = QHBoxLayout(leiste)
+        h.setContentsMargins(20, 8, 20, 0)
+        h.setSpacing(4)
+        self.tabs = _TabLeiste()
+        self.tabs.setObjectName("ansichten")
+        self.tabs.setTabsClosable(False)          # eigene, ruhige Schließen-Knöpfe (siehe _tab_titel)
+        self.tabs.setMovable(True)
+        self.tabs.setDocumentMode(True)
+        self.tabs.setExpanding(False)
+        self.tabs.setElideMode(Qt.ElideRight)
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.setDrawBase(False)
+        self.tabs.currentChanged.connect(self._tab_gewechselt)
+        self.tabs.tabCloseRequested.connect(self._tab_schliessen)
+        self.tabs.tabMoved.connect(lambda *_: self._tabs_speichern())
+        self.tabs.setToolTip("Mehrere Ansichten: Strg+T neuer Tab, Strg+W schließen, Strg+Tab wechseln – "
+                             "Seite mit Strg+Klick oder mittlerer Maustaste in der Seitenleiste in neuem Tab öffnen")
+        h.addWidget(self.tabs, 0, Qt.AlignBottom)   # „+“ direkt hinter dem letzten Tab
+        self.tab_plus = QToolButton()
+        self.tab_plus.setObjectName("tab_plus")
+        self.tab_plus.setCursor(Qt.PointingHandCursor)
+        self.tab_plus.setToolTip("Neuer Tab (Strg+T)")
+        self.tab_plus.setPopupMode(QToolButton.InstantPopup)
+        menue = QMenu(self.tab_plus)
+        menue.aboutToShow.connect(lambda: self._plus_menue(menue))
+        self.tab_plus.setMenu(menue)
+        self.tab_plus.setIcon(icons.icon("plus", theme.T.text_2, 16))
+        h.addWidget(self.tab_plus, 0, Qt.AlignVCenter)
+        h.addStretch(1)
+        self._tab_id = 0
+        self._aktiv_id: int | None = None
+        return leiste
+
+    def _plus_menue(self, menue: QMenu) -> None:
+        menue.clear()
+        menue.addAction("Aktuelle Ansicht duplizieren\tStrg+T", self._tab_duplizieren)
+        menue.addSeparator()
+        for key, b in self.nav_knoepfe.items():
+            menue.addAction(b.icon(), self.seiten[key].titel or key, lambda k=key: self.tab_oeffnen(k))
+
+    def _tab_daten(self, i: int) -> dict:
+        d = self.tabs.tabData(i)
+        return d if isinstance(d, dict) else {}
+
+    def _tab_index(self, tid: int | None) -> int:
+        return next((i for i in range(self.tabs.count()) if self._tab_daten(i).get("id") == tid), -1)
+
+    def _tab_merken(self) -> None:
+        """Ansicht der gerade gezeigten Seite im aktiven Tab ablegen."""
+        i = self._tab_index(self._aktiv_id)
+        if i < 0:
+            return
+        d = dict(self._tab_daten(i))
+        seite = self.seiten.get(d.get("seite"))
+        if seite is not None:
+            try:
+                d["ansicht"] = seite.ansicht_lesen()
+            except Exception:                      # noqa: BLE001 – Ansicht merken darf nie stören
+                d["ansicht"] = {}
+        self.tabs.setTabData(i, d)
+
+    def tab_oeffnen(self, key: str, ansicht: dict | None = None, aktivieren: bool = True) -> None:
+        if key not in self.seiten:
+            return
+        self._tab_merken()
+        self._tab_id += 1
+        i = self.tabs.addTab("")
+        self.tabs.setTabData(i, {"id": self._tab_id, "seite": key, "ansicht": dict(ansicht or {})})
+        self._tab_titel(i)
+        if aktivieren:
+            self.tabs.setCurrentIndex(i)
+        self._tabs_speichern()
+
+    def _tab_duplizieren(self) -> None:
+        d = self._tab_daten(self.tabs.currentIndex())
+        seite = self.seiten.get(d.get("seite"))
+        self.tab_oeffnen(d.get("seite", "uebersicht"), seite.ansicht_lesen() if seite is not None else {})
+
+    def _tab_gewechselt(self, i: int) -> None:
+        if i < 0:
+            return
+        if self._aktiv_id is not None and self._tab_index(self._aktiv_id) >= 0:
+            self._tab_merken()
+        d = self._tab_daten(i)
+        self._aktiv_id = d.get("id")
+        key = d.get("seite") if d.get("seite") in self.seiten else "uebersicht"
+        self._seite_zeigen(key)
+        if d.get("ansicht"):
+            try:
+                self.seiten[key].ansicht_setzen(d["ansicht"])
+            except Exception:                      # noqa: BLE001
+                log.exception("Ansicht konnte nicht wiederhergestellt werden")
+        self._tab_titel(i)
+        self._tabs_speichern()
+
+    def _tab_schliessen(self, i: int) -> None:
+        if self.tabs.count() <= 1 or i < 0:
+            return
+        if self._tab_daten(i).get("id") == self._aktiv_id:
+            self._aktiv_id = None                  # Ansicht des geschlossenen Tabs nicht mehr merken
+        self.tabs.removeTab(i)
+        self._tabs_speichern()
+
+    def _tab_blaettern(self, d: int) -> None:
+        if self.tabs.count() > 1:
+            self.tabs.setCurrentIndex((self.tabs.currentIndex() + d) % self.tabs.count())
+
+    def _tab_titel(self, i: int | None = None) -> None:
+        i = self.tabs.currentIndex() if i is None else i
+        if i < 0:
+            return
+        d = self._tab_daten(i)
+        seite = self.seiten.get(d.get("seite"))
+        if seite is None:
+            return
+        zusatz = seite.ansicht_titel() if self.stapel.currentWidget() is seite or not d.get("ansicht") else \
+            _reiter_text(seite, d["ansicht"])
+        text = f"{seite.titel} · {zusatz}" if zusatz else seite.titel
+        self.tabs.setTabText(i, text.replace("&", "&&"))          # „&“ sonst als Tastenkürzel gelesen
+        self.tabs.setTabToolTip(i, f"{seite.titel}{' – ' + zusatz if zusatz else ''}")
+        if hasattr(self, "nav_knoepfe") and d.get("seite") in self.nav_knoepfe:
+            self.tabs.setTabIcon(i, self.nav_knoepfe[d["seite"]].icon())
+        zu = self.tabs.tabButton(i, QTabBar.RightSide)
+        if zu is None:
+            zu = QToolButton()
+            zu.setObjectName("tab_zu")
+            zu.setCursor(Qt.PointingHandCursor)
+            zu.setToolTip("Tab schließen (Strg+W)")
+            zu.setFixedSize(18, 18)
+            zu.clicked.connect(lambda _=False, b=zu: self._tab_schliessen(
+                next((k for k in range(self.tabs.count()) if self.tabs.tabButton(k, QTabBar.RightSide) is b), -1)))
+            self.tabs.setTabButton(i, QTabBar.RightSide, zu)
+        zu.setIcon(icons.icon("schliessen", theme.T.text_3, 12))
+        zu.setVisible(self.tabs.count() > 1)
+
+    def _tabs_speichern(self) -> None:
+        if getattr(self, "_tabs_laden", False):
+            return
+        self._tab_merken()
+        for i in range(self.tabs.count()):         # Schließen-Knopf nur, wenn mehr als ein Tab offen ist
+            if (b := self.tabs.tabButton(i, QTabBar.RightSide)) is not None:
+                b.setVisible(self.tabs.count() > 1)
+        liste = [{"seite": self._tab_daten(i).get("seite"), "ansicht": self._tab_daten(i).get("ansicht", {})}
+                 for i in range(self.tabs.count())]
+        try:
+            speicher.einstellung_setzen("ansichten", {"tabs": liste, "aktiv": self.tabs.currentIndex()})
+        except OSError:
+            pass
+
+    def _tabs_wiederherstellen(self) -> None:
+        roh = speicher.einstellungen().get("ansichten") or {}
+        tabs = [t for t in roh.get("tabs", []) if isinstance(t, dict) and t.get("seite") in self.seiten][:12]
+        self._tabs_laden = True
+        try:
+            for t in tabs or [{"seite": "uebersicht", "ansicht": {}}]:
+                self.tab_oeffnen(t["seite"], t.get("ansicht") if isinstance(t.get("ansicht"), dict) else {},
+                                 aktivieren=False)
+        finally:
+            self._tabs_laden = False
+        aktiv = roh.get("aktiv", 0) if isinstance(roh.get("aktiv"), int) else 0
+        aktiv = aktiv if 0 <= aktiv < self.tabs.count() else 0
+        if self.tabs.currentIndex() == aktiv:
+            self._tab_gewechselt(aktiv)
+        else:
+            self.tabs.setCurrentIndex(aktiv)
+
+    def _nav_klick(self, key: str) -> None:
+        """Seitenleiste: Seite im aktuellen Tab – mit Strg in einem neuen Tab."""
+        if QApplication.keyboardModifiers() & Qt.ControlModifier:
+            self.tab_oeffnen(key)
+        else:
+            self.zeigen(key)
+
     def zeigen(self, key: str) -> None:
+        """Seite im aktuellen Tab zeigen (Seitenleiste, Sprünge aus anderen Seiten)."""
+        if key not in self.seiten:
+            return
+        i = self.tabs.currentIndex()
+        if i >= 0:
+            d = dict(self._tab_daten(i))
+            if d.get("seite") != key:
+                d.update(seite=key, ansicht={})
+                self.tabs.setTabData(i, d)
+        self._seite_zeigen(key)
+        self._tab_titel()
+        self._tabs_speichern()
+
+    def _seite_zeigen(self, key: str) -> None:
         seite = self.seiten[key]
         self.stapel.setCurrentWidget(seite)
         self.nav_knoepfe[key].setChecked(True)
@@ -258,6 +485,21 @@ class HauptFenster(QMainWindow):
         for s in self.seiten.values():
             if (aktion := getattr(s, "kopf_aktion", None)) is not None:
                 aktion.setVisible(s is seite)
+
+    def _nav_menue(self, key: str, b: QPushButton) -> None:
+        m = QMenu(self)
+        m.addAction("In neuem Tab öffnen", lambda: self.tab_oeffnen(key))
+        if key == "zimmerplan":
+            m.addAction("In neuem Fenster öffnen", lambda: self.seiten["zimmerplan"]._neues_fenster())
+        m.exec(b.mapToGlobal(b.rect().bottomLeft()))
+
+    def eventFilter(self, obj, e) -> bool:
+        if e.type() == QEvent.MouseButtonRelease and e.button() == Qt.MiddleButton:
+            key = next((k for k, b in self.nav_knoepfe.items() if b is obj), None)
+            if key is not None:
+                self.tab_oeffnen(key)
+                return True
+        return super().eventFilter(obj, e)
 
     def _filter_anzeigen(self) -> None:
         self.standort_filter.setzen(FILTER_STANDORTE.index(self.z.standort))

@@ -24,6 +24,7 @@ class InventarSeite(Seite):
     untertitel = "Was steht in welchem Zimmer"
     zeigt_filter = False
     zeigt_bezug = False
+    reiter_attr = "tabs"
 
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)

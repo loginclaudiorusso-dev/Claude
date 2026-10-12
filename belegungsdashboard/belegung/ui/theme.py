@@ -178,6 +178,20 @@ QStackedWidget {{ background: transparent; }}
 
 /* ---------- Sidebar ---------- */
 #sidebar {{ background: {t.surface}; border-right: 1px solid {t.border}; }}
+#tableiste {{ background: {t.bg}; border-bottom: 1px solid {t.border}; }}
+QTabBar#ansichten {{ background: transparent; }}
+QTabBar#ansichten::tab {{ background: transparent; color: {t.text_2}; border: 1px solid transparent; border-bottom: none;
+    border-top-left-radius: 8px; border-top-right-radius: 8px; padding: 7px 10px 7px 12px; margin-right: 2px;
+    min-width: 90px; max-width: 260px; }}
+QTabBar#ansichten::tab:hover {{ background: {t.hover}; color: {t.text}; }}
+QTabBar#ansichten::tab:selected {{ background: {t.surface}; color: {t.text}; border-color: {t.border};
+    font-weight: 600; }}
+QTabBar#ansichten QToolButton#tab_zu {{ border: none; border-radius: 4px; background: transparent; padding: 2px; }}
+QTabBar#ansichten QToolButton#tab_zu:hover {{ background: {t.border}; }}
+QTabBar#ansichten QToolButton {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 6px; }}
+QToolButton#tab_plus {{ border: none; border-radius: 6px; padding: 5px; background: transparent; }}
+QToolButton#tab_plus:hover {{ background: {t.hover}; }}
+QToolButton#tab_plus::menu-indicator {{ image: none; width: 0; }}
 #sidebar QLabel#marke {{ font-size: 15px; font-weight: 700; color: {t.text}; }}
 #sidebar QLabel#marke_sub {{ font-size: 11px; color: {t.text_3}; }}
 QPushButton[nav="true"] {{

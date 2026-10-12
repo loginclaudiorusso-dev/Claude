@@ -21,6 +21,7 @@ class DatenSeite(Seite):
     untertitel = "Quelle, Kapazitäten und Listen pflegen"
     zeigt_filter = False
     zeigt_bezug = False
+    reiter_attr = "reiter"
 
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)
@@ -72,9 +73,9 @@ class DatenSeite(Seite):
                                "Abreise, Erinnerung, Geschlecht, Tier und Bemerkungen per Doppelklick bzw. Stift.")
         anr_knoepfe = QHBoxLayout()
         anr_knoepfe.setSpacing(8)
-        plus_person = knopf("Person hinzufügen", "ghost", "plus")
+        plus_person = knopf("Person", "ghost", "plus", "Person von Hand hinzufügen")
         plus_person.clicked.connect(lambda: self._person(None))
-        hoch = knopf("Anreiselisten hochladen", "primary", "hochladen")
+        hoch = knopf("Listen hochladen", "primary", "hochladen", "Anreiselisten (Excel) hochladen")
         hoch.clicked.connect(self._anreiselisten)
         anr_knoepfe.addWidget(plus_person)
         anr_knoepfe.addWidget(hoch)
@@ -82,11 +83,15 @@ class DatenSeite(Seite):
         anr_kopf.setLayout(anr_knoepfe)
         anr_knoepfe.setContentsMargins(0, 0, 0, 0)
         self.anr_karte.aktion(anr_kopf)
-        filter_zeile = QHBoxLayout()
+        filter_w = QWidget()                         # Filter und Dauer brechen im schmalen Fenster um
+        filter_fluss = FlowLayout(filter_w, abstand=12)
         self.anr_filter = Segment(["Kommende", "Ohne Abreise", "Mit Erinnerung", "Alle"], 0)
         self.anr_filter.geaendert.connect(lambda _i: self._anreisen_anzeigen())
-        filter_zeile.addWidget(self.anr_filter)
-        filter_zeile.addStretch()
+        filter_fluss.addWidget(self.anr_filter)
+        dauer = QWidget()
+        filter_zeile = QHBoxLayout(dauer)
+        filter_zeile.setContentsMargins(0, 0, 0, 0)
+        filter_fluss.addWidget(dauer)
         self.anr_info = label("", "klein", umbruch=True)
         filter_zeile.addWidget(label("Ohne Abreise zählen", "klein"))
         self.anr_wochen = QSpinBox()
@@ -98,7 +103,7 @@ class DatenSeite(Seite):
         self.anr_wochen.setValue(int(speicher.einstellungen().get("anreise_standard_wochen", 0) or 0))
         self.anr_wochen.editingFinished.connect(self._wochen_speichern)
         filter_zeile.addWidget(self.anr_wochen)
-        self.anr_karte.inhalt.addLayout(filter_zeile)
+        self.anr_karte.inhalt.addWidget(filter_w)
         self.anr_karte.inhalt.addWidget(self.anr_info)
         self.anr_tabelle = Tabelle(["Anreise", "Name", "Maßnahme", "Internat", "Abreise", "Erinnerung", ""],
                                    ["l", "l", "l", "l", "l", "l", "l"], dehnen=1)
