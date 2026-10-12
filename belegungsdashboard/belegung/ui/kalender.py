@@ -19,7 +19,8 @@ def art_farbe(art: str) -> QColor:
     t = theme.T
     k = t.kategorie
     return QColor({"anreise": k.get("Reha", t.accent), "uwt": k.get("UWT", t.ok), "abreise": k.get("Mieter", t.knapp),
-                   "notiz": k.get("FRAI", t.accent), "eigen": t.accent}.get(art, t.text_3))
+                   "notiz": k.get("FRAI", t.accent), "eigen": t.accent,
+                   "wiedervorlage": t.kritisch}.get(art, t.text_3))
 
 
 def wochenstart(d: date) -> date:

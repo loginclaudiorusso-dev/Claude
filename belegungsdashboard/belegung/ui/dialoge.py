@@ -639,6 +639,14 @@ class PersonDialog(QDialog):
             v.addWidget(label(f"{self.person.massnahme or self.person.gruppe} · Anreise {_d(self.person.anreise)} · {herkunft}"
                               + (f" · TN-ID {self.person.tn_id}" if self.person.tn_id else ""), "muted", umbruch=True))
 
+        self._wahl = None
+        self.zimmer_geaendert: str | None = None
+        self._notizen: list[termine.Notiz] = []
+        self._notizen_weg: set[str] = set()
+        if not self.neu:
+            self._zimmer_bereich(v)
+            v.addWidget(label("Angaben", "abschnitt"))
+
         form = QFormLayout()
         form.setHorizontalSpacing(14)
         form.setVerticalSpacing(10)
@@ -719,6 +727,8 @@ class PersonDialog(QDialog):
         erin.addWidget(self.kanal, 1)
         form.addRow("", erin)
         v.addLayout(form)
+        if not self.neu:
+            self._notizen_bereich(v)
         self.info = label("", "klein", umbruch=True)
         v.addWidget(self.info)
 
@@ -741,6 +751,138 @@ class PersonDialog(QDialog):
         self.kanal.currentIndexChanged.connect(self._aktualisieren)
         self._aktualisieren()
         scrollbar_machen(self, 620, 720)
+
+    # ---- Zimmer ------------------------------------------------------------------------------
+
+    def _zimmer_bereich(self, v: QVBoxLayout) -> None:
+        from .. import zimmerplan as zp
+
+        try:
+            self._stand = zp.laden()
+            self._wahl = zp.zimmer_wahl(self._stand, self.person.schluessel)
+        except Exception:                     # Zimmerplan nicht ladbar – Dialog trotzdem nutzbar
+            self._wahl = None
+        if self._wahl is None:
+            return
+        w = self._wahl
+        v.addWidget(label("Zimmer", "abschnitt"))
+        if w.gebucht:
+            v.addWidget(label(f"Laut Gebäudeplan gebucht in <b>{w.gebucht.removeprefix('GS-')}</b> – die Buchung im "
+                              "Belegungssystem gilt; ein Umzug bitte dort eintragen.", "muted", umbruch=True))
+            return
+        zeile = QHBoxLayout()
+        self.zimmer = QComboBox()
+        self.zimmer.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.zimmer.setMinimumContentsLength(22)
+        self.zimmer.addItem("– kein Zimmer –", "")
+        ids = {z.id for z in w.alternativen} | {z.id for z, _g in w.ausnahmen}
+        if w.geplant and w.geplant not in ids and w.geplant in self._stand.lage.zimmer:
+            self.zimmer.addItem(f"{self._stand.lage.zimmer[w.geplant].kurz} · bisher (Regel verletzt)", w.geplant)
+        for z in w.alternativen:
+            self.zimmer.addItem(z.kurz + (" · DZ" if z.betten > 1 else ""), z.id)
+            self.zimmer.setItemData(self.zimmer.count() - 1, zp.flur_text(z), Qt.ToolTipRole)
+        if w.ausnahmen:
+            self.zimmer.insertSeparator(self.zimmer.count())
+            for z, grund in w.ausnahmen:
+                self.zimmer.addItem(f"{z.kurz} · {grund}", z.id)
+                self.zimmer.setItemData(self.zimmer.count() - 1, f"Ausnahme: {grund}", Qt.ToolTipRole)
+        self.zimmer.setCurrentIndex(max(0, self.zimmer.findData(w.geplant)))
+        self.zimmer.setToolTip("Oben die zulässigen Zimmer, unter dem Strich Ausnahmen (nur von Hand)")
+        self.zimmer.currentIndexChanged.connect(self._aktualisieren)
+        zeile.addWidget(self.zimmer)
+        zeile.addStretch()
+        v.addLayout(zeile)
+        b = w.bedarf
+        self.zimmer_info = label(f"{zp.GRUPPE_LABEL.get(b.gruppe, b.gruppe)} · {b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y}"
+                                 + (" (Abreise angenommen)" if b.bis_angenommen else ""), "klein", umbruch=True)
+        v.addWidget(self.zimmer_info)
+
+    def _zimmer_neu(self) -> str | None:
+        """Gewähltes Zimmer, wenn es sich geändert hat ("" = Planung entfernen), sonst None."""
+        if self._wahl is None or self._wahl.gebucht or not hasattr(self, "zimmer"):
+            return None
+        neu = self.zimmer.currentData() or ""
+        return None if neu == self._wahl.geplant else neu
+
+    # ---- Notizen mit Wiedervorlage -----------------------------------------------------------
+
+    def _notizen_bereich(self, v: QVBoxLayout) -> None:
+        self._notizen = termine.notizen(self.person.schluessel)
+        v.addWidget(label("Notizen", "abschnitt"))
+        self._notiz_liste = QVBoxLayout()
+        self._notiz_liste.setSpacing(6)
+        v.addLayout(self._notiz_liste)
+        self.notiz_text = QLineEdit()
+        self.notiz_text.setPlaceholderText("Neue Notiz, z. B. „Kostenzusage nachfragen“")
+        self.notiz_text.returnPressed.connect(self._notiz_hinzu)
+        v.addWidget(self.notiz_text)
+        zeile = QHBoxLayout()
+        self.wv = QCheckBox("Wiedervorlage am")
+        self.wv.setToolTip("Erinnert an diesem Tag im Terminkalender (Seite Termine, mit Windows-Benachrichtigung)")
+        self.wv_datum = DatumFeld(date.today() + timedelta(days=7))
+        self.wv_datum.setEnabled(False)
+        self.wv.toggled.connect(self.wv_datum.setEnabled)
+        hinzu = knopf("Hinzufügen", "ghost", "plus")
+        hinzu.clicked.connect(self._notiz_hinzu)
+        zeile.addWidget(self.wv)
+        zeile.addWidget(self.wv_datum)
+        zeile.addStretch()
+        zeile.addWidget(hinzu)
+        v.addLayout(zeile)
+        self._notizen_zeigen()
+
+    def _notizen_zeigen(self) -> None:
+        leeren(self._notiz_liste)
+        sichtbar = [n for n in self._notizen if n.id not in self._notizen_weg]
+        if not sichtbar:
+            self._notiz_liste.addWidget(label("Noch keine Notizen.", "klein"))
+        heute = date.today()
+        for n in sichtbar:
+            zeile = QHBoxLayout()
+            text = label(f"<span style='color:{theme.T.text_3}'>{n.erstellt:%d.%m.%Y}</span> &nbsp;"
+                         + n.text.replace("<", "&lt;"), umbruch=True)
+            text.setTextFormat(Qt.RichText)
+            zeile.addWidget(text, 1)
+            if n.wiedervorlage:
+                zeile.addWidget(Pille(f"WV {n.wiedervorlage:%d.%m.%Y}", "knapp" if n.wiedervorlage <= heute else "neutral"),
+                                0, Qt.AlignTop)
+            weg = knopf("", "ghost", "loeschen", "Notiz löschen")
+            weg.clicked.connect(lambda _=False, n=n: self._notiz_weg(n))
+            zeile.addWidget(weg, 0, Qt.AlignTop)
+            self._notiz_liste.addLayout(zeile)
+
+    def _notiz_hinzu(self) -> None:
+        text = self.notiz_text.text().strip()
+        if not text:
+            return
+        wv = self.wv_datum.datum() if self.wv.isChecked() else None
+        self._notizen.insert(0, termine.Notiz(self.person.schluessel, self.person.name, text, date.today(), wv))
+        self.notiz_text.clear()
+        self.wv.setChecked(False)
+        self._notizen_zeigen()
+
+    def _notiz_weg(self, n: termine.Notiz) -> None:
+        if n.id:
+            self._notizen_weg.add(n.id)
+        else:
+            self._notizen.remove(n)
+        self._notizen_zeigen()
+
+    def _nebenbei_speichern(self) -> None:
+        """Zimmer und Notizen sofort speichern (unter dem bisherigen Schlüssel – ``person_umbenannt`` zieht nach)."""
+        from .. import zimmerplan as zp
+
+        if self.notiz_text.text().strip() if hasattr(self, "notiz_text") else False:
+            self._notiz_hinzu()                      # nicht vergessen, wenn nur getippt und gleich gespeichert
+        for nid in self._notizen_weg:
+            termine.notiz_loeschen(nid)
+        for n in self._notizen:
+            if not n.id:
+                termine.notiz_speichern(n)
+        neu = self._zimmer_neu()
+        if neu is not None:
+            zp.zuweisung_setzen(self._stand, self.person.schluessel, neu, "Person öffnen")
+            self.zimmer_geaendert = neu
 
     def _aktualisieren(self, *_):
         offen = self.offen.isChecked()
@@ -789,6 +931,9 @@ class PersonDialog(QDialog):
             zp.angabe_setzen(p.schluessel, gruppe=self.gruppe.currentData())
         if p.gruppe != "EMR" and self.gruppe.currentData() == "EMR":
             p.gruppe = "EMR"
+        self.zimmer_geaendert = None
+        if not self.neu:
+            self._nebenbei_speichern()
         self.ergebnis = p
         self.accept()
 

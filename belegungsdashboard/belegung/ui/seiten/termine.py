@@ -259,7 +259,7 @@ class TermineSeite(Seite):
         text = label(f"<b>{t.titel}</b>" + (f"<br>{t.text.replace(chr(10), '<br>')}" if t.text else ""), umbruch=True)
         text.setTextFormat(Qt.RichText)
         h.addWidget(text, 1)
-        if t.art == "eigen" or (t.art in ("notiz", "abreise") and t.person):
+        if t.art == "eigen" or (t.art in ("notiz", "abreise", "wiedervorlage") and t.person):
             o = knopf("Öffnen", "ghost")
             o.setToolTip("Eigenen Termin bearbeiten bzw. die Person (Notiz, Abreise) öffnen")
             o.clicked.connect(lambda _=False, t=t: self._oeffnen(t))
@@ -349,7 +349,7 @@ class TermineSeite(Seite):
         t = self._gewaehlt()
         self.b_erledigt.setEnabled(t is not None and t.erinnern_am is not None)
         self.b_erledigt.setText("Wieder offen" if t is not None and t.erledigt else "Erledigt")
-        self.b_bearbeiten.setEnabled(t is not None and t.art in ("eigen", "notiz", "abreise"))
+        self.b_bearbeiten.setEnabled(t is not None and t.art in ("eigen", "notiz", "abreise", "wiedervorlage"))
         self.b_bearbeiten.setToolTip("Eigene Termine ändern, bei Notizen/Abreisen die Person öffnen")
 
     # ---- Kalender ---------------------------------------------------------------------------
@@ -395,7 +395,7 @@ class TermineSeite(Seite):
     def _oeffnen(self, t: tm.Termin) -> None:
         if t.art == "eigen":
             self._eigener(t)
-        elif t.art in ("notiz", "abreise"):
+        elif t.art in ("notiz", "abreise", "wiedervorlage"):
             self._person_oeffnen(t.person)
 
     # ================================================================== Aktionen
@@ -435,6 +435,8 @@ class TermineSeite(Seite):
         else:
             anreiseliste.person_speichern(neu, p.schluessel)
             zp.person_umbenannt(p.schluessel, neu.schluessel)
+            if dialog.zimmer_geaendert is not None and not meldung:
+                meldung = (f"Gespeichert – Zimmer: {dialog.zimmer_geaendert.removeprefix('GS-') or 'Planung entfernt'}.", "ok")
             self.z.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
         self.z.listen_geaendert.emit()
         self.z.termine_geaendert.emit()

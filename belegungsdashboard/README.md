@@ -319,6 +319,16 @@ Oben in der Seitenleiste „Name oder Zimmer …“ (Strg+F):
   gesperrte Zimmer.
 „Zimmer anzeigen“ springt zum Zimmer, „Person öffnen“ zu Abreise, Erinnerung und Notiz.
 
+**Person öffnen** (aus der Suche, aus Termine oder Daten → Anreisen):
+* **Zimmer direkt ändern:** oben die Zimmerauswahl wie beim Zuteilen – zulässige Zimmer, unter dem Strich
+  Ausnahmen mit kurzem Grund, „– kein Zimmer –“ nimmt die Planung zurück. „Speichern“ übernimmt sofort
+  (Änderungsprotokoll, Aufgaben → Eintragen). Steht die Person schon im Gebäudeplan, zeigt der Dialog das
+  gebuchte Zimmer – ein Umzug gehört dann ins Belegungssystem.
+* **Notizen mit Wiedervorlage:** beliebig viele Notizen je Person (mit Datum); mit „Wiedervorlage am“
+  erscheint die Notiz an diesem Tag als Erinnerung im Terminkalender (Seite Termine, Windows-Benachrichtigung,
+  „Erledigt“ zum Abhaken; „Öffnen“ führt zurück zur Person). Die Suche zeigt Notizen und nächste
+  Wiedervorlage in der Spalte „Notiz“.
+
 ### Termine und Erinnerungen (neu)
 
 Eigene Seite **Termine** – ein Terminkalender im Dashboard, der **ohne Outlook** funktioniert.

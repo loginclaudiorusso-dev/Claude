@@ -1000,7 +1000,7 @@ def zuweisungen_entfernen(personen: set[str], quelle: str = "Zuteilen") -> None:
 
 
 def person_geloescht(schluessel: str) -> None:
-    """Person wurde gelöscht – ihre Zimmerzuweisung gleich mit entfernen."""
+    """Person wurde gelöscht – ihre Zimmerzuweisung gleich mit entfernen (Notizen bleiben stehen)."""
     zuweisungen_entfernen({schluessel}, "Person gelöscht")
 
 
@@ -1008,6 +1008,9 @@ def person_umbenannt(alt: str | None, neu: str) -> None:
     """Schlüssel der Person hat sich geändert (z. B. TN-ID nachgetragen) – Zuweisung mitnehmen."""
     if not alt or alt == neu:
         return
+    from . import termine
+
+    termine.notizen_umbenennen(alt, neu)
     alle = zuweisungen_laden()
     if not any(z["person"] == alt for z in alle):
         return
@@ -1063,6 +1066,44 @@ def uwt_auto_sperren(personen: set[str]) -> None:
     """Diese Personen nicht wieder automatisch zuteilen (z. B. nachdem ihre Planung zurückgenommen wurde)."""
     roh = speicher.lesen(UWT_AUTO, {})
     speicher.schreiben(UWT_AUTO, {"personen": sorted(set(roh.get("personen", [])) | {p for p in personen if p.startswith("uwt:")})})
+
+
+@dataclass
+class ZimmerWahl:
+    """Was „Person öffnen“ zum Zimmer zeigt: aktuelle Planung, Buchung im Gebäudeplan und die Auswahl."""
+    bedarf: Bedarf
+    geplant: str = ""                        # gespeicherte Zuweisung (Zimmer-ID)
+    gebucht: str = ""                        # laut Gebäudeplan gebucht – dort gilt die Buchung
+    alternativen: list[Zimmer] = field(default_factory=list)
+    ausnahmen: list[tuple[Zimmer, str]] = field(default_factory=list)   # (Zimmer, kurzer Grund)
+
+
+def zimmer_wahl(stand: "Planstand", person: str) -> ZimmerWahl | None:
+    """Zimmer-Auswahl für eine Person (None = keine Internats-Person im Zimmerplan)."""
+    b = next((x for x in stand.bedarf if x.schluessel == person), None)
+    if b is None:
+        return None
+    zw = stand.zugewiesen(person) or {}
+    w = ZimmerWahl(b, zw.get("zimmer", ""))
+    if w.geplant and not any(x.person == person and x.art == "geplant" for x in stand.lage.belegungen.get(w.geplant, [])):
+        anders = next((a for a in stand.lage.abgleich if a.person == person and a.art == "anders"), None)
+        w.gebucht = anders.gebucht if anders else w.geplant
+        return w
+    zt = vorschlagen(stand.lage, [b], {person: w.geplant} if w.geplant else None)[0]
+    w.alternativen = zt.alternativen
+    w.ausnahmen = [(z, ausnahme_grund(stand.lage, z, b)) for z in zt.ausnahmen]
+    return w
+
+
+def zuweisung_setzen(stand: "Planstand", person: str, zimmer: str, quelle: str = "Person") -> None:
+    """Zimmer einer Person von Hand setzen ("" = Planung entfernen)."""
+    b = next(x for x in stand.bedarf if x.schluessel == person)
+    if not zimmer:
+        zuweisungen_entfernen({person}, quelle)
+        if b.gruppe == "UWT":
+            uwt_auto_sperren({person})
+        return
+    zuweisungen_speichern([Zuteilung(b, stand.lage.zimmer[zimmer], "von Hand")], quelle)
 
 
 def planung_zuruecknehmen(personen: set[str]) -> int:

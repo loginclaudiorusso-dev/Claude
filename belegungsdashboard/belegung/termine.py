@@ -8,6 +8,7 @@ Termine entstehen automatisch aus den Daten oder werden von Hand angelegt:
 * ``abreise`` – Abreise-Erinnerung einer Person (Daten → Anreisen, „Erinnern“).
 * ``anreise`` / ``uwt`` – Anreisen und UWT-Blöcke als Kalendereintrag, ohne Erinnerung.
 * ``eigen``   – eigene Termine mit Erinnerung X Tage vorher.
+* ``wiedervorlage`` – Notiz an einer Person (Suche → Person öffnen) mit Wiedervorlage-Datum.
 
 Fällige Erinnerungen meldet das Dashboard beim Start, alle 15 Minuten im Infobereich
 (Windows-Benachrichtigung) und auf der Seite „Termine“ – jeden Tag erneut, bis sie
@@ -24,7 +25,8 @@ from datetime import date, timedelta
 from . import anreiseliste, speicher
 
 DATEI = "termine.json"
-ARTEN = {"notiz": "Notiz zur Anreise", "abreise": "Abreise", "anreise": "Anreise", "uwt": "UWT", "eigen": "Eigener Termin"}
+ARTEN = {"notiz": "Notiz zur Anreise", "abreise": "Abreise", "anreise": "Anreise", "uwt": "UWT", "eigen": "Eigener Termin",
+         "wiedervorlage": "Wiedervorlage"}
 NOTIZ_TAGE = 3          # Standard-Vorlauf für Notizen zur Anreise
 ABREISE_TAGE_EMR = 1    # Abreisen: Erinnerung je Tag gesammelt, EMR einen Tag vorher …
 ABREISE_TAGE = 2        # … alle anderen (inkl. UWT-Blöcke) zwei Tage vorher; -1 = keine Erinnerung
@@ -58,6 +60,7 @@ def _roh() -> dict:
     roh.setdefault("eigene", [])
     roh.setdefault("erledigt", [])
     roh.setdefault("gemeldet", {})
+    roh.setdefault("notizen", [])
     return roh
 
 
@@ -103,6 +106,79 @@ def eigenen_loeschen(tid: str) -> None:
     roh["eigene"] = [d for d in roh["eigene"] if d["id"] != tid]
     roh["erledigt"] = [i for i in roh["erledigt"] if i != tid]
     speicher.schreiben(DATEI, roh)
+
+
+# ---------------------------------------------------------------------------------------
+# Notizen an Personen (mit Wiedervorlage)
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class Notiz:
+    person: str
+    name: str
+    text: str
+    erstellt: date
+    wiedervorlage: date | None = None
+    id: str = ""
+
+    @property
+    def termin_id(self) -> str:
+        return f"wv:{self.id}"
+
+
+def notizen(person: str | None = None) -> list[Notiz]:
+    """Notizen (einer Person), neueste zuerst."""
+    ergebnis = []
+    for d in _roh()["notizen"]:
+        if person is not None and d.get("person") != person:
+            continue
+        wv = d.get("wiedervorlage")
+        ergebnis.append(Notiz(d["person"], d.get("name", ""), d.get("text", ""), date.fromisoformat(d["erstellt"]),
+                              date.fromisoformat(wv) if wv else None, d["id"]))
+    return sorted(ergebnis, key=lambda n: (n.erstellt, n.id), reverse=True)
+
+
+def notiz_speichern(n: Notiz) -> Notiz:
+    """Neu oder geändert; eine geänderte Wiedervorlage erinnert erneut."""
+    roh = _roh()
+    if not n.id:
+        n.id = uuid.uuid4().hex[:10]
+    alt = next((d for d in roh["notizen"] if d["id"] == n.id), None)
+    if alt is not None and alt.get("wiedervorlage") != (n.wiedervorlage.isoformat() if n.wiedervorlage else None):
+        roh["erledigt"] = [i for i in roh["erledigt"] if i != n.termin_id]
+        roh["gemeldet"].pop(n.termin_id, None)
+    roh["notizen"] = [d for d in roh["notizen"] if d["id"] != n.id] + [
+        {"id": n.id, "person": n.person, "name": n.name, "text": n.text, "erstellt": n.erstellt.isoformat(),
+         "wiedervorlage": n.wiedervorlage.isoformat() if n.wiedervorlage else None}]
+    speicher.schreiben(DATEI, roh)
+    return n
+
+
+def notiz_loeschen(nid: str) -> None:
+    roh = _roh()
+    roh["notizen"] = [d for d in roh["notizen"] if d["id"] != nid]
+    roh["erledigt"] = [i for i in roh["erledigt"] if i != f"wv:{nid}"]
+    speicher.schreiben(DATEI, roh)
+
+
+def notizen_umbenennen(alt: str, neu: str, name: str | None = None) -> None:
+    """Schlüssel der Person hat sich geändert (z. B. TN-ID nachgetragen) – Notizen mitnehmen."""
+    roh = _roh()
+    if not any(d.get("person") == alt for d in roh["notizen"]):
+        return
+    for d in roh["notizen"]:
+        if d.get("person") == alt:
+            d["person"] = neu
+            if name:
+                d["name"] = name
+    speicher.schreiben(DATEI, roh)
+
+
+def aus_notizen(erledigt: set[str] | None = None) -> list[Termin]:
+    erledigt = erledigt or set()
+    return [Termin(n.termin_id, n.wiedervorlage, f"{n.name}: {n.text}" if n.name else n.text,
+                   f"Notiz vom {n.erstellt:%d.%m.%Y}", "wiedervorlage", n.wiedervorlage, n.termin_id in erledigt, n.person)
+            for n in notizen() if n.wiedervorlage is not None]
 
 
 def erledigt_setzen(t: Termin, erledigt: bool = True) -> None:
@@ -216,7 +292,7 @@ def alle(personen: list[anreiseliste.Person] | None = None, bloecke: list[dict] 
         notiz_tage = e["notiz_tage"]
     erledigt = set(_roh()["erledigt"])
     termine = (aus_personen(personen, notiz_tage, erledigt, (e["abreise_tage_emr"], e["abreise_tage"]))
-               + aus_uwt(bloecke, e["abreise_tage"], erledigt) + eigene())
+               + aus_uwt(bloecke, e["abreise_tage"], erledigt) + eigene() + aus_notizen(erledigt))
     return sorted(termine, key=lambda t: (t.datum, list(ARTEN).index(t.art), t.titel))
 
 

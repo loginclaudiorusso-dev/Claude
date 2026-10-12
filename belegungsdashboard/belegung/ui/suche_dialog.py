@@ -7,7 +7,7 @@ from datetime import date
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLineEdit, QVBoxLayout
 
-from .. import suche
+from .. import suche, termine
 from .. import zimmerplan as zp
 from .widgets import Tabelle, knopf, label
 
@@ -58,7 +58,15 @@ class SuchDialog(QDialog):
         heute = date.today()
         self.treffer = suche.suchen(self.feld.text(), self.stand)
         zeilen = []
+        notizen: dict[str, list[termine.Notiz]] = {}
+        for n in termine.notizen():
+            notizen.setdefault(n.person, []).append(n)
         for t in self.treffer:
+            ns = notizen.get(t.person, []) if t.person else []
+            if ns:
+                wv = min((n.wiedervorlage for n in ns if n.wiedervorlage and n.wiedervorlage >= heute), default=None)
+                t.notiz = " · ".join(x for x in (t.notiz, f"{len(ns)} Notiz{'en' if len(ns) > 1 else ''}"
+                                                 + (f" (WV {wv:%d.%m.})" if wv else ""), ns[0].text) if x)
             zeit = f"{t.von:%d.%m.%Y} – " + (f"{t.bis:%d.%m.%Y}" if t.bis else "offen")
             zeilen.append([t.name, t.massnahme or zp.GRUPPE_LABEL.get(t.gruppe, t.gruppe), t.zimmer_text, zeit,
                            t.status(heute), t.quelle, t.notiz])

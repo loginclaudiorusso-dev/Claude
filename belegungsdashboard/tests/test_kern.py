@@ -1755,3 +1755,44 @@ def test_tier_zuerst_untergeschoss():
     for gruppe in ("RVL", "EMR", "ASS"):
         zt = zp.vorschlagen(lage, [_bedarf("Hund", gruppe, v, v + timedelta(days=20), tier=True)])[0]
         assert zt.zimmer.id == "GS-3.1-U05", gruppe
+
+
+def test_notizen_mit_wiedervorlage(tmp_path, monkeypatch):
+    from belegung import termine as tm
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    n = tm.notiz_speichern(tm.Notiz("p:1", "Kolmer, Anna", "Kostenzusage nachfragen", date(2026, 10, 12), date(2026, 10, 15)))
+    tm.notiz_speichern(tm.Notiz("p:1", "Kolmer, Anna", "nur Notiz", date(2026, 10, 12)))
+    assert len(tm.notizen("p:1")) == 2 and tm.notizen("p:2") == []
+    wv = tm.aus_notizen()
+    assert [(t.art, t.datum, t.erinnern_am, t.person) for t in wv] == [("wiedervorlage", date(2026, 10, 15), date(2026, 10, 15), "p:1")]
+    assert wv[0].faellig(date(2026, 10, 15)) and not wv[0].faellig(date(2026, 10, 14))
+    tm.erledigt_setzen(wv[0])
+    assert tm.aus_notizen(set(tm._roh()["erledigt"]))[0].erledigt
+    n.wiedervorlage = date(2026, 10, 20)               # neue Wiedervorlage erinnert erneut
+    tm.notiz_speichern(n)
+    assert not tm.aus_notizen(set(tm._roh()["erledigt"]))[0].erledigt
+    zp.person_umbenannt("p:1", "p:neu")                # TN-ID nachgetragen: Notizen ziehen mit
+    assert len(tm.notizen("p:neu")) == 2
+    tm.notiz_loeschen(n.id)
+    assert [x.text for x in tm.notizen("p:neu")] == ["nur Notiz"] and tm.aus_notizen() == []
+
+
+def test_zimmer_wahl_und_setzen(tmp_path, monkeypatch, plan):
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    v = date(2026, 10, 12)
+    b = _bedarf("Neu", "RVL", v, v + timedelta(days=90))
+    lage = _lage(plan)
+    stand = zp.Planstand(plan, {}, zp.standard_zimmer(plan.zimmer), lage, [], [b])
+    w = zp.zimmer_wahl(stand, b.schluessel)
+    assert w.geplant == "" and w.alternativen and all(zp.passt(lage, z, b) is None for z in w.alternativen)
+    assert all(not zp.nur_doppel(z, "RVL") for z, _g in w.ausnahmen)
+    ziel = w.alternativen[0].id
+    zp.zuweisung_setzen(stand, b.schluessel, ziel)
+    assert [z["zimmer"] for z in zp.zuweisungen_laden()] == [ziel]
+    zp.zuweisung_setzen(stand, b.schluessel, "")
+    assert zp.zuweisungen_laden() == []
+    assert zp.zimmer_wahl(stand, "p:gibtsnicht") is None

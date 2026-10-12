@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v5.16.0, 11.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v5.17.0, 12.10.2026)
 
 ## Als Nächstes
 

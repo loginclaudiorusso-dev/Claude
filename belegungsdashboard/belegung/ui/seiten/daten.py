@@ -384,9 +384,12 @@ class DatenSeite(Seite):
         else:
             anreiseliste.person_speichern(neu, person.schluessel if person else None)
             zp.person_umbenannt(person.schluessel if person else None, neu.schluessel)
+            if dialog.zimmer_geaendert is not None and not meldung:
+                meldung = (f"Gespeichert – Zimmer: {dialog.zimmer_geaendert.removeprefix('GS-') or 'Planung entfernt'}.", "ok")
             self.z.meldung.emit(*(meldung or ("Gespeichert.", "ok")))
         self._anreisen_anzeigen()
         self.z.listen_geaendert.emit()
+        self.z.termine_geaendert.emit()
 
     def _wochen_speichern(self) -> None:
         wert = self.anr_wochen.value()
