@@ -1,4 +1,4 @@
-# Belegungsdashboard 6.0
+# Belegungsdashboard 6.1
 
 Desktop-Dashboard für die Internatsbelegung der INN-tegrativ gGmbH (Bad Pyrmont, Goslar,
 Weser-Ems): Lage heute, Verlauf, Prognose mit ehrlicher Unsicherheit, Listen-Import und ein
@@ -26,6 +26,28 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 (`kapazitaeten_manuell.json`, `manuelle_eintraege.json`, `pivot_profile.json` werden
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
+
+## Neu in 6.1
+
+Rückweg zu 6.0.0 oder 5.17.0: siehe **ROLLBACK.md**.
+
+* **Startseite „Mein Dashboard“** (erster Eintrag in der Seitenleiste): Kacheln mit dem, was heute zu tun ist –
+  Zimmer heute, Jetzt erinnern (mit „Erledigt“), Anreisen der nächsten 7 Tage (Klick → Zuteilen), Abreisen,
+  Reinigung, Im Belegungssystem eintragen, Engpässe, Facility-Check, Neueste Notizen, Belegung je Standort,
+  Schnellzugriff. **„Anpassen“** oben rechts: Kacheln an „⠿ ziehen“ auf eine andere Kachel ziehen
+  (wird davor eingesetzt), „Breiter/Schmaler“, × entfernt, „Kachel hinzufügen“, „Standard“. Wird gespeichert.
+* **Tabs** (Leiste ganz oben, wie im Browser): Jeder Tab merkt sich seine Ansicht – Seite und Unterreiter,
+  im Zimmerplan auch Haus, Suche und Monat des Zeitstrahls. Seitenleiste wechselt die Seite im aktuellen Tab;
+  **Strg+Klick**, mittlere Maustaste oder Rechtsklick → „In neuem Tab öffnen“; „+“ dupliziert die Ansicht
+  oder öffnet eine Seite; Strg+T neu, Strg+W schließen, Strg+Tab wechseln; Tabs lassen sich verschieben
+  und sind beim nächsten Start wieder da.
+* **Kalender:** Die Datumsauswahl ist neu gebaut – vorher zeigten die Tage „…“ (die Kalenderzellen erbten die
+  Tabellen-Abstände). Heute umrandet, Auswahl gefüllt, Monat per Pfeil, Mausrad oder Bild-Tasten, „Heute“.
+* **Minimiert sparsam:** Solange das Dashboard minimiert oder im Infobereich ist, wird nichts neu berechnet oder
+  gezeichnet (vorher bei jeder Änderung alles); beim Zurückholen genau einmal. Beim Minimieren werden
+  Zwischenspeicher geleert und unter Windows ungenutzter Arbeitsspeicher abgegeben. Erinnerungen kommen weiter.
+* **Schmale Fenster:** Bei 1000 px Breite keine waagerechte Bildlaufleiste mehr auf allen Seiten
+  (Seitenuntertitel kürzt mit „…“, Zeitraum- und Filterzeilen brechen um).
 
 ## Neu in 6.0 (Oberfläche überarbeitet)
 

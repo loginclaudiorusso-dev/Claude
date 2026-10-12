@@ -1,11 +1,11 @@
-# Offene Punkte und Arbeitsweise (Stand v6.0.0, 12.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.1.0, 12.10.2026)
 
 ## Als Nächstes
 
-- Erledigt in 6.0: mehrere Ansichten (Zimmerplan-Reiter als eigenes Fenster, Zimmerkarten nebeneinander),
-  Zimmer-/Personenkarte, Datensicherung. Rückweg: ROLLBACK.md (Branch `backup/v5.17.0-vor-ui-overhaul`).
-- Möglich als Nächstes: weitere Seiten (Termine, Inventar) als eigenes Fenster; Überlauf der Seiten Übersicht/
-  Belegung/Prognose/Daten bei 1000 px ohne geladene Pivot-Daten prüfen (bestand schon in 5.17.0).
+- Erledigt in 6.0/6.1: Zimmer-/Personenkarte, mehrere Fenster, Datensicherung, Tabs, Startseite mit Kacheln,
+  neuer Kalender, minimiert sparsam, kein Überlauf bei 1000 px. Rückweg: ROLLBACK.md.
+- Offen: Nutzer-Satz „außerdem wäre es gut wenn man.“ (12.10.) war unvollständig – nachfragen.
+- Möglich als Nächstes: optisches Redesign (Farben/Schrift/Abstände) – vorher Varianten als Bild zeigen.
 - Weitere Punkte sammelt der Nutzer übers Wochenende – zusammen als nächstes Update einspielen.
 - Noch offen von früher: UWT-Zimmervorschlags-Maske wie im anderen System (Screenshots folgen vom Nutzer).
 - Zu klären (siehe v5.3.0): CUW24 DZ-Nr. 1 mit drei Personen; Einzelzimmer-Wünsche trotz DZ-Liste
