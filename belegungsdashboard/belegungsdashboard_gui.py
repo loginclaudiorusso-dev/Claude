@@ -137,6 +137,13 @@ def main() -> int:
     hintergrund = "--hintergrund" in sys.argv[1:]
     if not os.environ.get("BELEGUNG_SELFTEST") and _schon_offen(hintergrund):
         return 0
+    try:                                        # Arbeitsdaten sichern, bevor irgendetwas geschrieben wird
+        from belegung import datensicherung
+
+        if (neu := datensicherung.beim_start()) is not None:
+            logging.getLogger(__name__).info("Datensicherung: %s", neu.pfad)
+    except OSError as exc:
+        logging.getLogger(__name__).warning("Datensicherung beim Start fehlgeschlagen: %s", exc)
     _kanal_umstellen()
     app.setFont(theme.schrift())
     icon_pfad = programmordner() / "assets" / "icon.ico"

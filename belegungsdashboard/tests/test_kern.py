@@ -1796,3 +1796,32 @@ def test_zimmer_wahl_und_setzen(tmp_path, monkeypatch, plan):
     zp.zuweisung_setzen(stand, b.schluessel, "")
     assert zp.zuweisungen_laden() == []
     assert zp.zimmer_wahl(stand, "p:gibtsnicht") is None
+
+
+def test_datensicherung(tmp_path, monkeypatch):
+    """Sicherung beim Start (täglich und bei neuer Version), Wiederherstellen sichert vorher, alte werden entfernt."""
+    import json
+    from datetime import datetime
+
+    from belegung import datensicherung as ds
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert ds.beim_start() is None                      # noch keine Daten
+    (tmp_path / "importe").mkdir()
+    (tmp_path / "zimmer_zuweisungen.json").write_text(json.dumps({"zuweisungen": [1]}), encoding="utf-8")
+    (tmp_path / "importe" / "anreisen.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "Gebaeudeplan").mkdir()
+    (tmp_path / "Gebaeudeplan" / "plan.docx").write_bytes(b"x")
+    s = ds.beim_start(jetzt=datetime(2026, 10, 12, 8, 0))
+    assert s is not None and s.dateien == 2 and s.anlass == "Start"
+    assert (s.pfad / "importe" / "anreisen.json").exists() and not (s.pfad / "Gebaeudeplan").exists()
+    assert ds.beim_start(jetzt=datetime(2026, 10, 12, 9, 0)) is None          # heute schon gesichert
+    monkeypatch.setattr(ds, "__version__", "99.0.0")
+    assert ds.beim_start(jetzt=datetime(2026, 10, 12, 10, 0)).anlass == "vor Update"
+    (tmp_path / "zimmer_zuweisungen.json").write_text(json.dumps({"zuweisungen": []}), encoding="utf-8")
+    vorher = ds.wiederherstellen(s)
+    assert json.loads((tmp_path / "zimmer_zuweisungen.json").read_text())["zuweisungen"] == [1]
+    assert json.loads((vorher.pfad / "zimmer_zuweisungen.json").read_text())["zuweisungen"] == []
+    for i in range(ds.BEHALTEN + 5):
+        ds.sichern("test", jetzt=datetime(2026, 11, 1, 0, 0, i))
+    assert len(ds.liste()) == ds.BEHALTEN

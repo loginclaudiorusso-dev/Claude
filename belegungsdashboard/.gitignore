@@ -26,3 +26,6 @@ inventar.json
 reinigung_erledigt.json
 # Vorlage mit erfundenen Beispielen darf rein
 !Vorlagen/*.xlsx
+# Arbeitsdaten und automatische Datensicherungen – enthalten echte Namen, nie versionieren
+/*.json
+Sicherungen/
