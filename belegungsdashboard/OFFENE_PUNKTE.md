@@ -6,6 +6,15 @@
   neuer Kalender, minimiert sparsam, kein Überlauf bei 1000 px. Rückweg: ROLLBACK.md.
 - Offen: Nutzer-Satz „außerdem wäre es gut wenn man.“ (12.10.) war unvollständig – nachfragen.
 - 6.2: Design wählbar (Klassisch/Modern/Kompakt/Warm), Name änderbar. Nutzer wählt sein Design – ggf. nachjustieren.
+- **Für den nächsten Start (Wunsch vom 12.10. abends):**
+  1. Startseite: Titel „Start“ und Untertitel „Mein Dashboard – selbst zusammengestellt“ selbst anpassen können
+     (z. B. im Anpassen-Modus der Startseite; Speicherung wie `anzeige_name`).
+  2. Anmeldungen per Mail übernehmen: Mails (z. B. .msg/.eml oder eingefügter Text) einlesen, Personen und
+     Zeitraum erkennen, Zimmer automatisch reservieren (Vorschlag + Bestätigung, wie Zuteilen). Klären:
+     Mail-Format/Absender, Pflichtfelder, ob Outlook-Ordner direkt gelesen werden soll.
+  3. Kalenderwochen überall mit genauen Daten zeigen (z. B. „KW 42 · 12.10.–18.10.“), u. a. Kachel Engpässe.
+  4. Engpässe klarer definieren und erklären: was „frei“, „EMR“, „Doppel“ bedeuten, ab wann knapp/kritisch
+     (Grenzen in `eintragen.GRENZEN`) – mit dem Nutzer festlegen und in der Kachel sichtbar erklären.
 - Weitere Punkte sammelt der Nutzer übers Wochenende – zusammen als nächstes Update einspielen.
 - Noch offen von früher: UWT-Zimmervorschlags-Maske wie im anderen System (Screenshots folgen vom Nutzer).
 - Zu klären (siehe v5.3.0): CUW24 DZ-Nr. 1 mit drei Personen; Einzelzimmer-Wünsche trotz DZ-Liste
