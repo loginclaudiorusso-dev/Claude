@@ -1,4 +1,4 @@
-# Belegungsdashboard 6.2
+# Belegungsdashboard 6.3
 
 Desktop-Dashboard für die Internatsbelegung der INN-tegrativ gGmbH (Bad Pyrmont, Goslar,
 Weser-Ems): Lage heute, Verlauf, Prognose mit ehrlicher Unsicherheit, Listen-Import und ein
@@ -26,6 +26,33 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 (`kapazitaeten_manuell.json`, `manuelle_eintraege.json`, `pivot_profile.json` werden
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
+
+## Neu in 6.3
+
+* **Posteingang** (Seitenleiste): Mails zu **Gästehaus-Reservierungen, Anmeldungen, Stornos, Abbrüchen und
+  Hinweisen** einfügen (in Outlook Strg+A, Strg+C – hier Strg+V), als .eml hineinziehen oder mit „Aus Outlook“
+  die markierten Mails holen. Das Programm erkennt Art, Name, TN-Nr., Zeitraum („14. – 15.10.“, „27.01. bis
+  29.01.2027 (2 ÜN)“, „letzter Tag …“, „Ende: …“), Abbruchgrund und Wiederaufnahme – Grußformel und
+  Unterschrift werden ignoriert. Es sucht die Person (TN-Nr. vor Name) und schlägt Schritte vor:
+  * Gästehaus/Anmeldung: Person anlegen und **Zimmer reservieren** (Gäste → Gästezimmer; Zimmer änderbar),
+    Wiedervorlagen „Bestätigung senden“ und „Kostenübernahme eingegangen?“.
+  * Storno: Planung entfernen (Zimmer wird frei), Person entfernen bzw. „ohne Internat“; steht die Buchung im
+    Belegungssystem, eine Aufgabe dafür.
+  * Abbruch: Abreise auf den letzten Tag setzen, Notiz (Grund, Wiederaufnahme, Zimmer geräumt) und **Prüfliste**
+    (Belegungssystem geändert, Zimmer abgenommen, Schlüssel zurück, Endreinigung) – bleibt „zu prüfen“, bis alles
+    abgehakt ist.
+  * Hinweis: Notiz an der Person, mit Wiedervorlage zwei Tage vor der Anreise.
+  Nichts passiert ohne „Umsetzen“; alles ist vorher änderbar. Abgelegte Mails stehen unter „Eingänge“,
+  die Seitenleiste zeigt, wie viele offen sind. Die Mails liegen nur lokal (`importe/posteingang.json`).
+* **Belegung optimieren** (Zimmerplan → „Optimieren“ oder Kachel auf der Startseite): prüft alle Belegungen wie
+  beim Zuteilen und schlägt mit Begründung vor: **Regelverstöße** (z. B. lange Maßnahme auf Haus 2, 1. OG,
+  Reha in Haus 6) mit freiem Ersatz, **bessere Zimmer** und **Tausche** für geplante Personen. Buchungen aus dem
+  Belegungssystem bucht das Programm nicht selbst um, sondern legt eine Aufgabe an. DZ-Paare und UWT-Klassen
+  bleiben zusammen; schon eingetragene Buchungen werden nur bei großem Gewinn und nicht vorausgewählt vorgeschlagen.
+* **Startseite:** Titel und Untertitel im Anpassen-Modus änderbar; neue Kacheln „Posteingang“ und
+  „Belegung optimieren“.
+* **Engpässe** klar definiert: Erklärung in Kachel und Aufgaben, jede Zahl einzeln eingefärbt, Kalenderwochen
+  mit Datum („KW 42 · 12.10.–18.10.“), Grenzen für knapp/kritisch unter Aufgaben → Engpässe → „Grenzen …“.
 
 ## Neu in 6.2
 
