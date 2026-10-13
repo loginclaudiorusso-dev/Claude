@@ -1627,7 +1627,7 @@ def test_zeitstrahl_ziehen():
     w.show()
     w.grab()                                            # einmal zeichnen → Trefferflächen
     gezogen, geklickt = [], []
-    w.verschieben.connect(lambda *a: gezogen.append(a))
+    w.gezogen.connect(lambda bel, nach, tag: gezogen.append((bel.person, bel.zimmer, nach, tag)))
     w.zimmer_geklickt.connect(geklickt.append)
     balken = next(r for r, obj in w._treffer if isinstance(obj, tuple))
     start = balken.center()
@@ -1640,11 +1640,20 @@ def test_zeitstrahl_ziehen():
     maus(QEvent.MouseButtonPress, start)
     maus(QEvent.MouseMove, QPointF(start.x(), zeile2))
     maus(QEvent.MouseButtonRelease, QPointF(start.x(), zeile2))
-    assert gezogen == [("p:1", zs[0].id, zs[1].id)] and geklickt == []
+    assert [g[:3] for g in gezogen] == [("p:1", zs[0].id, zs[1].id)] and geklickt == []
+    assert date(2026, 10, 15) <= gezogen[0][3] <= date(2026, 11, 5)                  # Tag unter dem Mauszeiger
     # nur geklickt (nicht gezogen) → Zimmerdetails wie bisher
     maus(QEvent.MouseButtonPress, start)
     maus(QEvent.MouseButtonRelease, start)
     assert geklickt == [zs[0].id] and len(gezogen) == 1
+    # Gebäudeplan-Bewohner lässt sich jetzt auch ziehen (→ Umzug); geplant + noch nicht angereist → ganz verschieben
+    from belegung.ui.zeitstrahl import ganz_verschieben, ziehbar_balken
+
+    gp = zp.Belegung(zs[0].id, date(2026, 9, 1), b, "belegt", "Alt, A", "GS RVT")
+    assert ziehbar_balken(gp) and not ganz_verschieben(gp, date(2026, 10, 13))
+    assert ganz_verschieben(lage.belegungen[zs[0].id][0], date(2026, 10, 13))
+    assert not ganz_verschieben(lage.belegungen[zs[0].id][0], date(2026, 10, 20))     # schon angereist → Umzug
+    assert not ziehbar_balken(zp.Belegung(zs[0].id, v, b, "gesperrt", grund="Renoviert"))
 
 
 def test_facility_check_nach_langem_aufenthalt(tmp_path, monkeypatch):
@@ -2023,3 +2032,92 @@ def test_optimierung(tmp_path, monkeypatch):
     assert (n, aufgaben) == (2, 0)
     neu = {z["person"]: z["zimmer"] for z in zp.zuweisungen_laden()}
     assert neu[rvl.schluessel] == "GS-3.1-201" and neu[lang.schluessel] != "GS-2-115"
+
+
+def test_umzug_eingezogen(tmp_path, monkeypatch):
+    """Wer schon im Gebäudeplan wohnt, zieht ab einem Tag um: altes Zimmer endet am Umzugstag, neues ist geplant,
+    steht unter Eintragen; erledigt, sobald der Gebäudeplan die Person im neuen Zimmer zeigt."""
+    from belegung import eintragen
+    from dataclasses import replace
+
+    from belegung import umzug as um
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung, Gebaeudeplan
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 13)
+    zimmer = [zp.Zimmer("GS-3.2-101", "3.2", "1", "101"), zp.Zimmer("GS-3.3-205", "3.3", "2", "205"),
+              zp.Zimmer("GS-3.3-206", "3.3", "2", "206"), zp.Zimmer("GS-3.2-106", "3.2", "1", "106", betten=2)]
+    alt = Belegung("GS-3.2-101", date(2026, 9, 1), date(2027, 2, 28), "belegt", "Muster, Max", "GS RVT A26")
+    sperre = Belegung("GS-3.3-206", date(2026, 10, 1), date(2026, 12, 31), "gesperrt", grund="Renoviert")
+    plan = Gebaeudeplan("plan.docx", heute, [], [alt, sperre])
+
+    def stand():
+        lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+        um.anwenden(lage, um.laden())
+        return zp.Planstand(plan, {}, zimmer, lage, [], [])
+
+    st = stand()
+    b = um.belegung_zu(st, "GS-3.2-101", "", "Muster, Max", heute)
+    assert b is alt and um.standard_tag(b, heute) == heute
+    gut, ausnahmen = um.auswahl(st, b, date(2026, 10, 20))
+    ids = [z.id for z in gut] + [z.id for z, _g in ausnahmen]
+    assert "GS-3.3-205" in ids and "GS-3.3-206" not in ids and "GS-3.2-106" not in ids   # gesperrt / nur UWT+Gäste
+    assert um.pruefen(st, b, "GS-3.2-106", date(2026, 10, 20))[0].startswith("3.2-106 ist ein Doppelzimmer")
+    assert um.pruefen(st, b, "GS-3.3-205", date(2027, 3, 5))[0].startswith("Der Umzugstag")
+    u = um.speichern(st, b, "GS-3.3-205", date(2026, 10, 20), "Heizung defekt")
+    st = stand()
+    a = [x for x in st.lage.belegungen["GS-3.2-101"] if x.name]
+    n = [x for x in st.lage.belegungen["GS-3.3-205"] if x.name]
+    assert [(x.von, x.bis, x.art) for x in a] == [(date(2026, 9, 1), date(2026, 10, 20), "belegt")]
+    assert [(x.von, x.bis, x.art, x.umzug) for x in n] == [(date(2026, 10, 20), date(2027, 2, 28), "geplant", u.id)]
+    assert st.lage.umzuege[u.id].status == "aktiv"
+    assert st.lage.freie_betten("GS-3.2-101", date(2026, 10, 21), date(2026, 11, 30)) == 1    # altes Zimmer frei
+    zeile = next(z for z in eintragen.offen(st.lage, heute) if z.zimmer == "GS-3.3-205")
+    assert zeile.massnahme.startswith("Umzug aus 3.2-101") and zeile.von == date(2026, 10, 20)
+    assert not zp.konflikte(st.lage, heute)
+    bw = zp.bewohner_aus(st, n[0])
+    assert bw.umzug == u.id and bw.quelle.startswith("Umzug") and bw.schluessel == u.schluessel
+    zs = dict((z.id, s) for z, s in zp.zeitstrahl(st.lage, zimmer, heute, heute + timedelta(days=30)))
+    assert zs["GS-3.3-205"][0][0].text.startswith("↪ Muster, Max") and "→ 3.3-205" in zs["GS-3.2-101"][0][0].text
+    # ändern: ohne den alten Umzug laden, neu speichern (gleiche Kennung)
+    lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+    um.anwenden(lage, [x for x in um.laden() if x.id != u.id])
+    st2 = zp.Planstand(plan, {}, zimmer, lage, [], [])
+    um.speichern(st2, um.belegung_zu(st2, "GS-3.2-101", "", "Muster, Max", heute), "GS-3.3-205", date(2026, 10, 22),
+                 alt_id=u.id)
+    assert [x.ab for x in um.laden()] == [date(2026, 10, 22)] and um.laden()[0].id == u.id
+    # Gebäudeplan zeigt den Umzug → erledigt, nicht mehr angewendet
+    plan.belegungen[:] = [replace(alt, bis=date(2026, 10, 22)), sperre,
+                          Belegung("GS-3.3-205", date(2026, 10, 22), date(2027, 2, 28), "belegt", "Muster, Max", "GS RVT A26")]
+    st = stand()
+    assert st.lage.umzuege[u.id].status == "erledigt"
+    assert all(x.art == "belegt" for x in st.lage.belegungen["GS-3.3-205"])
+    # früher abgereist → hinfällig; zurücknehmen
+    plan.belegungen[:] = [replace(alt, bis=date(2026, 10, 15)), sperre]
+    st = stand()
+    assert st.lage.umzuege[u.id].status == "hinfaellig"
+    assert um.entfernen(u.id) is not None and um.laden() == []
+
+
+def test_umzug_geplant_angereist(tmp_path, monkeypatch):
+    """Geplante Person ist schon angereist: Umzug ab heute, die Zuweisung bleibt, nur der Rest zieht um."""
+    from belegung import umzug as um
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 13)
+    zimmer = [zp.Zimmer("GS-3.2-101", "3.2", "1", "101"), zp.Zimmer("GS-3.3-205", "3.3", "2", "205")]
+    p = _bedarf("Beispiel, Bea", "RVT", date(2026, 10, 1), date(2026, 12, 20), "w")
+    zuw = [{"person": p.schluessel, "name": p.name, "zimmer": "GS-3.2-101", "von": p.von.isoformat(),
+            "bis": p.bis.isoformat(), "geschlecht": "w"}]
+    lage = zp.lage_bauen(zimmer, None, zuw, heute=heute)
+    st = zp.Planstand(None, {}, zimmer, lage, zuw, [p])
+    b = um.belegung_zu(st, "GS-3.2-101", p.schluessel, p.name, heute)
+    assert b.art == "geplant" and um.pruefen(st, b, "GS-3.3-205", heute) == (None, None)
+    u = um.speichern(st, b, "GS-3.3-205", heute)
+    assert u.schluessel == p.schluessel
+    lage = zp.lage_bauen(zimmer, None, zuw, heute=heute)
+    um.anwenden(lage, um.laden())
+    alt, neu = lage.belegungen["GS-3.2-101"][0], lage.belegungen["GS-3.3-205"][0]
+    assert (alt.von, alt.bis, neu.von, neu.bis, neu.person, neu.grund) == (p.von, heute, heute, p.bis, p.schluessel, "w")

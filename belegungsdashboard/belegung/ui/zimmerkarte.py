@@ -3,8 +3,8 @@
 Öffnet sich beim Klick auf ein Zimmer (Häuser, Zeitstrahl), aus der Suche und aus Terminen. Eigenes Fenster,
 nicht modal – mehrere Karten können gleichzeitig offen sein (z. B. zwei Zimmer vergleichen).
 
-* Bewohner (heute und kommende): Zimmer ändern (wenn hier geplant), Abreise, Notizen mit Wiedervorlage.
-  Wer nur im Gebäudeplan steht, ist im Belegungssystem gebucht – dort umbuchen; Notizen gehen trotzdem.
+* Bewohner (heute und kommende): Zimmer ändern (wenn hier geplant und noch nicht angereist), Abreise, Notizen
+  mit Wiedervorlage. Wer schon eingezogen ist (auch laut Gebäudeplan), bekommt einen Umzug ab einem Tag.
 * Zum Zimmer: dauerhafter Hinweis (Stammdaten), Notizen mit Wiedervorlage (z. B. „Heizung defekt“),
   Ausstattung aus dem Inventar.
 * Darunter Zeitstrahl und alle Belegungen.
@@ -197,6 +197,9 @@ class ZimmerKarte(QDialog):
                 text, art = zp.balken_text(b)
                 art = {"belegt": "belegt", "geplant": "geplant (übernommen)", "pivot": "laut Zimmer-Pivot",
                        "gesperrt": "gesperrt"}[art]
+                if b.umzug and (u := self.stand.lage.umzuege.get(b.umzug)) is not None:
+                    text += (f" · Umzug aus {u.von_zimmer.removeprefix('GS-')}" if b.zimmer == u.nach_zimmer
+                             else f" · Umzug nach {u.nach_zimmer.removeprefix('GS-')}")
             zeilen.append([f"{b.von:%d.%m.%Y}", f"{b.bis:%d.%m.%Y}", (b.bis - b.von).days + 1, text, art])
         tab.fuellen(zeilen)
         tab.hoehe_anpassen(10)
@@ -284,11 +287,20 @@ class PersonBlock(QWidget):
         self.anreise_person = next((p for p in personen if p.schluessel == bw.schluessel), None)
         self.zimmer = self.abreise = self.offen = None
         self._wahl = None
+        heute = date.today()
+        self.bel = next((b for b in karte.stand.lage.belegungen.get(bw.zimmer, []) if b.von == bw.von
+                         and b.bis == bw.bis and b.name == bw.name and b.art == bw.art), None)
+        # Eingezogen (oder schon ein Umzug): Zimmerwechsel nur als Umzug ab einem Tag, nicht rückwirkend
+        nur_umzug = bw.art == "belegt" or bool(bw.umzug) or bw.von <= heute
         if bw.art == "belegt":
-            v.addWidget(label("Gebucht im Belegungssystem (Gebäudeplan) – Zimmer und Abreise bitte dort ändern. "
-                              "Notizen und Wiedervorlagen gehen hier.", "klein", umbruch=True))
+            v.addWidget(label("Gebucht im Belegungssystem (Gebäudeplan) – die Abreise bitte dort ändern. Ein Umzug "
+                              "in ein anderes Zimmer lässt sich hier planen. Notizen und Wiedervorlagen gehen hier.",
+                              "klein", umbruch=True))
+            self._umzug_zeile(v)
         else:
-            self._wahl = zp.zimmer_wahl(karte.stand, bw.schluessel) if bw.bedarf else None
+            self._wahl = zp.zimmer_wahl(karte.stand, bw.schluessel) if bw.bedarf and not nur_umzug else None
+            if nur_umzug:
+                self._umzug_zeile(v)
             if self._wahl is not None and not self._wahl.gebucht:
                 self.zimmer = zimmer_auswahl(self._wahl, karte.stand)
                 zeile = QHBoxLayout()
@@ -328,6 +340,36 @@ class PersonBlock(QWidget):
         notizen = NotizenWidget(bw.schluessel, bw.name, platzhalter="z. B. „Kostenzusage nachfragen“")
         notizen.geaendert.connect(karte.z.termine_geaendert.emit)
         v.addWidget(notizen)
+
+    def _umzug_zeile(self, v: QVBoxLayout) -> None:
+        """Umzug: bestehenden zeigen (ändern, zurücknehmen) oder neuen planen."""
+        from .. import umzug as um
+        from .umzug_dialog import umzug_oeffnen, zurueck_nehmen
+
+        k, b = self.karte, self.bel
+        if b is None:
+            return
+        zeile = QHBoxLayout()
+        u = k.stand.lage.umzuege.get(b.umzug) if b.umzug else None
+        if u is not None:
+            text = label(f"<b>Umzug:</b> {u.von_zimmer.removeprefix('GS-')} → {u.nach_zimmer.removeprefix('GS-')} "
+                         f"ab {u.ab:%d.%m.%Y}" + (f" · {u.grund}" if u.grund else "") + f"<br>{u.status_text}",
+                         "klein", umbruch=True)
+            v.addWidget(text)
+            aendern = knopf("Umzug ändern …", "ghost", "kalender")
+            aendern.clicked.connect(lambda: umzug_oeffnen(k, k.z, uid=u.id) and k._neu_laden())
+            weg = knopf("Umzug zurücknehmen", "ghost")
+            weg.clicked.connect(lambda: zurueck_nehmen(k, k.z, u.id) and k._neu_laden())
+            zeile.addWidget(aendern)
+            zeile.addWidget(weg)
+        elif b.bis >= date.today():
+            neu = knopf("Umzug in ein anderes Zimmer …", "ghost", "haus")
+            neu.setToolTip("Ab einem Tag in ein anderes Zimmer – das alte wird danach frei")
+            neu.clicked.connect(lambda: umzug_oeffnen(k, k.z, zid=b.zimmer, schluessel=um.schluessel_zu(k.stand, b),
+                                                      name=b.name) and k._neu_laden())
+            zeile.addWidget(neu)
+        zeile.addStretch()
+        v.addLayout(zeile)
 
     def _uebernehmen(self) -> None:
         from .dialoge import person_uebernehmen

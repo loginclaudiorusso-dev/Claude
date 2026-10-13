@@ -250,8 +250,9 @@ class ZimmerplanSeite(Seite):
         karte = Karte(abstand=8)
         self.zeitstrahl = Zeitstrahl()
         self.zeitstrahl.zimmer_geklickt.connect(self._zimmer_details)
-        self.zeitstrahl.verschiebbar = True           # geplante Balken in ein anderes Zimmer ziehen
-        self.zeitstrahl.verschieben.connect(self._zs_verschieben)
+        self.zeitstrahl.verschiebbar = True           # Balken in ein anderes Zimmer ziehen (Planung oder Umzug)
+        self.zeitstrahl.gezogen.connect(self._zs_gezogen)
+        self.zeitstrahl.kontext.connect(self._zs_menue)
         karte.inhalt.addWidget(self.zeitstrahl)
         v.addWidget(karte)
         return w
@@ -1189,6 +1190,61 @@ class ZimmerplanSeite(Seite):
         else:
             self._html_ausgeben(drucklisten.schluesselliste_html(liste, f"Anreise {b0.von:%d.%m.%Y}"
                                                                  + (f" · {titel}" if titel else "")), True)
+
+    # ---- Zeitstrahl: Ziehen und Rechtsklick ---------------------------------------------------
+
+    def _zs_gezogen(self, b, nach: str, tag) -> None:
+        """Geplant und noch nicht angereist: ganze Planung verschieben. Sonst: Umzug ab dem Tag des Loslassens."""
+        from ..zeitstrahl import ganz_verschieben
+
+        if ganz_verschieben(b):
+            self._zs_verschieben(b.person, b.zimmer, nach)
+            return
+        self._umzug(b, nach=nach, ab=tag if tag and tag >= date.today() else None)
+
+    def _umzug(self, b, nach: str | None = None, ab=None) -> None:
+        from ..umzug_dialog import umzug_oeffnen
+
+        if b.umzug and b.umzug in self.stand.lage.umzuege:
+            u = self.stand.lage.umzuege[b.umzug]
+            if nach == u.von_zimmer:
+                nach = None
+            umzug_oeffnen(self, self.z, uid=b.umzug, nach=nach, ab=None)
+        else:
+            from ... import umzug as um
+
+            umzug_oeffnen(self, self.z, zid=b.zimmer, schluessel=um.schluessel_zu(self.stand, b), name=b.name,
+                          nach=nach, ab=ab)
+
+    def _zs_menue(self, obj, pos) -> None:
+        from ..umzug_dialog import zurueck_nehmen
+        from ..zeitstrahl import ganz_verschieben, ziehbar_balken
+        from ..zimmerkarte import karte_oeffnen
+
+        if self.stand is None:
+            return
+        m = QMenu(self)
+        if isinstance(obj, tuple) and ziehbar_balken(obj[1].belegung):
+            zid, b = obj[0], obj[1].belegung
+            titel = m.addAction(f"{b.name} · {b.von:%d.%m.} – {b.bis:%d.%m.%Y}")
+            titel.setEnabled(False)
+            m.addSeparator()
+            schluessel = zp.bewohner_aus(self.stand, b).schluessel
+            m.addAction("Person öffnen (Zimmer, Abreise, Notizen) …",
+                        lambda: karte_oeffnen(self, self.z, zid, schluessel))
+            if b.umzug and b.umzug in self.stand.lage.umzuege:
+                u = self.stand.lage.umzuege[b.umzug]
+                m.addAction(f"Umzug ändern ({u.von_zimmer.removeprefix('GS-')} → "
+                            f"{u.nach_zimmer.removeprefix('GS-')} ab {u.ab:%d.%m.}) …", lambda: self._umzug(b))
+                m.addAction("Umzug zurücknehmen", lambda: zurueck_nehmen(self, self.z, b.umzug))
+            elif ganz_verschieben(b):
+                m.addAction("In ein anderes Zimmer verschieben …", lambda: karte_oeffnen(self, self.z, zid, schluessel))
+            elif b.bis >= date.today():
+                m.addAction("Umzug in ein anderes Zimmer …", lambda: self._umzug(b))
+        else:
+            zid = obj[0] if isinstance(obj, tuple) else obj
+            m.addAction(f"Zimmer {zid.removeprefix('GS-')} öffnen …", lambda: karte_oeffnen(self, self.z, zid))
+        m.exec(pos)
 
     # ---- Zeitstrahl: geplante Zuweisung per Ziehen verschieben ------------------------------
 
