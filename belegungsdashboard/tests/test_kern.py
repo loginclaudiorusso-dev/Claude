@@ -2124,3 +2124,59 @@ def test_umzug_geplant_angereist(tmp_path, monkeypatch):
     um.anwenden(lage, um.laden())
     alt, neu = lage.belegungen["GS-3.2-101"][0], lage.belegungen["GS-3.3-205"][0]
     assert (alt.von, alt.bis, neu.von, neu.bis, neu.person, neu.grund) == (p.von, heute, heute, p.bis, p.schluessel, "w")
+
+
+def test_31_ug_nur_mit_tier():
+    """Haus 3.1 UG: ohne Tier nie automatisch – auch wenn sonst nichts frei ist; von Hand als Ausnahme möglich."""
+    from belegung import zimmerplan as zp
+
+    v = date(2026, 11, 2)
+    ug, eg = zp.Zimmer("GS-3.1-U02", "3.1", "U", "2", tiere=True), zp.Zimmer("GS-3.1-E02", "3.1", "E", "2", tiere=True)
+    lage = zp.Lage({ug.id: ug, eg.id: eg}, {ug.id: [], eg.id: []})
+    ohne_tier = _bedarf("Ohne, Otto", "RVL", v, v + timedelta(days=90))
+    mit_tier = _bedarf("Hund, Hanna", "RVL", v, v + timedelta(days=90), "w", tier=True)
+    assert zp.passt(lage, ug, ohne_tier) == zp.TIER_UG_GRUND and zp.passt(lage, ug, mit_tier) is None
+    assert zp.passt(lage, eg, ohne_tier) is None                       # EG: nur „freihalten“, keine feste Regel
+    assert zp.ausnahme_grund(lage, ug, ohne_tier) == "nur mit Tier"
+    nur_ug = zp.Lage({ug.id: ug}, {ug.id: []})
+    zt = zp.vorschlagen(nur_ug, [ohne_tier])[0]
+    assert zt.zimmer is None and ug in zt.ausnahmen                     # nicht automatisch, aber wählbar
+    zt = zp.vorschlagen(nur_ug, [ohne_tier], {ohne_tier.schluessel: ug.id})[0]
+    assert zt.zimmer == ug and any("nur mit Tier" in w for w in zt.warnungen)
+    assert zp.vorschlagen(nur_ug, [mit_tier])[0].zimmer == ug
+
+
+def test_optimierung_anreise_zusammen(tmp_path, monkeypatch):
+    """Wer mit derselben Anreise kommt, rückt auf den Flur der Gruppe (Umzug bzw. Tausch über Gruppen hinweg);
+    zwei aus derselben Anreise werden nicht sinnlos hin und her getauscht."""
+    from belegung import optimierung as opt
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    v = date(2026, 11, 2)
+    west = [zp.Zimmer(f"GS-3.2-20{i}", "3.2", "2", f"20{i}", 1, "West") for i in range(1, 5)]
+    ost = [zp.Zimmer(f"GS-3.2-21{i}", "3.2", "2", f"21{i}", 1, "Ost") for i in range(1, 5)]
+    a = [_bedarf(f"Anna{i}, A", "RVT", v, v + timedelta(days=90), "w", kennung="2026-11-02|RVT") for i in range(4)]
+    b = _bedarf("Berta, B", "RVL", v, v + timedelta(days=90), "w", kennung="2026-11-02|RVL")
+    plan = [(a[0], west[0]), (a[1], west[1]), (a[2], west[2]), (b, west[3]), (a[3], ost[0])]   # Anna3 allein auf Ost
+    zuw = [{"person": p.schluessel, "name": p.name, "zimmer": z.id, "von": v.isoformat(), "bis": p.bis.isoformat(),
+            "geschlecht": "w"} for p, z in plan]
+    zimmer = west + ost
+    lage = zp.lage_bauen(zimmer, None, zuw)
+    stand = zp.Planstand(None, {}, zimmer, lage, zuw, [p for p, _z in plan])
+    vs = opt.vorschlaege(stand, date(2026, 10, 13))
+    t = next(x for x in vs if a[3].schluessel in x.personen)
+    assert t.art == "tausch" and set(t.personen) == {a[3].schluessel, b.schluessel}
+    assert any("3 aus derselben Anreise (RVT 02.11.)" in g for g in t.gruende)
+    # danach: nichts mehr zu tun (kein Hin- und Hertauschen innerhalb der Anreise)
+    for p, nach in zip(t.personen, t.nach_zimmer):
+        opt._verschieben(lage, next(x for bs in lage.belegungen.values() for x in bs if x.person == p), nach)
+    assert not [x for x in opt.vorschlaege(stand, date(2026, 10, 13)) if x.art in ("tausch", "umzug")]
+    # mit Tier zählt nicht zur Gruppe
+    assert opt.Kohorten([replace_tier(a[0])]).von_person == {}
+
+
+def replace_tier(b):
+    from dataclasses import replace
+
+    return replace(b, tier=True)

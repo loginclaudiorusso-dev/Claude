@@ -34,8 +34,8 @@ class OptimierenDialog(QDialog):
         v.setSpacing(12)
         v.addWidget(label("Belegung optimieren", "seitentitel"))
         v.addWidget(label("Prüft alle Belegungen im gewählten Zeitraum wie beim Zuteilen – Haus und Etage passend zur "
-                          "Gruppe, Reserven (Tier-, Doppel-, EMR-Zimmer), nahtlose Folgebelegung und lange Aufenthalte "
-                          "auf einen Flur. Geplante Zimmer werden nach Bestätigung umgeplant; Buchungen im "
+                          "Gruppe, Reserven (Tier-, Doppel-, EMR-Zimmer), nahtlose Folgebelegung, lange Aufenthalte "
+                          "auf einen Flur und dieselbe Anreise zusammen auf einem Flur (ohne Personen mit Tier). Geplante Zimmer werden nach Bestätigung umgeplant; Buchungen im "
                           "Belegungssystem bekommen eine Aufgabe.", "muted", umbruch=True))
         zeile = QHBoxLayout()
         zeile.addWidget(label("Zeitraum", "fett"))
