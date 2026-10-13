@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from . import zimmerplan as zp
+from . import zkl
 
 GEWINN_UMZUG = 2.0          # so viele Punkte muss ein anderes Zimmer besser sein
 GEWINN_TAUSCH = 2.5
@@ -265,8 +266,10 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
                     or bel.umzug:
                 continue                               # Umzug ist schon geplant
             b = _bedarf_aus_belegung(bel)
-            if lage.zimmer.get(zid) is not None and zp.nur_tier(lage.zimmer[zid]):
-                b.tier = True          # Tier steht nicht im Gebäudeplan – wer im UG (nur mit Tier) wohnt, hat eins
+            tier = zkl.hat_tier(lage, bel)          # Tier steht nicht im Gebäudeplan – ZKL fragen
+            if tier is None and lage.zimmer.get(zid) is not None and zp.nur_tier(lage.zimmer[zid]):
+                tier = True                          # sonst: wer im UG (nur mit Tier) wohnt, hat eins
+            b.tier = bool(tier)
             if b.gruppe in ("Mieter", "Gast") or "," not in bel.name:
                 continue                               # Mietverträge/Gäste und Sammel-Einträge nicht verschieben
             tmp = zp.Lage(lage.zimmer, {**lage.belegungen, zid: [x for x in bs if x is not bel]}, lage.puffer)

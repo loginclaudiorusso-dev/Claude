@@ -507,6 +507,21 @@ class ZimmerplanSeite(Seite):
         self.b_pivot.clicked.connect(self._pivot_importieren)
         self.pivot_karte.inhalt.addWidget(self.b_pivot, 0, Qt.AlignLeft)
         zeile.addWidget(self.pivot_karte, 1)
+        self.zkl_karte = Karte("Zimmerkontrollliste (ZKL)", "Excel des Internatsdienstes – ergänzt Tier, TN-Nummer und "
+                                                           "Zimmer-Infos; Abweichungen zum Entscheiden")
+        self.zkl_text = label("", "muted", umbruch=True)
+        self.zkl_karte.inhalt.addWidget(self.zkl_text)
+        kn = QHBoxLayout()
+        kn.setSpacing(8)
+        self.b_zkl = knopf("ZKL importieren", "primary", "tabelle")
+        self.b_zkl.clicked.connect(self._zkl_importieren)
+        kn.addWidget(self.b_zkl)
+        self.b_zkl_abgleich = knopf("Abgleich anzeigen", "ghost")
+        self.b_zkl_abgleich.clicked.connect(self._zkl_abgleich)
+        kn.addWidget(self.b_zkl_abgleich)
+        kn.addStretch()
+        self.zkl_karte.inhalt.addLayout(kn)
+        zeile.addWidget(self.zkl_karte, 1)
         v.addLayout(zeile)
         einst = Karte("Planung", "Gilt für alle Vorschläge")
         f = QHBoxLayout()
@@ -1873,6 +1888,7 @@ class ZimmerplanSeite(Seite):
                                    + ("<br>" + "<br>".join(st.plan.hinweise[:2]) if st.plan.hinweise else "")
                                    + "<br>Aktualisieren: Word-Datei im Ordner „Gebaeudeplan“ speichern (wird automatisch "
                                    "übernommen) – oder im Belegungssystem alles kopieren und „Aus Zwischenablage einfügen“.")
+        self._zkl_zeigen()
         zpv = st.zimmer_pivot
         if zpv is None:
             self.pivot_text.setText("Noch nicht importiert (optional). Ergänzt gebuchte Tage, die im Gebäudeplan fehlen.")
@@ -1883,6 +1899,55 @@ class ZimmerplanSeite(Seite):
                                     f"{zpv.zeitraum[1]:%d.%m.%Y}<br>"
                                     + (f"<b>{len(extra)} Zimmer</b> mit Buchungen, die im Gebäudeplan fehlen – im Zeitstrahl "
                                        "lila." if extra else "Stimmt mit dem Gebäudeplan überein."))
+
+    def _zkl_zeigen(self) -> None:
+        from ... import zkl
+
+        st, daten = self.stand, zkl.laden()
+        self.b_zkl_abgleich.setEnabled(daten is not None)
+        if daten is None:
+            self.zkl_text.setText("Noch nicht importiert (optional). Liefert Tier (Kundengruppe „Reha-Tier“), TN-Nummern "
+                                  "der Bewohner und Zimmer-Infos – und zeigt, wo ZKL und Gebäudeplan voneinander abweichen.")
+            return
+        offen = zkl.abgleich(st, daten)
+        tier = sum(1 for bs in st.lage.belegungen.values() for b in bs if b.art == "belegt" and zkl.hat_tier(st.lage, b))
+        stand = f", Daten bis {daten.stand:%d.%m.%Y}" if daten.stand else ""
+        self.zkl_text.setText(f"<b>{daten.datei}</b> · Blatt „{daten.blatt}“{stand} · importiert "
+                              f"{daten.importiert[:10]}<br>{len(daten.zimmer)} Zimmer, {tier} Bewohner mit Tier, "
+                              f"{len(daten.uebernommen)} als belegt übernommen<br>"
+                              + (f"<b>{sum(1 for p in offen if p.aktion)} offene Abweichungen</b> – „Abgleich anzeigen“."
+                                 if any(p.aktion for p in offen) else "Keine offenen Abweichungen."))
+
+    def _zkl_importieren(self) -> None:
+        from ... import zkl
+
+        start = speicher.einstellungen().get("import_ordner_zkl") or str(Path.home())
+        pfad, _ = QFileDialog.getOpenFileName(self, "Zimmerkontrollliste (ZKL) wählen", start,
+                                              "Excel (*.xlsx *.xlsm);;Alle Dateien (*)")
+        if not pfad:
+            return
+        speicher.einstellung_setzen("import_ordner_zkl", str(Path(pfad).parent))
+        self.b_zkl.setEnabled(False)
+        self.b_zkl.setText("Wird gelesen …")
+
+        def fertig(ergebnis) -> None:
+            zkl.speichern(ergebnis)
+            self.z.meldung.emit(f"ZKL importiert: {len(ergebnis.zimmer)} Zimmer aus Blatt „{ergebnis.blatt}“.", "ok")
+            self._nach_aenderung()
+            self._zkl_abgleich()
+
+        bekannt = {z.id for z in self.stand.zimmer} if self.stand else None
+        self._zkl_worker = Worker(zkl.lesen, Path(pfad), bekannt, parent=self)
+        self._zkl_worker.fertig.connect(fertig)
+        self._zkl_worker.fehler.connect(lambda t: self.z.meldung.emit(f"ZKL konnte nicht gelesen werden: {t}", "fehler"))
+        self._zkl_worker.finished.connect(lambda: (self.b_zkl.setEnabled(True), self.b_zkl.setText("ZKL importieren")))
+        self._zkl_worker.start()
+
+    def _zkl_abgleich(self) -> None:
+        from ..zkl_dialog import ZklAbgleichDialog
+
+        if ZklAbgleichDialog(self.z, self).exec():
+            self._nach_aenderung()
 
     def _plan_importieren(self) -> None:
         start = speicher.einstellungen().get("import_ordner_gebaeudeplan") or str(Path.home())

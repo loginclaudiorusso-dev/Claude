@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -2180,3 +2180,77 @@ def replace_tier(b):
     from dataclasses import replace
 
     return replace(b, tier=True)
+
+
+def test_zkl_import_und_abgleich(tmp_path, monkeypatch):
+    """ZKL (erfundene Daten): neuestes Blatt, 3.3→3.2-Nummern, Tier/TN für Gebäudeplan-Bewohner, Abweichungen."""
+    import openpyxl
+
+    from belegung import zimmerplan as zp
+    from belegung import zkl
+    from belegung.gebaeudeplan import Belegung, Gebaeudeplan
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 13)
+    kopf = ["ANM NU", "Zimmer\nNummer", "X1", "Reno", "Art", "Zimmer\nDaten ", "Kunden-\ngruppe", "ID\nRIOS", "Name",
+            "von", "bis", "Interne Anmerkungen"]
+    wb = openpyxl.Workbook()
+    alt = wb.active
+    alt.title = "XXX"
+    alt.append(["ZKL"]); alt.append([]); alt.append(kopf)
+    alt.append([None, "3.2-101", None, None, None, None, "Reha", 1, "Früher, Fritz", datetime(2026, 1, 5), datetime(2026, 6, 30)])
+    neu = wb.create_sheet("XXX (2)")
+    neu.append(["ZKL26"]); neu.append([]); neu.append(kopf)
+    for z in [
+        [None, "3.3-101", None, "26-08", "PVC", None, "Reha", 900001, "Muster, Max", datetime(2026, 9, 1), datetime(2027, 6, 30), "Regal"],
+        [None, "3.1-U01", None, None, None, "TN mit Tier Pool", "Reha-Tier", 900002, "Hund, Hanna", datetime(2026, 3, 1),
+         datetime(2027, 3, 1)],
+        [None, "3.1-E02", None, None, None, None, None, None, None, None, None],
+        [None, "3.3-120", None, None, None, None, "Reha", 900003, "Weg, Walter", datetime(2025, 5, 1), datetime(2027, 1, 31)],
+        [None, "2-516", None, None, None, "Musterzimmer", "SGH", None, None, None, None],
+        [None, "6-1008 A", "NU", None, None, "ehem Muster Appartment", "Mieter", None, None, None, None],
+        [None, "2-123", "x", None, None, "Lager NU", None, None, None, None, None],
+    ]:
+        neu.append(z)
+    pfad = tmp_path / "zkl.xlsx"
+    wb.save(pfad)
+    zimmer = [zp.Zimmer("GS-3.2-101", "3.2", "1", "101"), zp.Zimmer("GS-3.3-120", "3.3", "1", "120"),
+              zp.Zimmer("GS-3.1-U01", "3.1", "U", "U01", tiere=True), zp.Zimmer("GS-3.1-E02", "3.1", "E", "E02", tiere=True),
+              zp.Zimmer("GS-2-516", "2", "5", "516"), zp.Zimmer("GS-6-1008", "6", "10", "1008")]
+    daten = zkl.lesen(pfad, {z.id for z in zimmer})
+    assert daten.blatt == "XXX (2)" and "GS-3.2-101" in daten.zimmer and daten.unbekannt == ["2-123"]
+    assert daten.zimmer["GS-3.2-101"].tn_id == "900001" and daten.zimmer["GS-3.1-U01"].tier
+    zkl.speichern(daten)
+    plan = Gebaeudeplan("plan.docx", heute, [], [
+        Belegung("GS-3.2-101", date(2026, 9, 1), date(2027, 6, 30), "belegt", "Muster, Max", "GS RVT A26"),
+        Belegung("GS-3.1-U01", date(2026, 3, 1), date(2027, 3, 1), "belegt", "Hund, Hanna", "GS RVL"),
+        Belegung("GS-3.1-E02", date(2026, 8, 1), date(2027, 3, 1), "belegt", "Weg, Walter", "GS RVT")])
+
+    def stand():
+        lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+        zkl.anwenden(lage, zkl.laden())
+        return zp.Planstand(plan, {}, zimmer, lage, [], [])
+
+    st = stand()
+    hanna = st.lage.belegungen["GS-3.1-U01"][0]
+    assert zkl.hat_tier(st.lage, hanna) is True and zkl.tn_id(st.lage, st.lage.belegungen["GS-3.2-101"][0]) == "900001"
+    assert zkl.hat_tier(st.lage, st.lage.belegungen["GS-3.1-E02"][0]) is None              # nicht in der ZKL-Zeile
+    punkte = {(p.art, p.zimmer) for p in zkl.abgleich(st, zkl.laden(), heute)}
+    assert ("anderes_zimmer", "GS-3.3-120") in punkte                     # Walter wohnt laut Plan in E02
+    assert ("nicht_belegbar", "GS-2-516") in punkte and ("gaeste", "GS-2-516") in punkte
+    assert not any(z == "GS-6-1008" for _a, z in punkte)                   # „ehem. Appartment“ ist kein Hinweis
+    assert ("tiere", "GS-3.1-E02") in punkte                               # laut ZKL kein Tier-Pool
+    # Walter laut Plan weg → „bewohnt, im Gebäudeplan frei“ → übernehmen blockiert das Zimmer
+    plan.belegungen[:] = plan.belegungen[:2]
+    st = stand()
+    p = next(p for p in zkl.abgleich(st, zkl.laden(), heute) if p.art == "bewohnt")
+    assert p.zimmer == "GS-3.3-120" and "900003" in p.text
+    n = zkl.umsetzen(st, zkl.laden(), [p], [])
+    assert n == {"bewohnt": 1}
+    st = stand()
+    assert st.lage.freie_betten("GS-3.3-120", heute, heute + timedelta(days=30)) == 0
+    assert st.lage.belegungen["GS-3.3-120"][0].massnahme == "Reha · laut ZKL"
+    assert not [x for x in zkl.abgleich(st, zkl.laden(), heute) if x.art == "bewohnt"]   # erledigt bzw. geprüft
+    # steht die Person später im Gebäudeplan, gilt er (keine doppelte Belegung)
+    plan.belegungen.append(Belegung("GS-3.3-120", date(2025, 5, 1), date(2027, 1, 31), "belegt", "Weg, Walter", "GS RVT"))
+    assert len([b for b in stand().lage.belegungen["GS-3.3-120"] if b.art == "belegt"]) == 1

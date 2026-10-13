@@ -16,7 +16,7 @@ import uuid
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta
 
-from . import anreiseliste, speicher
+from . import anreiseliste, speicher, zkl
 from . import zimmerplan as zp
 
 DATEI = f"{speicher.IMPORT_ORDNER}/posteingang.json"
@@ -283,7 +283,7 @@ def zuordnen(e: Erkannt, stand: zp.Planstand, personen: list[anreiseliste.Person
         for bel in bs:
             if bel.art != "belegt" or not bel.name or bel.name == zp.PIVOT_NAME:
                 continue
-            punkte = bewerten(bel.name, "", bel.von, bel.bis)
+            punkte = bewerten(bel.name, zkl.tn_id(stand.lage, bel), bel.von, bel.bis)   # TN-ID laut ZKL
             if punkte < 4:
                 continue
             bw = zp.bewohner_aus(stand, bel)

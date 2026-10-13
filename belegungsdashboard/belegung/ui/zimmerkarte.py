@@ -447,6 +447,11 @@ class ZimmerBlock(Karte):
         notizen = NotizenWidget(zp.zimmer_schluessel(z.id), f"Zimmer {z.kurz}", platzhalter="Neue Notiz zum Zimmer …")
         notizen.geaendert.connect(karte.z.termine_geaendert.emit)
         self.inhalt.addWidget(notizen)
+        e = karte.stand.lage.zkl.get(z.id)
+        if e is not None:                      # Zimmerkontrollliste (nur Anzeige)
+            teile = [e.info, f"{e.name} (TN {e.tn_id})" if e.name and e.tn_id else e.name, e.anmerkung]
+            self.inhalt.addWidget(label("<b>Laut ZKL:</b> " + (" · ".join(t for t in teile if t) or "keine Angaben"),
+                                        "klein", umbruch=True))
         ausstattung = inventar.laden().kurztext(z.id)
         self.inhalt.addWidget(label(f"<b>Ausstattung:</b> {ausstattung}" if ausstattung
                                     else "Ausstattung: noch nichts erfasst", "klein", umbruch=True))

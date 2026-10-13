@@ -352,6 +352,7 @@ class Lage:
     abgleich: list["Abgleich"] = field(default_factory=list)   # Zuteilung ↔ Gebäudeplan
     dz: dict[str, str] = field(default_factory=dict)           # Person → DZ-Gruppe (UWT, siehe Bedarf.dz)
     umzuege: dict = field(default_factory=dict)                 # Kennung → umzug.Umzug (mit Status)
+    zkl: dict = field(default_factory=dict)                     # Zimmer-ID → zkl.ZklZimmer (Tier, TN-ID, Infos)
 
     def _relevant(self, zid: str, von: date, bis: date, ohne: set[str] | frozenset = frozenset()) -> list[Belegung]:
         p = max(self.puffer - 1, 0)
@@ -1339,8 +1340,9 @@ def laden(puffer: int | None = None, ohne_umzug: str | None = None) -> Planstand
     zpivot = zimmerpivot.laden()
     lage = lage_bauen(zimmer, plan, zuw, puffer, zpivot)
     lage.dz = {b.schluessel: b.dz for b in bedarf if b.dz}
-    from . import umzug
+    from . import umzug, zkl
 
+    zkl.anwenden(lage, zkl.laden())
     umzug.anwenden(lage, [u for u in umzug.laden() if u.id != ohne_umzug])
     return Planstand(plan, meta, zimmer, lage, zuw, bedarf, zpivot)
 
