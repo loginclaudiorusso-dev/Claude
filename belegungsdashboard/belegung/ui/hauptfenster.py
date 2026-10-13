@@ -101,6 +101,7 @@ class HauptFenster(QMainWindow):
         from .seiten.daten import DatenSeite
         from .seiten.einstellungen import EinstellungenSeite
         from .seiten.inventar import InventarSeite
+        from .seiten.posteingang import PosteingangSeite
         from .seiten.prognose import PrognoseSeite
         from .seiten.start import StartSeite
         from .seiten.termine import TermineSeite
@@ -111,7 +112,8 @@ class HauptFenster(QMainWindow):
             "start": StartSeite(zustand),
             "uebersicht": UebersichtSeite(zustand), "belegung": BelegungSeite(zustand),
             "prognose": PrognoseSeite(zustand), "assistent": AssistentSeite(zustand),
-            "termine": TermineSeite(zustand), "zimmerplan": ZimmerplanSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
+            "termine": TermineSeite(zustand), "posteingang": PosteingangSeite(zustand),
+            "zimmerplan": ZimmerplanSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
         }
         for s in self.seiten.values():
             self.stapel.addWidget(s)
@@ -199,12 +201,13 @@ class HauptFenster(QMainWindow):
         self.nav = QButtonGroup(self)
         self.nav_knoepfe: dict[str, QPushButton] = {}
         eintraege = [("start", "Start"), ("Analyse", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
-                     ("assistent", "Assistent"), ("Verwaltung", None), ("termine", "Termine"), ("zimmerplan", "Zimmerplan"),
+                     ("assistent", "Assistent"), ("Verwaltung", None), ("termine", "Termine"), ("posteingang", "Posteingang"),
+                     ("zimmerplan", "Zimmerplan"),
                      ("inventar", "Inventar"),
                      ("daten", "Daten && Import"),
                      ("einstellungen", "Einstellungen")]
         icon_name = {"start": "start", "uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
-                     "assistent": "assistent", "termine": "kalender", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
+                     "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
                 v.addWidget(label(key.upper(), "nav_gruppe"))
@@ -664,6 +667,13 @@ class HauptFenster(QMainWindow):
             return
         offen = [t for t in alle if t.faellig(heute)]
         self.nav_knoepfe["termine"].setText(f"  Termine ({len(offen)})" if offen else "  Termine")
+        try:
+            from .. import mails
+
+            n_post = mails.offen_anzahl()
+        except Exception:                          # noqa: BLE001
+            n_post = 0
+        self.nav_knoepfe["posteingang"].setText(f"  Posteingang ({n_post})" if n_post else "  Posteingang")
         if self.tray is not None:
             name = speicher.anzeige_name()[0]
             self.tray.setToolTip(f"{name} – {len(offen)} Erinnerung(en) offen" if offen else name)

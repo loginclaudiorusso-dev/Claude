@@ -391,6 +391,20 @@ class StartSeite(Seite):
             k.inhalt.addWidget(label(f"… und {len(offen) - 6} weitere", "klein"))
         self._link(k, "Alle Termine →", lambda: self.z.navigieren.emit("termine"))
 
+    def _k_posteingang(self, k: Kachel, heute: date) -> None:
+        from ... import mails
+
+        offen = [x for x in mails.eingaenge() if x.status in ("offen", "zu prüfen")]
+        if not offen:
+            k.inhalt.addWidget(label("Nichts offen.", "muted"))
+        for x in offen[:6]:
+            rest = x.offen_zu_pruefen
+            p = Pille(f"{len(rest)} offen" if rest else x.status, "kritisch" if rest else "knapp")
+            p.setToolTip("Noch abzuhaken: " + ", ".join(rest) if rest else "Noch nicht bearbeitet")
+            self._zeile(k, f"{mails.ARTEN.get(x.art, x.art)} · {x.name or x.betreff or '–'}", p,
+                        lambda: self.z.navigieren.emit("posteingang"))
+        self._link(k, "Zum Posteingang →", lambda: self.z.navigieren.emit("posteingang"))
+
     def _person_oeffnen(self, t: tm.Termin) -> None:
         from ..zimmerkarte import karte_oeffnen
 

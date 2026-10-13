@@ -1915,3 +1915,77 @@ def test_engpass_grenzen_und_kw(tmp_path, monkeypatch):
     w = eintragen.Woche(date(2026, 10, 12), 8, 4, 0)
     assert (w.stufe("gesamt"), w.stufe("emr"), w.stufe("doppel")) == ("ok", "knapp", "ok")
     assert "knapp unter 6" in eintragen.grenzen_text()
+
+
+# ---- Posteingang (erfundene Beispiele nach dem Muster echter Mails) -------------------------
+
+def test_mails_erkennen():
+    from belegung import mails
+
+    h = date(2026, 10, 13)
+    e = mails.erkennen("WG: Stornierung Zimmer Tobias Weiler", "STORNO 14. – 15.10.\n\nFreundliche Grüße\n\ni. A. Erika Muster\n"
+                       "Kundenmanagement", h)
+    assert (e.art, e.name, e.von, e.bis) == ("storno", "Weiler, Tobias", date(2026, 10, 14), date(2026, 10, 15))
+    e = mails.erkennen("", "Habe den TN BRANDT, Jonas, TN-Nr. 998877, informiert, dass er sein eigenes Bett zur "
+                           "Anreise am 20.10. mitbringen kann und ein Zimmer OHNE Bett vorfindet.", h)
+    assert (e.art, e.name, e.tn_id, e.von) == ("hinweis", "Brandt, Jonas", "998877", date(2026, 10, 20))
+    assert "OHNE Bett" in e.zusammenfassung
+    e = mails.erkennen("", "Sehr geehrte Damen und Herren,\n\nwir bitten um Reservierung eines Einzelzimmers mit Frühstück "
+                           "im Gästehaus, für Herrn Peter Kolmer vom 27.01. bis 29.01.2027 (2 ÜN).\n\nWir bitten um "
+                           "eine kurze Bestätigung.\n\nEine Kostenübernahmeerklärung senden wir Ihnen dann zu.\n\n"
+                           "Mit freundlichen Grüßen\nIm Auftrag\n\nAnna Beispiel", h)
+    assert (e.art, e.name, e.geschlecht, e.von, e.bis) == ("gast", "Kolmer, Peter", "m", date(2027, 1, 27),
+                                                            date(2027, 1, 29))
+    assert e.einzelzimmer and e.fruehstueck and e.bestaetigung and e.kostenuebernahme
+    e = mails.erkennen("", "Hallo allerseits,\n\ndie Maßnahme von Frau Tran IK 2601 (998812) wurde aus gesundheitlichen "
+                           "Gründen abgebrochen. Der letzte Tag war der 6.10.2026. Eine Wiederaufnahme ist möglich.\n\n"
+                           "Freundliche Grüße", h)
+    assert (e.art, e.name, e.tn_id, e.bis, e.wiederaufnahme) == ("abbruch", "Tran", "998812", date(2026, 10, 6), "möglich")
+    e = mails.erkennen("", "Hallo zusammen,\n\nnach Absprache mit dem Kostenträger brechen wir Herrn Kahl wie folgt ab:"
+                           "\n\nKahl, Heiner\n997766\nEnde: 30.09.2026\nGesundheitliche Gründe / Keine Wiederaufnahme "
+                           "geplant\n\nArbeitsaufnahme in TZ ab 12.10.26.\n\n@ Internat: Er hat das Zimmer angeblich "
+                           "schon komplett geräumt.\n\nSchönes Wochenende an alle!", h)
+    assert (e.art, e.name, e.tn_id, e.bis, e.wiederaufnahme, e.zimmer_geraeumt) == (
+        "abbruch", "Kahl, Heiner", "997766", date(2026, 9, 30), "nicht geplant", True)
+    assert mails.erkennen("", "Danke für die Info!", h).art == "unklar"
+
+
+def test_mails_vorschlag_und_umsetzen(tmp_path, monkeypatch, plan):
+    """Gästehaus: Person anlegen + Gästezimmer reservieren; Abbruch: Abreise setzen + Prüfliste."""
+    from belegung import anreiseliste, mails, termine
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    h = date(2026, 10, 13)
+    stand = zp.Planstand(plan, {}, zp.standard_zimmer(plan.zimmer), _lage(plan), [], [])
+    e = mails.erkennen("", "wir bitten um Reservierung eines Einzelzimmers im Gästehaus für Frau Lena Kolmer vom "
+                           "20.10. bis 22.10.2026. Wir bitten um eine kurze Bestätigung.", h)
+    schritte = mails.vorschlag(e, None, stand, h)
+    arten = [s.art for s in schritte]
+    assert arten[:2] == ["person_anlegen", "zimmer"] and "notiz" in arten
+    zimmer = schritte[1].daten["zimmer"]
+    assert stand.lage.zimmer[zimmer].gaeste                          # Gast → Gästezimmer
+    x = mails.umsetzen(e, schritte, zp.laden(), "Reservierung", "…", treffer=None)
+    assert x.status == "erledigt" and len(x.erledigt) == len(schritte)
+    personen, _ = anreiseliste.laden()
+    p = next(p for p in personen if p.name == "Kolmer, Lena")
+    assert zp.laden().zugewiesen(p.schluessel)["zimmer"] == zimmer
+    assert any(n.wiedervorlage == h for n in termine.notizen(p.schluessel))
+    # Abbruch einer Person aus der Anreiseliste (über die TN-Nummer gefunden)
+    q = anreiseliste.Person("Tran, Minh", "IK 2601", date(2026, 9, 1), True, tn_id="998812")
+    anreiseliste.person_speichern(q)
+    st = zp.laden()
+    personen, _ = anreiseliste.laden()
+    e = mails.erkennen("", "die Maßnahme von Frau Tran IK 2601 (998812) wurde abgebrochen. Der letzte Tag war der "
+                           "6.10.2026.", h)
+    treffer = mails.zuordnen(e, st, personen)
+    assert treffer and treffer[0].schluessel == q.schluessel
+    schritte = mails.vorschlag(e, treffer[0], st, h)
+    assert "abreise" in [s.art for s in schritte]
+    x = mails.umsetzen(e, schritte, st, treffer=treffer[0])
+    personen, _ = anreiseliste.laden()
+    assert next(p for p in personen if p.schluessel == q.schluessel).abreise == date(2026, 10, 6)
+    assert x.status == "zu prüfen" and set(x.pruefliste) == set(mails.PRUEFLISTE_ABBRUCH)
+    for punkt in mails.PRUEFLISTE_ABBRUCH:
+        x = mails.eingang_pruefen(x, punkt, True)
+    assert mails.eingaenge()[0].status == "erledigt"

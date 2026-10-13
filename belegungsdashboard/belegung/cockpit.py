@@ -24,6 +24,7 @@ class KachelArt:
 KATALOG: list[KachelArt] = [
     KachelArt("heute", "Zimmer heute", "Frei, belegt, gesperrt und Anreisen ohne Zimmer"),
     KachelArt("erinnerungen", "Jetzt erinnern", "Fällige Erinnerungen und Wiedervorlagen zum Abhaken"),
+    KachelArt("posteingang", "Posteingang", "Offene Mails und Abbrüche mit offener Prüfliste"),
     KachelArt("anreisen", "Anreisen", "Die nächsten 7 Tage – wie viele schon ein Zimmer haben", 2),
     KachelArt("abreisen", "Abreisen", "Heute und morgen – wer aus welchem Zimmer auszieht"),
     KachelArt("reinigung", "Reinigung", "Was heute gereinigt werden muss, offene Konflikte zuerst"),
