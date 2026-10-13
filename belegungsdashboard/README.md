@@ -27,6 +27,19 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.6
+
+* **Zimmerkontrollliste (ZKL) als Import** – Zimmerplan → Quellen → „ZKL importieren“ (Excel). Der Gebäudeplan bleibt
+  die Grundlage; die ZKL wird **abgeglichen**:
+  * Automatisch übernommen: **Tier** (Kundengruppe „Reha-Tier“ – zählt für die Regel Haus 3.1 UG), **TN-Nummer** der
+    Bewohner (Posteingang findet sie über die TN-Nr.) und Zimmer-Infos (Boden, Reno, Hinweise) in der Zimmerkarte.
+  * Zum Entscheiden im Dialog „Abgleich anzeigen“: laut ZKL bewohnt, im Gebäudeplan frei (→ als belegt übernehmen);
+    laut ZKL Lager/Büro/Appartment/Musterzimmer (→ gehört nicht zum Internat); laut ZKL Gästehaus (SGH) bzw.
+    Tier-Pool anders als im Zimmerplan; Person inzwischen in einem anderen Zimmer (nur Info).
+  * Angehakt wird übernommen, der Rest als geprüft abgelegt („Auch geprüfte zeigen“ holt alles wieder).
+  * Bei mehreren Zimmerblättern gilt das mit den neuesten Daten. „3.3-1xx“ der ZKL wird Haus 3.2 zugeordnet, wo es
+    die Nummer nur dort gibt.
+
 ## Neu in 6.5
 
 * **Haus 3.1 Untergeschoss nur mit Tier:** Ohne Tier teilt das Programm dort nie automatisch zu – auch nicht,
