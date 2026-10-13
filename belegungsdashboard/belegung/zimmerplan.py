@@ -5,7 +5,8 @@ Feste Regeln (werden nie verletzt):
   Mieter nur Haus 6, UWT nur 3.2/3.3/6, alle anderen nicht in Haus 6)
 * Gästezimmer nur für Gäste
 * Tiere nur in Zimmern mit Tier-Freigabe (Haus 3.1 EG/UG) – das geht der Gruppenregel vor,
-  d. h. auch EMR mit Tier wohnt dort (bevorzugt EG)
+  d. h. auch EMR mit Tier wohnt dort (zuerst UG)
+* Haus 3.1 UG ausschließlich für Personen mit Tier – ohne Tier nur, wenn es von Hand gewählt wird
 * Zimmer mit Bad über den Flur (Haus 6) nur für Männer
 * Doppelzimmer nur gleiches Geschlecht
 * gesperrte/renovierte Zeiträume und ein Puffer nach jeder Abreise (Reinigung)
@@ -480,6 +481,14 @@ DOPPEL_GRUPPEN = ("UWT", "Gast")
 DOPPEL_GRUND = "Doppelzimmer nur für UWT und Gäste"
 
 
+TIER_UG_GRUND = "Haus 3.1 UG nur mit Tier"
+
+
+def nur_tier(z: Zimmer) -> bool:
+    """Haus 3.1 Untergeschoss: ausschließlich für Personen mit Tier (ohne Tier nur von Hand)."""
+    return z.haus == "3.1" and z.etage == "U"
+
+
 def nur_doppel(z: Zimmer, gruppe: str) -> bool:
     """Doppelzimmer sind ausschließlich für UWT und Gäste – ohne Ausnahme, auch nicht von Hand."""
     return z.betten > 1 and gruppe not in DOPPEL_GRUPPEN
@@ -514,6 +523,8 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
         return "nicht im Internat"
     if nur_doppel(z, b.gruppe):
         return DOPPEL_GRUND
+    if nur_tier(z) and not b.tier:
+        return TIER_UG_GRUND
     # Tier geht vor Gruppenregel: wer mit Tier kommt (auch EMR), wohnt in einem Tier-Zimmer
     tier_ausnahme = b.tier and z.tiere and b.gruppe not in ("Gast", "Mieter")
     if not erlaubt(z, b.gruppe) and not tier_ausnahme:
@@ -914,6 +925,8 @@ def ausnahme_grund(lage: Lage, z: Zimmer, b: Bedarf) -> str:
         return "nur EMR"
     if nur_kurz(z) and not b.kurz:
         return "nur Kurzmaßnahmen"
+    if nur_tier(z) and not b.tier:
+        return "nur mit Tier"
     grund = passt(lage, z, b, frozenset({b.schluessel})) or ""
     if grund.startswith("Tier"):
         return "kein Tier-Zimmer"

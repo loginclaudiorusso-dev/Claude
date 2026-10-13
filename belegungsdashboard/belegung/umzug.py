@@ -165,8 +165,10 @@ def bedarf_zu(stand: zp.Planstand, b: Belegung, ab: date) -> zp.Bedarf:
     if liste is not None:
         return replace(liste, von=max(ab, b.von), bis=b.bis)
     gruppe = zp.belegung_gruppe(b) or "Reha"
+    z = stand.lage.zimmer.get(b.zimmer)
+    # Tier steht nicht im Gebäudeplan: wer im UG von Haus 3.1 wohnt (nur mit Tier), hat eins
     return zp.Bedarf(zp.gp_schluessel(b.name), b.name, b.massnahme, gruppe, max(ab, b.von), b.bis,
-                     zp.geschlecht_raten(b.name), True)
+                     zp.geschlecht_raten(b.name), True, tier=bool(z and zp.nur_tier(z)))
 
 
 def schluessel_zu(stand: zp.Planstand, b: Belegung) -> str:
