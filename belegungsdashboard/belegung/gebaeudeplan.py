@@ -48,6 +48,7 @@ class Belegung:
     massnahme: str = ""
     grund: str = ""          # bei Sperrung: Renoviert, Reno offen, Mieter …
     person: str = ""         # Schlüssel der Anreise-Person (bei geplant)
+    umzug: str = ""          # Kennung eines Umzugs (Teil vor bzw. nach dem Umzug, siehe ``umzug.py``)
 
     def zu_dict(self) -> dict:
         d = asdict(self)

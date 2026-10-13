@@ -127,7 +127,7 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
     beweglich: list[tuple[zp.Belegung, zp.Bedarf]] = []
     for zid, bs in lage.belegungen.items():
         for bel in bs:
-            b = nach_person.get(bel.person) if bel.art == "geplant" else None
+            b = nach_person.get(bel.person) if bel.art == "geplant" and not bel.umzug else None
             if b is not None and heute < b.von <= ende and not (b.dz not in ("", "allein")):
                 beweglich.append((bel, b))
     bewertet = []
@@ -165,7 +165,7 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
         aktuell = []
         for zid, bs in lage.belegungen.items():
             for bel in bs:
-                b = nach_person.get(bel.person) if bel.art == "geplant" else None
+                b = nach_person.get(bel.person) if bel.art == "geplant" and not bel.umzug else None
                 if b is not None and heute < b.von <= ende and b.schluessel not in schon and b.dz in ("", "allein"):
                     aktuell.append((bel, b, bewertung(lage, lage.zimmer[zid], b, flur_ids)))
         aktuell.sort(key=lambda x: x[2][0])
@@ -207,8 +207,9 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
     # 3) Gebäudeplan: Regelverstöße und klar bessere Zimmer vor der Anreise (nur als Aufgabe)
     for zid, bs in list(lage.belegungen.items()):
         for bel in list(bs):
-            if bel.art != "belegt" or not bel.name or bel.name == zp.PIVOT_NAME or bel.bis < heute or bel.von > ende:
-                continue
+            if bel.art != "belegt" or not bel.name or bel.name == zp.PIVOT_NAME or bel.bis < heute or bel.von > ende \
+                    or bel.umzug:
+                continue                               # Umzug ist schon geplant
             b = _bedarf_aus_belegung(bel)
             if b.gruppe in ("Mieter", "Gast") or "," not in bel.name:
                 continue                               # Mietverträge/Gäste und Sammel-Einträge nicht verschieben

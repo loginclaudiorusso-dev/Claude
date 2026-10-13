@@ -47,7 +47,10 @@ def offen(lage: zp.Lage, heute: date | None = None, bis: date | None = None) -> 
         for b in bs:
             if b.art != "geplant" or b.bis < heute or (bis and b.von > bis):
                 continue
-            z = Zeile(b.person, b.name, b.massnahme, zid, b.von, b.bis)
+            massnahme = b.massnahme
+            if b.umzug and (u := lage.umzuege.get(b.umzug)) is not None:
+                massnahme = f"Umzug aus {u.von_zimmer.removeprefix('GS-')}" + (f" · {b.massnahme}" if b.massnahme else "")
+            z = Zeile(b.person, b.name, massnahme, zid, b.von, b.bis)
             z.haken = z.schluessel in haken
             zeilen.append(z)
     return sorted(zeilen, key=lambda z: (z.von, z.massnahme, z.zimmer, z.name))

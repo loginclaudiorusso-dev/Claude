@@ -350,6 +350,7 @@ class Lage:
     puffer: int = 1                          # Tage nach einer Abreise, bevor neu belegt wird (1 = nicht am Abreisetag)
     abgleich: list["Abgleich"] = field(default_factory=list)   # Zuteilung ↔ Gebäudeplan
     dz: dict[str, str] = field(default_factory=dict)           # Person → DZ-Gruppe (UWT, siehe Bedarf.dz)
+    umzuege: dict = field(default_factory=dict)                 # Kennung → umzug.Umzug (mit Status)
 
     def _relevant(self, zid: str, von: date, bis: date, ohne: set[str] | frozenset = frozenset()) -> list[Belegung]:
         p = max(self.puffer - 1, 0)
@@ -1118,9 +1119,12 @@ class Bewohner:
     zimmer: str              # Zimmer-ID
     art: str                 # "belegt" (Gebäudeplan) | "geplant" (Zimmerplan)
     bedarf: Bedarf | None = None   # Person aus Anreiseliste/UWT (Zimmer hier änderbar, wenn geplant)
+    umzug: str = ""                # Kennung des Umzugs, zu dem diese Belegung gehört
 
     @property
     def quelle(self) -> str:
+        if self.umzug and self.art == "geplant":
+            return "Umzug (im Belegungssystem eintragen)"
         return "Zimmerplan (geplant)" if self.art == "geplant" else "Gebäudeplan"
 
 
@@ -1145,7 +1149,8 @@ def bewohner_aus(stand: "Planstand", b: Belegung) -> Bewohner:
         bedarf = next((x for x in stand.bedarf if (w := _namenswoerter(x.name)) and w <= woerter
                        and x.von <= b.bis + toleranz and b.von - toleranz <= x.bis), None)
     schluessel = bedarf.schluessel if bedarf else (b.person or gp_schluessel(b.name))
-    return Bewohner(schluessel, b.name, b.massnahme, belegung_gruppe(b) or "", b.von, b.bis, b.zimmer, b.art, bedarf)
+    return Bewohner(schluessel, b.name, b.massnahme, belegung_gruppe(b) or "", b.von, b.bis, b.zimmer, b.art, bedarf,
+                    b.umzug)
 
 
 def bewohner_im_zimmer(stand: "Planstand", zid: str, heute: date | None = None, rueckblick: int = 0) -> list[Bewohner]:
@@ -1220,8 +1225,8 @@ def konflikte(lage: Lage, heute: date | None = None) -> list[Konflikt]:
     ergebnis = []
     for zid, bs in lage.belegungen.items():
         for b in bs:
-            if b.art != "geplant" or b.bis < heute:
-                continue
+            if b.art != "geplant" or b.bis < heute or b.umzug:
+                continue                       # Umzüge prüft umzug.anwenden (Status „Konflikt“)
             ohne = frozenset({b.person})
             andere = lage._relevant(zid, b.von, b.bis, ohne)
             gesperrt = [x for x in andere if x.art == "gesperrt"]
@@ -1300,7 +1305,9 @@ class Planstand:
         return next((z for z in self.zuweisungen if z["person"] == person), None)
 
 
-def laden(puffer: int | None = None) -> Planstand:
+def laden(puffer: int | None = None, ohne_umzug: str | None = None) -> Planstand:
+    """Gebäudeplan, Listen, Zuweisungen und Umzüge zusammen. ``ohne_umzug``: diesen Umzug nicht anwenden
+    (zum Ändern – die Person steht dann wieder vollständig im alten Zimmer)."""
     plan, meta = gebaeudeplan.laden()
     zimmer = stammdaten(plan)
     zuw = zuweisungen_laden()
@@ -1319,6 +1326,9 @@ def laden(puffer: int | None = None) -> Planstand:
     zpivot = zimmerpivot.laden()
     lage = lage_bauen(zimmer, plan, zuw, puffer, zpivot)
     lage.dz = {b.schluessel: b.dz for b in bedarf if b.dz}
+    from . import umzug
+
+    umzug.anwenden(lage, [u for u in umzug.laden() if u.id != ohne_umzug])
     return Planstand(plan, meta, zimmer, lage, zuw, bedarf, zpivot)
 
 
@@ -1480,6 +1490,9 @@ def zeitstrahl(lage: Lage, zimmer: list[Zimmer], von: date, bis: date) -> list[t
             if b.art == "freigabe" or b.bis < von or b.von > bis:
                 continue
             text, art = balken_text(b)
+            if b.umzug and (u := lage.umzuege.get(b.umzug)) is not None:
+                text = (f"↪ {text} · aus {u.von_zimmer.removeprefix('GS-')}" if b.zimmer == u.nach_zimmer
+                        else f"{text} · ab {u.ab:%d.%m.} → {u.nach_zimmer.removeprefix('GS-')}")
             balken.append(Balken(max(b.von, von), min(b.bis, bis), text, art, b))
         spuren: list[list[Balken]] = []
         for bk in balken:
