@@ -2093,6 +2093,9 @@ def test_umzug_eingezogen(tmp_path, monkeypatch):
     st = stand()
     assert st.lage.umzuege[u.id].status == "erledigt"
     assert all(x.art == "belegt" for x in st.lage.belegungen["GS-3.3-205"])
+    # gespeicherter Gebäudeplan: ohne Umzug-Feld (für ältere Versionen lesbar), neuere Felder werden ignoriert
+    assert "umzug" not in alt.zu_dict() and "umzug" in replace(alt, umzug="x").zu_dict()
+    assert Belegung.aus_dict({**alt.zu_dict(), "kuenftig": 1}) == alt
     # früher abgereist → hinfällig; zurücknehmen
     plan.belegungen[:] = [replace(alt, bis=date(2026, 10, 15)), sperre]
     st = stand()

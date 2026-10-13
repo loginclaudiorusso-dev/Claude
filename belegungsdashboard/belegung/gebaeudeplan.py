@@ -53,11 +53,14 @@ class Belegung:
     def zu_dict(self) -> dict:
         d = asdict(self)
         d["von"], d["bis"] = self.von.isoformat(), self.bis.isoformat()
+        if not d["umzug"]:
+            del d["umzug"]          # gespeicherter Gebäudeplan bleibt für ältere Versionen lesbar (Rückweg)
         return d
 
     @staticmethod
     def aus_dict(d: dict) -> "Belegung":
-        return Belegung(**{**d, "von": date.fromisoformat(d["von"]), "bis": date.fromisoformat(d["bis"])})
+        bekannt = {k: v for k, v in d.items() if k in Belegung.__dataclass_fields__}   # neuere Felder ignorieren
+        return Belegung(**{**bekannt, "von": date.fromisoformat(d["von"]), "bis": date.fromisoformat(d["bis"])})
 
     def ueberschneidet(self, von: date, bis: date, puffer: int = 0) -> bool:
         """Zeitraum [von, bis] kollidiert, wenn er nicht mindestens ``puffer`` Tage Abstand hält."""
