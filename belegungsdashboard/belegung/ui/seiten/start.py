@@ -549,6 +549,19 @@ class StartSeite(Seite):
             b.clicked.connect(aktion)
             k.inhalt.addWidget(b, 0, Qt.AlignLeft)
 
+    def _k_optimierung(self, k: Kachel, heute: date) -> None:
+        k.inhalt.addWidget(label("Prüft alle Belegungen wie beim Zuteilen: Regelverstöße (z. B. lange Maßnahme auf "
+                                 "Haus 2, 1. OG), bessere Zimmer und sinnvolle Tausche – jeweils mit Begründung, "
+                                 "umgesetzt wird erst nach Bestätigung.", "muted", umbruch=True))
+        b = knopf("Jetzt prüfen", "primary", "funke")
+        b.clicked.connect(self._optimieren)
+        k.inhalt.addWidget(b, 0, Qt.AlignLeft)
+
+    def _optimieren(self) -> None:
+        from ..optimieren import OptimierenDialog
+
+        OptimierenDialog(self.z, self.window()).exec()
+
     def _person_anlegen(self) -> None:
         from ..dialoge import person_bearbeiten
 

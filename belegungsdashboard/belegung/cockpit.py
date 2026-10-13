@@ -34,6 +34,7 @@ KATALOG: list[KachelArt] = [
     KachelArt("notizen", "Neueste Notizen", "Notizen zu Personen und Zimmern mit Wiedervorlage", 2),
     KachelArt("belegung", "Belegung je Standort", "Belegte Plätze heute (aus der Pivot-Datei)", 2),
     KachelArt("schnell", "Schnellzugriff", "Suche, Person anlegen, Gebäudeplan, Termin"),
+    KachelArt("optimierung", "Belegung optimieren", "Regelverstöße, bessere Zimmer und Tausche prüfen"),
 ]
 ARTEN = {k.id: k for k in KATALOG}
 STANDARD = ["heute", "erinnerungen", "anreisen", "abreisen", "reinigung", "eintragen", "engpaesse"]

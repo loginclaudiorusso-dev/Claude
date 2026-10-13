@@ -70,12 +70,20 @@ class ZimmerplanSeite(Seite):
         kopf.addWidget(self.tabs, 0, Qt.AlignTop)
         kopf.addStretch()
         self.nebenfenster = nebenfenster
-        self.kopf_aktion = None             # Hauptfenster legt den Knopf neben den Seitentitel
+        self.kopf_aktion = None             # Hauptfenster legt die Knöpfe neben den Seitentitel
         if not nebenfenster:
-            self.kopf_aktion = knopf("Neues Fenster", "ghost", "fenster")
-            self.kopf_aktion.setToolTip("Den aktuellen Reiter zusätzlich in einem eigenen Fenster öffnen – z. B. den "
-                                        "Zeitstrahl neben „Zuteilen“. Änderungen erscheinen in allen Fenstern.")
-            self.kopf_aktion.clicked.connect(self._neues_fenster)
+            self.kopf_aktion = QWidget()
+            ka = QHBoxLayout(self.kopf_aktion)
+            ka.setContentsMargins(0, 0, 0, 0)
+            ka.setSpacing(4)
+            optimieren = knopf("Optimieren", "ghost", "funke", "Belegung prüfen: Regelverstöße, bessere Zimmer, Tausche")
+            optimieren.clicked.connect(self.optimieren)
+            fenster = knopf("Neues Fenster", "ghost", "fenster")
+            fenster.setToolTip("Den aktuellen Reiter zusätzlich in einem eigenen Fenster öffnen – z. B. den "
+                               "Zeitstrahl neben „Zuteilen“. Änderungen erscheinen in allen Fenstern.")
+            fenster.clicked.connect(self._neues_fenster)
+            ka.addWidget(optimieren)
+            ka.addWidget(fenster)
         self.lay.addLayout(kopf)
         # Kennzahlen in eigener Zeile unter den Reitern – brechen bei schmalem Fenster sauber um
         kz = QWidget()
@@ -629,6 +637,11 @@ class ZimmerplanSeite(Seite):
     def _fremd_geaendert(self) -> None:
         if not self._eigene_aenderung:
             self.anstossen()
+
+    def optimieren(self) -> None:
+        from ..optimieren import OptimierenDialog
+
+        OptimierenDialog(self.z, self.window()).exec()
 
     def _neues_fenster(self) -> None:
         from ..fenster import zimmerplan_fenster
