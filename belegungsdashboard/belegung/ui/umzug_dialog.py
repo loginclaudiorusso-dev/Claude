@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QDialog, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QVBoxLayout
 
 from .. import umzug as um
 from .. import zimmerplan as zp
@@ -76,11 +76,16 @@ class UmzugDialog(QDialog):
         raster.addWidget(self.grund, 2, 1)
         raster.setColumnStretch(1, 1)
         v.addLayout(raster)
+        self.belegt = QCheckBox("Umzug ist erfolgt bzw. steht fest – neues Zimmer als belegt führen")
+        self.belegt.setToolTip("Belegt: gilt sofort, auch ohne neuen Gebäudeplan, und fällt aus Aufgaben → Eintragen "
+                               "heraus. Geplant: steht als Aufgabe zum Umbuchen im Belegungssystem.")
+        self.belegt.setChecked(alt.belegt if alt else (ab is not None and ab <= date.today()))
+        v.addWidget(self.belegt)
         self.status = QVBoxLayout()
         v.addLayout(self.status)
-        v.addWidget(label("Der Gebäudeplan bleibt unverändert. Der Umzug steht danach unter Aufgaben → Eintragen, "
-                          "bis er im Belegungssystem umgebucht ist; im nächsten Gebäudeplan wird er von selbst "
-                          "als erledigt erkannt.", "klein", umbruch=True))
+        v.addWidget(label("Als belegt gilt der Umzug sofort – ein neuer Gebäudeplan ist dafür nicht nötig. Als geplant "
+                          "steht er unter Aufgaben → Eintragen, bis er im Belegungssystem umgebucht ist. Zeigt ein "
+                          "späterer Gebäudeplan die Person im neuen Zimmer, ist er erledigt.", "klein", umbruch=True))
         unten = QHBoxLayout()
         if alt is not None:
             weg = knopf("Umzug zurücknehmen", "ghost")
@@ -147,8 +152,9 @@ class UmzugDialog(QDialog):
             return
         if hinweis and QMessageBox.question(self, "Ausnahme", f"{hinweis}\n\nTrotzdem dorthin umziehen?") != QMessageBox.Yes:
             return
-        u = um.speichern(self.stand, self.bel, nach, tag, self.grund.text(), self.uid)
-        self.z.meldung.emit(f"Umzug geplant: {u.text}. Im Belegungssystem umbuchen (Aufgaben → Eintragen).",
+        u = um.speichern(self.stand, self.bel, nach, tag, self.grund.text(), self.uid, belegt=self.belegt.isChecked())
+        self.z.meldung.emit(f"Umzug belegt: {u.text}." if u.belegt else
+                            f"Umzug geplant: {u.text}. Im Belegungssystem umbuchen (Aufgaben → Eintragen).",
                             "warnung" if hinweis else "ok")
         self.z.zimmer_geaendert.emit()
         self.accept()

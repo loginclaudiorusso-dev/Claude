@@ -1231,6 +1231,18 @@ class ZimmerplanSeite(Seite):
             umzug_oeffnen(self, self.z, zid=b.zimmer, schluessel=um.schluessel_zu(self.stand, b), name=b.name,
                           nach=nach, ab=ab)
 
+    def _status_person(self, person: str, belegt: bool, name: str) -> None:
+        if zp.status_setzen(person, belegt, "Zeitstrahl"):
+            self.z.meldung.emit(f"{name}: {'belegt' if belegt else 'wieder geplant'}.", "ok")
+            self._nach_aenderung()
+
+    def _status_umzug(self, uid: str, belegt: bool) -> None:
+        from ... import umzug as um
+
+        if (u := um.status_setzen(uid, belegt, "Zeitstrahl")) is not None:
+            self.z.meldung.emit(f"{u.name}: Umzug {'belegt' if belegt else 'wieder geplant'}.", "ok")
+            self._nach_aenderung()
+
     def _zs_menue(self, obj, pos) -> None:
         from ..umzug_dialog import zurueck_nehmen
         from ..zeitstrahl import ganz_verschieben, ziehbar_balken
@@ -1251,11 +1263,17 @@ class ZimmerplanSeite(Seite):
                 u = self.stand.lage.umzuege[b.umzug]
                 m.addAction(f"Umzug ändern ({u.von_zimmer.removeprefix('GS-')} → "
                             f"{u.nach_zimmer.removeprefix('GS-')} ab {u.ab:%d.%m.}) …", lambda: self._umzug(b))
+                if u.status in ("aktiv", "konflikt"):
+                    m.addAction("Umzug zurück auf geplant" if u.belegt else "Umzug als belegt markieren (erfolgt)",
+                                lambda: self._status_umzug(u.id, not u.belegt))
                 m.addAction("Umzug zurücknehmen", lambda: zurueck_nehmen(self, self.z, b.umzug))
             elif ganz_verschieben(b):
                 m.addAction("In ein anderes Zimmer verschieben …", lambda: karte_oeffnen(self, self.z, zid, schluessel))
             elif b.bis >= date.today():
                 m.addAction("Umzug in ein anderes Zimmer …", lambda: self._umzug(b))
+            if not b.umzug and b.person and self.stand.zugewiesen(b.person):
+                m.addAction("Zurück auf geplant" if b.art == "belegt" else "Als belegt markieren (eingezogen)",
+                            lambda: self._status_person(b.person, b.art != "belegt", b.name))
         else:
             zid = obj[0] if isinstance(obj, tuple) else obj
             m.addAction(f"Zimmer {zid.removeprefix('GS-')} öffnen …", lambda: karte_oeffnen(self, self.z, zid))

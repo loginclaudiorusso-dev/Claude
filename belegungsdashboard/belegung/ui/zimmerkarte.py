@@ -292,7 +292,7 @@ class PersonBlock(QWidget):
                          and b.bis == bw.bis and b.name == bw.name and b.art == bw.art), None)
         # Eingezogen (oder schon ein Umzug): Zimmerwechsel nur als Umzug ab einem Tag, nicht rückwirkend
         nur_umzug = bw.art == "belegt" or bool(bw.umzug) or bw.von <= heute
-        if bw.art == "belegt":
+        if bw.art == "belegt" and not bw.eigene_belegung:
             v.addWidget(label("Gebucht im Belegungssystem (Gebäudeplan) – die Abreise bitte dort ändern. Ein Umzug "
                               "in ein anderes Zimmer lässt sich hier planen. Notizen und Wiedervorlagen gehen hier.",
                               "klein", umbruch=True))
@@ -327,6 +327,14 @@ class PersonBlock(QWidget):
                 ok.setToolTip("Zimmer und Abreise speichern")
                 ok.clicked.connect(self._uebernehmen)
                 knoepfe.addWidget(ok)
+            if bw.bedarf is not None and not bw.umzug and karte.stand.zugewiesen(bw.schluessel):
+                belegt = bw.art == "belegt"
+                st_k = knopf("Zurück auf geplant" if belegt else "Als belegt markieren", "ghost",
+                             None if belegt else "haken")
+                st_k.setToolTip("Eingezogen bzw. steht fest: gilt als belegt – auch ohne neuen Gebäudeplan; "
+                                "fällt aus Aufgaben → Eintragen heraus" if not belegt else "Wieder als geplant führen")
+                st_k.clicked.connect(lambda _c=False, an=not belegt: self._status(an))
+                knoepfe.addWidget(st_k)
             if self.anreise_person is not None:
                 alle = knopf("Alle Angaben …", "ghost")
                 alle.setToolTip("Geschlecht, Tier, Gruppe, Bemerkung, Abreise-Erinnerung – oder Person entfernen")
@@ -361,6 +369,15 @@ class PersonBlock(QWidget):
             weg = knopf("Umzug zurücknehmen", "ghost")
             weg.clicked.connect(lambda: zurueck_nehmen(k, k.z, u.id) and k._neu_laden())
             zeile.addWidget(aendern)
+            if u.status in ("aktiv", "konflikt"):
+                st_k = knopf("Zurück auf geplant" if u.belegt else "Als belegt markieren", "ghost",
+                             None if u.belegt else "haken")
+                st_k.setToolTip("Umzug ist erfolgt: neues Zimmer gilt als belegt – auch ohne neuen Gebäudeplan"
+                                if not u.belegt else "Umzug wieder als geplant führen")
+                st_k.clicked.connect(lambda _c=False: (um.status_setzen(u.id, not u.belegt, "Zimmerkarte"),
+                                                       k.gespeichert(f"{u.name}: Umzug "
+                                                                     + ("geplant." if u.belegt else "belegt."))))
+                zeile.addWidget(st_k)
             zeile.addWidget(weg)
         elif b.bis >= date.today():
             neu = knopf("Umzug in ein anderes Zimmer …", "ghost", "haus")
@@ -370,6 +387,10 @@ class PersonBlock(QWidget):
             zeile.addWidget(neu)
         zeile.addStretch()
         v.addLayout(zeile)
+
+    def _status(self, belegt: bool) -> None:
+        if zp.status_setzen(self.bw.schluessel, belegt):
+            self.karte.gespeichert(f"{self.bw.name}: {'belegt' if belegt else 'wieder geplant'}.")
 
     def _uebernehmen(self) -> None:
         from .dialoge import person_uebernehmen

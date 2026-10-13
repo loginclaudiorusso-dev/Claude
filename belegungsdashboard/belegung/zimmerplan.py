@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from . import anreiseliste, gebaeudeplan, protokoll, speicher, uwt
 from .gebaeudeplan import Belegung
@@ -437,13 +437,18 @@ def lage_bauen(zimmer: list[Zimmer], plan: gebaeudeplan.Gebaeudeplan | None, zuw
         woerter = _namenswoerter(zw["name"])
         treffer = [b for w, b in gebucht if woerter and woerter <= w
                    and b.von <= bis + toleranz and von - toleranz <= b.bis]
-        if treffer:
+        belegt = zw.get("status") == "belegt"
+        # hier als belegt markiert, nachdem der Gebäudeplan erstellt wurde → das Programm ist neuer und gilt
+        eigene_gilt = belegt and (plan is None or plan.stand is None or zw.get("belegt_am", "") > plan.stand.isoformat())
+        if treffer and not eigene_gilt:
             if all(b.zimmer != zw["zimmer"] for b in treffer):
                 abgleich.append(Abgleich("anders", zw["person"], zw["name"], zw["zimmer"], treffer[0].zimmer, von))
             continue   # steht im Gebäudeplan – das gilt
-        if plan is not None and von <= heute <= bis:
+        for t in treffer:                      # älterer Gebäudeplan: seine Buchung der Person ist überholt
+            belegungen[t.zimmer] = [x for x in belegungen.get(t.zimmer, []) if x is not t]
+        if plan is not None and von <= heute <= bis and not belegt:
             abgleich.append(Abgleich("fehlt", zw["person"], zw["name"], zw["zimmer"], "", von))
-        b = Belegung(zw["zimmer"], von, bis, "geplant",
+        b = Belegung(zw["zimmer"], von, bis, "belegt" if belegt else "geplant",
                      zw["name"], zw.get("massnahme", ""), zw.get("geschlecht", ""), zw["person"])
         belegungen.setdefault(b.zimmer, []).append(b)
     if zimmer_pivot is not None:
@@ -550,7 +555,7 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
             return ("Doppelzimmer – laut DZ-Liste allein" if b.dz == "allein"
                     else "Doppelzimmer – nur mit dem DZ-Partner laut Liste")
         for m in mit if not partner else []:      # DZ-Partner laut Liste: Geschlecht nicht raten
-            g = geschlecht_raten(m.name) if m.art == "belegt" else m.grund
+            g = m.grund if m.person else geschlecht_raten(m.name)    # eigene Planung kennt das Geschlecht
             if b.geschlecht and g and g != b.geschlecht:
                 return "Doppelzimmer – anderes Geschlecht"
     return None
@@ -988,6 +993,7 @@ def zuweisungen_speichern(zuteilungen: list[Zuteilung], quelle: str = "Zuteilen"
     personen = {zt.bedarf.schluessel for zt in zuteilungen}
     alle = zuweisungen_laden()
     vorher = {z["person"]: z["zimmer"] for z in alle}
+    status = {z["person"]: (z.get("status"), z.get("belegt_am")) for z in alle if z.get("status")}
     bestand = [z for z in alle if z["person"] not in personen]
     log = []
     for zt in zuteilungen:
@@ -1001,8 +1007,29 @@ def zuweisungen_speichern(zuteilungen: list[Zuteilung], quelle: str = "Zuteilen"
             "gruppe": zt.bedarf.gruppe, "geschlecht": zt.bedarf.geschlecht, "zimmer": zt.zimmer.id,
             "von": zt.bedarf.von.isoformat(), "bis": zt.bedarf.bis.isoformat()}
            for zt in zuteilungen if zt.zimmer is not None]
+    for z in neu:                              # „belegt“ bleibt, solange das Zimmer gleich bleibt
+        if z["person"] in status and vorher.get(z["person"]) == z["zimmer"]:
+            z["status"], z["belegt_am"] = status[z["person"]]
     speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": bestand + neu})
     return len(neu)
+
+
+def status_setzen(person: str, belegt: bool, quelle: str = "Zimmerkarte") -> bool:
+    """Geplante Zuweisung als belegt markieren (eingezogen – der Zimmerplan gilt, auch ohne neuen Gebäudeplan)
+    bzw. zurück auf geplant."""
+    alle = zuweisungen_laden()
+    z = next((x for x in alle if x["person"] == person), None)
+    if z is None:
+        return False
+    if belegt:
+        z["status"], z["belegt_am"] = "belegt", datetime.now().isoformat(timespec="seconds")
+    else:
+        z.pop("status", None)
+        z.pop("belegt_am", None)
+    protokoll.eintragen([{"aktion": "als belegt markiert" if belegt else "zurück auf geplant", "name": z["name"],
+                          "person": person, "alt": z["zimmer"], "neu": z["zimmer"], "von": z["von"], "quelle": quelle}])
+    speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": alle})
+    return True
 
 
 def zuweisungen_abgleichen(zuw: list[dict], bedarf: list[Bedarf]) -> list[dict]:
@@ -1134,11 +1161,14 @@ class Bewohner:
     art: str                 # "belegt" (Gebäudeplan) | "geplant" (Zimmerplan)
     bedarf: Bedarf | None = None   # Person aus Anreiseliste/UWT (Zimmer hier änderbar, wenn geplant)
     umzug: str = ""                # Kennung des Umzugs, zu dem diese Belegung gehört
+    eigene_belegung: bool = False  # aus dem Zimmerplan (geplant oder hier als belegt markiert), nicht Gebäudeplan
 
     @property
     def quelle(self) -> str:
-        if self.umzug and self.art == "geplant":
-            return "Umzug (im Belegungssystem eintragen)"
+        if self.umzug and self.eigene_belegung:
+            return "Umzug – belegt (Zimmerplan)" if self.art == "belegt" else "Umzug (im Belegungssystem eintragen)"
+        if self.eigene_belegung and self.art == "belegt":
+            return "Zimmerplan (belegt)"
         return "Zimmerplan (geplant)" if self.art == "geplant" else "Gebäudeplan"
 
 
@@ -1155,7 +1185,7 @@ def bewohner_aus(stand: "Planstand", b: Belegung) -> Bewohner:
     """Bewohner zu einer Belegung. Gebäudeplan-Einträge werden – wie beim Abgleich – über den Namen und den
     Zeitraum einer Person aus Anreiseliste/UWT zugeordnet, sonst gilt der Name als Schlüssel."""
     bedarf = None
-    if b.art == "geplant" and b.person:
+    if b.person:                                 # eigene Planung (geplant oder hier als belegt markiert)
         bedarf = next((x for x in stand.bedarf if x.schluessel == b.person), None)
     elif b.name:
         woerter = _namenswoerter(b.name)
@@ -1164,7 +1194,7 @@ def bewohner_aus(stand: "Planstand", b: Belegung) -> Bewohner:
                        and x.von <= b.bis + toleranz and b.von - toleranz <= x.bis), None)
     schluessel = bedarf.schluessel if bedarf else (b.person or gp_schluessel(b.name))
     return Bewohner(schluessel, b.name, b.massnahme, belegung_gruppe(b) or "", b.von, b.bis, b.zimmer, b.art, bedarf,
-                    b.umzug)
+                    b.umzug, bool(b.person))
 
 
 def bewohner_im_zimmer(stand: "Planstand", zid: str, heute: date | None = None, rueckblick: int = 0) -> list[Bewohner]:

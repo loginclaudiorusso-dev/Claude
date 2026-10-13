@@ -2254,3 +2254,64 @@ def test_zkl_import_und_abgleich(tmp_path, monkeypatch):
     # steht die Person später im Gebäudeplan, gilt er (keine doppelte Belegung)
     plan.belegungen.append(Belegung("GS-3.3-120", date(2025, 5, 1), date(2027, 1, 31), "belegt", "Weg, Walter", "GS RVT"))
     assert len([b for b in stand().lage.belegungen["GS-3.3-120"] if b.art == "belegt"]) == 1
+
+
+def test_geplant_auf_belegt(tmp_path, monkeypatch):
+    """Zimmerplan als Hauptwerkzeug: geplante Zuweisung bzw. Umzug als belegt markieren – gilt ohne neuen
+    Gebäudeplan, fällt aus „Eintragen“, schlägt einen älteren Gebäudeplan; ein neuerer Gebäudeplan gilt wieder."""
+    from belegung import eintragen
+    from belegung import umzug as um
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung, Gebaeudeplan
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 13)
+    zimmer = [zp.Zimmer("GS-3.2-101", "3.2", "1", "101"), zp.Zimmer("GS-3.3-205", "3.3", "2", "205"),
+              zp.Zimmer("GS-3.3-206", "3.3", "2", "206")]
+    p = _bedarf("Neu, Nina", "RVT", date(2026, 10, 1), date(2026, 12, 20), "w")
+    zp.zuweisungen_speichern([zp.Zuteilung(p, zimmer[0])])
+    plan = Gebaeudeplan("plan.docx", date(2026, 10, 3), [], [])
+
+    def lage():
+        la = zp.lage_bauen(zimmer, plan, zp.zuweisungen_laden(), heute=heute)
+        um.anwenden(la, um.laden())
+        return la
+
+    assert lage().belegungen["GS-3.2-101"][0].art == "geplant" and eintragen.offen(lage(), heute)
+    assert zp.status_setzen(p.schluessel, True)
+    la = lage()
+    b = la.belegungen["GS-3.2-101"][0]
+    assert b.art == "belegt" and b.person == p.schluessel and not eintragen.offen(la, heute)
+    assert not any(a.art == "fehlt" for a in la.abgleich)
+    st = zp.Planstand(plan, {}, zimmer, la, zp.zuweisungen_laden(), [p])
+    bw = zp.bewohner_aus(st, b)
+    assert bw.eigene_belegung and bw.quelle == "Zimmerplan (belegt)" and bw.schluessel == p.schluessel
+    # gleiches Zimmer erneut gespeichert → bleibt belegt; anderes Zimmer → wieder geplant
+    zp.zuweisungen_speichern([zp.Zuteilung(p, zimmer[0])])
+    assert lage().belegungen["GS-3.2-101"][0].art == "belegt"
+    # älterer Gebäudeplan zeigt die Person noch woanders → hier als belegt markiert gilt
+    plan.belegungen[:] = [Belegung("GS-3.3-206", p.von, p.bis, "belegt", p.name, "GS RVT")]
+    la = lage()
+    assert la.belegungen["GS-3.2-101"][0].art == "belegt" and not la.belegungen["GS-3.3-206"]
+    # neuerer Gebäudeplan → er gilt wieder
+    plan.stand = date(2099, 1, 1)
+    la = lage()
+    assert not la.belegungen["GS-3.2-101"] and la.belegungen["GS-3.3-206"][0].art == "belegt"
+    plan.stand, plan.belegungen[:] = date(2026, 10, 3), []
+    # Umzug als belegt: neues Zimmer sofort belegt, keine Aufgabe „Eintragen“; umschaltbar
+    st = zp.Planstand(plan, {}, zimmer, lage(), zp.zuweisungen_laden(), [p])
+    u = um.speichern(st, st.lage.belegungen["GS-3.2-101"][0], "GS-3.3-205", heute, belegt=True)
+    la = lage()
+    neu = la.belegungen["GS-3.3-205"][0]
+    assert neu.art == "belegt" and neu.umzug == u.id and not eintragen.offen(la, heute)
+    assert la.umzuege[u.id].status_text.startswith("belegt")
+    um.status_setzen(u.id, False)
+    la = lage()
+    assert la.belegungen["GS-3.3-205"][0].art == "geplant" and eintragen.offen(la, heute)
+    assert zp.status_setzen(p.schluessel, False) and lage().belegungen["GS-3.2-101"][0].art == "geplant"
+
+
+def test_zkl_vorauswahl():
+    from belegung import zkl
+
+    assert zkl.VORAUSWAHL == {"bewohnt", "nicht_belegbar", "tiere"} and "gaeste" not in zkl.VORAUSWAHL

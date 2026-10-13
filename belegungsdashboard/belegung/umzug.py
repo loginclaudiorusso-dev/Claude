@@ -25,7 +25,7 @@ from .gebaeudeplan import Belegung
 
 DATEI = f"{speicher.IMPORT_ORDNER}/umzuege.json"
 TOLERANZ = timedelta(days=3)          # Gebäudeplan darf beim Umzugstag ein paar Tage abweichen
-STATUS_TEXT = {"aktiv": "geplant – im Belegungssystem umbuchen", "erledigt": "im Belegungssystem umgebucht",
+STATUS_TEXT = {"aktiv": "aktiv", "erledigt": "im Belegungssystem umgebucht",
                "hinfaellig": "hinfällig – Person nicht mehr im alten Zimmer", "konflikt": "Konflikt"}
 
 
@@ -42,6 +42,7 @@ class Umzug:
     erstellt: str = ""
     status: str = ""            # beim Anwenden gesetzt: aktiv | erledigt | hinfaellig | konflikt
     hinweis: str = ""           # Konflikt-Grund
+    belegt: bool = False        # True: Umzug ist erfolgt/steht fest – neues Zimmer gilt als belegt (nicht nur geplant)
 
     @property
     def text(self) -> str:
@@ -51,17 +52,20 @@ class Umzug:
     @property
     def status_text(self) -> str:
         t = STATUS_TEXT.get(self.status, self.status)
+        if self.status == "aktiv":
+            t = "belegt (im Zimmerplan bestätigt)" if self.belegt else "geplant – im Belegungssystem umbuchen"
         return f"{t}: {self.hinweis}" if self.hinweis else t
 
     def zu_dict(self) -> dict:
         return {"id": self.id, "schluessel": self.schluessel, "name": self.name, "massnahme": self.massnahme,
                 "von_zimmer": self.von_zimmer, "nach_zimmer": self.nach_zimmer, "ab": self.ab.isoformat(),
-                "grund": self.grund, "erstellt": self.erstellt}
+                "grund": self.grund, "erstellt": self.erstellt, "belegt": self.belegt}
 
     @staticmethod
     def aus_dict(d: dict) -> "Umzug":
         return Umzug(d["id"], d.get("schluessel", ""), d.get("name", ""), d.get("massnahme", ""), d["von_zimmer"],
-                     d["nach_zimmer"], date.fromisoformat(d["ab"]), d.get("grund", ""), d.get("erstellt", ""))
+                     d["nach_zimmer"], date.fromisoformat(d["ab"]), d.get("grund", ""), d.get("erstellt", ""),
+                     belegt=bool(d.get("belegt")))
 
 
 def laden() -> list[Umzug]:
@@ -100,7 +104,7 @@ def quelle_finden(lage: zp.Lage, u: Umzug) -> Belegung | None:
 def _erledigt(lage: zp.Lage, u: Umzug) -> bool:
     """Steht die Person laut Gebäudeplan schon im neuen Zimmer (um den Umzugstag herum)?"""
     woerter = zp._namenswoerter(u.name)
-    return any(b.art == "belegt" and b.name and woerter and woerter <= zp._namenswoerter(b.name)
+    return any(b.art == "belegt" and not b.person and b.name and woerter and woerter <= zp._namenswoerter(b.name)
                and b.von <= u.ab + TOLERANZ and b.bis >= u.ab
                for b in lage.belegungen.get(u.nach_zimmer, []))
 
@@ -125,8 +129,8 @@ def anwenden(lage: zp.Lage, umzuege: list[Umzug]) -> None:
         lage.belegungen[u.von_zimmer] = liste
         schluessel = alt.person or u.schluessel
         geschlecht = alt.grund if alt.art == "geplant" else zp.geschlecht_raten(alt.name)
-        neu = Belegung(u.nach_zimmer, max(u.ab, alt.von), alt.bis, "geplant", alt.name, alt.massnahme, geschlecht,
-                       schluessel, u.id)
+        neu = Belegung(u.nach_zimmer, max(u.ab, alt.von), alt.bis, "belegt" if u.belegt else "geplant", alt.name,
+                       alt.massnahme, geschlecht, schluessel, u.id)
         ohne = frozenset({schluessel})
         u.status, u.hinweis = "aktiv", ""
         andere = lage._relevant(u.nach_zimmer, neu.von, neu.bis, ohne)
@@ -220,14 +224,28 @@ def auswahl(stand: zp.Planstand, b: Belegung, ab: date) -> tuple[list[zp.Zimmer]
 
 
 def speichern(stand: zp.Planstand, b: Belegung, nach: str, ab: date, grund: str = "", alt_id: str | None = None,
-              quelle: str = "Umzug") -> Umzug:
+              quelle: str = "Umzug", belegt: bool = False) -> Umzug:
     """Umzug anlegen bzw. ``alt_id`` ersetzen und protokollieren. ``stand`` ohne den alten Umzug laden!"""
     umzuege = [u for u in laden() if u.id != alt_id]
     u = Umzug(alt_id or uuid.uuid4().hex[:12], schluessel_zu(stand, b), b.name, b.massnahme, b.zimmer, nach, ab,
-              grund.strip(), datetime.now().isoformat(timespec="seconds"))
+              grund.strip(), datetime.now().isoformat(timespec="seconds"), belegt=belegt)
     _schreiben(umzuege + [u])
     protokoll.eintragen([{"aktion": "Umzug" if not alt_id else "Umzug geändert", "name": u.name, "person": u.schluessel,
                           "alt": u.von_zimmer, "neu": u.nach_zimmer, "von": ab.isoformat(), "quelle": quelle}])
+    return u
+
+
+def status_setzen(uid: str, belegt: bool, quelle: str = "Umzug") -> Umzug | None:
+    """Umzug als belegt (erfolgt) markieren bzw. zurück auf geplant."""
+    umzuege = laden()
+    u = next((x for x in umzuege if x.id == uid), None)
+    if u is None:
+        return None
+    u.belegt = belegt
+    _schreiben(umzuege)
+    protokoll.eintragen([{"aktion": "Umzug als belegt markiert" if belegt else "Umzug zurück auf geplant", "name": u.name,
+                          "person": u.schluessel, "alt": u.von_zimmer, "neu": u.nach_zimmer, "von": u.ab.isoformat(),
+                          "quelle": quelle}])
     return u
 
 

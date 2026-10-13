@@ -305,6 +305,7 @@ class Punkt:
         return f"{self.art}|{self.zimmer}|{self.daten.get('name', '')}"
 
 
+VORAUSWAHL = {"bewohnt", "nicht_belegbar", "tiere"}   # ZKL ist ab jetzt statisch: diese einmalig übernehmen
 ARTEN = {
     "bewohnt": "Laut ZKL bewohnt, im Gebäudeplan frei",
     "nicht_belegbar": "Laut ZKL nicht belegbar (Lager, Büro, Appartment …)",

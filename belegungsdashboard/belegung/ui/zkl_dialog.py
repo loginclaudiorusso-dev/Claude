@@ -40,8 +40,8 @@ class ZklAbgleichDialog(QDialog):
             stand = f", Daten bis {self.daten.stand:%d.%m.%Y}" if self.daten.stand else ""
             v.addWidget(label(f"<b>{self.daten.datei}</b> · Blatt „{self.daten.blatt}“{stand}. Der Gebäudeplan bleibt "
                               "die Grundlage; aus der ZKL kommen Tier, TN-Nummer und Zimmer-Infos automatisch dazu. "
-                              "Hier entscheidest du die Abweichungen – angehakt wird übernommen, der Rest als geprüft "
-                              "abgelegt.", "muted", umbruch=True))
+                              "Einmaliger Abgleich: Bewohnt, nicht belegbar und Tier-Pool sind vorausgewählt – angehakt "
+                              "wird übernommen, der Rest als geprüft abgelegt.", "muted", umbruch=True))
         pillen = QWidget()
         pillen.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # umbrechen statt verbreitern
         fl = FlowLayout(pillen, abstand=6)
@@ -62,6 +62,7 @@ class ZklAbgleichDialog(QDialog):
                     zeile = QHBoxLayout()
                     zeile.setSpacing(8)
                     cb = QCheckBox()
+                    cb.setChecked(p.art in zkl.VORAUSWAHL)
                     text = label(f"{p.text} → <b>{p.aktion}</b>", umbruch=True)
                     text.mousePressEvent = lambda _e, c=cb: c.toggle()
                     self._wahl.append((cb, p))
