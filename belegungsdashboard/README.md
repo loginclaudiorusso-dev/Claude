@@ -27,6 +27,23 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.4
+
+* **Umzug für Eingezogene:** Auch wer schon im Zimmer wohnt (laut Gebäudeplan oder schon angereist), kann ab
+  einem Tag in ein anderes Zimmer wechseln.
+  * Im **Zeitstrahl** den Balken in die Zeile des neuen Zimmers ziehen. Der Tag, an dem du loslässt, ist der
+    Umzugstag (Vorschlag, im Dialog änderbar).
+  * Oder **Rechtsklick** auf den Balken → „Umzug in ein anderes Zimmer …“. Dort auch „Person öffnen“, „Umzug
+    ändern“ und „Umzug zurücknehmen“.
+  * Oder in der **Zimmer-/Personenkarte** (Klick aufs Zimmer) der Knopf „Umzug in ein anderes Zimmer …“.
+  * Der Dialog zeigt nur Zimmer, die ab dem Umzugstag bis zur Abreise frei sind – oben die zulässigen, darunter
+    Ausnahmen mit Grund. Doppelzimmer bleiben UWT und Gästen vorbehalten.
+  * Das alte Zimmer endet am Umzugstag (Auszugsreinigung) und ist danach frei. Das neue steht ab dem Umzugstag als
+    geplant im Zeitstrahl („↪ … aus 2-111“) und unter **Aufgaben → Eintragen** („Umzug aus …“), bis es im
+    Belegungssystem umgebucht ist. Zeigt der nächste Gebäudeplan die Person im neuen Zimmer, gilt der Umzug als
+    erledigt.
+  * Geplante Personen, die noch nicht angereist sind, werden wie bisher ganz verschoben (ohne Umzugstag).
+
 ## Neu in 6.3
 
 * **Posteingang** (Seitenleiste): Mails zu **Gästehaus-Reservierungen, Anmeldungen, Stornos, Abbrüchen und

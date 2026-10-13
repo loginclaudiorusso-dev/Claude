@@ -1,4 +1,4 @@
-# Rückweg: von 6.3 zurück zu 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.4 zurück zu 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -11,15 +11,16 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.0.0** | `backup/v6.0.0` | `88e2171` | `INNternat_v6.0.0_Sicherung.zip` |
 | **6.1.0** | `backup/v6.1.0` | `e36222c` | `INNternat_v6.1.0_Sicherung.zip` |
 | **6.2.0** | `backup/v6.2.0` | `91ce80d` | `INNternat_v6.2.0_Sicherung.zip` |
-| **6.3.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.3.0** | `backup/v6.3.0` | `e0ee3e9` | `INNternat_v6.3.0_Sicherung.zip` |
+| **6.4.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
-Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung` und `v6.2.0-sicherung` (Tags lassen sich aus der
+Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
 
 ## 2. Schnellster Rückweg (lokal, ohne Git) – 3 Schritte
 
 1. Dashboard beenden (auch im Infobereich unten rechts: Rechtsklick auf das Symbol → **Beenden**).
-2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.2.0_Sicherung.zip`) in den
+2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.3.0_Sicherung.zip`) in den
    Programmordner `C:\Users\claudio.russo\Documents\GitClaude\INNternat` entpacken und alles überschreiben.
 3. `Start.bat` starten – in der Seitenleiste steht die alte Versionsnummer.
 
@@ -104,7 +105,16 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 | `f3e8a04` | rein + UI | Posteingang (`belegung/mails.py`, `ui/seiten/posteingang.py`) | – |
 | `3996e13` | fachlich | Optimierung (`belegung/optimierung.py`, `zimmer_wert_details`) | – |
 | `f3a3b3f` | UI | Dialog „Belegung optimieren“, Knopf im Zimmerplan, Kachel | `3996e13` |
-| (letzter) | Doku | Version 6.3.0, README, ROLLBACK.md | – |
+| `e0ee3e9` | Doku | Version 6.3.0, README, ROLLBACK.md | – |
+
+**6.4.0** (seit `e0ee3e9`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `f795a23` | fachlich | Umzug während des Aufenthalts (`belegung/umzug.py`, Feld `Belegung.umzug`) | – |
+| `1ecf27b` | UI | Ziehen belegter Balken, Rechtsklick-Menü, Umzug-Dialog, Personenkarte | `f795a23` |
+| `d10572c` | Daten | Gespeicherter Gebäudeplan bleibt für ältere Versionen lesbar (Rückweg) | `f795a23` |
+| (letzter) | Doku | Version 6.4.0, README, ROLLBACK.md | – |
 
 ## 6. Was sich geändert hat – und was nicht
 
@@ -113,6 +123,9 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 * **Neu in den Einstellungen (6.1/6.2):** `ansichten` (offene Tabs), `dashboard` (Kacheln), `zp_hinweise_offen`,
   `design`, `anzeige_name`; 6.3: `start_titel`, `engpass_grenzen`.
 * **Neu im Datenordner (6.3):** `importe/posteingang.json` (abgelegte Mails mit Prüflisten).
+* **Neu im Datenordner (6.4):** `importe/umzuege.json` (geplante Umzüge). Ältere Versionen ignorieren die Datei –
+  nach einem Rückweg sind geplante Umzüge dort nicht sichtbar, bleiben aber erhalten und erscheinen nach dem
+  nächsten Update wieder.
 * **Neu im Datenordner (6.0):** Ordner `Sicherungen/` (nur Kopien); Notizen zu Zimmern (`zimmer:<ID>`) und zu
   Gebäudeplan-Bewohnern (`gp:<Name>`) stehen wie bisherige Notizen in `termine.json`.
 * **Keine** Datenbank, keine Migration, keine Zugangsdaten in Sicherungen (API-Schlüssel liegen in der

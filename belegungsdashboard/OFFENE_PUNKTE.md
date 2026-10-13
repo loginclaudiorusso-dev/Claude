@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.3.0, 13.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.4.0, 13.10.2026)
 
 ## Als Nächstes
 
@@ -8,6 +8,7 @@
 - 6.2: Design wählbar (Klassisch/Modern/Kompakt/Warm), Name änderbar. Nutzer wählt sein Design – ggf. nachjustieren.
 - Erledigt in 6.3 (13.10.): Startseiten-Titel, KW mit Daten, Engpässe erklärt/Grenzen einstellbar, Posteingang
   (Gästehaus, Anmeldung, Storno, Abbruch mit Prüfliste, Hinweis; Outlook-Übernahme ungetestet), Optimierung.
+- Erledigt in 6.4 (13.10.): Umzug für Eingezogene (Zeitstrahl ziehen, Rechtsklick, Personenkarte).
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).
