@@ -55,6 +55,21 @@ def anordnung() -> list[dict]:
     return ergebnis
 
 
+TITEL_STANDARD = ("Start", "Mein Dashboard – selbst zusammengestellt")
+
+
+def titel() -> tuple[str, str]:
+    """(Titel, Untertitel) der Startseite – im Anpassen-Modus änderbar."""
+    roh = speicher.einstellungen().get("start_titel") or {}
+    t = str(roh.get("titel") or "").strip() or TITEL_STANDARD[0]
+    u = roh.get("untertitel")
+    return t, (TITEL_STANDARD[1] if u is None else str(u).strip())
+
+
+def titel_speichern(t: str, u: str) -> None:
+    speicher.einstellung_setzen("start_titel", {"titel": t.strip()[:40], "untertitel": u.strip()[:80]})
+
+
 def anordnung_speichern(kacheln: list[dict]) -> None:
     speicher.einstellung_setzen("dashboard", [{"id": k["id"], "breite": k.get("breite", 1)} for k in kacheln])
 

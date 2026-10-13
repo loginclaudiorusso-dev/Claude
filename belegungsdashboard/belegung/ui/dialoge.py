@@ -870,6 +870,60 @@ class PersonDialog(QDialog):
             self.accept()
 
 
+class EngpassGrenzenDialog(QDialog):
+    """Ab wann eine Woche als knapp bzw. kritisch gilt – je Art (freie Zimmer, EMR, Doppelzimmer)."""
+
+    def __init__(self, parent=None):
+        from .. import eintragen
+
+        super().__init__(parent)
+        self.setWindowTitle("Engpass-Grenzen")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(12)
+        v.addWidget(label("Engpass-Grenzen", "seitentitel"))
+        v.addWidget(label("Eine Woche ist <b>knapp</b>, wenn weniger Zimmer frei sind als der erste Wert, und "
+                          "<b>kritisch</b> unter dem zweiten Wert.", "muted", umbruch=True))
+        raster = QGridLayout()
+        raster.setHorizontalSpacing(12)
+        raster.addWidget(label("knapp unter", "klein"), 0, 1)
+        raster.addWidget(label("kritisch unter", "klein"), 0, 2)
+        self._felder = {}
+        for r, (art, (knapp, kritisch)) in enumerate(eintragen.grenzen().items(), start=1):
+            name = label(eintragen.ENGPASS_NAMEN[art], "fett")
+            name.setToolTip(eintragen.ENGPASS_ERKLAERUNG[art])
+            raster.addWidget(name, r, 0)
+            felder = []
+            for c, wert in ((1, knapp), (2, kritisch)):
+                sp = QSpinBox()
+                sp.setRange(0, 200)
+                sp.setValue(wert)
+                sp.setFixedWidth(90)
+                raster.addWidget(sp, r, c)
+                felder.append(sp)
+            self._felder[art] = felder
+        v.addLayout(raster)
+        unten = QHBoxLayout()
+        std = knopf("Standard", "ghost")
+        std.clicked.connect(lambda: [self._felder[a][i].setValue(eintragen.GRENZEN[a][i])
+                                     for a in self._felder for i in (0, 1)])
+        unten.addWidget(std)
+        unten.addStretch()
+        ab = knopf("Abbrechen", "ghost")
+        ab.clicked.connect(self.reject)
+        ok = knopf("Speichern", "primary", "haken")
+        ok.clicked.connect(self._speichern)
+        unten.addWidget(ab)
+        unten.addWidget(ok)
+        v.addLayout(unten)
+
+    def _speichern(self) -> None:
+        from .. import eintragen
+
+        eintragen.grenzen_speichern({a: (f[0].value(), f[1].value()) for a, f in self._felder.items()})
+        self.accept()
+
+
 def person_uebernehmen(alt: anreiseliste.Person | None, neu: anreiseliste.Person | None, zustand,
                        zimmer: str | None = None) -> None:
     """Geänderte (oder gelöschte) Person speichern – Erinnerung, Zuweisung und Notizen ziehen mit."""

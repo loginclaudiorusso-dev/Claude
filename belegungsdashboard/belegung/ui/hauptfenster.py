@@ -498,6 +498,13 @@ class HauptFenster(QMainWindow):
         self.marke_name.setText(name)
         self.marke_zusatz.setText(" · ".join(x for x in (zusatz, f"v{__version__}") if x))
         self.setWindowTitle(f"{name} – v{__version__}")
+        if hasattr(self, "nav_knoepfe") and "start" in self.seiten:   # Titel der Startseite in Leiste, Kopf, Tabs
+            self.nav_knoepfe["start"].setText(f"  {self.seiten['start'].titel}".replace("&", "&&"))
+            seite = self.stapel.currentWidget()
+            self.titel.setText(seite.titel)
+            self.untertitel.setText(seite.untertitel)
+            for i in range(self.tabs.count()):
+                self._tab_titel(i)
         if getattr(self, "tray", None) is not None:
             self.erinnerungen_pruefen()
 

@@ -444,12 +444,21 @@ class ZimmerplanSeite(Seite):
         wb.inhalt.addLayout(zeile)
         v.addWidget(wb)
 
+        from ... import eintragen
+
         ek = Karte("Engpässe – nächste 12 Wochen",
-                   "Zimmer, die die ganze Woche frei sind, nach heutigem Stand. Anreisen ohne Liste fehlen noch – "
-                   "in Wirklichkeit wird es eher enger.")
-        self.eng_tab = Tabelle(["KW", "Woche", "Freie Zimmer", "EMR-Zimmer", "Doppelzimmer UWT", "Lage"],
-                               ["l", "l", "r", "r", "r", "l"], dehnen=5)
-        self.eng_tab.setToolTip("EMR-Zimmer: Haus 2, 1.–2. OG · Doppelzimmer UWT: ganz frei in Haus 3.2, 3.3 und 6")
+                   "Nach heutigem Stand (Gebäudeplan + Planungen). Anreisen ohne Liste fehlen noch – in Wirklichkeit "
+                   "wird es eher enger.")
+        b_grenzen = knopf("Grenzen …", "ghost", None, "Ab wann eine Woche als knapp bzw. kritisch gilt")
+        b_grenzen.clicked.connect(self._engpass_grenzen)
+        ek.aktion(b_grenzen)
+        self.eng_def = label("", "klein", umbruch=True)
+        self.eng_def.setTextFormat(Qt.RichText)
+        ek.inhalt.addWidget(self.eng_def)
+        self.eng_tab = Tabelle(["Woche", "Freie Zimmer", "EMR-Zimmer", "Doppelzimmer UWT", "Lage"],
+                               ["l", "r", "r", "r", "l"], dehnen=4)
+        self.eng_tab.setToolTip("<br>".join(f"<b>{eintragen.ENGPASS_NAMEN[a]}:</b> {t}"
+                                            for a, t in eintragen.ENGPASS_ERKLAERUNG.items()))
         ek.inhalt.addWidget(self.eng_tab)
         v.addWidget(ek)
         v.addStretch()
@@ -1091,6 +1100,9 @@ class ZimmerplanSeite(Seite):
         from ... import eintragen
 
         wochen = eintragen.engpaesse(self.stand.lage)
+        self.eng_def.setText("<br>".join(f"<b>{eintragen.ENGPASS_NAMEN[a]}</b> = {t}"
+                                         for a, t in eintragen.ENGPASS_ERKLAERUNG.items())
+                             + f"<br><b>Ampel:</b> {eintragen.grenzen_text()}.")
         t = theme.T
         farbe = {"ok": t.ok, "knapp": t.knapp, "kritisch": t.ueber}
         zeilen, farben = [], {}
@@ -1101,14 +1113,22 @@ class ZimmerplanSeite(Seite):
                 engpass = [n for a, n in (("gesamt", "Zimmer"), ("emr", "EMR"), ("doppel", "Doppelzimmer"))
                            if w.stufe(a) != "ok"]
                 text += " – " + ", ".join(engpass)
-            zeilen.append([f"KW {w.montag.isocalendar()[1]}", f"{w.montag:%d.%m.}–{w.montag + timedelta(days=6):%d.%m.}",
-                           w.gesamt, w.emr, w.doppel, text])
-            for c, art in ((2, "gesamt"), (3, "emr"), (4, "doppel")):
+            zeilen.append([w.text, w.gesamt, w.emr, w.doppel, text])
+            for c, art in ((1, "gesamt"), (2, "emr"), (3, "doppel")):
                 if w.stufe(art) != "ok":
                     farben[(r, c)] = farbe[w.stufe(art)]
-            farben[(r, 5)] = farbe[stufe]
+            farben[(r, 4)] = farbe[stufe]
         self.eng_tab.fuellen(zeilen, farben)
         self.eng_tab.hoehe_anpassen(len(zeilen))
+
+    def _engpass_grenzen(self) -> None:
+        from ... import eintragen
+        from ..dialoge import EngpassGrenzenDialog
+
+        if EngpassGrenzenDialog(self).exec():
+            self.z.meldung.emit("Engpass-Grenzen gespeichert: " + eintragen.grenzen_text() + ".", "ok")
+            self._engpaesse_zeigen()
+            self.z.zimmer_geaendert.emit()
 
     # ---- Drucken -------------------------------------------------------------------------
 

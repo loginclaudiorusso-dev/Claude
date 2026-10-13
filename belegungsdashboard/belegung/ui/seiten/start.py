@@ -12,7 +12,9 @@ from html import escape
 
 from PySide6.QtCore import QMimeData, Qt, Signal
 from PySide6.QtGui import QDrag
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMenu, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import (
+    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QWidget,
+)
 
 from ... import cockpit, eintragen
 from ... import termine as tm
@@ -162,6 +164,25 @@ class StartSeite(Seite):
                              umbruch=True)
         self.hinweis.setVisible(False)
         self.lay.addWidget(self.hinweis)
+        # Titel und Untertitel der Seite (im Anpassen-Modus änderbar)
+        self.titel, self.untertitel = cockpit.titel()
+        self.titel_zeile = QWidget()
+        tz = QHBoxLayout(self.titel_zeile)
+        tz.setContentsMargins(0, 0, 0, 0)
+        tz.setSpacing(8)
+        self.e_titel = QLineEdit(self.titel)
+        self.e_titel.setMaxLength(40)
+        self.e_titel.setPlaceholderText(cockpit.TITEL_STANDARD[0])
+        self.e_titel.setToolTip("Titel der Startseite (auch im Tab und in der Seitenleiste)")
+        self.e_untertitel = QLineEdit(self.untertitel)
+        self.e_untertitel.setMaxLength(80)
+        self.e_untertitel.setPlaceholderText("Untertitel (leer = keiner)")
+        tz.addWidget(label("Titel", "fett"))
+        tz.addWidget(self.e_titel, 1)
+        tz.addWidget(label("Untertitel", "fett"))
+        tz.addWidget(self.e_untertitel, 2)
+        self.titel_zeile.setVisible(False)
+        self.lay.addWidget(self.titel_zeile)
         self.raster_w = QWidget()
         self.raster = QGridLayout(self.raster_w)
         self.raster.setContentsMargins(0, 0, 0, 0)
@@ -199,8 +220,13 @@ class StartSeite(Seite):
         self.b_hinzu.setVisible(self.bearbeiten)
         self.b_standard.setVisible(self.bearbeiten)
         self.hinweis.setVisible(self.bearbeiten)
+        self.titel_zeile.setVisible(self.bearbeiten)
         if not self.bearbeiten:
             cockpit.anordnung_speichern(self.kacheln)
+            cockpit.titel_speichern(self.e_titel.text(), self.e_untertitel.text())
+            self.titel, self.untertitel = cockpit.titel()
+            self.e_titel.setText(self.titel)
+            self.z.name_geaendert.emit()           # Seitenkopf, Tab und Seitenleiste übernehmen den Titel
             self.z.meldung.emit("Dashboard gespeichert.", "ok")
         self.aktualisieren()
 
@@ -433,10 +459,25 @@ class StartSeite(Seite):
     def _k_engpaesse(self, k: Kachel, heute: date) -> None:
         if self.stand is None:
             return
+        erkl = "<br>".join(f"<b>{eintragen.ENGPASS_NAMEN[a]}:</b> {t}" for a, t in eintragen.ENGPASS_ERKLAERUNG.items())
+        erkl += f"<br><b>Ampel:</b> {eintragen.grenzen_text()}"
+        k.setToolTip(erkl)
+        k.inhalt.addWidget(label("Zimmer, die die ganze Woche frei sind · EMR = Haus 2, 1.–2. OG · Doppel = ganz "
+                                 "freie Doppelzimmer für UWT (Maus über die Kachel: genaue Erklärung)", "klein",
+                                 umbruch=True))
         for w in eintragen.engpaesse(self.stand.lage, heute, 5):
-            stufe = w.gesamtstufe
-            p = Pille({"ok": "ok", "knapp": "knapp", "kritisch": "kritisch"}[stufe], stufe)
-            self._zeile(k, f"KW {w.montag.isocalendar()[1]} · {w.gesamt} frei · EMR {w.emr} · Doppel {w.doppel}", p)
+            rechts = QWidget()
+            h = QHBoxLayout(rechts)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(4)
+            for art, text in (("gesamt", f"{w.gesamt} frei"), ("emr", f"EMR {w.emr}"), ("doppel", f"Doppel {w.doppel}")):
+                p = Pille(text, {"ok": "neutral", "knapp": "knapp", "kritisch": "ueber"}[w.stufe(art)])
+                knapp, kritisch = w.grenzen[art]
+                p.setToolTip(f"{eintragen.ENGPASS_NAMEN[art]}: {getattr(w, art)} – knapp unter {knapp}, "
+                             f"kritisch unter {kritisch}")
+                h.addWidget(p)
+            self._zeile(k, w.text, rechts)
+        self._link(k, "Alle 12 Wochen und Grenzen →", lambda: self._zimmerplan("Aufgaben"))
 
     def _k_facility(self, k: Kachel, heute: date) -> None:
         if self.stand is None:

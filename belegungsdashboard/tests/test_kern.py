@@ -1889,3 +1889,29 @@ def test_anzeige_name(tmp_path, monkeypatch):
     assert speicher.anzeige_name() == ("Internat Goslar", "")          # leere Zusatzzeile bleibt leer
     speicher.anzeige_name_setzen("", "Haus 2")
     assert speicher.anzeige_name() == (speicher.NAME_STANDARD[0], "Haus 2")   # leerer Name → Standard
+
+
+def test_start_titel(tmp_path, monkeypatch):
+    from belegung import cockpit
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert cockpit.titel() == cockpit.TITEL_STANDARD
+    cockpit.titel_speichern(" Cockpit ", "")
+    assert cockpit.titel() == ("Cockpit", "")
+    cockpit.titel_speichern("", "Heute")
+    assert cockpit.titel() == (cockpit.TITEL_STANDARD[0], "Heute")
+
+
+def test_engpass_grenzen_und_kw(tmp_path, monkeypatch):
+    from belegung import eintragen
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert eintragen.kw_text(date(2026, 10, 12)) == "KW 42 · 12.10.–18.10."
+    assert eintragen.grenzen() == eintragen.GRENZEN
+    w = eintragen.Woche(date(2026, 10, 12), 8, 4, 0)
+    assert (w.stufe("gesamt"), w.stufe("emr"), w.stufe("doppel"), w.gesamtstufe) == ("knapp", "ok", "kritisch", "kritisch")
+    eintragen.grenzen_speichern({"gesamt": (6, 3), "emr": (2, 5), "doppel": (0, 0)})
+    assert eintragen.grenzen()["emr"] == (5, 2)                 # vertauschte Werte werden sortiert
+    w = eintragen.Woche(date(2026, 10, 12), 8, 4, 0)
+    assert (w.stufe("gesamt"), w.stufe("emr"), w.stufe("doppel")) == ("ok", "knapp", "ok")
+    assert "knapp unter 6" in eintragen.grenzen_text()

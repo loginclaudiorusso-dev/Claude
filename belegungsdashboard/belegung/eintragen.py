@@ -78,20 +78,60 @@ def kopiertext(zeilen: list[Zeile]) -> str:
 # Engpässe
 # ---------------------------------------------------------------------------------------
 
-GRENZEN = {"gesamt": (10, 5), "emr": (4, 2), "doppel": (3, 1)}   # (knapp unter, kritisch unter)
+GRENZEN = {"gesamt": (10, 5), "emr": (4, 2), "doppel": (3, 1)}   # Standard: (knapp unter, kritisch unter)
+ENGPASS_NAMEN = {"gesamt": "Freie Zimmer", "emr": "EMR-Zimmer", "doppel": "Doppelzimmer UWT"}
+ENGPASS_ERKLAERUNG = {
+    "gesamt": "Zimmer, die an jedem Tag der Woche komplett frei sind – ohne Gästezimmer (Haus 2, 6. OG) und ohne "
+              "Zimmer, die nicht zum Internat gehören. Von der laufenden Woche zählen nur die Tage ab heute.",
+    "emr": "Davon die Zimmer, in die EMR dürfen: Haus 2, 1. und 2. OG (101–110 nur EMR).",
+    "doppel": "Doppelzimmer in Haus 3.2, 3.3 und 6, in denen die ganze Woche niemand wohnt – Platz für zwei "
+              "UWT-Teilnehmende derselben Klasse.",
+}
+
+
+def grenzen() -> dict[str, tuple[int, int]]:
+    """(knapp unter, kritisch unter) je Art – in den Einstellungen änderbar (``engpass_grenzen``)."""
+    roh = speicher.einstellungen().get("engpass_grenzen") or {}
+    erg = {}
+    for art, (knapp, kritisch) in GRENZEN.items():
+        try:
+            k, kr = (int(x) for x in roh.get(art, (knapp, kritisch)))
+        except (TypeError, ValueError):
+            k, kr = knapp, kritisch
+        erg[art] = (max(k, kr), min(k, kr))
+    return erg
+
+
+def grenzen_speichern(werte: dict[str, tuple[int, int]]) -> None:
+    speicher.einstellung_setzen("engpass_grenzen", {a: [int(k), int(kr)] for a, (k, kr) in werte.items() if a in GRENZEN})
+
+
+def grenzen_text() -> str:
+    g = grenzen()
+    return " · ".join(f"{ENGPASS_NAMEN[a]}: knapp unter {k}, kritisch unter {kr}" for a, (k, kr) in g.items())
+
+
+def kw_text(montag: date) -> str:
+    """„KW 42 · 12.10.–18.10.“"""
+    return f"KW {montag.isocalendar()[1]} · {montag:%d.%m.}–{montag + timedelta(days=6):%d.%m.}"
 
 
 @dataclass
 class Woche:
     montag: date
-    gesamt: int          # freie Zimmer (ohne Gästezimmer), wenigster Tag der Woche
-    emr: int             # frei in Haus 2, Etage 1–2
+    gesamt: int          # Zimmer, die an jedem Tag der Woche (ab heute) frei sind – ohne Gästezimmer
+    emr: int             # davon in Haus 2, Etage 1–2
     doppel: int          # ganz freie Doppelzimmer in Haus 3.2/3.3/6 (UWT)
+    grenzen: dict = None  # (knapp unter, kritisch unter) je Art; None = aktuelle Einstellung
 
     def stufe(self, art: str) -> str:
-        knapp, kritisch = GRENZEN[art]
+        knapp, kritisch = (self.grenzen or grenzen())[art]
         wert = getattr(self, art)
         return "kritisch" if wert < kritisch else ("knapp" if wert < knapp else "ok")
+
+    @property
+    def text(self) -> str:
+        return kw_text(self.montag)
 
     @property
     def gesamtstufe(self) -> str:
@@ -105,6 +145,7 @@ def engpaesse(lage: zp.Lage, heute: date | None = None, wochen: int = 12) -> lis
     heute = heute or date.today()
     montag = heute - timedelta(days=heute.weekday())
     zimmer = [z for z in lage.zimmer.values() if z.aktiv and not z.gaeste]
+    g = grenzen()
     emr = [z for z in zimmer if zp.erlaubt(z, "EMR")]
     doppel = [z for z in zimmer if z.betten > 1 and zp.erlaubt(z, "UWT")]
     ergebnis = []
@@ -112,7 +153,7 @@ def engpaesse(lage: zp.Lage, heute: date | None = None, wochen: int = 12) -> lis
         start = montag + timedelta(weeks=w)
         tage = [start + timedelta(days=i) for i in range(7) if start + timedelta(days=i) >= heute]
         frei = {z.id: all(lage.status_am(z.id, t)[0] == "frei" for t in tage) for z in zimmer}
-        ergebnis.append(Woche(start, sum(frei.values()), sum(frei[z.id] for z in emr), sum(frei[z.id] for z in doppel)))
+        ergebnis.append(Woche(start, sum(frei.values()), sum(frei[z.id] for z in emr), sum(frei[z.id] for z in doppel), g))
     return ergebnis
 
 
