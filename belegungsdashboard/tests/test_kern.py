@@ -1989,3 +1989,37 @@ def test_mails_vorschlag_und_umsetzen(tmp_path, monkeypatch, plan):
     for punkt in mails.PRUEFLISTE_ABBRUCH:
         x = mails.eingang_pruefen(x, punkt, True)
     assert mails.eingaenge()[0].status == "erledigt"
+
+
+def test_optimierung(tmp_path, monkeypatch):
+    """Regelverstoß (lang auf Haus 2, 1. OG) und besseres Zimmer (RVL → Haus 3.1) werden vorgeschlagen und umgesetzt."""
+    from belegung import optimierung as opt
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    v = date(2026, 11, 2)
+    zimmer = [zp.Zimmer("GS-2-115", "2", "1", "115"), zp.Zimmer("GS-2-312", "2", "3", "312"),
+              zp.Zimmer("GS-3.1-201", "3.1", "2", "201"), zp.Zimmer("GS-3.3-210", "3.3", "2", "210")]
+    lang = _bedarf("Lang, Lea", "RVT", v, v + timedelta(days=200), "w")
+    rvl = _bedarf("Reiter, Rolf", "RVL", v, v + timedelta(days=120))
+    zuw = [{"person": lang.schluessel, "name": lang.name, "zimmer": "GS-2-115", "von": v.isoformat(),
+            "bis": lang.bis.isoformat()},
+           {"person": rvl.schluessel, "name": rvl.name, "zimmer": "GS-3.3-210", "von": v.isoformat(),
+            "bis": rvl.bis.isoformat()}]
+    lage = zp.lage_bauen(zimmer, None, zuw)
+    stand = zp.Planstand(None, {}, zimmer, lage, zuw, [lang, rvl])
+    vs = opt.vorschlaege(stand, date(2026, 10, 13))
+    nach = {x.namen[0]: (x.art, x.nach_zimmer[0]) for x in vs}
+    assert nach["Lang, Lea"][0] == "regel" and nach["Lang, Lea"][1] != "GS-2-115"
+    assert nach["Reiter, Rolf"] == ("umzug", "GS-3.1-201")              # RVL bevorzugt Haus 3.1
+    regel = next(x for x in vs if x.art == "regel")
+    assert regel.gruende[0].startswith("Regel: Haus 2, 1. OG nur für Kurzmaßnahmen") and regel.umsetzbar
+    # schon im Belegungssystem eingetragen: nur bei großem Gewinn und nicht vorausgewählt
+    haken = {f"{rvl.schluessel}|GS-3.3-210|{v.isoformat()}": "x"}
+    r = next((x for x in opt.vorschlaege(stand, date(2026, 10, 13), haken=haken) if x.namen[0] == "Reiter, Rolf"), None)
+    assert r is None or (not r.vorauswahl and r.hinweis)
+    zp.zuweisungen_speichern([zp.Zuteilung(lang, zimmer[0]), zp.Zuteilung(rvl, zimmer[3])])
+    n, aufgaben = opt.umsetzen(stand, vs)
+    assert (n, aufgaben) == (2, 0)
+    neu = {z["person"]: z["zimmer"] for z in zp.zuweisungen_laden()}
+    assert neu[rvl.schluessel] == "GS-3.1-201" and neu[lang.schluessel] != "GS-2-115"

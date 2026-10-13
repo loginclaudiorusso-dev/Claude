@@ -543,34 +543,42 @@ def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozens
     return None
 
 
-def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
-    """Wunsch-Punkte eines (zulässigen) Zimmers für eine Person."""
-    w = 0.0
+def zimmer_wert_details(z: Zimmer, b: Bedarf) -> list[tuple[float, str]]:
+    """Wunsch-Punkte eines (zulässigen) Zimmers für eine Person – einzeln mit Begründung."""
+    d: list[tuple[float, str]] = []
     if b.kurz and z.haus == "2" and z.etage == "5":
-        w += 3
+        d.append((3, "kurze Maßnahme auf Haus 2, 5. OG"))
     elif not b.kurz and z.haus == "2" and z.etage == "5":
-        w -= 1.5                     # Reserve für kurze Maßnahmen
+        d.append((-1.5, "Haus 2, 5. OG ist Reserve für kurze Maßnahmen"))
     if b.gruppe == "RVL" and z.haus == "3.1":
-        w += 1 if z.tiere else 4     # 3.1 bevorzugt – aber nicht auf Kosten der Tier-Zimmer
+        # 3.1 bevorzugt – aber nicht auf Kosten der Tier-Zimmer
+        d.append((1, "RVL in Haus 3.1 (Tier-Zimmer)") if z.tiere else (4, "RVL bevorzugt Haus 3.1"))
     if b.gruppe == "UWT":
-        if b.dz == "allein":
-            w += -1 if z.betten > 1 else 1   # laut DZ-Liste allein: Einzelzimmer, Doppelzimmer für Paare lassen
-        else:
-            w += 3 if z.betten > 1 else 0
-        w += 1 if z.haus in ("3.2", "3.3") else 0
+        if b.dz == "allein":            # laut DZ-Liste allein: Einzelzimmer, Doppelzimmer für Paare lassen
+            d.append((-1, "laut DZ-Liste allein – Doppelzimmer für Paare lassen") if z.betten > 1
+                     else (1, "laut DZ-Liste allein: Einzelzimmer"))
+        elif z.betten > 1:
+            d.append((3, "UWT im Doppelzimmer"))
+        if z.haus in ("3.2", "3.3"):
+            d.append((1, "UWT bevorzugt Haus 3.2/3.3"))
     if z.tiere and not b.tier:
-        w -= 3                       # Tier-Zimmer freihalten – es gibt nur wenige
+        d.append((-3, "Tier-Zimmer freihalten – es gibt nur wenige"))
     if b.tier and z.tiere and z.etage == "U":
-        w += 4                       # mit Tier immer zuerst Haus 3.1 Untergeschoss
+        d.append((4, "mit Tier zuerst Haus 3.1 Untergeschoss"))
     if z.nur_maenner and b.gruppe != "UWT":
-        w -= 0.5
+        d.append((-0.5, "Bad über den Flur"))
     if b.gruppe in ("Reha", "RVT") and (z.haus.startswith("3") or (z.haus == "2" and z.etage in ("2", "3", "4"))):
-        w += 1
+        d.append((1, "Reha/RVT bevorzugt Haus 3 bzw. Haus 2, 2.–4. OG"))
     if b.gruppe != "EMR" and z.haus == "2" and z.etage in ("1", "2"):
-        w -= 1                       # EMR kann nur hierhin – Platz freihalten
+        d.append((-1, "EMR-Etage (Haus 2, 1.–2. OG) für EMR freihalten"))
     if b.gruppe == "EMR" and nur_emr(z):
-        w += 2                       # EMR zuerst in die reinen EMR-Zimmer 101–110 (dort darf sonst niemand hin)
-    return w
+        d.append((2, "EMR zuerst in die reinen EMR-Zimmer 101–110"))
+    return d
+
+
+def zimmer_wert(z: Zimmer, b: Bedarf) -> float:
+    """Wunsch-Punkte eines (zulässigen) Zimmers für eine Person (Summe von ``zimmer_wert_details``)."""
+    return sum(p for p, _t in zimmer_wert_details(z, b))
 
 
 def anschluss_wert(lage: Lage, z: Zimmer, b: Bedarf) -> float:
