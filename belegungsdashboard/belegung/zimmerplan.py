@@ -1026,7 +1026,7 @@ def status_setzen(person: str, belegt: bool, quelle: str = "Zimmerkarte") -> boo
     else:
         z.pop("status", None)
         z.pop("belegt_am", None)
-    protokoll.eintragen([{"aktion": "als belegt markiert" if belegt else "zurück auf geplant", "name": z["name"],
+    protokoll.eintragen([{"aktion": "Planung abgeschlossen (fest)" if belegt else "wieder auf geplant", "name": z["name"],
                           "person": person, "alt": z["zimmer"], "neu": z["zimmer"], "von": z["von"], "quelle": quelle}])
     speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": alle})
     return True
@@ -1166,9 +1166,9 @@ class Bewohner:
     @property
     def quelle(self) -> str:
         if self.umzug and self.eigene_belegung:
-            return "Umzug – belegt (Zimmerplan)" if self.art == "belegt" else "Umzug (im Belegungssystem eintragen)"
+            return "Umzug – fest (Zimmerplan)" if self.art == "belegt" else "Umzug (im Belegungssystem eintragen)"
         if self.eigene_belegung and self.art == "belegt":
-            return "Zimmerplan (belegt)"
+            return "Zimmerplan (fest)"
         return "Zimmerplan (geplant)" if self.art == "geplant" else "Gebäudeplan"
 
 

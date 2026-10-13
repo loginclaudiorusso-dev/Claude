@@ -1,4 +1,4 @@
-# Rückweg: von 6.7 zurück zu 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.7.1 zurück zu 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -15,7 +15,7 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.4.0** | `backup/v6.4.0` | `feb961a` | `INNternat_v6.4.0_Sicherung.zip` |
 | **6.5.0** | `backup/v6.5.0` | `6a77085` | `INNternat_v6.5.0_Sicherung.zip` |
 | **6.6.0** | `backup/v6.6.0` | `4b161e8` | `INNternat_v6.6.0_Sicherung.zip` |
-| **6.7.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.7.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -139,7 +139,8 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
 | `55606d8` | fachlich + UI | Geplant ↔ belegt für Zuweisungen und Umzüge; ZKL-Vorauswahl | – |
-| (letzter) | Doku | Version 6.7.0, README, ROLLBACK.md | – |
+| `43fec87` | Doku | Version 6.7.0, README, ROLLBACK.md | – |
+| (6.7.1) | UI | Begriff „Planung abschließen (fest)“, Fehlermeldung beim Neuladen der Zimmerkarte | – |
 
 ## 6. Was sich geändert hat – und was nicht
 

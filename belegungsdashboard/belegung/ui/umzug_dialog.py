@@ -76,14 +76,14 @@ class UmzugDialog(QDialog):
         raster.addWidget(self.grund, 2, 1)
         raster.setColumnStretch(1, 1)
         v.addLayout(raster)
-        self.belegt = QCheckBox("Umzug ist erfolgt bzw. steht fest – neues Zimmer als belegt führen")
-        self.belegt.setToolTip("Belegt: gilt sofort, auch ohne neuen Gebäudeplan, und fällt aus Aufgaben → Eintragen "
+        self.belegt = QCheckBox("Umzug steht fest bzw. ist erfolgt – Planung abschließen (fest)")
+        self.belegt.setToolTip("Fest: gilt sofort als belegt, auch ohne neuen Gebäudeplan, und fällt aus Aufgaben → Eintragen "
                                "heraus. Geplant: steht als Aufgabe zum Umbuchen im Belegungssystem.")
         self.belegt.setChecked(alt.belegt if alt else (ab is not None and ab <= date.today()))
         v.addWidget(self.belegt)
         self.status = QVBoxLayout()
         v.addLayout(self.status)
-        v.addWidget(label("Als belegt gilt der Umzug sofort – ein neuer Gebäudeplan ist dafür nicht nötig. Als geplant "
+        v.addWidget(label("Fest gilt der Umzug sofort – ein neuer Gebäudeplan ist dafür nicht nötig. Als geplant "
                           "steht er unter Aufgaben → Eintragen, bis er im Belegungssystem umgebucht ist. Zeigt ein "
                           "späterer Gebäudeplan die Person im neuen Zimmer, ist er erledigt.", "klein", umbruch=True))
         unten = QHBoxLayout()
@@ -153,7 +153,7 @@ class UmzugDialog(QDialog):
         if hinweis and QMessageBox.question(self, "Ausnahme", f"{hinweis}\n\nTrotzdem dorthin umziehen?") != QMessageBox.Yes:
             return
         u = um.speichern(self.stand, self.bel, nach, tag, self.grund.text(), self.uid, belegt=self.belegt.isChecked())
-        self.z.meldung.emit(f"Umzug belegt: {u.text}." if u.belegt else
+        self.z.meldung.emit(f"Umzug fest: {u.text}." if u.belegt else
                             f"Umzug geplant: {u.text}. Im Belegungssystem umbuchen (Aufgaben → Eintragen).",
                             "warnung" if hinweis else "ok")
         self.z.zimmer_geaendert.emit()

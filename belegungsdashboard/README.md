@@ -27,12 +27,18 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.7.1
+
+* Begriff: **„Planung abschließen (fest)“** statt „als belegt markieren“ – im Rechtsklick-Menü des Zeitstrahls, in der
+  Personenkarte und im Umzug-Dialog („Umzug abschließen (fest)“). Zurück mit „Wieder auf geplant“.
+* Lädt eine Zimmerkarte nach einer Änderung nicht neu, erscheint jetzt eine Fehlermeldung (vorher blieb sie still).
+
 ## Neu in 6.7
 
 * **Von geplant auf belegt wechseln – der Zimmerplan als Hauptwerkzeug.** Ohne neuen Gebäudeplan:
-  * Geplante Person: in der Zimmer-/Personenkarte „Als belegt markieren“ (bzw. Rechtsklick im Zeitstrahl → „Als
-    belegt markieren (eingezogen)“). Zurück geht es mit „Zurück auf geplant“.
-  * Umzug: im Umzug-Dialog „Umzug ist erfolgt bzw. steht fest – als belegt führen“ (bei Umzug heute oder früher
+  * Geplante Person: Rechtsklick im Zeitstrahl bzw. Zimmer-/Personenkarte → „Planung abschließen (fest)“. Zurück
+    geht es mit „Wieder auf geplant“.
+  * Umzug: im Umzug-Dialog „Umzug steht fest bzw. ist erfolgt – Planung abschließen (fest)“ (bei Umzug heute oder früher
     vorausgewählt), später umschaltbar in der Karte und im Rechtsklick-Menü.
   * Belegt heißt: im Zeitstrahl türkis, keine Aufgabe unter „Eintragen“, kein Hinweis „fehlt im Gebäudeplan“.
   * Ein **älterer** Gebäudeplan ändert daran nichts. Ein **neuerer** Gebäudeplan (Stand nach dem Markieren) gilt

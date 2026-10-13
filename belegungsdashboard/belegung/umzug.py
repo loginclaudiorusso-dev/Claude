@@ -53,7 +53,7 @@ class Umzug:
     def status_text(self) -> str:
         t = STATUS_TEXT.get(self.status, self.status)
         if self.status == "aktiv":
-            t = "belegt (im Zimmerplan bestätigt)" if self.belegt else "geplant – im Belegungssystem umbuchen"
+            t = "fest (Planung abgeschlossen)" if self.belegt else "geplant – im Belegungssystem umbuchen"
         return f"{t}: {self.hinweis}" if self.hinweis else t
 
     def zu_dict(self) -> dict:
@@ -243,7 +243,7 @@ def status_setzen(uid: str, belegt: bool, quelle: str = "Umzug") -> Umzug | None
         return None
     u.belegt = belegt
     _schreiben(umzuege)
-    protokoll.eintragen([{"aktion": "Umzug als belegt markiert" if belegt else "Umzug zurück auf geplant", "name": u.name,
+    protokoll.eintragen([{"aktion": "Umzug abgeschlossen (fest)" if belegt else "Umzug wieder auf geplant", "name": u.name,
                           "person": u.schluessel, "alt": u.von_zimmer, "neu": u.nach_zimmer, "von": u.ab.isoformat(),
                           "quelle": quelle}])
     return u

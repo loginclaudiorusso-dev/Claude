@@ -1233,14 +1233,14 @@ class ZimmerplanSeite(Seite):
 
     def _status_person(self, person: str, belegt: bool, name: str) -> None:
         if zp.status_setzen(person, belegt, "Zeitstrahl"):
-            self.z.meldung.emit(f"{name}: {'belegt' if belegt else 'wieder geplant'}.", "ok")
+            self.z.meldung.emit(f"{name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}.", "ok")
             self._nach_aenderung()
 
     def _status_umzug(self, uid: str, belegt: bool) -> None:
         from ... import umzug as um
 
         if (u := um.status_setzen(uid, belegt, "Zeitstrahl")) is not None:
-            self.z.meldung.emit(f"{u.name}: Umzug {'belegt' if belegt else 'wieder geplant'}.", "ok")
+            self.z.meldung.emit(f"{u.name}: Umzug {'abgeschlossen (fest)' if belegt else 'wieder geplant'}.", "ok")
             self._nach_aenderung()
 
     def _zs_menue(self, obj, pos) -> None:
@@ -1264,7 +1264,7 @@ class ZimmerplanSeite(Seite):
                 m.addAction(f"Umzug ändern ({u.von_zimmer.removeprefix('GS-')} → "
                             f"{u.nach_zimmer.removeprefix('GS-')} ab {u.ab:%d.%m.}) …", lambda: self._umzug(b))
                 if u.status in ("aktiv", "konflikt"):
-                    m.addAction("Umzug zurück auf geplant" if u.belegt else "Umzug als belegt markieren (erfolgt)",
+                    m.addAction("Umzug wieder auf geplant" if u.belegt else "Umzug abschließen (fest)",
                                 lambda: self._status_umzug(u.id, not u.belegt))
                 m.addAction("Umzug zurücknehmen", lambda: zurueck_nehmen(self, self.z, b.umzug))
             elif ganz_verschieben(b):
@@ -1272,7 +1272,7 @@ class ZimmerplanSeite(Seite):
             elif b.bis >= date.today():
                 m.addAction("Umzug in ein anderes Zimmer …", lambda: self._umzug(b))
             if not b.umzug and b.person and self.stand.zugewiesen(b.person):
-                m.addAction("Zurück auf geplant" if b.art == "belegt" else "Als belegt markieren (eingezogen)",
+                m.addAction("Wieder auf geplant" if b.art == "belegt" else "Planung abschließen (fest)",
                             lambda: self._status_person(b.person, b.art != "belegt", b.name))
         else:
             zid = obj[0] if isinstance(obj, tuple) else obj

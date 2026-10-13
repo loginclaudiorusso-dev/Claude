@@ -2285,7 +2285,7 @@ def test_geplant_auf_belegt(tmp_path, monkeypatch):
     assert not any(a.art == "fehlt" for a in la.abgleich)
     st = zp.Planstand(plan, {}, zimmer, la, zp.zuweisungen_laden(), [p])
     bw = zp.bewohner_aus(st, b)
-    assert bw.eigene_belegung and bw.quelle == "Zimmerplan (belegt)" and bw.schluessel == p.schluessel
+    assert bw.eigene_belegung and bw.quelle == "Zimmerplan (fest)" and bw.schluessel == p.schluessel
     # gleiches Zimmer erneut gespeichert → bleibt belegt; anderes Zimmer → wieder geplant
     zp.zuweisungen_speichern([zp.Zuteilung(p, zimmer[0])])
     assert lage().belegungen["GS-3.2-101"][0].art == "belegt"
@@ -2304,7 +2304,7 @@ def test_geplant_auf_belegt(tmp_path, monkeypatch):
     la = lage()
     neu = la.belegungen["GS-3.3-205"][0]
     assert neu.art == "belegt" and neu.umzug == u.id and not eintragen.offen(la, heute)
-    assert la.umzuege[u.id].status_text.startswith("belegt")
+    assert la.umzuege[u.id].status_text.startswith("fest")
     um.status_setzen(u.id, False)
     la = lage()
     assert la.belegungen["GS-3.3-205"][0].art == "geplant" and eintragen.offen(la, heute)

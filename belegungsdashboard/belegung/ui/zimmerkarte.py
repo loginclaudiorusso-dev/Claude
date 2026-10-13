@@ -12,6 +12,7 @@ nicht modal – mehrere Karten können gleichzeitig offen sein (z. B. zwei Zimme
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import date, timedelta
 
@@ -250,7 +251,9 @@ class ZimmerKarte(QDialog):
     def _neu_laden(self) -> None:
         try:
             self.stand = zp.laden()
-        except Exception:                 # noqa: BLE001 – Karte bleibt mit altem Stand offen
+        except Exception as e:            # noqa: BLE001 – Karte bleibt mit altem Stand offen, aber nicht still
+            logging.getLogger(__name__).exception("Zimmerkarte neu laden")
+            self.z.meldung.emit(f"Zimmerkarte konnte nicht neu laden: {e}", "fehler")
             return
         if self.zid and self.zid not in self.stand.lage.zimmer:
             self.close()
@@ -329,7 +332,7 @@ class PersonBlock(QWidget):
                 knoepfe.addWidget(ok)
             if bw.bedarf is not None and not bw.umzug and karte.stand.zugewiesen(bw.schluessel):
                 belegt = bw.art == "belegt"
-                st_k = knopf("Zurück auf geplant" if belegt else "Als belegt markieren", "ghost",
+                st_k = knopf("Wieder auf geplant" if belegt else "Planung abschließen (fest)", "ghost",
                              None if belegt else "haken")
                 st_k.setToolTip("Eingezogen bzw. steht fest: gilt als belegt – auch ohne neuen Gebäudeplan; "
                                 "fällt aus Aufgaben → Eintragen heraus" if not belegt else "Wieder als geplant führen")
@@ -370,13 +373,13 @@ class PersonBlock(QWidget):
             weg.clicked.connect(lambda: zurueck_nehmen(k, k.z, u.id) and k._neu_laden())
             zeile.addWidget(aendern)
             if u.status in ("aktiv", "konflikt"):
-                st_k = knopf("Zurück auf geplant" if u.belegt else "Als belegt markieren", "ghost",
+                st_k = knopf("Wieder auf geplant" if u.belegt else "Umzug abschließen (fest)", "ghost",
                              None if u.belegt else "haken")
                 st_k.setToolTip("Umzug ist erfolgt: neues Zimmer gilt als belegt – auch ohne neuen Gebäudeplan"
                                 if not u.belegt else "Umzug wieder als geplant führen")
                 st_k.clicked.connect(lambda _c=False: (um.status_setzen(u.id, not u.belegt, "Zimmerkarte"),
                                                        k.gespeichert(f"{u.name}: Umzug "
-                                                                     + ("geplant." if u.belegt else "belegt."))))
+                                                                     + ("wieder geplant." if u.belegt else "abgeschlossen (fest)."))))
                 zeile.addWidget(st_k)
             zeile.addWidget(weg)
         elif b.bis >= date.today():
@@ -390,7 +393,7 @@ class PersonBlock(QWidget):
 
     def _status(self, belegt: bool) -> None:
         if zp.status_setzen(self.bw.schluessel, belegt):
-            self.karte.gespeichert(f"{self.bw.name}: {'belegt' if belegt else 'wieder geplant'}.")
+            self.karte.gespeichert(f"{self.bw.name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}.")
 
     def _uebernehmen(self) -> None:
         from .dialoge import person_uebernehmen
