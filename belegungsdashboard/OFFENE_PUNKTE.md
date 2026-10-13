@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.6.0, 13.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.7.0, 13.10.2026)
 
 ## Als Nächstes
 
@@ -15,6 +15,8 @@
 - Erledigt in 6.6: ZKL-Import mit Abgleich (Nutzer wollte ausdrücklich nur Abgleich, keinen Umbau).
   Mit ZKL_26_V1 (Stand ~01.10.): 3 Zimmer laut ZKL bewohnt/im Plan frei, 2 nicht belegbar (Musterzimmer,
   Appartment 2-614), 21 SGH-Abweichungen (2.5 OG), 13 Tier-Pool-Abweichungen (3.1 E13–E26) – Nutzer entscheidet.
+- 6.7: ZKL ist ab jetzt statisch (einmaliger Abgleich, Punkte bewohnt/nicht belegbar/Tier-Pool übernehmen, SGH nicht).
+  Zimmerplan wird Hauptwerkzeug: geplant ↔ belegt umschaltbar (Personen und Umzüge), Gebäudeplan-Import optional.
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).
