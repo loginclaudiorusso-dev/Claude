@@ -27,6 +27,18 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.5
+
+* **Haus 3.1 Untergeschoss nur mit Tier:** Ohne Tier teilt das Programm dort nie automatisch zu – auch nicht,
+  wenn sonst nichts frei ist. Von Hand geht es weiterhin: In der Zimmerauswahl steht es unter dem Strich als
+  „Ausnahme: nur mit Tier“, der Vorschlag trägt dann die Warnung „Regel verletzt“.
+* **Dieselbe Anreise auf einen Flur:** Beim Zuteilen kommt eine Anreise-Gruppe (gleicher Tag, gleiche Maßnahme)
+  wie bisher zuerst auf den Flur, auf dem alle Platz haben, sonst auf möglichst wenige Flure derselben Etage.
+  Neu: **Belegung optimieren** zählt das ebenfalls. Je Person derselben Anreise auf dem Flur gibt es Punkte,
+  daher schlägt es Umzüge und Tausche (auch zwischen RVL und RVT) vor, die Gruppen zusammenführen. Personen mit
+  Tier bleiben außen vor (sie wohnen in Haus 3.1), UWT-Klassen plant „UWT neu zuteilen“.
+* Grenze: Zusammenrücken geht nur, wo Zimmer frei werden. Wer schon wohnt, wird nicht automatisch verschoben.
+
 ## Neu in 6.4
 
 * **Umzug für Eingezogene:** Auch wer schon im Zimmer wohnt (laut Gebäudeplan oder schon angereist), kann ab

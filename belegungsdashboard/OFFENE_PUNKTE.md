@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.4.0, 13.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.5.0, 13.10.2026)
 
 ## Als Nächstes
 
@@ -9,6 +9,9 @@
 - Erledigt in 6.3 (13.10.): Startseiten-Titel, KW mit Daten, Engpässe erklärt/Grenzen einstellbar, Posteingang
   (Gästehaus, Anmeldung, Storno, Abbruch mit Prüfliste, Hinweis; Outlook-Übernahme ungetestet), Optimierung.
 - Erledigt in 6.4 (13.10.): Umzug für Eingezogene (Zeitstrahl ziehen, Rechtsklick, Personenkarte).
+- Erledigt in 6.5: Haus 3.1 UG nur mit Tier; Optimierung führt dieselbe Anreise auf einem Flur zusammen.
+  Offen/zu entscheiden: Bewohner für Gruppen-Flure aktiv umziehen lassen? Flure für große Anreisen freihalten?
+  (Messung 13.10.: RVL 21.10. mit 11 Personen auf 6 Fluren – mehr war nicht frei.)
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).
