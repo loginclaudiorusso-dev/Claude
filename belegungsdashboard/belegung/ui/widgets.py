@@ -881,11 +881,34 @@ def sortierschluessel(text: str) -> tuple:
     return (2, tuple((0, int(p), "") if p.isdigit() else (1, 0, p.casefold()) for p in re.split(r"(\d+)", t) if p))
 
 
+def widget_text(w: QWidget | None) -> str:
+    """Sichtbarer Wert eines Zellen-Widgets – auch in einem Container (Auswahlliste mit Häkchen daneben)."""
+    if w is None:
+        return ""
+    from PySide6.QtWidgets import QAbstractButton, QComboBox
+
+    kandidaten = [w] + w.findChildren(QComboBox) + w.findChildren(QAbstractButton) + w.findChildren(QLabel)
+    for x in kandidaten:
+        if isinstance(x, QComboBox):
+            return x.currentText()
+        if isinstance(x, QAbstractButton) and x.isCheckable() and not x.text():
+            return "1" if x.isChecked() else "0"
+        if callable(getattr(x, "text", None)) and isinstance(t := x.text(), str) and t.strip():
+            return t
+    return ""
+
+
 class _Zelle(QTableWidgetItem):
+    def _sorttext(self) -> str:
+        tw = self.tableWidget()
+        w = tw.cellWidget(self.row(), self.column()) if tw is not None else None
+        if w is not None:                     # aktueller Wert (z. B. später geänderte Auswahl)
+            return widget_text(w)
+        return self.data(SORTTEXT) or self.text()
+
     def __lt__(self, other) -> bool:
-        a = self.data(SORTTEXT) or self.text()
-        b = (other.data(SORTTEXT) or other.text()) if isinstance(other, QTableWidgetItem) else ""
-        return sortierschluessel(a) < sortierschluessel(b)
+        b = other._sorttext() if isinstance(other, _Zelle) else (other.text() if isinstance(other, QTableWidgetItem) else "")
+        return sortierschluessel(self._sorttext()) < sortierschluessel(b)
 
 
 class Tabelle(QTableWidget):
@@ -958,8 +981,7 @@ class Tabelle(QTableWidget):
                 if isinstance(wert, QWidget):
                     platz = _Zelle("")               # leere Zelle unter dem Widget: Index + Sortiertext
                     platz.setData(INDEX, r)
-                    txt = wert.text() if callable(getattr(wert, "text", None)) else ""
-                    platz.setData(SORTTEXT, txt if isinstance(txt, str) else "")
+                    platz.setData(SORTTEXT, widget_text(wert))
                     self.setItem(r, c, platz)
                     self.setCellWidget(r, c, wert)
                     continue

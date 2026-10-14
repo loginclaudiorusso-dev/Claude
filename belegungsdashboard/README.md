@@ -27,6 +27,11 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.9.1
+
+* Sortieren auch in Spalten mit Auswahllisten, Häkchen oder Pillen (z. B. Zuteilen → „Zimmer“) – nach dem aktuell
+  gewählten Wert, auch wenn er nach dem Laden geändert wurde.
+
 ## Neu in 6.9
 
 * **Je Kurs ein Flur:** Beim Zuteilen bildet jeder Kurs (z. B. „GS VW 2606“) eine eigene Gruppe – vorher kamen

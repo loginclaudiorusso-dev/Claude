@@ -2345,6 +2345,20 @@ def test_tabelle_sortieren():
     assert [t.daten_zeile(r) for r in range(3)] == [2, 1, 0]
     t._kopf_geklickt(3)
     assert [t.item(r, 3).text() for r in range(3)] == ["2", "9", "10"]
+    # Spalte mit Auswahllisten (Zuteilen → Zimmer): sortiert nach der aktuell gewählten Auswahl
+    from PySide6.QtWidgets import QComboBox
+
+    t2 = Tabelle(["Name", "Zimmer"])
+    kombos = []
+    for zimmer in ("3.1-U02", "2-102", "2-10"):
+        k = QComboBox()
+        k.addItems([zimmer, "2-1"])
+        kombos.append(k)
+    t2.fuellen([["A", kombos[0]], ["B", kombos[1]], ["C", kombos[2]]])
+    kombos[0].setCurrentIndex(1)                      # später geändert: „2-1“
+    t2._kopf_geklickt(1)
+    assert [t2.cellWidget(r, 1).currentText() for r in range(3)] == ["2-1", "2-10", "2-102"]
+    assert [t2.item(r, 0).text() for r in range(3)] == ["A", "C", "B"]
     # neu füllen behält die Sortierung (nach dem Aufrufer)
     t.fuellen(daten + [["2-1", "Neu, N", "01.02.2026", "1"]])
     app.processEvents()
