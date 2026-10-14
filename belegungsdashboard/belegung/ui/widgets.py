@@ -244,6 +244,19 @@ class Segment(QFrame):
             self._gruppe.button(index).setChecked(True)
         self._gruppe.idClicked.connect(self.geaendert.emit)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self._eng = False
+        self._normal_breite = 0
+
+    def eng_wenn_noetig(self, verfuegbar: int) -> None:
+        """Weniger Innenabstand, wenn die Reiter sonst nicht in die Breite passen (kein waagrechtes Scrollen)."""
+        if not self._eng:
+            self._normal_breite = self.sizeHint().width()
+        soll = self._normal_breite > verfuegbar
+        if soll != self._eng:
+            self._eng = soll
+            self.setStyleSheet("QPushButton { padding-left: 7px; padding-right: 7px; }" if soll else "")
+            for b in self._gruppe.buttons():
+                b.updateGeometry()
 
     def index(self) -> int:
         return self._gruppe.checkedId()
@@ -864,21 +877,35 @@ INDEX = Qt.UserRole + 41          # Zeile in den Daten des Aufrufers (bleibt bei
 SORTTEXT = Qt.UserRole + 42       # Sortiertext für Zellen mit Widget (Pille, Auswahl …)
 
 
+_ZIMMER = re.compile(r"^(?:GS-)?(\d+(?:\.\d+)?)-([A-Z]?)(\d+)")
+_DATUM_KURZ = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{2})?(?!\d)")
+
+
 def sortierschluessel(text: str) -> tuple:
-    """Zahlen als Zahl, TT.MM.JJJJ als Datum, sonst „natürlich“ (2-9 vor 2-10), leer zuletzt."""
+    """Zimmer nach Haus → Etage (UG, EG, 1. OG …) → Nummer; Zahlen als Zahl; Datum (TT.MM.JJJJ, auch TT.MM.[JJ])
+    als Datum; sonst „natürlich“ (Groß/Klein egal); leer bzw. „– nicht zugeteilt –“ zuletzt."""
     t = (text or "").strip()
-    if not t or t in ("–", "-"):
+    if not t or t[0] in "–—" or t == "-":
         return (3,)
+    m = _ZIMMER.match(t)
+    if m:
+        haus, buchstabe, nr = float(m.group(1)), m.group(2), int(m.group(3))
+        etage = {"U": -1, "E": 0}.get(buchstabe, nr // 100 if not buchstabe else 50)
+        return (2, 0, haus, etage, nr, t.casefold())
     m = _DATUM.match(t)
     if m:
         return (1, int(m.group(3)), int(m.group(2)), int(m.group(1)), t)
+    m = _DATUM_KURZ.match(t)
+    if m:
+        jahr = 2000 + int(m.group(3)) if m.group(3) else 0
+        return (1, jahr, int(m.group(2)), int(m.group(1)), t)
     z = t.rstrip(" %€").strip()
     if _ZAHL.match(z):
         try:
             return (0, float(z.replace(".", "").replace(",", ".") if "," in z else z), t)
         except ValueError:
             pass
-    return (2, tuple((0, int(p), "") if p.isdigit() else (1, 0, p.casefold()) for p in re.split(r"(\d+)", t) if p))
+    return (2, 1, tuple((0, int(p), "") if p.isdigit() else (1, 0, p.casefold()) for p in re.split(r"(\d+)", t) if p))
 
 
 def widget_text(w: QWidget | None) -> str:
@@ -939,6 +966,7 @@ class Tabelle(QTableWidget):
         self.verticalHeader().setDefaultSectionSize(max(36, self.fontMetrics().height() + 18))
         kh.setSectionsClickable(True)
         kh.sectionClicked.connect(self._kopf_geklickt)
+        kh.setToolTip("Klicken: aufsteigend sortieren · nochmal klicken: absteigend")
 
     # ---- Sortieren ---------------------------------------------------------------------
 

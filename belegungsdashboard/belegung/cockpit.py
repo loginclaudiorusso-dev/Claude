@@ -131,16 +131,36 @@ class Abreise:
     name: str
     massnahme: str
     zimmer: str
+    anreise: date | None = None
+    art: str = ""                 # belegt (Gebäudeplan bzw. fest) | geplant
+    naechste: date | None = None  # nächste Anreise ins Zimmer (Frist für Reinigung/Abnahme)
+    schluessel: str = ""          # Bewohner-Schlüssel (Notizen, Zimmerkarte)
 
 
-def abreisen(stand: zp.Planstand, heute: date, tage: int = 1) -> list[Abreise]:
+def _ist_abreise(stand: zp.Planstand, b: zp.Belegung) -> bool:
+    """Echte Abreise – nicht das Ende des alten Zimmers bei einem Umzug, keine Pivot-Ergänzung."""
+    if b.art not in ("belegt", "geplant") or not b.name or b.name == zp.PIVOT_NAME:
+        return False
+    u = stand.lage.umzuege.get(b.umzug) if b.umzug else None
+    return not (u is not None and b.zimmer == u.von_zimmer and b.bis == u.ab)
+
+
+def abreiseliste(stand: zp.Planstand, von: date, bis: date) -> list[Abreise]:
+    """Alle Abreisen von … bis (einschließlich), nach Tag, Haus und Zimmer – mit nächster Anreise ins Zimmer."""
     ergebnis = []
     for zid, bs in stand.lage.belegungen.items():
         for b in bs:
-            if b.art in ("belegt", "geplant") and b.name and b.name != zp.PIVOT_NAME \
-                    and heute <= b.bis <= heute + timedelta(days=tage):
-                ergebnis.append(Abreise(b.bis, b.name, b.massnahme, zid))
-    return sorted(ergebnis, key=lambda a: (a.tag, zp._haus_sort(a.zimmer.split("-")[1]), a.zimmer))
+            if not (von <= b.bis <= bis) or not _ist_abreise(stand, b):
+                continue
+            naechste = min((x.von for x in bs if x is not b and x.art in ("belegt", "geplant") and x.von >= b.bis
+                            and x.name != zp.PIVOT_NAME), default=None)
+            ergebnis.append(Abreise(b.bis, b.name, b.massnahme, zid, b.von, b.art, naechste,
+                                    zp.bewohner_aus(stand, b).schluessel))
+    return sorted(ergebnis, key=lambda a: (a.tag, zp._haus_sort(a.zimmer.split("-")[1]), a.zimmer, a.name))
+
+
+def abreisen(stand: zp.Planstand, heute: date, tage: int = 1) -> list[Abreise]:
+    return abreiseliste(stand, heute, heute + timedelta(days=tage))
 
 
 def reinigung_heute(stand: zp.Planstand, heute: date) -> tuple[list[zp.Reinigung], list[zp.Reinigung]]:

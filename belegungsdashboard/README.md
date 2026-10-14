@@ -27,6 +27,17 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.10
+
+* **Abreiseliste** – Zimmerplan → Reiter **„Abreisen“** (auch von der Startseiten-Kachel „Abreisen“ → „Abreiseliste
+  öffnen“): Heute, Morgen, Diese Woche, Nächste Woche, 14 Tage, Monat oder frei von–bis. Je Abreise Tag, Zimmer, Name,
+  Maßnahme und die **nächste Anreise ins Zimmer** (bis dahin muss es fertig sein). Umzüge zählen nicht als Abreise.
+  **Drucken/PDF** je Tag nach Haus und Zimmer mit Spalten zum Abhaken (Schlüssel, Abnahme) und Notiz; **Kopieren** für
+  Excel; Doppelklick öffnet die Zimmer-/Personenkarte.
+* **Zimmer sortieren nach Haus → Etage → Nummer** (2 … 3.1 UG, EG, 1. OG … 3.2 … 6), „– nicht zugeteilt –“ zuletzt –
+  in allen Tabellen, auch in Spalten mit Auswahlliste (Zuteilen → Zimmer).
+* Reiterleiste im Zimmerplan wird bei schmalem Fenster kompakter (kein waagrechtes Scrollen bei 1000 px).
+
 ## Neu in 6.9.1
 
 * Sortieren auch in Spalten mit Auswahllisten, Häkchen oder Pillen (z. B. Zuteilen → „Zimmer“) – nach dem aktuell

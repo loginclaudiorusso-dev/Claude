@@ -439,6 +439,7 @@ class StartSeite(Seite):
                         lambda _=False, a=a: self._zimmer(a.zimmer), a.massnahme)
         if len(liste) > 8:
             k.inhalt.addWidget(label(f"… und {len(liste) - 8} weitere", "klein"))
+        self._link(k, "Abreiseliste öffnen", lambda: self._zimmerplan("Abreisen"))
 
     def _zimmer(self, zid: str) -> None:
         from ..zimmerkarte import karte_oeffnen

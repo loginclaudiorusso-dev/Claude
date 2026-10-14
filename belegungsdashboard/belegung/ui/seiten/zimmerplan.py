@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-    QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget,
+    QHeaderView, QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
@@ -35,7 +35,8 @@ def _status_farben() -> dict[str, tuple[str, str]]:
             "gesperrt": (theme.alpha(t.ueber, .14), t.text_3)}
 
 
-TABS = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Zimmer", "Quellen"]
+TABS = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Abreisen", "Zimmer", "Quellen"]
+ABREISE_ZEITRAUM = ["Heute", "Morgen", "Diese Woche", "Nächste Woche", "14 Tage", "Monat"]
 
 
 def flur_text_lang(z: zp.Zimmer) -> str:
@@ -97,7 +98,7 @@ class ZimmerplanSeite(Seite):
         self._woche = date.today()
         self._zs_arten: set[str] = set()      # Zeitstrahl-Filter nach Art (Legende anklicken)
         self.seiten = [self._zuteilen_bauen(), self._aufgaben_bauen(), self._zeitstrahl_bauen(), self._haeuser_bauen(),
-                       self._reinigung_bauen(), self._stamm_bauen(), self._quellen_bauen()]
+                       self._reinigung_bauen(), self._abreisen_bauen(), self._stamm_bauen(), self._quellen_bauen()]
         for w in self.seiten:
             self.lay.addWidget(w)
         self.lay.addStretch()
@@ -256,6 +257,115 @@ class ZimmerplanSeite(Seite):
         karte.inhalt.addWidget(self.zeitstrahl)
         v.addWidget(karte)
         return w
+
+    def _abreisen_bauen(self) -> QWidget:
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(12)
+        karte = Karte("Abreiseliste", "Wer wann aus welchem Zimmer auszieht – mit der nächsten Anreise ins Zimmer")
+        oben = QWidget()
+        fluss = FlowLayout(oben, abstand=12)
+        self.ab_zeitraum = Segment(ABREISE_ZEITRAUM, 2)
+        self.ab_zeitraum.geaendert.connect(lambda _i: self._abreise_zeitraum_setzen())
+        fluss.addWidget(self.ab_zeitraum)
+        datum = QWidget()
+        dl = QHBoxLayout(datum)
+        dl.setContentsMargins(0, 0, 0, 0)
+        dl.setSpacing(6)
+        self.ab_von, self.ab_bis = DatumFeld(date.today()), DatumFeld(date.today())
+        for text, feld in (("von", self.ab_von), ("bis", self.ab_bis)):
+            dl.addWidget(label(text, "klein"))
+            dl.addWidget(feld)
+            feld.geaendert.connect(lambda _d: self._abreisen_zeigen())
+        fluss.addWidget(datum)
+        ausgabe = QWidget()
+        al = QHBoxLayout(ausgabe)
+        al.setContentsMargins(0, 0, 0, 0)
+        al.setSpacing(8)
+        for text, variante, icon, fn in (("Drucken", "primary", "datei", lambda: self._abreisen_drucken(False)),
+                                         ("PDF", "ghost", "datei", lambda: self._abreisen_drucken(True)),
+                                         ("Kopieren", "ghost", "kopieren", self._abreisen_kopieren)):
+            b = knopf(text, variante, icon)
+            b.clicked.connect(fn)
+            al.addWidget(b)
+        fluss.addWidget(ausgabe)
+        karte.inhalt.addWidget(oben)
+        self.ab_info = label("", "muted", umbruch=True)
+        karte.inhalt.addWidget(self.ab_info)
+        self.ab_tab = Tabelle(["Abreise", "Zimmer", "Name", "Maßnahme", "Nächste Anreise"], ["l"] * 5, dehnen=2)
+        self.ab_tab.setTextElideMode(Qt.ElideRight)
+        self.ab_tab.horizontalHeader().setSectionResizeMode(3, QHeaderView.Interactive)
+        self.ab_tab.setColumnWidth(3, 150)
+        self.ab_tab.setToolTip("Doppelklick: Zimmer- und Personenkarte · Klick auf eine Überschrift: sortieren")
+        self.ab_tab.cellDoubleClicked.connect(self._abreise_oeffnen)
+        karte.inhalt.addWidget(self.ab_tab)
+        v.addWidget(karte)
+        self._abreisen: list = []
+        self._abreise_zeitraum_setzen(still=True)
+        return w
+
+    def _abreise_zeitraum_setzen(self, still: bool = False) -> None:
+        heute = date.today()
+        i = self.ab_zeitraum.index()
+        montag = heute - timedelta(days=heute.weekday())
+        von, bis = {0: (heute, heute), 1: (heute + timedelta(days=1),) * 2,
+                    2: (heute, montag + timedelta(days=6)), 3: (montag + timedelta(days=7), montag + timedelta(days=13)),
+                    4: (heute, heute + timedelta(days=13)), 5: (heute, heute + timedelta(days=30))}[i]
+        self.ab_von.setzen(von)
+        self.ab_bis.setzen(bis)
+        if not still:
+            self._abreisen_zeigen()
+
+    def _abreise_titel(self) -> str:
+        von, bis = self.ab_von.datum(), self.ab_bis.datum()
+        return f"{von:%d.%m.%Y}" if von == bis else f"{von:%d.%m.} – {bis:%d.%m.%Y}"
+
+    def _abreisen_zeigen(self) -> None:
+        from ... import cockpit
+
+        if self.stand is None:
+            return
+        von, bis = self.ab_von.datum(), self.ab_bis.datum()
+        if bis < von:
+            von, bis = bis, von
+        self._abreisen = cockpit.abreiseliste(self.stand, von, bis)
+        wt = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        self.ab_tab.fuellen([[f"{a.tag:%d.%m.%Y} {wt[a.tag.weekday()]}", a.zimmer.removeprefix("GS-"),
+                              a.name + (" (geplant)" if a.art == "geplant" else ""), a.massnahme,
+                              f"{a.naechste:%d.%m.%Y}" if a.naechste else "–"] for a in self._abreisen])
+        for r, a in enumerate(self._abreisen):
+            if self.ab_tab.item(r, 3):
+                self.ab_tab.item(r, 3).setToolTip(f"{a.massnahme}\nseit {a.anreise:%d.%m.%Y}" if a.anreise else a.massnahme)
+        self.ab_tab.hoehe_anpassen(22)
+        knapp = sum(1 for a in self._abreisen if a.naechste and (a.naechste - a.tag).days <= 1)
+        self.ab_info.setText(f"<b>{len(self._abreisen)} Abreisen</b> {self._abreise_titel()}"
+                             + (f" · <b>{knapp}</b> mit Anreise am selben oder nächsten Tag" if knapp else "")
+                             + " · Umzüge zählen nicht als Abreise." if self._abreisen else
+                             f"Keine Abreisen {self._abreise_titel()}.")
+
+    def _abreise_oeffnen(self, r: int, _c: int = 0) -> None:
+        from ..zimmerkarte import karte_oeffnen
+
+        i = self.ab_tab.daten_zeile(r)
+        if 0 <= i < len(self._abreisen):
+            a = self._abreisen[i]
+            karte_oeffnen(self, self.z, a.zimmer, a.schluessel)
+
+    def _abreisen_drucken(self, pdf: bool) -> None:
+        from ... import drucklisten
+
+        von = self.ab_von.datum()
+        self._html_ausgeben(drucklisten.abreiseliste_html(self._abreisen, self._abreise_titel()), False,
+                            f"Abreiseliste_{von:%Y-%m-%d}.pdf" if pdf else None)
+
+    def _abreisen_kopieren(self) -> None:
+        from PySide6.QtGui import QGuiApplication
+
+        QGuiApplication.clipboard().setText("\n".join(
+            "\t".join([f"{a.tag:%d.%m.%Y}", a.zimmer.removeprefix("GS-"), a.name, a.massnahme,
+                       f"{a.naechste:%d.%m.%Y}" if a.naechste else ""]) for a in self._abreisen))
+        self.z.meldung.emit(f"{len(self._abreisen)} Abreisen kopiert – in Excel einfügen (Strg+V).", "ok")
 
     def _reinigung_bauen(self) -> QWidget:
         w = QWidget()
@@ -612,6 +722,12 @@ class ZimmerplanSeite(Seite):
         self._anreisen_fuellen()
         self._tab_inhalt(self.tabs.index())
 
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        scroll = getattr(self, "scroll", None)
+        breite = scroll.viewport().width() if scroll is not None else self.width()
+        self.tabs.eng_wenn_noetig(breite - 2 * 32)        # Seitenränder
+
     def _tab(self, i: int) -> None:
         self._tab_anzeigen(i)
         self._tab_inhalt(i)
@@ -620,11 +736,17 @@ class ZimmerplanSeite(Seite):
 
     def ansicht_lesen(self) -> dict:
         a = super().ansicht_lesen()
-        a.update(zs_haus=self.zs_haus.index(), zs_suche=self.zs_suche.text(), monat=self._monat.isoformat())
+        a.update(zs_haus=self.zs_haus.index(), zs_suche=self.zs_suche.text(), monat=self._monat.isoformat(),
+                 reiter_name=TABS[a["reiter"]] if 0 <= a.get("reiter", -1) < len(TABS) else "")
         return a
 
     def ansicht_setzen(self, ansicht: dict) -> None:
         """Tab gewechselt: Reiter, Haus, Suche und Monat des Zeitstrahls wie zuletzt in diesem Tab."""
+        ansicht = dict(ansicht)
+        if ansicht.get("reiter_name") in TABS:          # Reiter über den Namen – Nummern ändern sich mit neuen Reitern
+            ansicht["reiter"] = TABS.index(ansicht["reiter_name"])
+        elif isinstance(ansicht.get("reiter"), int) and ansicht["reiter"] >= TABS.index("Abreisen"):
+            ansicht["reiter"] += 1                      # gespeichert vor 6.10 (ohne „Abreisen“)
         if isinstance(ansicht.get("zs_haus"), int):
             self.zs_haus.setzen(ansicht["zs_haus"])
         if isinstance(ansicht.get("zs_suche"), str):
@@ -672,7 +794,7 @@ class ZimmerplanSeite(Seite):
         if self.stand is None or not 0 <= i < len(TABS):
             return
         {"Aufgaben": self._aufgaben_zeigen, "Zeitstrahl": self._zeitstrahl_zeigen, "Häuser": self._haeuser_zeigen,
-         "Reinigung": self._reinigung_zeigen, "Zimmer": self._stamm_zeigen}.get(TABS[i], lambda: None)()
+         "Reinigung": self._reinigung_zeigen, "Abreisen": self._abreisen_zeigen, "Zimmer": self._stamm_zeigen}.get(TABS[i], lambda: None)()
 
     def _kopf_zeigen(self) -> None:
         st = self.stand

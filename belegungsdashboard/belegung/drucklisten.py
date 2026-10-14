@@ -162,3 +162,33 @@ def anreiseliste_html(zuteilungen: list[zp.Zuteilung], titel: str) -> str:
                      f"<td nowrap>{zeit}</td><td>&nbsp;</td></tr>")
     teile.append("</table>")
     return "".join(teile)
+
+
+def abreiseliste_html(zeilen: list, titel: str) -> str:
+    """Abreiseliste zum Ausdrucken (cockpit.Abreise): je Tag, nach Haus und Zimmer – mit Spalten zum Abhaken
+    (Schlüssel zurück, Zimmer abgenommen) und der nächsten Anreise ins Zimmer."""
+    teile = [_STIL, f"<h1>Abreiseliste · {escape(titel)}</h1>",
+             f"<div class='klein'>Internat Goslar · {len(zeilen)} Abreisen · „nächste Anreise“ = bis dahin muss das "
+             "Zimmer fertig sein</div>"]
+    tag = None
+    for a in zeilen:
+        if a.tag != tag:
+            if tag is not None:
+                teile.append("</table>")
+            tag = a.tag
+            n = sum(1 for x in zeilen if x.tag == tag)
+            teile.append(f"<h2>{WOCHENTAGE[tag.weekday()]}, {tag:%d.%m.%Y} · {n} Abreise{'n' if n != 1 else ''}</h2>"
+                         "<table class='liste' width='100%' cellspacing='0'><tr><th width='9%'>Zimmer</th>"
+                         "<th width='26%'>Name</th><th width='20%'>Maßnahme</th><th width='11%'>seit</th>"
+                         "<th width='14%'>nächste Anreise</th><th width='8%'>Schlüssel</th><th width='8%'>Abnahme</th>"
+                         "<th>Notiz</th></tr>")
+        naechste = f"{a.naechste:%d.%m.%Y}" if a.naechste else "<span class='leer'>–</span>"
+        geplant = " <span class='klein'>(geplant)</span>" if a.art == "geplant" else ""
+        seit = f"{a.anreise:%d.%m.%Y}" if a.anreise else ""
+        teile.append(f"<tr><td><b>{_kurz(a.zimmer)}</b></td><td>{escape(a.name)}{geplant}</td><td>{escape(a.massnahme)}</td>"
+                     f"<td>{seit}</td><td>{naechste}</td><td>☐</td><td>☐</td><td>&nbsp;</td></tr>")
+    if tag is not None:
+        teile.append("</table>")
+    else:
+        teile.append("<p class='leer'>Keine Abreisen im Zeitraum.</p>")
+    return "".join(teile)

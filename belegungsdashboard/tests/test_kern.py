@@ -2415,3 +2415,41 @@ def test_kurs_zusammenfuehren(tmp_path, monkeypatch):
     erg = zp.vorschlagen(lage, neu)
     flure = {k: {zt.zimmer.flur for zt in erg if zt.bedarf.massnahme.endswith(f"{k} 2701")} for k in ("QQ", "RR")}
     assert all(len(f) == 1 for f in flure.values()) and flure["QQ"] != flure["RR"]
+
+
+def test_abreiseliste_und_zimmer_sortierung(tmp_path, monkeypatch):
+    """Abreiseliste: echte Abreisen im Zeitraum (kein Umzug), nächste Anreise ins Zimmer; Zimmer sortieren nach
+    Haus → Etage → Nummer, „nicht zugeteilt“ zuletzt."""
+    from belegung import cockpit, drucklisten
+    from belegung import umzug as um
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung, Gebaeudeplan
+    from belegung.ui.widgets import sortierschluessel
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    liste = ["6-1003", "3.2-105 · DZ", "2-519", "3.1-U02 · nur mit Tier", "3.1-E01", "3.1-125", "— nicht zugeteilt —",
+             "2-101", "3.3-214", "2-9"]
+    assert sorted(liste, key=sortierschluessel) == ["2-9", "2-101", "2-519", "3.1-U02 · nur mit Tier", "3.1-E01",
+                                                    "3.1-125", "3.2-105 · DZ", "3.3-214", "6-1003", "— nicht zugeteilt —"]
+    heute = date(2026, 10, 14)
+    zimmer = [zp.Zimmer("GS-2-201", "2", "2", "201"), zp.Zimmer("GS-3.1-E02", "3.1", "E", "E02", tiere=True),
+              zp.Zimmer("GS-2-202", "2", "2", "202")]
+    plan = Gebaeudeplan("plan.docx", heute, [], [
+        Belegung("GS-2-201", date(2026, 1, 21), date(2026, 10, 16), "belegt", "Weg, Wanda", "GS QF 2601"),
+        Belegung("GS-2-201", date(2026, 10, 21), date(2027, 6, 30), "belegt", "Neu, Nora", "GS VW 2610"),
+        Belegung("GS-3.1-E02", date(2026, 3, 1), date(2026, 10, 15), "belegt", "Hund, Hanna", "GS RVL"),
+        Belegung("GS-2-202", date(2026, 1, 21), date(2027, 6, 30), "belegt", "Bleib, Bodo", "GS QF 2601")])
+    lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+    st = zp.Planstand(plan, {}, zimmer, lage, [], [])
+    b = next(x for x in lage.belegungen["GS-2-202"])
+    um.speichern(st, b, "GS-3.1-E02", date(2026, 10, 16))                     # Umzug: kein Abreise-Eintrag
+    lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+    um.anwenden(lage, um.laden())
+    st = zp.Planstand(plan, {}, zimmer, lage, [], [])
+    a = cockpit.abreiseliste(st, heute, heute + timedelta(days=6))
+    assert [(x.tag, x.zimmer, x.name) for x in a] == [(date(2026, 10, 15), "GS-3.1-E02", "Hund, Hanna"),
+                                                      (date(2026, 10, 16), "GS-2-201", "Weg, Wanda")]
+    assert a[1].naechste == date(2026, 10, 21) and a[1].anreise == date(2026, 1, 21)
+    html = drucklisten.abreiseliste_html(a, "14.10. – 20.10.2026")
+    assert "Donnerstag, 15.10.2026" in html and "Weg, Wanda" in html and html.count("☐") == 4
+    assert "Keine Abreisen" in drucklisten.abreiseliste_html([], "x")

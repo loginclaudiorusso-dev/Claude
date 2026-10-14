@@ -1,4 +1,4 @@
-# Rückweg: von 6.9.1 zurück zu 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.10 zurück zu 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -17,7 +17,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.6.0** | `backup/v6.6.0` | `4b161e8` | `INNternat_v6.6.0_Sicherung.zip` |
 | **6.7.1** | `backup/v6.7.1` | `141d768` | `INNternat_v6.7.1_Sicherung.zip` |
 | **6.8.0** | `backup/v6.8.0` | `4130eab` | `INNternat_v6.8.0_Sicherung.zip` |
-| **6.9.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.9.1** | `backup/v6.9.1` | `752f97e` | `INNternat_v6.9.1_Sicherung.zip` |
+| **6.10.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -25,7 +26,7 @@ Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
 ## 2. Schnellster Rückweg (lokal, ohne Git) – 3 Schritte
 
 1. Dashboard beenden (auch im Infobereich unten rechts: Rechtsklick auf das Symbol → **Beenden**).
-2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.8.0_Sicherung.zip`) in den
+2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.9.1_Sicherung.zip`) in den
    Programmordner `C:\Users\claudio.russo\Documents\GitClaude\INNternat` entpacken und alles überschreiben.
 3. `Start.bat` starten – in der Seitenleiste steht die alte Versionsnummer.
 
@@ -155,7 +156,13 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
 | `8bc111d` | fachlich + UI | Je Kurs ein Flur; „Kurs zusammenführen“ (Bewohner-Tausch als Umzugspaar); Doku | – |
-| (6.9.1) | UI | Sortieren nach Auswahllisten/Häkchen in Tabellenzellen (`widgets.widget_text`) | – |
+| `752f97e` | UI | Sortieren nach Auswahllisten/Häkchen in Tabellenzellen (`widgets.widget_text`) | – |
+
+**6.10.0** (seit `752f97e`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (letzter) | UI + rein | Abreiseliste (Reiter „Abreisen“, `cockpit.abreiseliste`, `drucklisten.abreiseliste_html`), Zimmer-Sortierung, kompakte Reiter | – |
 
 ## 6. Was sich geändert hat – und was nicht
 
