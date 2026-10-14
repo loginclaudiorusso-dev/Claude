@@ -43,6 +43,7 @@ class Umzug:
     status: str = ""            # beim Anwenden gesetzt: aktiv | erledigt | hinfaellig | konflikt
     hinweis: str = ""           # Konflikt-Grund
     belegt: bool = False        # True: Umzug ist erfolgt/steht fest – neues Zimmer gilt als belegt (nicht nur geplant)
+    partner: str = ""           # Tausch: Kennung des Gegen-Umzugs (beide ziehen am selben Tag in das Zimmer des anderen)
 
     @property
     def text(self) -> str:
@@ -59,13 +60,14 @@ class Umzug:
     def zu_dict(self) -> dict:
         return {"id": self.id, "schluessel": self.schluessel, "name": self.name, "massnahme": self.massnahme,
                 "von_zimmer": self.von_zimmer, "nach_zimmer": self.nach_zimmer, "ab": self.ab.isoformat(),
-                "grund": self.grund, "erstellt": self.erstellt, "belegt": self.belegt}
+                "grund": self.grund, "erstellt": self.erstellt, "belegt": self.belegt,
+                **({"partner": self.partner} if self.partner else {})}
 
     @staticmethod
     def aus_dict(d: dict) -> "Umzug":
         return Umzug(d["id"], d.get("schluessel", ""), d.get("name", ""), d.get("massnahme", ""), d["von_zimmer"],
                      d["nach_zimmer"], date.fromisoformat(d["ab"]), d.get("grund", ""), d.get("erstellt", ""),
-                     belegt=bool(d.get("belegt")))
+                     belegt=bool(d.get("belegt")), partner=d.get("partner", ""))
 
 
 def laden() -> list[Umzug]:
@@ -110,7 +112,9 @@ def _erledigt(lage: zp.Lage, u: Umzug) -> bool:
 
 
 def anwenden(lage: zp.Lage, umzuege: list[Umzug]) -> None:
-    """Umzüge (nach Datum) auf die Lage anwenden; setzt ``status`` und füllt ``lage.umzuege``."""
+    """Umzüge (nach Datum) auf die Lage anwenden; setzt ``status`` und füllt ``lage.umzuege``. Erst alle anwenden,
+    dann prüfen – beim Tausch zieht der Partner am selben Tag aus dem neuen Zimmer aus (kein Konflikt)."""
+    angewendet: list[tuple[Umzug, Belegung]] = []
     for u in sorted(umzuege, key=lambda u: (u.ab, u.erstellt)):
         lage.umzuege[u.id] = u
         if u.nach_zimmer not in lage.zimmer or u.von_zimmer not in lage.zimmer:
@@ -131,15 +135,17 @@ def anwenden(lage: zp.Lage, umzuege: list[Umzug]) -> None:
         geschlecht = alt.grund if alt.art == "geplant" else zp.geschlecht_raten(alt.name)
         neu = Belegung(u.nach_zimmer, max(u.ab, alt.von), alt.bis, "belegt" if u.belegt else "geplant", alt.name,
                        alt.massnahme, geschlecht, schluessel, u.id)
-        ohne = frozenset({schluessel})
         u.status, u.hinweis = "aktiv", ""
-        andere = lage._relevant(u.nach_zimmer, neu.von, neu.bis, ohne)
+        lage.belegungen.setdefault(u.nach_zimmer, []).append(neu)
+        angewendet.append((u, neu))
+    for u, neu in angewendet:
+        andere = [x for x in lage._relevant(u.nach_zimmer, neu.von, neu.bis, frozenset({neu.person}))
+                  if x is not neu and not (u.partner and x.umzug == u.partner)]
+        personen = [x for x in andere if x.art in ("belegt", "geplant")]
         if any(x.art == "gesperrt" for x in andere):
             u.status, u.hinweis = "konflikt", "neues Zimmer ist inzwischen gesperrt"
-        elif lage.freie_betten(u.nach_zimmer, neu.von, neu.bis, ohne) <= 0:
-            namen = ", ".join(x.name for x in andere if x.art in ("belegt", "geplant"))[:80]
-            u.status, u.hinweis = "konflikt", f"neues Zimmer ist inzwischen belegt ({namen})"
-        lage.belegungen.setdefault(u.nach_zimmer, []).append(neu)
+        elif len(personen) >= lage.zimmer[u.nach_zimmer].betten:
+            u.status, u.hinweis = "konflikt", f"neues Zimmer ist inzwischen belegt ({', '.join(x.name for x in personen)[:80]})"
 
 
 def zur_person(lage: zp.Lage, schluessel: str) -> list[Umzug]:
@@ -224,11 +230,13 @@ def auswahl(stand: zp.Planstand, b: Belegung, ab: date) -> tuple[list[zp.Zimmer]
 
 
 def speichern(stand: zp.Planstand, b: Belegung, nach: str, ab: date, grund: str = "", alt_id: str | None = None,
-              quelle: str = "Umzug", belegt: bool = False) -> Umzug:
+              quelle: str = "Umzug", belegt: bool = False, neu_id: str = "", partner: str = "") -> Umzug:
     """Umzug anlegen bzw. ``alt_id`` ersetzen und protokollieren. ``stand`` ohne den alten Umzug laden!"""
     umzuege = [u for u in laden() if u.id != alt_id]
-    u = Umzug(alt_id or uuid.uuid4().hex[:12], schluessel_zu(stand, b), b.name, b.massnahme, b.zimmer, nach, ab,
-              grund.strip(), datetime.now().isoformat(timespec="seconds"), belegt=belegt)
+    alt = next((u for u in laden() if u.id == alt_id), None)
+    u = Umzug(alt_id or neu_id or uuid.uuid4().hex[:12], schluessel_zu(stand, b), b.name, b.massnahme, b.zimmer, nach,
+              ab, grund.strip(), datetime.now().isoformat(timespec="seconds"), belegt=belegt,
+              partner=partner or (alt.partner if alt else ""))
     _schreiben(umzuege + [u])
     protokoll.eintragen([{"aktion": "Umzug" if not alt_id else "Umzug geändert", "name": u.name, "person": u.schluessel,
                           "alt": u.von_zimmer, "neu": u.nach_zimmer, "von": ab.isoformat(), "quelle": quelle}])
@@ -241,7 +249,9 @@ def status_setzen(uid: str, belegt: bool, quelle: str = "Umzug") -> Umzug | None
     u = next((x for x in umzuege if x.id == uid), None)
     if u is None:
         return None
-    u.belegt = belegt
+    for x in umzuege:                          # Tausch: beide Seiten gemeinsam
+        if x.id == uid or (u.partner and x.id == u.partner):
+            x.belegt = belegt
     _schreiben(umzuege)
     protokoll.eintragen([{"aktion": "Umzug abgeschlossen (fest)" if belegt else "Umzug wieder auf geplant", "name": u.name,
                           "person": u.schluessel, "alt": u.von_zimmer, "neu": u.nach_zimmer, "von": u.ab.isoformat(),
@@ -254,10 +264,20 @@ def entfernen(uid: str, quelle: str = "Umzug") -> Umzug | None:
     weg = next((u for u in umzuege if u.id == uid), None)
     if weg is None:
         return None
-    _schreiben([u for u in umzuege if u.id != uid])
-    protokoll.eintragen([{"aktion": "Umzug zurückgenommen", "name": weg.name, "person": weg.schluessel,
-                          "alt": weg.nach_zimmer, "neu": weg.von_zimmer, "von": weg.ab.isoformat(), "quelle": quelle}])
+    raus = [u for u in umzuege if u.id == uid or (weg.partner and u.id == weg.partner)]   # Tausch: beide zurück
+    _schreiben([u for u in umzuege if u not in raus])
+    protokoll.eintragen([{"aktion": "Umzug zurückgenommen", "name": x.name, "person": x.schluessel,
+                          "alt": x.nach_zimmer, "neu": x.von_zimmer, "von": x.ab.isoformat(), "quelle": quelle} for x in raus])
     return weg
+
+
+def tausch_speichern(stand: zp.Planstand, b1: Belegung, b2: Belegung, ab: date, grund: str = "",
+                     quelle: str = "Optimierung") -> tuple[Umzug, Umzug]:
+    """Zwei Bewohner tauschen ab ``ab`` die Zimmer – zwei verbundene Umzüge (gemeinsam ändern/zurücknehmen)."""
+    i1, i2 = uuid.uuid4().hex[:12], uuid.uuid4().hex[:12]
+    u1 = speichern(stand, b1, b2.zimmer, ab, grund, quelle=quelle, neu_id=i1, partner=i2)
+    u2 = speichern(stand, b2, b1.zimmer, ab, grund, quelle=quelle, neu_id=i2, partner=i1)
+    return u1, u2
 
 
 def aufraeumen(lage: zp.Lage, heute: date | None = None, tage: int = 60) -> int:

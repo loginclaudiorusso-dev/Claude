@@ -2028,7 +2028,7 @@ def test_optimierung(tmp_path, monkeypatch):
     r = next((x for x in opt.vorschlaege(stand, date(2026, 10, 13), haken=haken) if x.namen[0] == "Reiter, Rolf"), None)
     assert r is None or (not r.vorauswahl and r.hinweis)
     zp.zuweisungen_speichern([zp.Zuteilung(lang, zimmer[0]), zp.Zuteilung(rvl, zimmer[3])])
-    n, aufgaben = opt.umsetzen(stand, vs)
+    n, aufgaben, _t = opt.umsetzen(stand, vs)
     assert (n, aufgaben) == (2, 0)
     neu = {z["person"]: z["zimmer"] for z in zp.zuweisungen_laden()}
     assert neu[rvl.schluessel] == "GS-3.1-201" and neu[lang.schluessel] != "GS-2-115"
@@ -2349,3 +2349,55 @@ def test_tabelle_sortieren():
     t.fuellen(daten + [["2-1", "Neu, N", "01.02.2026", "1"]])
     app.processEvents()
     assert [t.item(r, 3).text() for r in range(4)] == ["1", "2", "9", "10"] and t.daten_zeile(0) == 3
+
+
+def test_kurs_zusammenfuehren(tmp_path, monkeypatch):
+    """Je Kurs ein Flur: Zuteilen gruppiert nach Kurs; Bewohner zweier Kurse tauschen (zwei verbundene Umzüge,
+    kein Konflikt, gemeinsam zurücknehmen)."""
+    from belegung import optimierung as opt
+    from belegung import umzug as um
+    from belegung import zimmerplan as zp
+    from belegung.gebaeudeplan import Belegung, Gebaeudeplan
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    assert zp.kurs("GS  vw 2606") == "GS VW 2606" and zp.kurs("GS UWT CUA26") == "" and zp.kurs("RVT") == ""
+    heute = date(2026, 10, 14)
+    west = [zp.Zimmer(f"GS-3.2-20{i}", "3.2", "2", f"20{i}", 1, "West") for i in range(1, 4)]
+    ost = [zp.Zimmer(f"GS-3.2-21{i}", "3.2", "2", f"21{i}", 1, "Ost") for i in range(1, 4)]
+    v, b = date(2026, 1, 21), date(2028, 1, 20)
+    # West: 2× Kurs A + 1× B; Ost: 2× B + 1× A → A aus Ost und B aus West tauschen
+    plan = Gebaeudeplan("plan.docx", heute, [], [
+        Belegung(west[0].id, v, b, "belegt", "Anton, A", "GS AA 2601"), Belegung(west[1].id, v, b, "belegt", "Arno, A", "GS AA 2601"),
+        Belegung(west[2].id, v, b, "belegt", "Berta, B", "GS BB 2601"), Belegung(ost[0].id, v, b, "belegt", "Bodo, B", "GS BB 2601"),
+        Belegung(ost[1].id, v, b, "belegt", "Bea, B", "GS BB 2601"), Belegung(ost[2].id, v, b, "belegt", "Anna, A", "GS AA 2601")])
+    zimmer = west + ost
+
+    def stand():
+        lage = zp.lage_bauen(zimmer, plan, [], heute=heute)
+        um.anwenden(lage, um.laden())
+        return zp.Planstand(plan, {}, zimmer, lage, [], [])
+
+    st = stand()
+    vs = [x for x in opt.vorschlaege(st, heute) if x.art == "zusammen"]
+    assert len(vs) == 1 and set(vs[0].namen) == {"Berta, B", "Anna, A"} and not vs[0].vorauswahl
+    assert any("0 → 2 aus GS AA 2601" in g for g in vs[0].gruende)
+    n, a, t = opt.umsetzen(st, vs, heute, umzugstag=date(2026, 10, 21))
+    assert (n, a, t) == (0, 0, 1)
+    u1, u2 = um.laden()
+    assert u1.partner == u2.id and u2.partner == u1.id and u1.ab == date(2026, 10, 21)
+    st = stand()
+    assert {x.status for x in st.lage.umzuege.values()} == {"aktiv"}          # Tausch am selben Tag: kein Konflikt
+    assert [x.name for x in st.lage.belegungen[west[2].id] if x.bis > date(2026, 10, 21)] == ["Anna, A"]
+    assert not [x for x in opt.vorschlaege(st, heute) if x.art == "zusammen"]  # erledigt
+    um.status_setzen(u1.id, True)
+    assert all(x.belegt for x in um.laden())                                    # beide fest
+    um.entfernen(u2.id)
+    assert um.laden() == []                                                     # beide zurück
+    # Zuteilen: zwei Kurse am selben Tag → je Kurs eigene Gruppe (eigener Flur, wenn Platz)
+    frei = [zp.Zimmer(f"GS-3.3-1{i}{j}", "3.3", "1", f"1{i}{j}", 1, f) for i, f in ((1, "West"), (2, "Ost")) for j in range(3)]
+    lage = zp.Lage({z.id: z for z in frei}, {z.id: [] for z in frei})
+    neu = [zp.Bedarf(f"p:{k}{i}", f"{k}{i}, X", f"GS {k} 2701", "Reha", date(2027, 1, 20), date(2029, 1, 18), "m",
+                     False, False, False, "2027-01-20|Reha") for k in ("QQ", "RR") for i in range(3)]
+    erg = zp.vorschlagen(lage, neu)
+    flure = {k: {zt.zimmer.flur for zt in erg if zt.bedarf.massnahme.endswith(f"{k} 2701")} for k in ("QQ", "RR")}
+    assert all(len(f) == 1 for f in flure.values()) and flure["QQ"] != flure["RR"]

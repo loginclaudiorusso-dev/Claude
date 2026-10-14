@@ -14,11 +14,13 @@ from .. import zimmerplan as zp
 from .widgets import FlowLayout, Karte, Pille, Segment, knopf, label, leeren
 
 ZEITRAEUME = [("8 Wochen", 56), ("6 Monate", 182), ("12 Monate", 365)]
-ART_STUFE = {"regel": "ueber", "umzug": "ok", "tausch": "akzent", "umbuchen": "knapp"}
+ART_STUFE = {"regel": "ueber", "umzug": "ok", "tausch": "akzent", "zusammen": "akzent", "umbuchen": "knapp"}
 ART_TEXT = {
     "regel": "Zimmer verletzt eine feste Regel – mit freiem, passendem Ersatz",
     "umzug": "Geplant und noch nicht angereist: ein anderes Zimmer passt deutlich besser",
     "tausch": "Zwei geplante Personen tauschen – beide Zimmer passen über Kreuz besser",
+    "zusammen": "Zwei Bewohner aus verschiedenen Kursen tauschen die Zimmer – danach wohnen beide näher bei ihrem Kurs. "
+                "Wird als zwei verbundene Umzüge am Umzugstag angelegt (unter Aufgaben → Eintragen, bis abgeschlossen).",
     "umbuchen": "Im Belegungssystem gebucht: deutlich besseres Zimmer frei – wird als Aufgabe angelegt",
 }
 
@@ -35,13 +37,23 @@ class OptimierenDialog(QDialog):
         v.addWidget(label("Belegung optimieren", "seitentitel"))
         v.addWidget(label("Prüft alle Belegungen im gewählten Zeitraum wie beim Zuteilen – Haus und Etage passend zur "
                           "Gruppe, Reserven (Tier-, Doppel-, EMR-Zimmer), nahtlose Folgebelegung, lange Aufenthalte "
-                          "auf einen Flur und dieselbe Anreise zusammen auf einem Flur (ohne Personen mit Tier). Geplante Zimmer werden nach Bestätigung umgeplant; Buchungen im "
+                          "auf einen Flur und jeder Kurs zusammen auf einem Flur (ohne Personen mit Tier). Geplante Zimmer werden nach Bestätigung umgeplant; Buchungen im "
                           "Belegungssystem bekommen eine Aufgabe.", "muted", umbruch=True))
         zeile = QHBoxLayout()
         zeile.addWidget(label("Zeitraum", "fett"))
         self.zeitraum = Segment([t for t, _d in ZEITRAEUME], 1)
         self.zeitraum.geaendert.connect(lambda _i: self.berechnen())
         zeile.addWidget(self.zeitraum)
+        zeile.addSpacing(16)
+        self.tag_label = label("Umzugstag für Tausche", "fett")
+        zeile.addWidget(self.tag_label)
+        from datetime import timedelta
+
+        from .widgets import DatumFeld
+
+        self.umzugstag = DatumFeld(date.today() + timedelta(days=7))
+        self.umzugstag.setToolTip("An diesem Tag ziehen beide Bewohner eines Tausches um")
+        zeile.addWidget(self.umzugstag)
         zeile.addStretch()
         neu = knopf("Neu berechnen", "ghost", "aktualisieren")
         neu.clicked.connect(self.berechnen)
@@ -103,6 +115,9 @@ class OptimierenDialog(QDialog):
             for x in gruppe:
                 karte.inhalt.addWidget(self._zeile(x))
             self.liste.addWidget(karte)
+        hat = any(x.art == "zusammen" for x in self.vorschlaege)
+        self.tag_label.setVisible(hat)
+        self.umzugstag.setVisible(hat)
         self._zaehlen()
 
     def _zeile(self, x: opt.Vorschlag) -> QWidget:
@@ -146,15 +161,20 @@ class OptimierenDialog(QDialog):
         gewaehlt = [x for cb, x in self._auswahl if cb.isChecked()]
         if not gewaehlt:
             return
-        um = [x for x in gewaehlt if x.umsetzbar]
+        tausch = [x for x in gewaehlt if x.art == "zusammen"]
+        um = [x for x in gewaehlt if x.umsetzbar and x.art != "zusammen"]
         auf = [x for x in gewaehlt if not x.umsetzbar]
         text = ((f"{len(um)} Planung(en) ändern:\n• " + "\n• ".join(x.text for x in um[:12]) + "\n\n") if um else "") + \
+               ((f"{len(tausch)} Tausch(e) = {2 * len(tausch)} Umzüge am {self.umzugstag.datum():%d.%m.%Y}:\n• "
+                 + "\n• ".join(x.text for x in tausch[:8]) + (" …" if len(tausch) > 8 else "") + "\n\n") if tausch else "") + \
                (f"{len(auf)} Aufgabe(n) „im Belegungssystem umbuchen“ anlegen." if auf else "")
         if QMessageBox.question(self, "Übernehmen", text.strip()) != QMessageBox.Yes:
             return
-        n, a = opt.umsetzen(self.stand, gewaehlt)
-        self.z.meldung.emit(f"Optimierung: {n} Planung(en) geändert" + (f", {a} Aufgabe(n) angelegt." if a else "."),
-                            "ok")
+        n, a, t = opt.umsetzen(self.stand, gewaehlt, umzugstag=self.umzugstag.datum())
+        teile = ([f"{n} Planung(en) geändert"] if n else []) + \
+                ([f"{t} Tausch(e) = {2 * t} Umzüge am {self.umzugstag.datum():%d.%m.%Y}"] if t else []) + \
+                ([f"{a} Aufgabe(n) angelegt"] if a else [])
+        self.z.meldung.emit("Optimierung: " + ("; ".join(teile) or "nichts geändert") + ".", "ok")
         self.z.zimmer_geaendert.emit()
         self.z.termine_geaendert.emit()
         self.berechnen()

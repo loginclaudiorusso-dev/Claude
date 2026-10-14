@@ -1,4 +1,4 @@
-# Rückweg: von 6.8 zurück zu 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.9 zurück zu 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -16,7 +16,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.5.0** | `backup/v6.5.0` | `6a77085` | `INNternat_v6.5.0_Sicherung.zip` |
 | **6.6.0** | `backup/v6.6.0` | `4b161e8` | `INNternat_v6.6.0_Sicherung.zip` |
 | **6.7.1** | `backup/v6.7.1` | `141d768` | `INNternat_v6.7.1_Sicherung.zip` |
-| **6.8.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.8.0** | `backup/v6.8.0` | `4130eab` | `INNternat_v6.8.0_Sicherung.zip` |
+| **6.9.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -24,7 +25,7 @@ Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
 ## 2. Schnellster Rückweg (lokal, ohne Git) – 3 Schritte
 
 1. Dashboard beenden (auch im Infobereich unten rechts: Rechtsklick auf das Symbol → **Beenden**).
-2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.7.1_Sicherung.zip`) in den
+2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.8.0_Sicherung.zip`) in den
    Programmordner `C:\Users\claudio.russo\Documents\GitClaude\INNternat` entpacken und alles überschreiben.
 3. `Start.bat` starten – in der Seitenleiste steht die alte Versionsnummer.
 
@@ -147,7 +148,13 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (letzter) | UI | Tabellen sortierbar (`widgets.Tabelle`), Zeilen-Zuordnung an den Aufrufstellen, Doku | – |
+| `4130eab` | UI | Tabellen sortierbar (`widgets.Tabelle`), Zeilen-Zuordnung an den Aufrufstellen, Doku | – |
+
+**6.9.0** (seit `4130eab`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (letzter) | fachlich + UI | Je Kurs ein Flur; „Kurs zusammenführen“ (Bewohner-Tausch als Umzugspaar); Doku | – |
 
 ## 6. Was sich geändert hat – und was nicht
 
@@ -156,6 +163,8 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 * **Neu in den Einstellungen (6.1/6.2):** `ansichten` (offene Tabs), `dashboard` (Kacheln), `zp_hinweise_offen`,
   `design`, `anzeige_name`; 6.3: `start_titel`, `engpass_grenzen`.
 * **Neu im Datenordner (6.3):** `importe/posteingang.json` (abgelegte Mails mit Prüflisten).
+* **Neu in den Daten (6.9):** in `importe/umzuege.json` das Feld `partner` (Tauschpaar). Ältere Versionen kennen es
+  nicht und zeigen die beiden Umzüge eines Tausches als „Konflikt“ – nichts geht verloren.
 * **Neu in den Daten (6.7):** in `zimmer_zuweisungen.json` die Felder `status`/`belegt_am`, in `importe/umzuege.json`
   das Feld `belegt`. Ältere Versionen ignorieren sie – dort erscheint „belegt“ wieder als „geplant“.
 * **Neu im Datenordner (6.6):** `importe/zkl.json` (importierte ZKL, übernommene Bewohner, geprüfte Punkte).

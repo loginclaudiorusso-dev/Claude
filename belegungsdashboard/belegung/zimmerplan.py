@@ -12,7 +12,7 @@ Feste Regeln (werden nie verletzt):
 * gesperrte/renovierte Zeiträume und ein Puffer nach jeder Abreise (Reinigung)
 
 Wünsche (gewichtet):
-* eine Anreise/Maßnahme zusammen auf einem Flur – Zimmer aber nicht direkt nebeneinander
+* ein Kurs (z. B. „GS VW 2606“) zusammen auf einem Flur – Zimmer aber nicht direkt nebeneinander
 * kurze Maßnahmen und Assessment bevorzugt Haus 2 Etage 5, RVL bevorzugt Haus 3.1
 * Doppelzimmer bevorzugt für UWT, Tier-Zimmer für Personen mit Tier freihalten
 """
@@ -50,6 +50,18 @@ STANDARD_TEXT = "EMR 3 Übernachtungen ab dem Vortag, Assessment 4 Wochen, RVL/R
 EMR_VORTAG = 1
 KURZ_WOCHEN = 8
 GAESTEZIMMER = [f"GS-2-{n}" for n in range(601, 618)]
+
+
+_KURS_NR = re.compile(r"^\d{2,4}$")
+
+
+def kurs(massnahme: str) -> str:
+    """Kurs (Maßnahme mit Kürzel und Startnummer), z. B. „GS VW 2606“ – Gruppe, die auf einen Flur soll.
+    "" für alles andere (EMR, UWT, Miete, Gäste, Maßnahmen ohne Startnummer)."""
+    teile = (massnahme or "").upper().split()
+    if len(teile) < 2 or not _KURS_NR.match(teile[-1]) or any(w in " ".join(teile) for w in ("EMR", "UWT", "MIET")):
+        return ""
+    return " ".join(teile)
 
 
 def gruppe_von(massnahme: str, standard: str = "Reha") -> str:
@@ -772,7 +784,10 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
     offen = [b for b in bedarf if b.schluessel not in ergebnis]
     gruppen: dict[str, list[Bedarf]] = {}
     for b in sorted(offen, key=lambda b: (b.von, not b.tier, b.name)):
-        gruppen.setdefault(b.anreise_kennung or b.schluessel, []).append(b)
+        k = b.anreise_kennung or b.schluessel
+        if b.gruppe != "UWT" and kurs(b.massnahme):
+            k += "|" + kurs(b.massnahme)               # je Kurs ein Flur (nicht alle Kurse eines Tages zusammen)
+        gruppen.setdefault(k, []).append(b)
     # schwierige Gruppen zuerst (wenig zulässige Zimmer)
     # Klassen mit DZ-Liste vor Klassen ohne – die Paare brauchen die Doppelzimmer
     reihenfolge = sorted(gruppen.values(), key=lambda g: (g[0].von, not any(_paar(b) for b in g),

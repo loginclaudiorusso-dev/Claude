@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.8.0, 14.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.9.0, 14.10.2026)
 
 ## Als Nächstes
 
@@ -19,7 +19,7 @@
   Zimmerplan wird Hauptwerkzeug: geplant ↔ belegt umschaltbar (Personen und Umzüge), Gebäudeplan-Import optional.
 - 6.8: Tabellen sortierbar. Frage „wie lange bis eine Maßnahme auf einem Flur“ simuliert (14.10.): heutiges
   Verfahren ~50 % auf Haupt-Flur bis 2030; je Kurs gruppieren ~60 % bis 06/2028; mit Tauschen (~86 Umzüge sofort)
-  ~75–80 %. Zu entscheiden: Gruppierung je Kurs (Maßnahme-Kürzel) statt je Anreisetag+Gruppe; Tausch-Vorschläge.
+  ~75–80 %. 6.9: beides umgesetzt (je Kurs ein Flur; Bewohner-Tausche als Umzugspaare, Datenkopie 34 % → 69 %).
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).

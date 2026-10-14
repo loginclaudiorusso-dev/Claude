@@ -27,6 +27,18 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.9
+
+* **Je Kurs ein Flur:** Beim Zuteilen bildet jeder Kurs (z. B. „GS VW 2606“) eine eigene Gruppe – vorher kamen
+  alle Reha-Kurse eines Anreisetages in eine Gruppe. Personen mit Tier bleiben außen vor (Haus 3.1).
+* **Kurs zusammenführen** (Belegung optimieren): Zwei Bewohner aus verschiedenen Kursen tauschen die Zimmer, wenn
+  danach beide mindestens so viele aus ihrem Kurs auf dem Flur haben und es zusammen mehr sind. Nur Einzelzimmer,
+  keine Tier-Zimmer, nur wer noch mindestens 60 Tage bleibt; alle Regeln gelten. Nicht vorausgewählt – abhaken,
+  oben den **Umzugstag für Tausche** wählen, übernehmen. Jeder Tausch wird als zwei verbundene Umzüge angelegt
+  (gemeinsam abschließen bzw. zurücknehmen) und steht bis zum Abschließen unter Aufgaben → Eintragen.
+* Mit der Datenkopie vom 14.10.: 36 Tausche (72 Umzüge) heben den Anteil „wohnt auf dem Haupt-Flur seines Kurses“
+  von 34 % auf 69 % (Kurse ganz auf einem Flur: 1 → 9). Danach je Auszugswelle einige weitere Tausche.
+
 ## Neu in 6.8
 
 * **Tabellen sortieren:** Klick auf eine Spaltenüberschrift sortiert aufsteigend, ein zweiter Klick absteigend (Pfeil

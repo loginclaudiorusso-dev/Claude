@@ -5,9 +5,10 @@ Bewertet wird jede Belegung wie beim Zuteilen (``zimmer_wert``: Haus/Etage/Grupp
 
 * **Umzug** (geplant, noch nicht angereist): ein anderes zulässiges Zimmer ist deutlich besser.
 * **Tausch** (zwei geplante Personen, auch aus verschiedenen Gruppen): beide Zimmer passen über Kreuz besser.
-* **Anreise zusammen:** Wer mit derselben Anreise (gleicher Tag, gleiche Maßnahme) kommt, soll auf einem Flur
+* **Kurs zusammen:** Wer im selben Kurs ist (z. B. „GS VW 2606“, sonst dieselbe Anreise), soll auf einem Flur
   wohnen – je Person derselben Anreise auf dem Flur gibt es Punkte. So rücken Gruppen mit jeder Optimierung
   weiter zusammen (Personen mit Tier ausgenommen, UWT über „UWT neu zuteilen“).
+* **Kurs zusammenführen** (Bewohner): zwei, die schon wohnen, tauschen die Zimmer – als zwei verbundene Umzüge.
 * **Regelverstoß** (geplant oder im Gebäudeplan): Zimmer verletzt eine feste Regel (z. B. lange Maßnahme
   auf Haus 2, 1. OG, kein UWT im Doppelzimmer) – mit freiem, passendem Ersatz.
 * **Im Belegungssystem umbuchen** (Gebäudeplan, noch nicht angereist): deutlich besseres Zimmer frei – das
@@ -32,7 +33,10 @@ GEWINN_UMBUCHEN = 4.0       # Gebäudeplan-Buchungen: nur bei klarem Vorteil vor
 REGEL_BONUS = 5.0           # eine verletzte Regel aufzulösen zählt so viel wie ein deutlich besseres Zimmer
 KOHORTE_PUNKTE = 1.5        # je Person derselben Anreise auf dem Flur (Maßnahme zusammen auf einem Flur) …
 KOHORTE_MAX = 6.0           # … höchstens so viel
-ARTEN = {"regel": "Regelverstoß", "umzug": "Besseres Zimmer", "tausch": "Tausch", "umbuchen": "Im Belegungssystem umbuchen"}
+ARTEN = {"regel": "Regelverstoß", "umzug": "Besseres Zimmer", "tausch": "Tausch", "zusammen": "Kurs zusammenführen",
+         "umbuchen": "Im Belegungssystem umbuchen"}
+MIN_REST_TAGE = 60          # Bewohner, die in weniger als 60 Tagen ausziehen, nicht mehr umziehen lassen
+MAX_ZUSAMMEN = 60           # höchstens so viele Bewohner-Tausche je Durchlauf
 
 
 @dataclass
@@ -52,7 +56,7 @@ class Vorschlag:
     @property
     def text(self) -> str:
         k = lambda z: z.removeprefix("GS-")
-        if self.art == "tausch":
+        if self.art in ("tausch", "zusammen"):
             return (f"{self.namen[0]} ({k(self.von_zimmer[0])} → {k(self.nach_zimmer[0])}) ⇄ "
                     f"{self.namen[1]} ({k(self.von_zimmer[1])} → {k(self.nach_zimmer[1])})")
         return f"{self.namen[0]}: {k(self.von_zimmer[0])} → {k(self.nach_zimmer[0])}"
@@ -75,14 +79,20 @@ class Kohorten:
     Klassenplanung), Gäste und Mieter zählen nicht – sie wohnen ohnehin woanders."""
 
     def __init__(self, bedarf: list[zp.Bedarf]):
-        self.von_person = {b.schluessel: b.anreise_kennung or f"{b.von.isoformat()}|{b.gruppe}" for b in bedarf
+        self.von_person = {b.schluessel: ("kurs:" + zp.kurs(b.massnahme)) if zp.kurs(b.massnahme)
+                           else (b.anreise_kennung or f"{b.von.isoformat()}|{b.gruppe}") for b in bedarf
                            if not b.tier and b.gruppe not in ("UWT", "Gast", "Mieter")}
         self._namen = [(zp._namenswoerter(b.name), b) for b in bedarf if b.schluessel in self.von_person]
         self._cache: dict[tuple, str | None] = {}
 
     def von(self, bel: zp.Belegung) -> str | None:
+        if bel.person in self.von_person:
+            return self.von_person[bel.person]
+        k = zp.kurs(bel.massnahme)
+        if k and bel.art in ("belegt", "geplant") and bel.name != zp.PIVOT_NAME:
+            return "kurs:" + k                 # Gebäudeplan bzw. Umzug: der Kurs steht in der Maßnahme
         if bel.person:
-            return self.von_person.get(bel.person)
+            return None
         if bel.art != "belegt" or not bel.name or bel.name == zp.PIVOT_NAME:
             return None
         key = (bel.name, bel.von)
@@ -94,6 +104,8 @@ class Kohorten:
 
     @staticmethod
     def text(kennung: str) -> str:
+        if kennung.startswith("kurs:"):
+            return kennung[5:]
         tag, _, gruppe = kennung.partition("|")
         try:
             tag = date.fromisoformat(tag).strftime("%d.%m.")
@@ -107,7 +119,8 @@ class Kohorten:
         k = self.von_person.get(b.schluessel)
         if k is None:
             return 0, None
-        n = sum(1 for zid in ids for x in lage.belegungen.get(zid, []) if x.person != b.schluessel and x.person not in ohne
+        n = sum(1 for zid in ids if not lage.zimmer[zid].tiere      # Tier-Zimmer zählen nicht (Tierbesitzer wohnen dort)
+                for x in lage.belegungen.get(zid, []) if x.person != b.schluessel and x.person not in ohne
                 and x.art in ("belegt", "geplant") and x.bis >= b.von and x.von <= b.bis and self.von(x) == k)
         return n, k
 
@@ -307,19 +320,109 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
                                  hinweis=("wohnt schon dort – Umzug nur, wenn es passt" if angereist
                                           else "im Belegungssystem gebucht – dort umbuchen")))
             _verschieben(lage, bel, z1.id)        # nächster Vorschlag sieht das Zimmer als vergeben
-    reihenfolge = {"regel": 0, "umzug": 1, "tausch": 2, "umbuchen": 3}
+    # 4) Bewohner: zwei aus verschiedenen Kursen tauschen die Zimmer, wenn beide danach näher bei ihrem Kurs wohnen
+    if mit_tausch:                             # auf dem echten Stand – nicht auf den hypothetischen Umzügen oben
+        echt = zp.Lage(stand.lage.zimmer, {k: list(v) for k, v in stand.lage.belegungen.items()}, stand.lage.puffer,
+                       stand.lage.abgleich, stand.lage.dz)
+        erg += bewohner_tausche(stand, echt, koh, heute, {n for v in erg for n in v.namen})
+    reihenfolge = {"regel": 0, "umzug": 1, "tausch": 2, "zusammen": 3, "umbuchen": 4}
     return sorted(erg, key=lambda v: (reihenfolge[v.art], -v.gewinn))
 
 
-def umsetzen(stand: zp.Planstand, auswahl: list[Vorschlag], heute: date | None = None) -> tuple[int, int]:
+def bewohner_tausche(stand: zp.Planstand, lage: zp.Lage, koh: Kohorten, heute: date,
+                     schon: set[str] = frozenset()) -> list[Vorschlag]:
+    """Kurs zusammenführen: Bewohner (eingezogen) zweier Kurse tauschen die Zimmer, wenn beide danach mindestens
+    so viele aus ihrem Kurs auf dem Flur haben und es zusammen mindestens 2 mehr sind. Nur Einzelzimmer, keine
+    Tier-Zimmer, nur wer noch mindestens 60 Tage bleibt; Regeln (Haus/Etage/Gruppe, Bad über den Flur …) gelten.
+    Die Tausche werden nacheinander auf ``lage`` angewendet (Folgevorschläge sehen sie schon)."""
+    from dataclasses import replace
+
+    flur = {zid: z.flur_schluessel for zid, z in lage.zimmer.items()}
+    nach_person = {b.schluessel: b for b in stand.bedarf}
+    p = max(lage.puffer - 1, 0)
+
+    def bedarf(bel: zp.Belegung) -> zp.Bedarf:
+        b = nach_person.get(bel.person) if bel.person else None
+        return replace(b, von=heute, bis=bel.bis) if b else replace(_bedarf_aus_belegung(bel), von=heute)
+
+    def darf(z: zp.Zimmer, bel: zp.Belegung, weg: zp.Belegung) -> bool:
+        if zp.passt(zp.Lage({z.id: z}, {z.id: []}), z, bedarf(bel)) is not None:
+            return False                       # Regeln (ohne Belegung geprüft)
+        return not any(x is not weg and x.art in ("belegt", "geplant", "gesperrt") and x.ueberschneidet(heute, bel.bis, p)
+                       for x in lage.belegungen.get(z.id, []))
+
+    erg: list[Vorschlag] = []
+    getauscht: set[tuple] = set()             # jede Person höchstens einmal (Umzug vom heutigen Zimmer aus)
+    for _runde in range(4):
+        leute = [(zid, b, k) for zid, bs in lage.belegungen.items()
+                 if (z := lage.zimmer.get(zid)) is not None and z.aktiv and z.betten == 1 and not z.tiere
+                 for b in bs if b.art in ("belegt", "geplant") and b.name and b.name != zp.PIVOT_NAME and not b.umzug
+                 and b.von <= heute and b.bis > heute + timedelta(days=MIN_REST_TAGE) and (k := koh.von(b))
+                 and (b.name, b.von) not in getauscht and b.name not in schon]
+        zaehl: dict[tuple, int] = {}
+        for zid, _b, k in leute:
+            zaehl[(k, flur[zid])] = zaehl.get((k, flur[zid]), 0) + 1
+        benutzt: set[str] = set()
+        neu = 0
+        for z1, b1, k1 in leute:
+            if z1 in benutzt or len(erg) >= MAX_ZUSAMMEN:
+                continue
+            f1 = flur[z1]
+            bester = None
+            for z2, b2, k2 in leute:
+                f2 = flur[z2]
+                if z2 in benutzt or k1 == k2 or f1 == f2:
+                    continue
+                a1, n1 = zaehl[(k1, f1)] - 1, zaehl.get((k1, f2), 0)          # vorher / nachher (ohne sich selbst)
+                a2, n2 = zaehl[(k2, f2)] - 1, zaehl.get((k2, f1), 0)
+                g = (n1 - a1) + (n2 - a2)
+                if g < 2 or n1 < a1 or n2 < a2 or (bester and g <= bester[0]):
+                    continue
+                if not (darf(lage.zimmer[z2], b1, b2) and darf(lage.zimmer[z1], b2, b1)):
+                    continue
+                bester = (g, z2, b2, k2, a1, n1, a2, n2)
+            if bester is None:
+                continue
+            g, z2, b2, k2, a1, n1, a2, n2 = bester
+            erg.append(Vorschlag(
+                "zusammen", [zp.bewohner_aus(stand, b1).schluessel, zp.bewohner_aus(stand, b2).schluessel],
+                [b1.name, b2.name], [z1, z2], [z2, z1], f"bis {b1.bis:%d.%m.%Y} / {b2.bis:%d.%m.%Y}",
+                round(g * KOHORTE_PUNKTE, 1),
+                [f"{b1.name.split(',')[0]}: {a1} → {n1} aus {Kohorten.text(k1)} auf dem Flur",
+                 f"{b2.name.split(',')[0]}: {a2} → {n2} aus {Kohorten.text(k2)} auf dem Flur"],
+                vorauswahl=False, hinweis="beide wohnen schon dort – Tausch als zwei Umzüge am gewählten Tag"))
+            for k, f, d in ((k1, f1, -1), (k1, flur[z2], 1), (k2, flur[z2], -1), (k2, f1, 1)):
+                zaehl[(k, f)] = zaehl.get((k, f), 0) + d
+            benutzt |= {z1, z2}
+            getauscht |= {(b1.name, b1.von), (b2.name, b2.von)}
+            _verschieben(lage, b1, z2)
+            _verschieben(lage, b2, z1)
+            neu += 1
+        if not neu or len(erg) >= MAX_ZUSAMMEN:
+            break
+    return erg
+
+
+def umsetzen(stand: zp.Planstand, auswahl: list[Vorschlag], heute: date | None = None,
+             umzugstag: date | None = None) -> tuple[int, int, int]:
     """Umsetzbare Vorschläge speichern (Änderungsprotokoll: „Optimierung“); für Buchungen im Belegungssystem
-    eine Aufgabe (Wiedervorlage heute) anlegen. Gibt (umgesetzt, Aufgaben) zurück."""
+    eine Aufgabe (Wiedervorlage heute) anlegen; „Kurs zusammenführen“ als zwei verbundene Umzüge am
+    ``umzugstag``. Gibt (Planungen geändert, Aufgaben, Tausche) zurück."""
     from . import termine
+    from . import umzug as um
 
     heute = heute or date.today()
     nach_person = {b.schluessel: b for b in stand.bedarf}
-    zuteilungen, aufgaben = [], 0
+    zuteilungen, aufgaben, tausche = [], 0, 0
     for v in auswahl:
+        if v.art == "zusammen":
+            b1 = um.belegung_zu(stand, v.von_zimmer[0], v.personen[0], v.namen[0], heute)
+            b2 = um.belegung_zu(stand, v.von_zimmer[1], v.personen[1], v.namen[1], heute)
+            if b1 is not None and b2 is not None:
+                tag = min(max(umzugstag or heute, b1.von, b2.von), b1.bis, b2.bis)
+                um.tausch_speichern(stand, b1, b2, tag, "Kurs zusammenführen")
+                tausche += 1
+            continue
         if v.umsetzbar:
             for person, nach in zip(v.personen, v.nach_zimmer):
                 b = nach_person.get(person)
@@ -333,4 +436,4 @@ def umsetzen(stand: zp.Planstand, auswahl: list[Vorschlag], heute: date | None =
             aufgaben += 1
     if zuteilungen:
         zp.zuweisungen_speichern(zuteilungen, "Optimierung")
-    return len(zuteilungen), aufgaben
+    return len(zuteilungen), aufgaben, tausche
