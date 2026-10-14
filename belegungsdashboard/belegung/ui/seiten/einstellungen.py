@@ -219,9 +219,9 @@ class EinstellungenSeite(Seite):
 
     def _wiederherstellen(self) -> None:
         zeilen = self.sich_tab.selectionModel().selectedRows() if self.sich_tab.selectionModel() else []
-        if not zeilen or zeilen[0].row() >= len(self._sicherungen):
+        if not zeilen or self.sich_tab.daten_zeile(zeilen[0].row()) >= len(self._sicherungen):
             return
-        s = self._sicherungen[zeilen[0].row()]
+        s = self._sicherungen[self.sich_tab.daten_zeile(zeilen[0].row())]
         if QMessageBox.question(
                 self, "Sicherung wiederherstellen",
                 f"Arbeitsdaten vom {s.zeit:%d.%m.%Y %H:%M} (v{s.version}) zurückspielen?\n\n"

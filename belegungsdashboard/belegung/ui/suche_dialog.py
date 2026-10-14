@@ -87,7 +87,8 @@ class SuchDialog(QDialog):
 
     def _gewaehlt(self) -> suche.Treffer | None:
         zeilen = self.tab.selectionModel().selectedRows() if self.tab.selectionModel() else []
-        return self.treffer[zeilen[0].row()] if zeilen and zeilen[0].row() < len(self.treffer) else None
+        i = self.tab.daten_zeile(zeilen[0].row()) if zeilen else -1
+        return self.treffer[i] if 0 <= i < len(self.treffer) else None
 
     def _auswahl(self) -> None:
         t = self._gewaehlt()

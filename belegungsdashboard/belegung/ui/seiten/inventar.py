@@ -155,7 +155,7 @@ class InventarSeite(Seite):
 
     def _gewaehlt(self) -> list[zp.Zimmer]:
         sel = self.z_tab.selectionModel()
-        reihen = sorted({i.row() for i in sel.selectedRows()}) if sel else []
+        reihen = sorted({self.z_tab.daten_zeile(i.row()) for i in sel.selectedRows()}) if sel else []
         return [self._liste[r] for r in reihen if r < len(self._liste)]
 
     def _zimmer_zeigen(self) -> None:
@@ -260,6 +260,7 @@ class InventarSeite(Seite):
             self._geaendert()
         else:          # Tabelle nicht neu aufbauen – sonst springt der Fokus aus dem Zahlenfeld
             r = next((i for i, z in enumerate(self._liste) if z.id == zid), None)
+            r = self.z_tab.ansicht_zeile(r) if r is not None else None
             if r is not None and self.z_tab.item(r, 3):
                 self.z_tab.item(r, 3).setText(self.inv.kurztext(zid) or "–")
             self._gegenstaende_zeigen()
@@ -343,7 +344,7 @@ class InventarSeite(Seite):
 
     def _g_gewaehlt(self) -> inventar.Gegenstand | None:
         sel = self.g_tab.selectionModel()
-        r = sel.selectedRows()[0].row() if sel and sel.selectedRows() else None
+        r = self.g_tab.daten_zeile(sel.selectedRows()[0].row()) if sel and sel.selectedRows() else None
         return self.inv.gegenstaende[r] if r is not None and r < len(self.inv.gegenstaende) else None
 
     def _gegenstaende_zeigen(self) -> None:

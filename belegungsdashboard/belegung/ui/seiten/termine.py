@@ -341,9 +341,9 @@ class TermineSeite(Seite):
 
     def _gewaehlt(self) -> tm.Termin | None:
         zeilen = self.tab.selectionModel().selectedRows() if self.tab.selectionModel() else []
-        if not zeilen or zeilen[0].row() >= len(self._tabelle_termine):
+        if not zeilen or self.tab.daten_zeile(zeilen[0].row()) >= len(self._tabelle_termine):
             return None
-        return self._tabelle_termine[zeilen[0].row()]
+        return self._tabelle_termine[self.tab.daten_zeile(zeilen[0].row())]
 
     def _auswahl(self) -> None:
         t = self._gewaehlt()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import math
+import re
 from datetime import date, timedelta
 
 from PySide6.QtCore import (
@@ -857,9 +858,45 @@ class MausradSperre(QObject):
             w = w.parentWidget()
 
 
+_DATUM = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})")
+_ZAHL = re.compile(r"^-?\d{1,3}(?:\.\d{3})*(?:,\d+)?$|^-?\d+(?:[.,]\d+)?$")
+INDEX = Qt.UserRole + 41          # Zeile in den Daten des Aufrufers (bleibt beim Sortieren erhalten)
+SORTTEXT = Qt.UserRole + 42       # Sortiertext für Zellen mit Widget (Pille, Auswahl …)
+
+
+def sortierschluessel(text: str) -> tuple:
+    """Zahlen als Zahl, TT.MM.JJJJ als Datum, sonst „natürlich“ (2-9 vor 2-10), leer zuletzt."""
+    t = (text or "").strip()
+    if not t or t in ("–", "-"):
+        return (3,)
+    m = _DATUM.match(t)
+    if m:
+        return (1, int(m.group(3)), int(m.group(2)), int(m.group(1)), t)
+    z = t.rstrip(" %€").strip()
+    if _ZAHL.match(z):
+        try:
+            return (0, float(z.replace(".", "").replace(",", ".") if "," in z else z), t)
+        except ValueError:
+            pass
+    return (2, tuple((0, int(p), "") if p.isdigit() else (1, 0, p.casefold()) for p in re.split(r"(\d+)", t) if p))
+
+
+class _Zelle(QTableWidgetItem):
+    def __lt__(self, other) -> bool:
+        a = self.data(SORTTEXT) or self.text()
+        b = (other.data(SORTTEXT) or other.text()) if isinstance(other, QTableWidgetItem) else ""
+        return sortierschluessel(a) < sortierschluessel(b)
+
+
 class Tabelle(QTableWidget):
+    """Tabelle im Stil der App. Klick auf eine Spaltenüberschrift sortiert auf-/absteigend (nur Tabellen, die
+    über ``fuellen`` befüllt werden). ``daten_zeile``/``ansicht_zeile`` rechnen zwischen angezeigter Zeile und
+    Zeile in den Daten des Aufrufers um."""
+
     def __init__(self, kopf: list[str], ausrichtung: list[str] | None = None, dehnen: int = 0, parent=None):
         super().__init__(0, len(kopf), parent)
+        self._sortierung: tuple[int, Qt.SortOrder] | None = None
+        self._mit_index = False
         self.setHorizontalHeaderLabels(kopf)
         self._ausrichtung = ausrichtung or ["l"] + ["r"] * (len(kopf) - 1)
         self.verticalHeader().setVisible(False)
@@ -877,24 +914,67 @@ class Tabelle(QTableWidget):
         kh.setSectionResizeMode(QHeaderView.ResizeToContents)
         kh.setSectionResizeMode(dehnen, QHeaderView.Stretch)
         self.verticalHeader().setDefaultSectionSize(max(36, self.fontMetrics().height() + 18))
+        kh.setSectionsClickable(True)
+        kh.sectionClicked.connect(self._kopf_geklickt)
+
+    # ---- Sortieren ---------------------------------------------------------------------
+
+    def _kopf_geklickt(self, c: int) -> None:
+        kopf = self.horizontalHeaderItem(c)
+        if not self._mit_index or kopf is None or not kopf.text():
+            return
+        reihe = Qt.DescendingOrder if self._sortierung == (c, Qt.AscendingOrder) else Qt.AscendingOrder
+        self._sortierung = (c, reihe)
+        self._sortieren()
+
+    def _sortieren(self) -> None:
+        if self._sortierung is None or not self._mit_index:
+            return
+        c, reihe = self._sortierung
+        kh = self.horizontalHeader()
+        kh.setSortIndicatorShown(True)
+        kh.setSortIndicator(c, reihe)
+        self.sortItems(c, reihe)
+
+    def daten_zeile(self, r: int) -> int:
+        """Angezeigte Zeile → Zeile in der an ``fuellen`` übergebenen Liste."""
+        for c in range(self.columnCount()):
+            it = self.item(r, c)
+            if it is not None and it.data(INDEX) is not None:
+                return int(it.data(INDEX))
+        return r
+
+    def ansicht_zeile(self, i: int) -> int:
+        """Zeile in den Daten → angezeigte Zeile."""
+        for r in range(self.rowCount()):
+            if self.daten_zeile(r) == i:
+                return r
+        return i
 
     def fuellen(self, zeilen: list[list], farben: dict[tuple[int, int], str] | None = None) -> None:
         self.setRowCount(len(zeilen))
         for r, zeile in enumerate(zeilen):
             for c, wert in enumerate(zeile):
                 if isinstance(wert, QWidget):
-                    if self.item(r, c) is not None:
-                        self.takeItem(r, c)          # sonst scheint alter Text unter dem Widget durch
+                    platz = _Zelle("")               # leere Zelle unter dem Widget: Index + Sortiertext
+                    platz.setData(INDEX, r)
+                    txt = wert.text() if callable(getattr(wert, "text", None)) else ""
+                    platz.setData(SORTTEXT, txt if isinstance(txt, str) else "")
+                    self.setItem(r, c, platz)
                     self.setCellWidget(r, c, wert)
                     continue
                 if self.cellWidget(r, c) is not None:
                     self.removeCellWidget(r, c)      # sonst liegt eine alte Pille über dem neuen Text
-                item = QTableWidgetItem("" if wert is None else str(wert))
+                item = _Zelle("" if wert is None else str(wert))
+                item.setData(INDEX, r)
                 links = self._ausrichtung[c] == "l" if c < len(self._ausrichtung) else True
                 item.setTextAlignment((Qt.AlignLeft if links else Qt.AlignRight) | Qt.AlignVCenter)
                 if farben and (r, c) in farben:
                     item.setForeground(QColor(farben[(r, c)]))
                 self.setItem(r, c, item)
+        self._mit_index = True
+        if self._sortierung is not None:      # erst nach dem Aufrufer (Tooltips je Datenzeile) neu sortieren
+            QTimer.singleShot(0, self._sortieren)
 
     def widgets_einpassen(self, rand: int = 14) -> None:
         """Spalten und Zeilen mit eingebetteten Widgets (Auswahllisten, Häkchen, Pillen) so groß machen,

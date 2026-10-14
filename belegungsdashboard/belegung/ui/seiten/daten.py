@@ -107,7 +107,8 @@ class DatenSeite(Seite):
         self.anr_karte.inhalt.addWidget(self.anr_info)
         self.anr_tabelle = Tabelle(["Anreise", "Name", "Maßnahme", "Internat", "Abreise", "Erinnerung", ""],
                                    ["l", "l", "l", "l", "l", "l", "l"], dehnen=1)
-        self.anr_tabelle.cellDoubleClicked.connect(lambda r, _c: self._person(self._anr_zeilen[r]) if r < len(self._anr_zeilen) else None)
+        self.anr_tabelle.cellDoubleClicked.connect(
+            lambda r, _c: self._person(self._anr_zeilen[i]) if (i := self.anr_tabelle.daten_zeile(r)) < len(self._anr_zeilen) else None)
         self.anr_karte.inhalt.addWidget(self.anr_tabelle)
         self.anr_leer = Leer("hochladen", "Noch keine Anreisen",
                              "Eine oder mehrere Anreiselisten wählen (z. B. „Anreiseliste 21-10-2026.xlsx“). Erneutes "

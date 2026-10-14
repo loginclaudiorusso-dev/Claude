@@ -27,6 +27,14 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.8
+
+* **Tabellen sortieren:** Klick auf eine Spaltenüberschrift sortiert aufsteigend, ein zweiter Klick absteigend (Pfeil
+  in der Überschrift). Zimmer werden „natürlich“ sortiert (2-9 vor 2-10), Daten (TT.MM.JJJJ) als Datum, Zahlen als
+  Zahl, Namen ohne Rücksicht auf Groß/Klein. Die Sortierung bleibt beim Aktualisieren erhalten; Doppelklick, Auswahl
+  und Knöpfe treffen weiterhin die richtige Zeile. Gilt für alle Tabellen (Zimmerplan, Termine, Suche, Inventar,
+  Posteingang, Daten, Einstellungen …).
+
 ## Neu in 6.7.1
 
 * Begriff: **„Planung abschließen (fest)“** statt „als belegt markieren“ – im Rechtsklick-Menü des Zeitstrahls, in der

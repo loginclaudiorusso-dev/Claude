@@ -174,7 +174,7 @@ class PosteingangSeite(Seite):
         self.tab = Tabelle(["Eingang", "Art", "Person", "Zeitraum", "Status", "Noch offen"],
                            ["l", "l", "l", "l", "l", "l"], dehnen=5)
         self.tab.setTextElideMode(Qt.ElideRight)
-        self.tab.doubleClicked.connect(lambda i: self._eingang_oeffnen(i.row()))
+        self.tab.doubleClicked.connect(lambda i: self._eingang_oeffnen(self.tab.daten_zeile(i.row())))
         liste.inhalt.addWidget(self.tab)
         self.leer = label("Noch keine Mails.", "muted")
         liste.inhalt.addWidget(self.leer)

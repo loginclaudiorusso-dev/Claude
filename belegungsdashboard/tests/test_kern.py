@@ -2315,3 +2315,37 @@ def test_zkl_vorauswahl():
     from belegung import zkl
 
     assert zkl.VORAUSWAHL == {"bewohnt", "nicht_belegbar", "tiere"} and "gaeste" not in zkl.VORAUSWAHL
+
+
+def test_tabelle_sortieren():
+    """Klick auf die Spaltenüberschrift sortiert auf-/absteigend: Zimmer natürlich, Datum als Datum, Zahl als Zahl;
+    daten_zeile zeigt danach weiter auf die richtige Datenzeile."""
+    from PySide6.QtWidgets import QApplication
+
+    from belegung.ui.widgets import Tabelle, sortierschluessel
+
+    app = QApplication.instance() or QApplication([])
+    assert sortierschluessel("2-9") < sortierschluessel("2-10") < sortierschluessel("3.1-E01")
+    assert sortierschluessel("31.12.2026") < sortierschluessel("01.01.2027")
+    assert sortierschluessel("9") < sortierschluessel("10") < sortierschluessel("–")
+    t = Tabelle(["Zimmer", "Name", "Anreise", "Tage"])
+    daten = [["2-10", "Zander, Z", "01.01.2027", "9"], ["2-9", "abel, A", "31.12.2026", "10"],
+             ["3.1-E01", "Meier, M", "15.06.2026", "2"]]
+    t.fuellen(daten)
+    t.item(0, 1).setToolTip("Zander")                  # Aufrufer setzt Tooltips je Datenzeile
+    t._kopf_geklickt(0)
+    assert [t.item(r, 0).text() for r in range(3)] == ["2-9", "2-10", "3.1-E01"]
+    assert [t.daten_zeile(r) for r in range(3)] == [1, 0, 2] and t.ansicht_zeile(0) == 1
+    assert t.item(1, 1).toolTip() == "Zander"
+    t._kopf_geklickt(0)                                # zweiter Klick: absteigend
+    assert [t.item(r, 0).text() for r in range(3)] == ["3.1-E01", "2-10", "2-9"]
+    t._kopf_geklickt(1)
+    assert [t.item(r, 1).text() for r in range(3)] == ["abel, A", "Meier, M", "Zander, Z"]   # ohne Groß/Klein
+    t._kopf_geklickt(2)
+    assert [t.daten_zeile(r) for r in range(3)] == [2, 1, 0]
+    t._kopf_geklickt(3)
+    assert [t.item(r, 3).text() for r in range(3)] == ["2", "9", "10"]
+    # neu füllen behält die Sortierung (nach dem Aufrufer)
+    t.fuellen(daten + [["2-1", "Neu, N", "01.02.2026", "1"]])
+    app.processEvents()
+    assert [t.item(r, 3).text() for r in range(4)] == ["1", "2", "9", "10"] and t.daten_zeile(0) == 3
