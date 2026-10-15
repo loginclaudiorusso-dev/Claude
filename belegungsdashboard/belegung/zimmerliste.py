@@ -25,6 +25,14 @@ def boden_text(z: zp.Zimmer) -> str:
     return f"{z.boden} (vermutet)" if z.boden and z.boden_vermutet else z.boden
 
 
+RENOVIERT_OHNE_DATUM = "ja"      # renoviert, Datum unbekannt
+
+
+def reno_text(z: zp.Zimmer) -> str:
+    d = reno_datum(z)
+    return f"{d:%d.%m.%Y}" if d else ("ja (Datum ?)" if z.renoviert else "")
+
+
 def reno_datum(z: zp.Zimmer) -> date | None:
     try:
         return date.fromisoformat(z.renoviert) if z.renoviert else None
@@ -39,8 +47,9 @@ def reno_datum(z: zp.Zimmer) -> date | None:
 @dataclass
 class Renovierung:
     zimmer: str
-    datum: date
+    datum: date | None          # None = renoviert, Datum unbekannt
     notiz: str = ""
+    boden: str = ""             # in der Zeile genannter Boden (gilt als sicher)
 
 
 def _datum(text: str) -> date | None:
@@ -56,7 +65,8 @@ def _datum(text: str) -> date | None:
 
 def renovierungen_lesen(text: str, bekannt: set[str]) -> tuple[list[Renovierung], list[str]]:
     """Zeilen wie „3.1  E20  …  27.09.2019“ bzw. „2 402 fertigstellung 07.01.26 07.01.2026“ (Tabulator oder
-    Leerzeichen): Haus, Zimmer, optional Notiz, Datum (letztes Datum der Zeile). Gibt (Treffer, unbekannte Zeilen)."""
+    Leerzeichen): Haus, Zimmer, optional Notiz, Datum (letztes Datum der Zeile). Statt Datum geht „ja“ (renoviert,
+    Datum unbekannt); ein genannter Boden (z. B. „Vinyl“) gilt als sicher. Gibt (Treffer, unbekannte Zeilen)."""
     from .zkl import zimmer_id
 
     erg, fehler = [], []
@@ -69,12 +79,16 @@ def renovierungen_lesen(text: str, bekannt: set[str]) -> tuple[list[Renovierung]
                 fehler.append(zeile.strip())
             continue
         daten = [d for t in teile if (d := _datum(t))]
+        ohne_datum = any(t.lower() in ("ja", "renoviert") for t in teile[2:])
+        boden = next((b for t in teile[2:] for b in BOEDEN
+                      if t.lower() == b.lower() or b == "Vinyl" and t.lower() == "vynil"), "")
         zid = zimmer_id(f"{teile[0]}-{teile[1]}", bekannt)
-        if not daten or zid is None or zid not in bekannt:
+        if not (daten or ohne_datum) or zid is None or zid not in bekannt:
             fehler.append(zeile.strip())
             continue
-        notiz = " ".join(t for t in teile[2:] if not _DATUM.fullmatch(t))
-        erg.append(Renovierung(zid, daten[-1], notiz))
+        notiz = " ".join(t for t in teile[2:] if not _DATUM.fullmatch(t) and t.lower() not in ("ja", "renoviert")
+                         and t != boden)
+        erg.append(Renovierung(zid, daten[-1] if daten else None, notiz, boden))
     return erg, fehler
 
 
@@ -89,9 +103,13 @@ def renovierungen_anwenden(stand: zp.Planstand, eintraege: list[Renovierung], bo
         if z is None:
             continue
         alt = (z.renoviert, z.boden, z.boden_vermutet)
-        if not z.renoviert or z.renoviert < e.datum.isoformat():
+        if e.datum is None:
+            z.renoviert = z.renoviert or RENOVIERT_OHNE_DATUM
+        elif not reno_datum(z) or z.renoviert < e.datum.isoformat():
             z.renoviert = e.datum.isoformat()
-        if boden and (not z.boden or z.boden_vermutet):
+        if e.boden:                            # in der Liste ausdrücklich genannt → sicher
+            z.boden, z.boden_vermutet = e.boden, False
+        elif boden and (not z.boden or z.boden_vermutet):
             z.boden, z.boden_vermutet = boden, vermutet
         n += alt != (z.renoviert, z.boden, z.boden_vermutet)
     if n:
@@ -181,7 +199,7 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
         if f.nur_internat and not z.aktiv or f.haus and z.haus != f.haus:
             continue
         d = reno_datum(z)
-        if f.renoviert == "ja" and d is None or f.renoviert == "nein" and d is not None:
+        if f.renoviert == "ja" and not z.renoviert or f.renoviert == "nein" and z.renoviert:
             continue
         if f.renoviert.startswith("seit:") and (d is None or d.year < int(f.renoviert[5:])):
             continue
@@ -224,11 +242,9 @@ def liste_html(zeilen: list[Zeile], f: Filter, namen: bool = True) -> str:
              + ("<th width='20%'>Heute</th>" if namen else "") + "<th>Notiz</th></tr>"]
     for r in zeilen:
         z = r.zimmer
-        d = reno_datum(z)
+        reno = escape(reno_text(z)) or "<span class='leer'>–</span>"
         teile.append(f"<tr><td><b>{escape(z.kurz)}</b></td><td>{escape(zp.flur_text(z))}</td>"
-                     f"<td>{escape(merkmal_kurz(z))}</td><td>{d:%d.%m.%Y}</td>" if d else
-                     f"<tr><td><b>{escape(z.kurz)}</b></td><td>{escape(zp.flur_text(z))}</td>"
-                     f"<td>{escape(merkmal_kurz(z))}</td><td class='leer'>–</td>")
+                     f"<td>{escape(merkmal_kurz(z))}</td><td>{reno}</td>")
         teile.append(f"<td>{escape(r.boden) or '<span class=leer>–</span>'}</td>"
                      + (f"<td>{escape(r.heute)}</td>" if namen else "") + f"<td>{escape(z.notiz)}</td></tr>")
     teile.append("</table>")

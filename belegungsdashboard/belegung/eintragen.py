@@ -160,6 +160,39 @@ def engpaesse(lage: zp.Lage, heute: date | None = None, wochen: int = 12) -> lis
     return ergebnis
 
 
+@dataclass
+class NachPlanung:
+    """Lage, wenn alle noch offenen Anreisen (Anreiseliste/UWT ohne Zimmer) nach den Regeln ein Zimmer hätten."""
+    lage: zp.Lage
+    offen: int             # Personen ohne Zimmer im Zeitraum
+    ohne_platz: int        # davon fänden keins (nach den Regeln)
+    wochen: list           # [(Woche jetzt, Woche nach Planung)]
+
+    @property
+    def tiefst(self) -> tuple | None:
+        """(Woche nach Planung) mit den wenigsten freien Zimmern."""
+        return min((n for _j, n in self.wochen), key=lambda w: w.gesamt, default=None)
+
+
+def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12) -> NachPlanung:
+    """Probeweise zuteilen (nichts wird gespeichert) – je Anreisetag wie unter Zuteilen – und danach die freien
+    Zimmer je Woche zählen."""
+    heute = heute or date.today()
+    ende = heute + timedelta(weeks=wochen)
+    offen = [b for b in stand.bedarf if not stand.zugewiesen(b.schluessel) and b.von <= ende and b.bis >= heute]
+    lage = zp.Lage(stand.lage.zimmer, {k: list(v) for k, v in stand.lage.belegungen.items()}, stand.lage.puffer,
+                   [], dict(stand.lage.dz))
+    ohne = 0
+    for tag in sorted({b.von for b in offen}):
+        for zt in zp.vorschlagen(lage, [b for b in offen if b.von == tag]):
+            if zt.zimmer is None:
+                ohne += 1
+            else:
+                lage.belegungen.setdefault(zt.zimmer.id, []).append(zp._als_belegung(zt.bedarf, zt.zimmer))
+    jetzt, nach = engpaesse(stand.lage, heute, wochen), engpaesse(lage, heute, wochen)
+    return NachPlanung(lage, len(offen), ohne, list(zip(jetzt, nach)))
+
+
 # ---------------------------------------------------------------------------------------
 # Facility-Check: nach einem langen Aufenthalt Elektrik prüfen und Fensterwartung machen
 # ---------------------------------------------------------------------------------------

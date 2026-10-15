@@ -594,7 +594,7 @@ class ZimmerplanSeite(Seite):
         f = self._zl_filter()
         self._zl_zeilen = zl.filtern(self.stand, f)
         self.zl_tab.fuellen([[r.zimmer.kurz, zp.flur_text(r.zimmer).split(" · ", 1)[-1], zl.merkmal_kurz(r.zimmer),
-                              f"{d:%d.%m.%Y}" if (d := zl.reno_datum(r.zimmer)) else "–", r.boden or "–", r.heute,
+                              zl.reno_text(r.zimmer) or "–", r.boden or "–", r.heute,
                               r.zimmer.notiz] for r in self._zl_zeilen])
         self.zl_tab.hoehe_anpassen(16)
         reno = sum(1 for r in self._zl_zeilen if r.zimmer.renoviert)
@@ -631,9 +631,8 @@ class ZimmerplanSeite(Seite):
 
         zeilen = ["Zimmer\tEtage\tMerkmale\tRenoviert\tBoden\tHeute\tNotiz"]
         for r in self._zl_ansicht():
-            d = zl.reno_datum(r.zimmer)
             zeilen.append("\t".join([r.zimmer.kurz, zp.flur_text(r.zimmer), zl.merkmal_kurz(r.zimmer),
-                                     f"{d:%d.%m.%Y}" if d else "", r.boden, r.heute, r.zimmer.notiz]))
+                                     zl.reno_text(r.zimmer), r.boden, r.heute, r.zimmer.notiz]))
         QGuiApplication.clipboard().setText("\n".join(zeilen))
         self.z.meldung.emit(f"{len(zeilen) - 1} Zimmer kopiert – in Excel einfügen (Strg+V).", "ok")
 
@@ -666,7 +665,7 @@ class ZimmerplanSeite(Seite):
             n, fehler = erg
             self.stand = zp.laden()
             nicht = ", ".join("-".join(x.split()[:2]) for x in fehler[:5])
-            self.z.meldung.emit(f"Renovierungsliste übernommen: {n} Zimmer renoviert, Boden „Vinyl (vermutet)“"
+            self.z.meldung.emit(f"Renovierungsliste übernommen: {n} Zimmer aktualisiert (Renovierung, Boden)"
                                 + (f" – nicht im Zimmerplan: {nicht}" if fehler else "") + ".", "ok")
 
     def _aufgaben_bauen(self) -> QWidget:
@@ -737,8 +736,8 @@ class ZimmerplanSeite(Seite):
         self.eng_def = label("", "klein", umbruch=True)
         self.eng_def.setTextFormat(Qt.RichText)
         ek.inhalt.addWidget(self.eng_def)
-        self.eng_tab = Tabelle(["Woche", "Freie Zimmer", "EMR-Zimmer", "Doppelzimmer UWT", "Lage"],
-                               ["l", "r", "r", "r", "l"], dehnen=4)
+        self.eng_tab = Tabelle(["Woche", "Frei jetzt", "Frei nach Planung", "EMR", "Doppel UWT", "Lage (nach Planung)"],
+                               ["l", "r", "r", "r", "r", "l"], dehnen=5)
         self.eng_tab.setToolTip("<br>".join(f"<b>{eintragen.ENGPASS_NAMEN[a]}:</b> {t}"
                                             for a, t in eintragen.ENGPASS_ERKLAERUNG.items()))
         ek.inhalt.addWidget(self.eng_tab)
@@ -976,6 +975,10 @@ class ZimmerplanSeite(Seite):
             else:
                 zaehler[status] = zaehler.get(status, 0) + 1
         offen = sum(1 for b in st.bedarf if heute <= b.von <= heute + timedelta(weeks=8) and not st.zugewiesen(b.schluessel))
+        try:
+            self._nach_planung = eintragen.nach_planung(st, heute, 12)
+        except Exception:                 # noqa: BLE001 – Anzeige darf nie den Zimmerplan blockieren
+            self._nach_planung = None
         leeren(self.kennzahlen)
         for text, stufe, tip in ((f"{zaehler['frei']} frei", "ok", "Freie Zimmer heute (inkl. teilweise freier Doppelzimmer)"),
                                  (f"{zaehler['belegt']} belegt", "neutral", "Belegte Zimmer heute"),
@@ -983,6 +986,15 @@ class ZimmerplanSeite(Seite):
                                  (f"{offen} ohne Zimmer", "knapp" if offen else "ok", "Anreisen der nächsten 8 Wochen ohne übernommenes Zimmer")):
             p = Pille(text, stufe)
             p.setToolTip(tip)
+            self.kennzahlen.addWidget(p)
+        np_ = self._nach_planung
+        if np_ is not None and (w := np_.tiefst) is not None:
+            p = Pille(f"nach Planung mind. {w.gesamt} frei · {w.text.split(' · ')[0]}",
+                      {"ok": "ok", "knapp": "knapp", "kritisch": "ueber"}[w.stufe("gesamt")])
+            p.setToolTip("Wenn alle Anreisen der nächsten 12 Wochen ein Zimmer haben (auch die "
+                         f"{np_.offen} noch ohne Zimmer – probeweise nach den Regeln zugeteilt"
+                         + (f", {np_.ohne_platz} fänden keins" if np_.ohne_platz else "") + "):<br>"
+                         + "<br>".join(f"{n.text}: <b>{n.gesamt}</b> frei (jetzt {j.gesamt})" for j, n in np_.wochen))
             self.kennzahlen.addWidget(p)
         leeren(self.hinweise)
         if st.plan is None:
@@ -1414,25 +1426,28 @@ class ZimmerplanSeite(Seite):
     def _engpaesse_zeigen(self) -> None:
         from ... import eintragen
 
-        wochen = eintragen.engpaesse(self.stand.lage)
+        np_ = getattr(self, "_nach_planung", None) or eintragen.nach_planung(self.stand)
         self.eng_def.setText("<br>".join(f"<b>{eintragen.ENGPASS_NAMEN[a]}</b> = {t}"
                                          for a, t in eintragen.ENGPASS_ERKLAERUNG.items())
-                             + f"<br><b>Ampel:</b> {eintragen.grenzen_text()}.")
+                             + f"<br><b>Ampel:</b> {eintragen.grenzen_text()}."
+                             + f"<br><b>Nach Planung</b> = wenn auch die {np_.offen} Anreisen ohne Zimmer probeweise "
+                               "nach den Regeln zugeteilt sind (nichts wird gespeichert); EMR, Doppel und Lage gelten "
+                               "nach Planung." + (f" <b>{np_.ohne_platz} fänden kein Zimmer.</b>" if np_.ohne_platz else ""))
         t = theme.T
         farbe = {"ok": t.ok, "knapp": t.knapp, "kritisch": t.ueber}
         zeilen, farben = [], {}
-        for r, w in enumerate(wochen):
+        for r, (j, w) in enumerate(np_.wochen):
             stufe = w.gesamtstufe
             text = {"ok": "ok", "knapp": "knapp", "kritisch": "kritisch"}[stufe]
             if stufe != "ok":
                 engpass = [n for a, n in (("gesamt", "Zimmer"), ("emr", "EMR"), ("doppel", "Doppelzimmer"))
                            if w.stufe(a) != "ok"]
                 text += " – " + ", ".join(engpass)
-            zeilen.append([w.text, w.gesamt, w.emr, w.doppel, text])
-            for c, art in ((1, "gesamt"), (2, "emr"), (3, "doppel")):
+            zeilen.append([w.text, j.gesamt, w.gesamt, w.emr, w.doppel, text])
+            for c, art in ((2, "gesamt"), (3, "emr"), (4, "doppel")):
                 if w.stufe(art) != "ok":
                     farben[(r, c)] = farbe[w.stufe(art)]
-            farben[(r, 4)] = farbe[stufe]
+            farben[(r, 5)] = farbe[stufe]
         self.eng_tab.fuellen(zeilen, farben)
         self.eng_tab.hoehe_anpassen(len(zeilen))
 

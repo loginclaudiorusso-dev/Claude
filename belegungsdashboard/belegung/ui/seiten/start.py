@@ -480,7 +480,8 @@ class StartSeite(Seite):
         k.inhalt.addWidget(label("Zimmer, die die ganze Woche frei sind · EMR = Haus 2, 1.–2. OG · Doppel = ganz "
                                  "freie Doppelzimmer für UWT (Maus über die Kachel: genaue Erklärung)", "klein",
                                  umbruch=True))
-        for w in eintragen.engpaesse(self.stand.lage, heute, 5):
+        k.inhalt.addWidget(label("Nach Planung: auch Anreisen ohne Zimmer probeweise zugeteilt", "klein"))
+        for _jetzt, w in eintragen.nach_planung(self.stand, heute, 5).wochen:
             rechts = QWidget()
             h = QHBoxLayout(rechts)
             h.setContentsMargins(0, 0, 0, 0)

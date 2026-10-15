@@ -27,6 +27,16 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.12
+
+* **Frei nach Planung:** Wie viele Zimmer sind noch frei, wenn alle Anreisen ein Zimmer haben – auch die noch ohne
+  Zimmer (probeweise nach den Regeln zugeteilt, nichts wird gespeichert).
+  * Zimmerplan-Kopf: „nach Planung mind. N frei · KW …“ (Maus darüber: alle 12 Wochen, jetzt ↔ nach Planung).
+  * Aufgaben → Engpässe: Spalten „Frei jetzt“ und „Frei nach Planung“; EMR, Doppel und Ampel nach Planung.
+  * Startseiten-Kachel „Engpässe“ zeigt die Werte nach Planung.
+* **Haus 6, 4. OG:** alle Zimmer renoviert (Datum unbekannt, wo keins bekannt ist), Boden Vinyl (sicher).
+  Renovierungslisten können jetzt „ja“ statt eines Datums und einen Boden je Zeile enthalten.
+
 ## Neu in 6.11
 
 * **Renovierung und Boden je Zimmer:** neue Zimmer-Eigenschaften „renoviert am“ und „Boden“ (mit Merker „vermutet“).

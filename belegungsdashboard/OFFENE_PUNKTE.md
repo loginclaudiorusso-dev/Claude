@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.11.0, 15.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.12.0, 15.10.2026)
 
 ## Als Nächstes
 
@@ -25,6 +25,7 @@
   Hinweis: gemerkte Reiter-Nummern (offene Tabs) verschieben sich durch den neuen Reiter um eins.
 - 6.11: Renovierung/Boden je Zimmer, Zimmerliste. 2 Zeilen der Renovierungsliste nicht im Zimmerplan (6-205
   Jugendhilfe, 3.1-220); „3.3-110/301/305/313“ als 3.2 zugeordnet – vom Nutzer bestätigen lassen.
+- 6.12: „Frei nach Planung“ (Kopf, Engpässe, Startseite); Haus 6/4. OG renoviert + Vinyl (Datum unbekannt außer 405/408).
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).

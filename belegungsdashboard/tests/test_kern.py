@@ -2483,12 +2483,38 @@ def test_zimmerliste_renovierung_filter(tmp_path, monkeypatch):
     assert {r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="ja"))} == {"GS-3.1-E20", "GS-3.2-110", "GS-3.3-317", "GS-2-402"}
     assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="nein"))] == ["GS-6-405"]
     assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="seit:2026"))] == ["GS-2-402"]
+    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(haus="6", heute_frei=True))] == ["GS-6-405"]
     assert {r.zimmer.id for r in zl.filtern(st, zl.Filter(boden="Vinyl"))} == {"GS-3.1-E20", "GS-3.2-110", "GS-3.3-317"}
     assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(merkmale={"tiere"}))] == ["GS-3.1-E20"]
-    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(haus="6", heute_frei=True))] == ["GS-6-405"]
     html = zl.liste_html(zl.filtern(st, zl.Filter(boden="Vinyl")), zl.Filter(boden="Vinyl"))
     assert "Vinyl (vermutet)" in html and "Boden Vinyl" in html and "20.12.2019" in html
+    # ohne Datum („ja“) mit Boden in der Zeile → renoviert, Boden sicher; Datum bleibt, wenn schon bekannt
+    e2, _f = zl.renovierungen_lesen("6\t405\t\tVinyl\tja\n3.3\t317\t\tvynil\tja", {x.id for x in zimmer})
+    assert [(x.zimmer, x.datum, x.boden) for x in e2] == [("GS-6-405", None, "Vinyl"), ("GS-3.3-317", None, "Vinyl")]
+    assert zl.renovierungen_anwenden(st, e2) == 2
+    assert z["GS-6-405"].renoviert == "ja" and zl.reno_text(z["GS-6-405"]) == "ja (Datum ?)" and not z["GS-6-405"].boden_vermutet
+    assert z["GS-3.3-317"].renoviert == "2019-12-20" and z["GS-3.3-317"].boden == "Vinyl" and not z["GS-3.3-317"].boden_vermutet
+    assert "GS-6-405" in {r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="ja"))}
+    assert "GS-6-405" not in {r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="seit:2020"))}
     # gespeichert in den Stammdaten (ältere Versionen ignorieren die Felder)
     gespeichert = zp.speicher.lesen(zp.STAMM_DATEI, {})
     assert {k: gespeichert["GS-3.2-110"][k] for k in ("renoviert", "boden", "boden_vermutet")} == \
         {"renoviert": "2019-12-20", "boden": "Vinyl", "boden_vermutet": True}
+
+
+def test_frei_nach_planung(tmp_path, monkeypatch):
+    """„Nach Planung“: Anreisen ohne Zimmer werden probeweise zugeteilt (nichts gespeichert) – freie Zimmer je Woche."""
+    from belegung import eintragen
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    heute = date(2026, 10, 14)
+    zimmer = [zp.Zimmer(f"GS-3.2-20{i}", "3.2", "2", f"20{i}", 1, "West") for i in range(1, 6)]
+    lage = zp.Lage({z.id: z for z in zimmer}, {z.id: [] for z in zimmer})
+    a = [_bedarf(f"Neu{i}, N", "RVT", date(2026, 10, 26), date(2027, 1, 20), "w", kennung="2026-10-26|RVT") for i in range(2)]
+    st = zp.Planstand(None, {}, zimmer, lage, [], a)
+    np_ = eintragen.nach_planung(st, heute, 4)
+    assert np_.offen == 2 and np_.ohne_platz == 0
+    assert [(j.gesamt, n.gesamt) for j, n in np_.wochen] == [(5, 5), (5, 5), (5, 3), (5, 3)]   # Anreise in KW 44
+    assert np_.tiefst.gesamt == 3 and not zp.zuweisungen_laden()            # nichts gespeichert
+    assert all(not bs for bs in lage.belegungen.values())                   # Original-Lage unverändert

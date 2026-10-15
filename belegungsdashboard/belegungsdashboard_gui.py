@@ -169,8 +169,8 @@ def main() -> int:
             from belegung import zimmerplan as zp
 
             if (erg := zimmerliste.auto_import(zp.laden())) is not None:
-                zustand.meldung.emit(f"Renovierungsliste übernommen: {erg[0]} Zimmer renoviert, Boden „Vinyl "
-                                     "(vermutet)“ – Zimmerplan → Zimmer.", "ok")
+                zustand.meldung.emit(f"Renovierungsliste übernommen: {erg[0]} Zimmer aktualisiert (Renovierung, Boden) – "
+                                     "Zimmerplan → Zimmer.", "ok")
                 zustand.zimmer_geaendert.emit()
         except Exception as exc:               # noqa: BLE001 – darf den Start nie verhindern
             logging.getLogger(__name__).warning("Renovierungsliste: %s", exc)

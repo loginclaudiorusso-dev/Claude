@@ -1,4 +1,4 @@
-# Rückweg: von 6.11 zurück zu 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.12 zurück zu 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -19,7 +19,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.8.0** | `backup/v6.8.0` | `4130eab` | `INNternat_v6.8.0_Sicherung.zip` |
 | **6.9.1** | `backup/v6.9.1` | `752f97e` | `INNternat_v6.9.1_Sicherung.zip` |
 | **6.10.0** | `backup/v6.10.0` | `2233c00` | `INNternat_v6.10.0_Sicherung.zip` |
-| **6.11.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.11.0** | `backup/v6.11.0` | `357a575` | `INNternat_v6.11.0_Sicherung.zip` |
+| **6.12.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -27,7 +28,7 @@ Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
 ## 2. Schnellster Rückweg (lokal, ohne Git) – 3 Schritte
 
 1. Dashboard beenden (auch im Infobereich unten rechts: Rechtsklick auf das Symbol → **Beenden**).
-2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.10.0_Sicherung.zip`) in den
+2. Das Zip des gewünschten Standes (z. B. `INNternat_v6.11.0_Sicherung.zip`) in den
    Programmordner `C:\Users\claudio.russo\Documents\GitClaude\INNternat` entpacken und alles überschreiben.
 3. `Start.bat` starten – in der Seitenleiste steht die alte Versionsnummer.
 
@@ -169,7 +170,13 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (letzter) | rein + UI | Renovierung/Boden je Zimmer, Zimmerliste filtern & drucken (`belegung/zimmerliste.py`) | – |
+| `9590a6d`, `357a575` | rein + UI | Renovierung/Boden je Zimmer, Zimmerliste filtern & drucken (`belegung/zimmerliste.py`) | – |
+
+**6.12.0** (seit `357a575`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (letzter) | rein + UI | „Frei nach Planung“ (`eintragen.nach_planung`), Renovierung ohne Datum, Haus 6/4. OG | – |
 
 ## 6. Was sich geändert hat – und was nicht
 
