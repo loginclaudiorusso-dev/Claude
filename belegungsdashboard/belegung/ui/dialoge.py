@@ -807,7 +807,11 @@ class PersonDialog(QDialog):
             self.notizen.speichern()
         neu = self._zimmer_neu()
         if neu is not None:
-            zp.zuweisung_setzen(self._stand, self.person.schluessel, neu, "Person öffnen")
+            from .. import aenderungen
+
+            vorher = aenderungen.schnappschuss()
+            zp.zuweisung_setzen(self._stand, self.person.schluessel, neu, "Person öffnen")   # ValueError: belegt
+            aenderungen.merken(f"Zimmer {self.person.name}: {neu.removeprefix('GS-') or 'entfernt'}", vorher)
             self.zimmer_geaendert = neu
 
     def _aktualisieren(self, *_):
@@ -859,7 +863,11 @@ class PersonDialog(QDialog):
             p.gruppe = "EMR"
         self.zimmer_geaendert = None
         if not self.neu:
-            self._nebenbei_speichern()
+            try:
+                self._nebenbei_speichern()
+            except ValueError as exc:            # Zimmer inzwischen belegt: nichts überschreiben
+                QMessageBox.warning(self, "Zimmer nicht gespeichert", str(exc))
+                return
         self.ergebnis = p
         self.accept()
 

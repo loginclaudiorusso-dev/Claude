@@ -152,12 +152,21 @@ class UmzugDialog(QDialog):
             return
         if hinweis and QMessageBox.question(self, "Ausnahme", f"{hinweis}\n\nTrotzdem dorthin umziehen?") != QMessageBox.Yes:
             return
-        u = um.speichern(self.stand, self.bel, nach, tag, self.grund.text(), self.uid, belegt=self.belegt.isChecked())
-        self.z.meldung.emit(f"Umzug fest: {u.text}." if u.belegt else
-                            f"Umzug geplant: {u.text}. Im Belegungssystem umbuchen (Aufgaben → Eintragen).",
-                            "warnung" if hinweis else "ok")
-        self.z.zimmer_geaendert.emit()
-        self.accept()
+        from .aenderung_ui import ausfuehren
+
+        self.ok.setEnabled(False)                 # kein Doppelklick → kein doppelter Umzug
+        b, z = self.bel, self.stand.lage.zimmer[nach]
+        titel = f"Umzug {b.name}: {b.zimmer.removeprefix('GS-')} → {z.kurz} ab {tag:%d.%m.}"
+        if ausfuehren(self, self.z, titel,
+                      lambda: um.speichern(self.stand, self.bel, nach, tag, self.grund.text(), self.uid,
+                                           belegt=self.belegt.isChecked()),
+                      lambda u: f"Umzug fest: {u.text}." if u.belegt else
+                      f"Umzug geplant: {u.text}. Im Belegungssystem umbuchen (Aufgaben → Eintragen).",
+                      "warnung" if hinweis else "ok"):
+            self.z.zimmer_geaendert.emit()
+            self.accept()
+        else:
+            self.ok.setEnabled(True)
 
     def _zuruecknehmen(self) -> None:
         if zurueck_nehmen(self, self.z, self.uid):
@@ -169,11 +178,22 @@ def umzug_oeffnen(parent, zustand, **kw) -> bool:
 
 
 def zurueck_nehmen(parent, zustand, uid: str) -> bool:
-    if QMessageBox.question(parent, "Umzug zurücknehmen", "Umzug zurücknehmen? Die Person bleibt dann im alten "
-                            "Zimmer.") != QMessageBox.Yes:
+    from .aenderung_ui import ausfuehren
+
+    u = next((x for x in um.laden() if x.id == uid), None)
+    if u is None:
+        zustand.meldung.emit("Dieser Umzug ist schon entfernt.", "info")
         return False
-    weg = um.entfernen(uid)
-    if weg is not None:
-        zustand.meldung.emit(f"Umzug zurückgenommen: {weg.name} bleibt in {weg.von_zimmer.removeprefix('GS-')}.", "ok")
+    tausch = next((x for x in um.laden() if u.partner and x.id == u.partner), None)
+    text = (f"Umzug zurücknehmen?\n\n{u.text}\n→ {u.name} bleibt in {u.von_zimmer.removeprefix('GS-')}, "
+            f"{u.nach_zimmer.removeprefix('GS-')} ist wieder frei.")
+    if tausch is not None:
+        text += f"\n\nTeil eines Tauschs – der Gegen-Umzug wird mit zurückgenommen:\n{tausch.text}"
+    if QMessageBox.question(parent, "Umzug zurücknehmen", text) != QMessageBox.Yes:
+        return False
+    ok = ausfuehren(parent, zustand, f"Umzug {u.name} zurückgenommen", lambda: um.entfernen(uid),
+                    f"Umzug zurückgenommen: {u.name} bleibt in {u.von_zimmer.removeprefix('GS-')}"
+                    + (f" (Tausch mit {tausch.name} ebenso)." if tausch else "."))
+    if ok:
         zustand.zimmer_geaendert.emit()
-    return weg is not None
+    return ok

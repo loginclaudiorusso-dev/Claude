@@ -226,7 +226,9 @@ class Hinweis(QFrame):
 class Segment(QFrame):
     geaendert = Signal(int)
 
-    def __init__(self, optionen: list[str], index: int = 0, parent=None):
+    def __init__(self, optionen: list[str], index: int = 0, parent=None, trenner: tuple[int, ...] = (),
+                 tipps: list[str] | None = None):
+        """``trenner``: vor diesen Positionen ein senkrechter Strich (Gruppen); ``tipps``: Tooltip je Option."""
         super().__init__(parent)
         self.setProperty("segment", True)
         lay = QHBoxLayout(self)
@@ -235,7 +237,15 @@ class Segment(QFrame):
         self._gruppe = QButtonGroup(self)
         self._gruppe.setExclusive(True)
         for i, text in enumerate(optionen):
+            if i in trenner:
+                strich = QFrame()
+                strich.setFrameShape(QFrame.VLine)
+                strich.setFixedWidth(9)
+                strich.setStyleSheet(f"color: {theme.alpha(theme.T.text_3, .45)};")
+                lay.addWidget(strich)
             b = FettKnopf(text)
+            if tipps and i < len(tipps) and tipps[i]:
+                b.setToolTip(tipps[i])
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
             self._gruppe.addButton(b, i)
@@ -1132,6 +1142,11 @@ class Toast(QFrame):
         self._text.setWordWrap(True)
         self._text.setMaximumWidth(380)
         lay.addWidget(self._text)
+        self._aktion = knopf("", "ghost")
+        self._aktion.hide()
+        self._aktion.clicked.connect(self._aktion_klick)
+        self._rueckruf = None
+        lay.addWidget(self._aktion)
         self._effekt = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self._effekt)
         self._anim = QPropertyAnimation(self._effekt, b"opacity", self)
@@ -1139,8 +1154,18 @@ class Toast(QFrame):
         self._timer = QTimer(self, singleShot=True, timeout=self._ausblenden)
         self.hide()
 
-    def zeigen(self, text: str, art: str = "ok", dauer_ms: int = 3200) -> None:
+    def zeigen(self, text: str, art: str = "ok", dauer_ms: int = 3200, aktion: tuple[str, object] | None = None) -> None:
+        """``aktion`` = (Beschriftung, Funktion), z. B. („Rückgängig“, …) – dann bleibt die Meldung länger stehen."""
         t = theme.T
+        self._rueckruf = aktion[1] if aktion else None
+        self._aktion.setText(aktion[0] if aktion else "")
+        self._aktion.setVisible(aktion is not None)
+        if aktion is not None:
+            dauer_ms = max(dauer_ms, 9000)
+            self._aktion.setStyleSheet(f"QPushButton {{ color: {t.tooltip_text}; font-weight: 600; padding: 4px 10px; "
+                                       f"border: 1px solid {theme.alpha(t.tooltip_text, .45)}; border-radius: 6px; }}"
+                                       f"QPushButton:hover {{ background: {theme.alpha(t.tooltip_text, .14)}; }}")
+            self._text.setMinimumWidth(min(self._text.fontMetrics().horizontalAdvance(text) + 4, 300))
         name, farbe = {"ok": ("haken", t.ok), "warnung": ("warnung", t.knapp), "fehler": ("warnung", t.ueber),
                        "info": ("info", t.tooltip_text)}[art]
         self._icon.setPixmap(icons.pixmap(name, farbe, 16))
@@ -1156,6 +1181,13 @@ class Toast(QFrame):
         self._anim.setEndValue(1.0)
         self._anim.start()
         self._timer.start(dauer_ms)
+
+    def _aktion_klick(self) -> None:
+        rueckruf, self._rueckruf = self._rueckruf, None
+        self._timer.stop()
+        self.hide()
+        if rueckruf is not None:
+            rueckruf()
 
     def _ausblenden(self):
         self._anim.stop()

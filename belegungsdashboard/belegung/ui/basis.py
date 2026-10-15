@@ -29,6 +29,7 @@ class Zustand(QObject):
     termine_geaendert = Signal()        # Termin angelegt/erledigt -> Kalender und Erinnerungen neu
     name_geaendert = Signal()           # Name des Dashboards geändert (Seitenleiste, Fenstertitel)
     zimmer_geaendert = Signal()         # Zimmerplan (Zuweisung, Stammdaten, Gebäudeplan) -> andere Fenster neu
+    aenderung_gespeichert = Signal(str, str)   # wie meldung, aber mit „Rückgängig“ (aenderungen.letzter())
 
     def __init__(self):
         super().__init__()

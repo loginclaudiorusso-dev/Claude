@@ -73,3 +73,10 @@ def datenstand(pivotdaten):
     ds = Datenstand(pivot=pivotdaten, eintraege=eintraege, kapazitaeten=kap, importe={"anreisen": {"anzahl": 2}})
     ds.prognose = prognose.berechne(pivotdaten.reha, ds.anreise_bestand(), ds.stichtag)
     return ds
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])

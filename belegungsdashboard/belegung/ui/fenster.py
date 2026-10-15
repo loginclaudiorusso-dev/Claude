@@ -37,6 +37,11 @@ def zimmerplan_fenster(zustand, tab: int = 0) -> QWidget:
     seite = ZimmerplanSeite(zustand, nebenfenster=True)
     lay.addWidget(seite)
     w.seite = seite
+    from PySide6.QtGui import QKeySequence, QShortcut
+
+    from .aenderung_ui import rueckgaengig
+
+    QShortcut(QKeySequence.Undo, w, activated=lambda: rueckgaengig(w, zustand))
     seite.tabs.setzen(tab)
     seite._tab_anzeigen(tab)
     w.setWindowTitle(f"Zimmerplan – {TABS[tab]}")

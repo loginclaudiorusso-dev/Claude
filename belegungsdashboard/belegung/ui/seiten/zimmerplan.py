@@ -35,7 +35,20 @@ def _status_farben() -> dict[str, tuple[str, str]]:
             "gesperrt": (theme.alpha(t.ueber, .14), t.text_3)}
 
 
-TABS = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Abreisen", "Zimmer", "Quellen"]
+# Nach Aufgaben gruppiert: Planen | Erledigen (Tagesgeschäft) | Verwalten (Stammdaten, Importe, Protokoll)
+TABS = ["Zuteilen", "Zeitstrahl", "Häuser", "Aufgaben", "Abreisen", "Reinigung", "Zimmer", "Quellen"]
+TAB_GRUPPEN = (3, 6)                         # Trennstrich vor „Aufgaben“ und vor „Zimmer“
+TAB_TIPPS = {
+    "Zuteilen": "Planen: Anreisen Zimmer geben – Vorschlag prüfen, anpassen, übernehmen",
+    "Zeitstrahl": "Planen: wer wann wo wohnt – ziehen = verschieben/Umzug, Rechtsklick = alle Aktionen",
+    "Häuser": "Planen: freie und belegte Zimmer an einem Tag, nach Haus und Etage",
+    "Aufgaben": "Erledigen: im Belegungssystem eintragen, Konflikte, Engpässe",
+    "Abreisen": "Erledigen: wer wann abreist – Liste drucken",
+    "Reinigung": "Erledigen: Reinigungsliste der Woche",
+    "Zimmer": "Verwalten: Zimmer-Stammdaten, Zimmerliste filtern und drucken, Renovierungen",
+    "Quellen": "Verwalten: Gebäudeplan, Zimmer-Pivot und ZKL importieren · Änderungsprotokoll",
+}
+TABS_VOR_610 = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Zimmer", "Quellen"]   # alte Nummern
 ABREISE_ZEITRAUM = ["Heute", "Morgen", "Diese Woche", "Nächste Woche", "14 Tage", "Monat"]
 
 
@@ -55,6 +68,7 @@ class ZimmerplanSeite(Seite):
         self.stand: zp.Planstand | None = None
         self._zuteilungen: list[zp.Zuteilung] = []
         self._fest: dict[str, str] = {}
+        self._hand: set[str] = set()          # Zimmer in dieser Sitzung von Hand gewählt (Vorschau: „angefordert“)
         self._anreise_kennung: str | None = None
         self._anreise_liste: list = []
         self._haus_filter: str | None = None
@@ -66,7 +80,7 @@ class ZimmerplanSeite(Seite):
         # Reiter + kompakte Kennzahlen (statt großer Kacheln – passt auch bei 125/150 % Skalierung)
         kopf = QHBoxLayout()
         kopf.setSpacing(10)
-        self.tabs = Segment(TABS, 0)
+        self.tabs = Segment(TABS, 0, trenner=TAB_GRUPPEN, tipps=[TAB_TIPPS[t] for t in TABS])
         self.tabs.geaendert.connect(self._tab)
         kopf.addWidget(self.tabs, 0, Qt.AlignTop)
         kopf.addStretch()
@@ -97,8 +111,10 @@ class ZimmerplanSeite(Seite):
 
         self._woche = date.today()
         self._zs_arten: set[str] = set()      # Zeitstrahl-Filter nach Art (Legende anklicken)
-        self.seiten = [self._zuteilen_bauen(), self._aufgaben_bauen(), self._zeitstrahl_bauen(), self._haeuser_bauen(),
-                       self._reinigung_bauen(), self._abreisen_bauen(), self._stamm_bauen(), self._quellen_bauen()]
+        bauen = {"Zuteilen": self._zuteilen_bauen, "Aufgaben": self._aufgaben_bauen, "Zeitstrahl": self._zeitstrahl_bauen,
+                 "Häuser": self._haeuser_bauen, "Reinigung": self._reinigung_bauen, "Abreisen": self._abreisen_bauen,
+                 "Zimmer": self._stamm_bauen, "Quellen": self._quellen_bauen}
+        self.seiten = [bauen[t]() for t in TABS]
         for w in self.seiten:
             self.lay.addWidget(w)
         self.lay.addStretch()
@@ -908,8 +924,8 @@ class ZimmerplanSeite(Seite):
         ansicht = dict(ansicht)
         if ansicht.get("reiter_name") in TABS:          # Reiter über den Namen – Nummern ändern sich mit neuen Reitern
             ansicht["reiter"] = TABS.index(ansicht["reiter_name"])
-        elif isinstance(ansicht.get("reiter"), int) and ansicht["reiter"] >= TABS.index("Abreisen"):
-            ansicht["reiter"] += 1                      # gespeichert vor 6.10 (ohne „Abreisen“)
+        elif isinstance(ansicht.get("reiter"), int) and 0 <= ansicht["reiter"] < len(TABS_VOR_610):
+            ansicht["reiter"] = TABS.index(TABS_VOR_610[ansicht["reiter"]])   # gespeichert vor 6.10 (nur Nummer)
         if isinstance(ansicht.get("zs_haus"), int):
             self.zs_haus.setzen(ansicht["zs_haus"])
         if isinstance(ansicht.get("zs_suche"), str):
@@ -1120,10 +1136,11 @@ class ZimmerplanSeite(Seite):
     def _anreise_gewaehlt(self) -> None:
         bedarf = self._bedarf()
         self._fest = {b.schluessel: z["zimmer"] for b in bedarf if (z := self.stand.zugewiesen(b.schluessel))}
+        self._hand = set()
         self._berechnen()
 
     def _neu_vorschlagen(self) -> None:
-        self._fest = {}
+        self._fest, self._hand = {}, set()
         self._berechnen()
 
     def _berechnen(self) -> None:
@@ -1287,6 +1304,7 @@ class ZimmerplanSeite(Seite):
         self._berechnen()
 
     def _zimmer(self, b: zp.Bedarf, zid: str | None) -> None:
+        self._hand.add(b.schluessel)
         if zid:
             self._fest[b.schluessel] = zid
         else:
@@ -1294,12 +1312,34 @@ class ZimmerplanSeite(Seite):
         self._berechnen()
 
     def _uebernehmen(self) -> None:
-        n = zp.zuweisungen_speichern(self._zuteilungen)
-        ohne = [z.bedarf.schluessel for z in self._zuteilungen if z.zimmer is None]
-        zp.zuweisungen_entfernen(set(ohne))
-        self.z.meldung.emit(f"{n} Zuweisungen übernommen" + (f", {len(ohne)} ohne Zimmer." if ohne else "."),
-                            "ok" if not ohne else "warnung")
-        self._nach_aenderung()
+        """Vorher zeigen, was sich gegenüber dem *jetzt* Gespeicherten ändert (auch für andere Personen dieser
+        Anreise); Konflikte (inzwischen belegt, woanders geändert) blockieren. Nur neue Planungen: ohne Dialog."""
+        from ... import aenderungen
+        from ..aenderung_ui import ausfuehren, bestaetigen
+
+        zts = list(self._zuteilungen)
+        ohne = {z.bedarf.schluessel for z in zts if z.zimmer is None}
+        v = aenderungen.zuweisungen_vorschau(zp.laden(), zts, ohne, self._hand, gesehen=self.stand.zuweisungen)
+        if v.leer:
+            self.z.meldung.emit("Nichts zu übernehmen – diese Zuteilung ist schon so gespeichert.", "info")
+            return
+        tag = zts[0].bedarf.von if zts else date.today()
+        if not bestaetigen(self, v, "Zuteilung übernehmen", "Übernehmen", f"Anreise am {tag:%d.%m.%Y}: Das wird "
+                           "gegenüber dem gespeicherten Stand geändert. Grau: was dadurch zusätzlich passiert."):
+            return
+        neu, um, weg = len(v.nach_art("neu")), len(v.nach_art("umgeplant")), len(v.nach_art("entfernt"))
+        teile = [f"{neu} neu geplant"] * bool(neu) + [f"{um} umgeplant"] * bool(um) + [f"{weg} Planung entfernt"] * bool(weg)
+        rest = len(ohne) - weg
+
+        def speichern():
+            zp.zuweisungen_speichern(zts)
+            zp.zuweisungen_entfernen(ohne)
+
+        if ausfuehren(self, self.z, f"Zuteilung Anreise {tag:%d.%m.}", speichern,
+                      f"Anreise {tag:%d.%m.}: " + ", ".join(teile) + (f"; {rest} weiterhin ohne Zimmer." if rest > 0 else "."),
+                      "warnung" if ohne else "ok"):
+            self._hand = set()
+            self._nach_aenderung()
 
     # ---- Aufgaben ----------------------------------------------------------------------
 
@@ -1533,15 +1573,20 @@ class ZimmerplanSeite(Seite):
                           nach=nach, ab=ab)
 
     def _status_person(self, person: str, belegt: bool, name: str) -> None:
-        if zp.status_setzen(person, belegt, "Zeitstrahl"):
-            self.z.meldung.emit(f"{name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}.", "ok")
+        from ..aenderung_ui import ausfuehren
+
+        text = f"{name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}"
+        if ausfuehren(self, self.z, text, lambda: zp.status_setzen(person, belegt, "Zeitstrahl"), text + "."):
             self._nach_aenderung()
 
     def _status_umzug(self, uid: str, belegt: bool) -> None:
         from ... import umzug as um
 
-        if (u := um.status_setzen(uid, belegt, "Zeitstrahl")) is not None:
-            self.z.meldung.emit(f"{u.name}: Umzug {'abgeschlossen (fest)' if belegt else 'wieder geplant'}.", "ok")
+        from ..aenderung_ui import ausfuehren
+
+        u = self.stand.lage.umzuege.get(uid) if self.stand else None
+        text = f"{u.name if u else 'Umzug'}: Umzug {'abgeschlossen (fest)' if belegt else 'wieder geplant'}"
+        if ausfuehren(self, self.z, text, lambda: um.status_setzen(uid, belegt, "Zeitstrahl"), text + "."):
             self._nach_aenderung()
 
     def _zs_menue(self, obj, pos) -> None:
@@ -1592,7 +1637,10 @@ class ZimmerplanSeite(Seite):
         b = next(x for x in self.stand.bedarf if x.schluessel == person)
         z_neu = self.stand.lage.zimmer[nach]
         text = (f"{b.name} ({b.von:%d.%m.} – {b.bis:%d.%m.%Y}) von Zimmer {von.removeprefix('GS-')} "
-                f"nach {z_neu.kurz} verschieben?")
+                f"nach {z_neu.kurz} verschieben?\n\nVorher: {von.removeprefix('GS-')}  →  nachher: {z_neu.kurz}. "
+                f"{von.removeprefix('GS-')} wird dafür frei.")
+        if (self.stand.zugewiesen(person) or {}).get("status") == "belegt":
+            text += "\n\nDie Planung war „fest“ – im neuen Zimmer gilt sie wieder als geplant."
         if hinweis:
             text += f"\n\nAchtung – Ausnahme: {hinweis}"
         text += "\n\nDanach im Belegungssystem umbuchen (steht unter Aufgaben → Eintragen)."
@@ -1612,10 +1660,20 @@ class ZimmerplanSeite(Seite):
                 mit = partner
         elif QMessageBox.question(self, "Zimmer verschieben", text) != QMessageBox.Yes:
             return
-        zp.zuweisungen_speichern([zp.Zuteilung(x, z_neu) for x in [b] + mit], "Zeitstrahl verschoben")
+        from ... import aenderungen
+        from ..aenderung_ui import ausfuehren
+
+        zts = [zp.Zuteilung(x, z_neu) for x in [b] + mit]
+        v = aenderungen.zuweisungen_vorschau(zp.laden(), zts, gesehen=self.stand.zuweisungen)
+        if v.konflikte:                       # inzwischen woanders geändert oder belegt
+            QMessageBox.warning(self, "Verschieben nicht möglich", "\n".join(v.konflikte))
+            self._nach_aenderung()
+            return
         namen = ", ".join(x.name for x in [b] + mit)
-        self.z.meldung.emit(f"{namen} nach {z_neu.kurz} verschoben.", "warnung" if hinweis else "ok")
-        self._nach_aenderung()
+        if ausfuehren(self, self.z, f"{namen} nach {z_neu.kurz}",
+                      lambda: zp.zuweisungen_speichern(zts, "Zeitstrahl verschoben"),
+                      f"{namen}: {von.removeprefix('GS-')} → {z_neu.kurz}.", "warnung" if hinweis else "ok"):
+            self._nach_aenderung()
 
     # ---- Zurücknehmen und Konflikte -----------------------------------------------------
 
@@ -1639,9 +1697,11 @@ class ZimmerplanSeite(Seite):
                 "entfernen? Die Zimmer sind danach wieder frei; der Vorschlag bleibt sichtbar und kann neu "
                 "übernommen werden.") != QMessageBox.Yes:
             return
-        n = zp.planung_zuruecknehmen(geplant)
-        self.z.meldung.emit(f"Planung zurückgenommen: {n} Personen ohne Zimmer.", "ok")
-        self._nach_aenderung()
+        from ..aenderung_ui import ausfuehren
+
+        if ausfuehren(self, self.z, f"Planung zurückgenommen ({len(geplant)} Personen)",
+                      lambda: zp.planung_zuruecknehmen(geplant), lambda n: f"Planung zurückgenommen: {n} Personen ohne Zimmer."):
+            self._nach_aenderung()
 
     def _uwt_zuruecknehmen(self) -> None:
         personen = self._kommende_uwt()
@@ -1650,30 +1710,51 @@ class ZimmerplanSeite(Seite):
                 "entfernen? Sie werden danach nicht wieder automatisch zugeteilt – über „Alle kommenden UWT neu "
                 "automatisch zuteilen“ geht das jederzeit wieder.") != QMessageBox.Yes:
             return
-        n = zp.planung_zuruecknehmen(personen)
-        self.z.meldung.emit(f"UWT-Planungen zurückgenommen: {n} Personen.", "ok")
-        self._nach_aenderung()
+        from ..aenderung_ui import ausfuehren
+
+        if ausfuehren(self, self.z, "UWT-Planungen zurückgenommen", lambda: zp.planung_zuruecknehmen(personen),
+                      lambda n: f"UWT-Planungen zurückgenommen: {n} Personen."):
+            self._nach_aenderung()
 
     def _uwt_neu(self) -> None:
         if QMessageBox.question(
                 self, "UWT neu zuteilen", "Alle kommenden UWT-Planungen verwerfen (auch Änderungen von Hand) und neu "
                 "automatisch zuteilen – DZ-Paare zusammen?") != QMessageBox.Yes:
             return
-        neu = zp.uwt_neu_zuteilen(self.stand)
-        self.z.meldung.emit(f"UWT neu zugeteilt: {len(neu)} Personen.", "ok")
-        self._nach_aenderung()
+        from ..aenderung_ui import ausfuehren
+
+        if ausfuehren(self, self.z, "UWT neu zugeteilt", lambda: zp.uwt_neu_zuteilen(self.stand),
+                      lambda neu: f"UWT neu zugeteilt: {len(neu)} Personen."):
+            self._nach_aenderung()
 
     def _konflikte_loesen(self) -> None:
         personen = {k.person for k in getattr(self, "_konflikte", [])}
         if not personen:
             return
-        neu, ohne = zp.neu_planen(self.stand, personen)
-        text = f"Neu geplant: {len(neu)} Personen in freien Zimmern."
-        if ohne:
-            text += f" Kein freies Zimmer für {', '.join(b.name for b in ohne[:4])}" + (" …" if len(ohne) > 4 else "") + \
-                    " – bitte unter Zuteilen von Hand festlegen."
-        self.z.meldung.emit(text, "warnung" if ohne else "ok")
-        self._nach_aenderung()
+        from ... import aenderungen
+        from ..aenderung_ui import VorschauDialog, ausfuehren
+
+        frisch = zp.laden()
+        verwaist, erg = zp.neu_planen_vorschlag(frisch, personen)
+        ohne = [zt.bedarf for zt in erg if zt.zimmer is None]
+        v = aenderungen.zuweisungen_vorschau(frisch, [zt for zt in erg if zt.zimmer], set(verwaist) | {b.schluessel for b in ohne},
+                                             personen)
+        if VorschauDialog(v, "Konflikte lösen", "Neu planen", "Die betroffenen Personen bekommen ein freies Zimmer. "
+                          "„Vorschlag“: DZ-Partner, die mitziehen, damit das Paar zusammenbleibt. Wer kein Zimmer findet, "
+                          "verliert die Planung und steht unter Zuteilen.", self).exec() != QDialog.Accepted:
+            return
+
+        def meldung(ergebnis) -> str:
+            neu, ohne = ergebnis
+            text = f"Neu geplant: {len(neu)} Personen in freien Zimmern."
+            if ohne:
+                text += f" Kein freies Zimmer für {', '.join(b.name for b in ohne[:4])}" + (" …" if len(ohne) > 4 else "") + \
+                        " – bitte unter Zuteilen von Hand festlegen."
+            return text
+
+        if ausfuehren(self, self.z, "Konflikte neu geplant", lambda: zp.neu_planen_speichern(verwaist, erg), meldung,
+                      "warnung" if ohne else "ok"):
+            self._nach_aenderung()
 
     # ---- Excel -------------------------------------------------------------------------
 

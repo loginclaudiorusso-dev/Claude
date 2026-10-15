@@ -170,11 +170,20 @@ class OptimierenDialog(QDialog):
                (f"{len(auf)} Aufgabe(n) „im Belegungssystem umbuchen“ anlegen." if auf else "")
         if QMessageBox.question(self, "Übernehmen", text.strip()) != QMessageBox.Yes:
             return
-        n, a, t = opt.umsetzen(self.stand, gewaehlt, umzugstag=self.umzugstag.datum())
-        teile = ([f"{n} Planung(en) geändert"] if n else []) + \
-                ([f"{t} Tausch(e) = {2 * t} Umzüge am {self.umzugstag.datum():%d.%m.%Y}"] if t else []) + \
-                ([f"{a} Aufgabe(n) angelegt"] if a else [])
-        self.z.meldung.emit("Optimierung: " + ("; ".join(teile) or "nichts geändert") + ".", "ok")
+        from .aenderung_ui import ausfuehren
+
+        def meldung(erg) -> str:
+            n, a, t = erg
+            teile = ([f"{n} Planung(en) geändert"] if n else []) + \
+                    ([f"{t} Tausch(e) = {2 * t} Umzüge am {self.umzugstag.datum():%d.%m.%Y}"] if t else []) + \
+                    ([f"{a} Aufgabe(n) angelegt"] if a else [])
+            return "Optimierung: " + ("; ".join(teile) or "nichts geändert") + "."
+
+        # Rückgängig nur, wenn keine Aufgaben angelegt werden – die lägen außerhalb der Zimmerplanung
+        if not ausfuehren(self, self.z, "Optimierung übernommen",
+                          lambda: opt.umsetzen(self.stand, gewaehlt, umzugstag=self.umzugstag.datum()), meldung,
+                          rueckgaengig=not auf):
+            return
         self.z.zimmer_geaendert.emit()
         self.z.termine_geaendert.emit()
         self.berechnen()

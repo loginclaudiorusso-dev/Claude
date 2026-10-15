@@ -17,6 +17,7 @@ from .. import laden, speicher
 from .. import termine as tm
 from ..konfig import GESAMT, STANDORT_LABEL, STANDORTE, programmordner, ressourcenordner
 from . import icons, theme
+from .aenderung_ui import rueckgaengig
 from .basis import Seite, Worker, Zustand, arbeitsspeicher_freigeben, sichtbar
 from .widgets import DatumFeld, Karte, KurzLabel, Pille, Segment, Toast, icon_setzen, knopf, label
 
@@ -125,6 +126,8 @@ class HauptFenster(QMainWindow):
         zustand.name_geaendert.connect(self.name_anzeigen)
         self.toast = Toast(wurzel)
         zustand.meldung.connect(self.toast.zeigen)
+        zustand.aenderung_gespeichert.connect(
+            lambda text, art: self.toast.zeigen(text, art, aktion=("Rückgängig", lambda: rueckgaengig(self, zustand, False))))
         zustand.navigieren.connect(self.zeigen)
         zustand.neu_laden.connect(self.laden)
         zustand.listen_geaendert.connect(self._listen_geaendert)
@@ -133,6 +136,7 @@ class HauptFenster(QMainWindow):
         for i, key in enumerate(self.seiten):
             QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self, activated=lambda k=key: self.zeigen(k))
         QShortcut(QKeySequence("F5"), self, activated=lambda: self.laden(False))
+        QShortcut(QKeySequence.Undo, self, activated=lambda: rueckgaengig(self, zustand))    # Strg+Z: Planung
         QShortcut(QKeySequence("Ctrl+F"), self, activated=lambda: (self.suche.setFocus(), self.suche.selectAll()))
         QShortcut(QKeySequence("Ctrl+T"), self, activated=self._tab_duplizieren)
         QShortcut(QKeySequence("Ctrl+W"), self, activated=lambda: self._tab_schliessen(self.tabs.currentIndex()))

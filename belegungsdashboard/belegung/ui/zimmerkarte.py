@@ -18,7 +18,7 @@ from datetime import date, timedelta
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QBoxLayout, QButtonGroup, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLineEdit, QScrollArea, QSizePolicy,
+    QBoxLayout, QButtonGroup, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLineEdit, QMessageBox, QScrollArea, QSizePolicy,
     QVBoxLayout, QWidget,
 )
 
@@ -357,6 +357,15 @@ class PersonBlock(QWidget):
         notizen.geaendert.connect(karte.z.termine_geaendert.emit)
         v.addWidget(notizen)
 
+    def _umzug_status(self, u) -> None:
+        from .. import umzug as um
+        from .aenderung_ui import ausfuehren
+
+        k = self.karte
+        text = f"{u.name}: Umzug " + ("wieder geplant" if u.belegt else "abgeschlossen (fest)")
+        if ausfuehren(k, k.z, text, lambda: um.status_setzen(u.id, not u.belegt, "Zimmerkarte"), text + "."):
+            k.gespeichert()
+
     def _umzug_zeile(self, v: QVBoxLayout) -> None:
         """Umzug: bestehenden zeigen (ändern, zurücknehmen) oder neuen planen."""
         from .. import umzug as um
@@ -382,9 +391,7 @@ class PersonBlock(QWidget):
                              None if u.belegt else "haken")
                 st_k.setToolTip("Umzug ist erfolgt: neues Zimmer gilt als belegt – auch ohne neuen Gebäudeplan"
                                 if not u.belegt else "Umzug wieder als geplant führen")
-                st_k.clicked.connect(lambda _c=False: (um.status_setzen(u.id, not u.belegt, "Zimmerkarte"),
-                                                       k.gespeichert(f"{u.name}: Umzug "
-                                                                     + ("wieder geplant." if u.belegt else "abgeschlossen (fest)."))))
+                st_k.clicked.connect(lambda _c=False: self._umzug_status(u))
                 zeile.addWidget(st_k)
             zeile.addWidget(weg)
         elif b.bis >= date.today():
@@ -397,8 +404,32 @@ class PersonBlock(QWidget):
         v.addLayout(zeile)
 
     def _status(self, belegt: bool) -> None:
-        if zp.status_setzen(self.bw.schluessel, belegt):
-            self.karte.gespeichert(f"{self.bw.name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}.")
+        from .aenderung_ui import ausfuehren
+
+        text = f"{self.bw.name}: {'Planung abgeschlossen (fest)' if belegt else 'wieder geplant'}"
+        if ausfuehren(self.karte, self.karte.z, text, lambda: zp.status_setzen(self.bw.schluessel, belegt), text + "."):
+            self.karte.gespeichert()
+
+    def _zimmer_setzen(self, neu_zimmer: str) -> bool:
+        """Zimmer ändern bzw. Planung entfernen – vorher sagen, was sich ändert (alt → neu, „fest“ entfällt)."""
+        from .aenderung_ui import ausfuehren
+
+        k, name = self.karte, self.bw.name
+        zw = k.stand.zugewiesen(self.bw.schluessel) or {}
+        alt = (zw.get("zimmer") or "").removeprefix("GS-") or "–"
+        neu = neu_zimmer.removeprefix("GS-")
+        fest = zw.get("status") == "belegt"
+        if not neu_zimmer:
+            if QMessageBox.question(k, "Planung entfernen", f"Die Planung von {name} entfernen?\n\nVorher: {alt}  →  "
+                                    "nachher: ohne Zimmer. Das Zimmer wird frei, die Person steht unter Zuteilen."
+                                    + ("\n\nDie Planung war „fest“." if fest else "")) != QMessageBox.Yes:
+                return False
+        elif fest and QMessageBox.question(k, "Zimmer ändern", f"{name}: {alt} → {neu}?\n\nDie Planung war „fest“ – "
+                                           "im neuen Zimmer gilt sie wieder als geplant.") != QMessageBox.Yes:
+            return False
+        titel = f"{name}: {alt} → {neu or 'ohne Zimmer'}"
+        return ausfuehren(k, k.z, titel, lambda: zp.zuweisung_setzen(k.stand, self.bw.schluessel, neu_zimmer, "Zimmerkarte"),
+                          titel + ".")
 
     def _uebernehmen(self) -> None:
         from .dialoge import person_uebernehmen
@@ -423,14 +454,13 @@ class PersonBlock(QWidget):
             self.info.setText("Nichts geändert.")
             return
         k = self.karte
-        if neu_zimmer is not None:
-            zp.zuweisung_setzen(k.stand, self.bw.schluessel, neu_zimmer, "Zimmerkarte")
+        if neu_zimmer is not None and not self._zimmer_setzen(neu_zimmer):
+            return
         k._speichert = True
         try:
             if neu_p is not None:
                 person_uebernehmen(p, neu_p, k.z, neu_zimmer)
             else:
-                k.z.meldung.emit(f"{self.bw.name}: Zimmer {neu_zimmer.removeprefix('GS-') or 'entfernt'}.", "ok")
                 k.z.zimmer_geaendert.emit()
         finally:
             k._speichert = False
