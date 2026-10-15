@@ -1020,7 +1020,6 @@ def zuweisungen_speichern(zuteilungen: list[Zuteilung], quelle: str = "Zuteilen"
             log.append({"aktion": "geplant" if not alt else ("entfernt" if not neu_z else "umgeplant"),
                         "name": zt.bedarf.name, "person": zt.bedarf.schluessel, "alt": alt, "neu": neu_z,
                         "von": zt.bedarf.von.isoformat(), "quelle": quelle})
-    protokoll.eintragen(log)
     neu = [{"person": zt.bedarf.schluessel, "name": zt.bedarf.name, "massnahme": zt.bedarf.massnahme,
             "gruppe": zt.bedarf.gruppe, "geschlecht": zt.bedarf.geschlecht, "zimmer": zt.zimmer.id,
             "von": zt.bedarf.von.isoformat(), "bis": zt.bedarf.bis.isoformat()}
@@ -1029,6 +1028,7 @@ def zuweisungen_speichern(zuteilungen: list[Zuteilung], quelle: str = "Zuteilen"
         if z["person"] in status and vorher.get(z["person"]) == z["zimmer"]:
             z["status"], z["belegt_am"] = status[z["person"]]
     speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": bestand + neu})
+    protokoll.eintragen(log)                   # erst nach erfolgreichem Speichern
     return len(neu)
 
 
@@ -1044,9 +1044,9 @@ def status_setzen(person: str, belegt: bool, quelle: str = "Zimmerkarte") -> boo
     else:
         z.pop("status", None)
         z.pop("belegt_am", None)
+    speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": alle})
     protokoll.eintragen([{"aktion": "Planung abgeschlossen (fest)" if belegt else "wieder auf geplant", "name": z["name"],
                           "person": person, "alt": z["zimmer"], "neu": z["zimmer"], "von": z["von"], "quelle": quelle}])
-    speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": alle})
     return True
 
 
@@ -1062,9 +1062,9 @@ def zuweisungen_abgleichen(zuw: list[dict], bedarf: list[Bedarf]) -> list[dict]:
 
 def zuweisungen_entfernen(personen: set[str], quelle: str = "Zuteilen") -> None:
     alle = zuweisungen_laden()
+    speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": [z for z in alle if z["person"] not in personen]})
     protokoll.eintragen([{"aktion": "entfernt", "name": z["name"], "person": z["person"], "alt": z["zimmer"], "neu": "",
                           "von": z["von"], "quelle": quelle} for z in alle if z["person"] in personen])
-    speicher.schreiben(ZUWEISUNGEN, {"zuweisungen": [z for z in alle if z["person"] not in personen]})
 
 
 def person_geloescht(schluessel: str) -> None:
@@ -1234,8 +1234,16 @@ def bewohner_finden(stand: "Planstand", schluessel: str, heute: date | None = No
 
 
 def zuweisung_setzen(stand: "Planstand", person: str, zimmer: str, quelle: str = "Person") -> None:
-    """Zimmer einer Person von Hand setzen ("" = Planung entfernen)."""
+    """Zimmer einer Person von Hand setzen ("" = Planung entfernen). Ein im Zeitraum belegtes oder gesperrtes
+    Zimmer wird nie überschrieben (ValueError) – Regelverstöße (Ausnahmen) gehen, Doppelbelegung nicht."""
     b = next(x for x in stand.bedarf if x.schluessel == person)
+    if zimmer:
+        z = stand.lage.zimmer.get(zimmer)
+        if z is None:
+            raise ValueError(f"Zimmer {zimmer.removeprefix('GS-')} gibt es nicht.")
+        bisher = (stand.zugewiesen(person) or {}).get("zimmer")
+        if zimmer != bisher and stand.lage.freie_betten(zimmer, b.von, b.bis, frozenset({person})) <= 0:
+            raise ValueError(f"{z.kurz} ist vom {b.von:%d.%m.} bis {b.bis:%d.%m.%Y} belegt oder gesperrt.")
     if not zimmer:
         zuweisungen_entfernen({person}, quelle)
         if b.gruppe == "UWT":
@@ -1307,24 +1315,32 @@ def konflikte(lage: Lage, heute: date | None = None) -> list[Konflikt]:
     return sorted(ergebnis, key=lambda k: (k.von, k.name))
 
 
-def neu_planen(stand: "Planstand", personen: set[str]) -> tuple[list[Zuteilung], list[Bedarf]]:
-    """Plant die Personen neu (DZ-Partner derselben Anreise mit) und speichert es.
-    Gibt (neu zugeteilt, ohne Zimmer) zurück; wer kein Zimmer findet, verliert die alte Planung."""
+def neu_planen_vorschlag(stand: "Planstand", personen: set[str]) -> tuple[set[str], list[Zuteilung]]:
+    """Wie ``neu_planen``, speichert aber nichts: (Personen ohne Liste – Planung hinfällig, Vorschläge).
+    DZ-Partner derselben Anreise werden mitgeplant – sie stehen dann in der Vorschau."""
     bekannt = {b.schluessel for b in stand.bedarf}
-    if verwaist := {p for p in personen if p not in bekannt}:
-        zuweisungen_entfernen(verwaist, "nicht mehr in der Liste")      # Person steht in keiner Liste mehr – Planung hinfällig
+    verwaist = {p for p in personen if p not in bekannt}
     betroffen = [b for b in stand.bedarf if b.schluessel in personen]
     paare = {(b.von, b.dz) for b in betroffen if _paar(b)}
     betroffen += [b for b in stand.bedarf if (b.von, b.dz) in paare and b.schluessel not in personen]
-    if not betroffen:
-        return [], []
-    erg = vorschlagen(stand.lage, betroffen)
+    return verwaist, (vorschlagen(stand.lage, betroffen) if betroffen else [])
+
+
+def neu_planen_speichern(verwaist: set[str], erg: list[Zuteilung]) -> tuple[list[Zuteilung], list[Bedarf]]:
+    if verwaist:
+        zuweisungen_entfernen(verwaist, "nicht mehr in der Liste")      # Person steht in keiner Liste mehr
     neu = [zt for zt in erg if zt.zimmer is not None]
     ohne = [zt.bedarf for zt in erg if zt.zimmer is None]
     zuweisungen_speichern(neu, "Konflikt neu geplant")
     if ohne:
         zuweisungen_entfernen({b.schluessel for b in ohne}, "Konflikt – kein Zimmer frei")
     return neu, ohne
+
+
+def neu_planen(stand: "Planstand", personen: set[str]) -> tuple[list[Zuteilung], list[Bedarf]]:
+    """Plant die Personen neu (DZ-Partner derselben Anreise mit) und speichert es.
+    Gibt (neu zugeteilt, ohne Zimmer) zurück; wer kein Zimmer findet, verliert die alte Planung."""
+    return neu_planen_speichern(*neu_planen_vorschlag(stand, personen))
 
 
 # ---------------------------------------------------------------------------------------

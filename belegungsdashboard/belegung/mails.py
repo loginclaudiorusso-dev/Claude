@@ -463,6 +463,7 @@ def umsetzen(e: Erkannt, schritte: list[Schritt], stand: zp.Planstand, betreff: 
 
     jetzt = jetzt or datetime.now()
     erledigt: list[str] = []
+    fehlgeschlagen: list[str] = []
     person = treffer.schluessel if treffer else ""
     for s in (x for x in schritte if x.an):
         if s.art == "person_anlegen":
@@ -471,7 +472,11 @@ def umsetzen(e: Erkannt, schritte: list[Schritt], stand: zp.Planstand, betreff: 
             person = p.schluessel
         elif s.art == "zimmer" and s.daten.get("zimmer"):
             neu = zp.laden()                        # mit der gerade angelegten Person
-            zp.zuweisung_setzen(neu, s.daten["person"], s.daten["zimmer"], "Posteingang")
+            try:
+                zp.zuweisung_setzen(neu, s.daten["person"], s.daten["zimmer"], "Posteingang")
+            except ValueError as exc:               # inzwischen belegt: nichts überschreiben, zur Prüfung ablegen
+                fehlgeschlagen.append(f"Nicht ausgeführt – {s.text}: {exc}")
+                continue
         elif s.art == "planung_entfernen":
             zp.zuweisungen_entfernen({s.daten["person"]}, "Storno (Posteingang)")
         elif s.art == "person_entfernen":
@@ -500,6 +505,7 @@ def umsetzen(e: Erkannt, schritte: list[Schritt], stand: zp.Planstand, betreff: 
             termine.notiz_speichern(termine.Notiz(s.daten.get("person") or person, treffer.name if treffer else e.name,
                                                   s.text, jetzt.date(), jetzt.date()))
         erledigt.append(s.text)
+    erledigt += fehlgeschlagen
     pruef = {}
     if e.art == "abbruch":
         pruef = {k: False for k in PRUEFLISTE_ABBRUCH}
@@ -507,7 +513,8 @@ def umsetzen(e: Erkannt, schritte: list[Schritt], stand: zp.Planstand, betreff: 
         pruef = {k: False for k in PRUEFLISTE_STORNO}
     x = Eingang(uuid.uuid4().hex[:10], jetzt.isoformat(timespec="seconds"), betreff, absender, text, e.art,
                 treffer.name if treffer else e.name, e.tn_id, e.von.isoformat() if e.von else None,
-                e.bis.isoformat() if e.bis else None, person, "zu prüfen" if pruef else "erledigt", erledigt, pruef)
+                e.bis.isoformat() if e.bis else None, person, "zu prüfen" if pruef or fehlgeschlagen else "erledigt",
+                erledigt, pruef)
     eingang_speichern(x)
     return x
 
