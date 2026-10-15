@@ -203,9 +203,10 @@ Datenformate unverändert: 6.12 liest alles, was 6.13 schreibt. Ein Rückweg zu 
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (1) | rein | `belegung/vorgaenge.py` (Vorgänge für „Heute“) | – |
-| (2) | UI | Start „Heute“; Importe nach Daten & Import (`ui/zimmerquellen.py`), Reiter „Quellen“ entfällt; Verlauf; Planungs-Einstellungen unter Einstellungen; Seitenleiste Arbeiten/Auswerten/Verwalten; Zuteilen „Mehr“; ein Ablauf „Zimmer wechseln“ | (1) |
-| (3) | Doku/Tests | `tests/test_vorgaenge.py`, `UX_KONZEPT.md` Teil 2, Version 6.14.0 | (1), (2) |
+| `5858547` | rein | `belegung/vorgaenge.py` (Vorgänge für „Heute“) | – |
+| `4df86b1` | UI | Start „Heute“; Importe nach Daten & Import (`ui/zimmerquellen.py`), Reiter „Quellen“ entfällt; Verlauf; Planungs-Einstellungen unter Einstellungen; Seitenleiste Arbeiten/Auswerten/Verwalten; Zuteilen „Mehr“; ein Ablauf „Zimmer wechseln“ | (1) |
+| `3949e40` | Doku/Tests | `tests/test_vorgaenge.py`, `UX_KONZEPT.md` Teil 2, Version 6.14.0 | – |
+| (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Datenformate unverändert. Neu in `einstellungen.json`: `start_ansicht` (heute/kacheln) – ältere Versionen ignorieren es.
 Gemerkte Tabs mit dem Reiter „Quellen“ öffnen „Zuteilen“; nach einem Rückweg zu 6.13 ist „Quellen“ wieder da.
