@@ -183,10 +183,10 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (1) | rein | Protokoll erst nach dem Speichern; `zuweisung_setzen` lehnt Doppelbelegung ab; `neu_planen_vorschlag`; `belegung/aenderungen.py` (Vorschau, Rückgängig) | – |
-| (2) | UI | Vorschau-Dialog, sicheres Speichern, Rückgängig (Meldung, Strg+Z) an allen Zimmer-Änderungen | (1) |
-| (3) | UI | Zimmerplan-Reiter in 3 Gruppen mit Tooltips | – |
-| (4) | Doku/Tests | `tests/test_aenderungen.py`, `UX_KONZEPT.md`, Version 6.13.0 | (1)–(3) |
+| `74e72ba` | rein | Protokoll erst nach dem Speichern; `zuweisung_setzen` lehnt Doppelbelegung ab; `neu_planen_vorschlag`; `belegung/aenderungen.py` (Vorschau, Rückgängig) | – |
+| `34a9ae2` | UI | Vorschau-Dialog, sicheres Speichern, Rückgängig (Meldung, Strg+Z); Zimmerplan-Reiter in 3 Gruppen | `74e72ba` |
+| `5c65c4a` | Doku/Tests | `tests/test_aenderungen.py`, `UX_KONZEPT.md`, Version 6.13.0 | – |
+| (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Datenformate unverändert: 6.12 liest alles, was 6.13 schreibt. Ein Rückweg zu 6.12 ist ohne Datenverlust möglich.
 
