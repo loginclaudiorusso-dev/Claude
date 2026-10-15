@@ -57,7 +57,7 @@ def anordnung() -> list[dict]:
     return ergebnis
 
 
-TITEL_STANDARD = ("Start", "Mein Dashboard – selbst zusammengestellt")
+TITEL_STANDARD = ("Start", "Was heute ansteht – und alles im Blick")
 
 
 def titel() -> tuple[str, str]:
