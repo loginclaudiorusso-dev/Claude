@@ -162,6 +162,19 @@ def main() -> int:
 
     fenster = HauptFenster(zustand)
     fenster._instanz = _instanz_server(fenster)
+
+    def renovierungen_uebernehmen():           # mitgelieferte Renovierungsliste einmal übernehmen (nach dem Start)
+        try:
+            from belegung import zimmerliste
+            from belegung import zimmerplan as zp
+
+            if (erg := zimmerliste.auto_import(zp.laden())) is not None:
+                zustand.meldung.emit(f"Renovierungsliste übernommen: {erg[0]} Zimmer renoviert, Boden „Vinyl "
+                                     "(vermutet)“ – Zimmerplan → Zimmer.", "ok")
+                zustand.zimmer_geaendert.emit()
+        except Exception as exc:               # noqa: BLE001 – darf den Start nie verhindern
+            logging.getLogger(__name__).warning("Renovierungsliste: %s", exc)
+    QTimer.singleShot(1500, renovierungen_uebernehmen)
     if not (hintergrund and fenster.tray is not None):   # sonst unsichtbar im Infobereich
         fenster.show()
 
