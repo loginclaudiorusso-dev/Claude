@@ -27,6 +27,27 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.14 – ruhiger, nach Aufgaben geordnet
+
+* **Start „Heute“:** eine ruhige Liste der Vorgänge statt sieben gleich lauter Kacheln, gegliedert in **Zuerst
+  klären** (Konflikte, Einzug ohne Reinigung, Anreisen in ≤ 3 Tagen ohne Zimmer …), **Als Nächstes** (Anreisen
+  ohne Zimmer, Buchungen eintragen, Posteingang, Erinnerungen …) und **Zur Info** (eingeklappt). Jede Zeile hat
+  genau eine Aktion, die direkt dorthin führt, wo der Vorgang bearbeitet wird („Zuteilen“, „Eintragen“, „Lösen …“).
+  Erinnerungen lassen sich mit ✓ direkt abhaken. Die Kacheln gibt es weiter unter „Übersicht“.
+* **Ein Ort für alle Importe:** Der Zimmerplan-Reiter „Quellen“ entfällt. Gebäudeplan, ZKL und Zimmer-Pivot stehen
+  unter **Daten & Import → „Gebäudeplan & ZKL“**, neben Anreisen und UWT. Die Statistik-Daten (Pivot & Kapazitäten,
+  Mieten, Manuelle Einträge) stehen rechts davon, abgetrennt.
+* **Puffer und Facility-Check** stehen jetzt unter **Einstellungen → Zimmerplanung**.
+* **Verlauf:** Das Änderungsprotokoll öffnet sich im Zimmerplan unter **„Mehr“ → „Verlauf“**, dort auch mit
+  „Letzte Änderung rückgängig“. Ebenfalls unter „Mehr“: neues Fenster, Importe, Einstellungen.
+* **Seitenleiste nach Aufgaben:** Arbeiten (Zimmerplan, Posteingang, Termine) · Auswerten · Verwalten.
+* **Zuteilen:** sichtbar sind nur noch „Export“ und „Übernehmen“. Person hinzufügen, neu vorschlagen und Zurücknehmen
+  liegen unter „Mehr“.
+* **„Zimmer wechseln“ überall gleich:** Ob aus dem Zeitstrahl (ziehen oder Rechtsklick) oder aus der Personenkarte –
+  derselbe Ablauf mit Regeln, DZ-Partner-Frage, „vorher → nachher“, Prüfung gegen den aktuellen Stand und
+  Rückgängig. Wer schon eingezogen ist, zieht über „Zimmer wechseln (Umzug ab …)“ um.
+* Analyse und Konzept: `UX_KONZEPT.md`, Teil 2.
+
 ## Neu in 6.13 – Änderungen sicher und nachvollziehbar
 
 * **Vorschau vor dem Speichern:** Würde eine Aktion mehr ändern als die gewählte Person, zeigt ein Fenster vorher

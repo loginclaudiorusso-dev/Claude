@@ -1,4 +1,6 @@
-# UX- und Workflow-Konzept (Stand 6.13.0, 15.10.2026)
+# UX- und Workflow-Konzept (Stand 6.14.0, 15.10.2026)
+
+Teil 1 (6.13): sichere, nachvollziehbare Änderungen. Teil 2 (6.14): ruhige, aufgabenorientierte Oberfläche.
 
 Ziel: Die fachliche Tiefe bleibt, die Bedienung wird vorhersehbar. Vor allem dürfen Änderungen an Zimmern nichts
 unbemerkt mit verändern. Leitlinie des Nutzers: **kein kompletter Programmumbau**, darum wird schrittweise
@@ -36,7 +38,7 @@ umgesetzt, Kritisches zuerst.
 | 10 | „Umzug zurücknehmen“ nahm bei einem Tausch den Gegen-Umzug ohne Hinweis mit zurück. | niedrig | behoben: wird genannt |
 | 11 | Umzug-Dialog: Ein Doppelklick auf „Speichern“ konnte doppelt auslösen. | niedrig | behoben |
 | 12 | Der Zimmerplan hat 8 gleichrangige Reiter ohne Ordnung, und welcher wofür da ist, steht nirgends. | Orientierung | verbessert: 3 Gruppen + Tooltips |
-| 13 | „Quellen“ (Zimmerplan) und „Daten & Import“ (Seitenleiste) klingen gleich. | Orientierung | offen (siehe B.3) |
+| 13 | „Quellen“ (Zimmerplan) und „Daten & Import“ (Seitenleiste) klingen gleich. | Orientierung | behoben in 6.14 (Teil 2) |
 | 14 | Dieselbe Aktion hat an verschiedenen Orten verschiedene Begriffe (verschieben / umziehen / Zimmer ändern). | Orientierung | teilweise (Meldungen jetzt einheitlich „alt → neu“) |
 
 Rechte und Berechtigungen gibt es im Programm nicht (eine Person, lokale Dateien). Die Überarbeitung führt auch
@@ -114,3 +116,92 @@ werden umgerechnet.
   * Rückgängig stellt den Stand davor her.
   * Ein belegtes Zimmer wird abgelehnt.
   * Kein Überlauf bei 1000 px, 100/125/150 %, in allen Designs.
+
+
+---
+
+# Teil 2 – Eine ruhige, aufgabenorientierte Oberfläche (6.14)
+
+## Analyse: Was konkurriert um Aufmerksamkeit?
+
+Gemessen an der Oberfläche von 6.13 mit echten Daten (Kopie):
+
+| Bereich | Vorher | Problem |
+|---|---|---|
+| Start | 7 Kacheln gleicher Größe und Lautstärke, je mit Liste und Link | Was zuerst zu tun ist, steht nirgends. Alte Erinnerungen (09.10.) wirken so wichtig wie 21 Personen ohne Zimmer. |
+| Seitenleiste | 11 Einträge in „Analyse“ / „Verwaltung“ | Das tägliche Werkzeug (Zimmerplan) stand zwischen Termine und Inventar. |
+| Zimmerplan | 8 Reiter, Kopf mit 2 Knöpfen, 5 Kennzahlen, Hinweise | „Quellen“ ist eigentlich Import, Einstellung und Protokoll in einem und doppelt sich mit „Daten & Import“. |
+| Zuteilen | 5 Knöpfe gleichzeitig (Person, Neu, Zurücknehmen ▾, Export ▾, Übernehmen) | Nur „Übernehmen“ ist die Hauptaktion. Person hinzufügen, neu vorschlagen und zurücknehmen braucht man selten. |
+| Daten & Import | 5 Reiter, Statistik und Zimmerplanung gemischt | Ohne Pivot-Datei blieben auch die Anreisen leer. |
+| Zimmerwechsel | Zeitstrahl: Prüfung + DZ-Partner-Frage. Personenkarte: ohne beides. Drei Begriffe. | Zwei Abläufe für dieselbe Aufgabe. |
+
+### „Quellen“ und „Daten & Import“ nach Funktion
+
+| Funktion | vorher | Art | jetzt |
+|---|---|---|---|
+| Gebäudeplan, ZKL, Zimmer-Pivot importieren | Zimmerplan → Quellen | Import | Daten & Import → Gebäudeplan & ZKL |
+| Anreiselisten, UWT | Daten & Import | Import | unverändert, links (Zimmerplanung) |
+| Pivot, Kapazitäten, Mieten, manuelle Einträge | Daten & Import | Import/Eingabe Statistik | rechts, abgetrennt (Statistik) |
+| Puffer, Facility-Check | Zimmerplan → Quellen | Einstellung | Einstellungen → Zimmerplanung |
+| Änderungsprotokoll | Zimmerplan → Quellen | Nachvollziehen | Zimmerplan → Mehr → Verlauf (mit Rückgängig) |
+
+Ergebnis: Beide Bereiche dienten derselben Aufgabe, nämlich Daten ins Programm zu holen. Sie sind jetzt
+**zusammengeführt**. Was keine Importe waren, steht dort, wo man es sucht.
+
+## Konzept
+
+1. **Start „Heute“ – Vorgangsliste nach dem Feed-Prinzip.** Übernommen werden nur die nützlichen Prinzipien:
+   * Ein Eintrag ist ein Vorgang mit Titel, einer Zeile Detail und genau einer Aktion.
+   * Gleiches wird gebündelt („27 Buchungen eintragen“).
+   * Drei Stufen, nach Dringlichkeit und dann Art geordnet (Konflikte → Zimmer vergeben → eintragen/Posteingang →
+     Engpässe → Erinnerungen):
+     * „Zuerst klären“: rote Punkte, Aktion als Hauptknopf
+     * „Als Nächstes“
+     * „Zur Info“: eingeklappt
+   * Die Aktion springt direkt an die Bearbeitungsstelle: die Anreise in „Zuteilen“, die Konflikt-Vorschau, die
+     Personenkarte, den Posteingang. Erinnerungen lassen sich in der Zeile abhaken.
+   * Die frei zusammenstellbaren Kacheln bleiben als „Übersicht“. Die gewählte Ansicht wird gemerkt.
+   * Logik: `belegung/vorgaenge.py` (ohne Qt, getestet), aus denselben Quellen wie die Kacheln.
+2. **Navigation nach Aufgaben.**
+   * Seitenleiste: Arbeiten (täglich) · Auswerten · Verwalten (selten).
+   * Zimmerplan: 7 Reiter in 3 Gruppen.
+   * Seltenes liegt unter „Mehr“: Verlauf, neues Fenster, Sprung zu Importen und Einstellungen.
+3. **Eine Hauptaktion je Ansicht.**
+   * „Zuteilen“: Übernehmen (Hauptknopf), Export; alles Weitere unter „Mehr“.
+   * Daten & Import: je Reiter eine Hauptaktion (Hochladen/Importieren).
+4. **Zimmerwechsel: ein Prozess, zwei sinnvolle Einstiege.** Entschieden nach dem Arbeitsablauf:
+   * **Planen** (Personen ohne Zimmer): „Zuteilen“. Das ist die erste Vergabe, nicht ein Wechsel.
+   * **Wechsel, noch nicht eingezogen:** Zeitstrahl (ziehen oder Rechtsklick „Zimmer wechseln …“) oder Personenkarte.
+     Beides läuft durch `aenderung_ui.zimmer_wechseln_geplant`: Regeln prüfen, nach dem DZ-Partner fragen (optional,
+     nie automatisch), „vorher → nachher“ samt Folgen, Abgleich mit dem aktuellen Stand, Speichern mit Rückgängig.
+   * **Wechsel, eingezogen:** „Zimmer wechseln (Umzug ab …)“ öffnet überall denselben Umzug-Dialog.
+
+   Der Zeitstrahl bleibt Einstieg, weil man dort freie Zeiträume sieht. Die Personenkarte bleibt Einstieg, weil man
+   dort von der Person ausgeht. Beide nutzen denselben Ablauf, es gibt also keine zwei Logiken.
+
+## Umgesetzt in 6.14 / bewusst nicht
+
+* Umgesetzt: alles aus dem Konzept oben.
+* Nicht umgebaut:
+  * Zeitstrahl, Häuser, Aufgaben, Reinigung, Abreisen: diese Ansichten haben schon je eine Hauptaufgabe.
+  * Personen-/Zimmerkarte: Notizen, Inventar und Abreise gehören dort zur Person.
+* Mögliche nächste Schritte, nur auf Wunsch:
+  * Kennzahlen-Zeile im Zimmerplan auf zwei Werte kürzen (frei / nach Planung), Rest in den Tooltip.
+  * „Heute“ auch im Zimmerplan als kleine Seitenleiste.
+  * Engpass-Grenzen und Ampel in einer Einstellung zusammenfassen.
+
+## Prüfung (6.14)
+
+* Automatische Tests: 147, davon neu `tests/test_vorgaenge.py`. Abgedeckt sind:
+  * Dringlichkeit und Reihenfolge der Vorgänge
+  * kein Vorgang, wenn erledigt
+  * Erinnerungen
+  * „Zimmer wechseln“ ändert nur die gewählte Person und lehnt ein belegtes Ziel ab
+  * alte Reiter-Nummern
+* Mit Datenkopie durch die echte Oberfläche:
+  * Heute → Zuteilen bzw. Eintragen
+  * Navigation zu „Gebäudeplan & ZKL“
+  * gemerkter Reiter „Quellen“ → Zuteilen
+  * Zimmer wechseln + Rückgängig
+  * Sortierung (179 Spaltenklicks, 0 Fehler)
+* Kein Überlauf bei 1000 px, 100/125/150 %, in allen 4 Designs.

@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.13.0, 15.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.14.0, 15.10.2026)
 
 ## Als Nächstes
 
@@ -24,13 +24,22 @@
   Zimmer nicht sortiert – im Test (auch echter Mausklick) sortiert es; Version beim Nutzer prüfen lassen.
   Hinweis: gemerkte Reiter-Nummern (offene Tabs) verschieben sich durch den neuen Reiter um eins.
 - 6.11: Renovierung/Boden je Zimmer, Zimmerliste. 2 Zeilen der Renovierungsliste nicht im Zimmerplan (6-205
-  Jugendhilfe, 3.1-220); „3.3-110/301/305/313“ als 3.2 zugeordnet – vom Nutzer bestätigen lassen.
+  Jugendhilfe, 3.1-220); „3.3-110/301/305/313“ als 3.2 zugeordnet – bestätigt (6.14): laut Gebäudeplan 03.10. hat Haus 3.2 die Nummern
+  101–113/201–213/301–313, Haus 3.3 114–127/214–227/314–327; die vier gibt es nur in 3.2.
 - 6.12: „Frei nach Planung“ (Kopf, Engpässe, Startseite); Haus 6/4. OG renoviert + Vinyl (Datum unbekannt außer 405/408).
 - 6.13 (Master-Prompt UX/Sicherheit): Vorschau vor folgenreichen Zimmer-Änderungen, Rückgängig, keine
   Doppelbelegung von Hand, kein halber Stand, Reiter gruppiert. Analyse und nächste Schritte: `UX_KONZEPT.md` (B.3).
   Vom Nutzer zu entscheiden: „Quellen“ umbenennen/zusammenlegen; Personenkarte als einziger Einstieg für Zimmerwechsel.
-- **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
-  echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
+- **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
+  in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
+  Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
+  nicht erlaubt). Alte Commits bleiben auf GitHub über ihre Nummer noch abrufbar, bis GitHub aufräumt – wer sicher
+  gehen will: GitHub-Support um Entfernen der „cached views“ bitten (Liste alter Nummern: commit-map). Die beiden
+  Branches des anderen Projekts (health-analytics, sharp-newton) haben dabei neue Commit-Nummern bekommen (Inhalt
+  gleich); zurücksetzen wurde von der Arbeitsumgebung blockiert – Nutzer entscheidet.
+- 6.14: Start „Heute“ (Vorgangsliste), Importe gebündelt (Quellen → Daten & Import), Verlauf, Seitenleiste nach
+  Aufgaben, Zuteilen „Mehr“, ein Ablauf „Zimmer wechseln“. 3.3 → 3.2 (110/301/305/313) mit Gebäudeplan bestätigt.
+  Zuteilen-Sortierung vom Nutzer bestätigt (nur noch Regressionstest).
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).
 - Weitere Punkte sammelt der Nutzer übers Wochenende – zusammen als nächstes Update einspielen.
 - Noch offen von früher: UWT-Zimmervorschlags-Maske wie im anderen System (Screenshots folgen vom Nutzer).

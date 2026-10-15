@@ -1,4 +1,4 @@
-# Rückweg: von 6.13 zurück zu 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.14 zurück zu 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -7,21 +7,30 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 
 | Stand | Git-Branch (GitHub) | Commit | Zip-Paket (mitgeliefert) |
 |---|---|---|---|
-| **5.17.0** (vor dem Overhaul) | `backup/v5.17.0-vor-ui-overhaul` (auch `claude/bold-keller-8jch4a`) | `2072131` | `INNternat_v5.17.0_Sicherung.zip` |
-| **6.0.0** | `backup/v6.0.0` | `88e2171` | `INNternat_v6.0.0_Sicherung.zip` |
-| **6.1.0** | `backup/v6.1.0` | `e36222c` | `INNternat_v6.1.0_Sicherung.zip` |
-| **6.2.0** | `backup/v6.2.0` | `91ce80d` | `INNternat_v6.2.0_Sicherung.zip` |
-| **6.3.0** | `backup/v6.3.0` | `e0ee3e9` | `INNternat_v6.3.0_Sicherung.zip` |
-| **6.4.0** | `backup/v6.4.0` | `feb961a` | `INNternat_v6.4.0_Sicherung.zip` |
-| **6.5.0** | `backup/v6.5.0` | `6a77085` | `INNternat_v6.5.0_Sicherung.zip` |
-| **6.6.0** | `backup/v6.6.0` | `4b161e8` | `INNternat_v6.6.0_Sicherung.zip` |
-| **6.7.1** | `backup/v6.7.1` | `141d768` | `INNternat_v6.7.1_Sicherung.zip` |
-| **6.8.0** | `backup/v6.8.0` | `4130eab` | `INNternat_v6.8.0_Sicherung.zip` |
-| **6.9.1** | `backup/v6.9.1` | `752f97e` | `INNternat_v6.9.1_Sicherung.zip` |
-| **6.10.0** | `backup/v6.10.0` | `2233c00` | `INNternat_v6.10.0_Sicherung.zip` |
-| **6.11.0** | `backup/v6.11.0` | `357a575` | `INNternat_v6.11.0_Sicherung.zip` |
-| **6.12.0** | `backup/v6.12.0` | `a4c978b` | `INNternat_v6.12.0_Sicherung.zip` |
-| **6.13.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **5.17.0** (vor dem Overhaul) | `backup/v5.17.0-vor-ui-overhaul` (auch `claude/bold-keller-8jch4a`) | `4d6bd76` | `INNternat_v5.17.0_Sicherung.zip` |
+| **6.0.0** | `backup/v6.0.0` | `d40959c` | `INNternat_v6.0.0_Sicherung.zip` |
+| **6.1.0** | `backup/v6.1.0` | `62ce38c` | `INNternat_v6.1.0_Sicherung.zip` |
+| **6.2.0** | `backup/v6.2.0` | `601ae13` | `INNternat_v6.2.0_Sicherung.zip` |
+| **6.3.0** | `backup/v6.3.0` | `4768baf` | `INNternat_v6.3.0_Sicherung.zip` |
+| **6.4.0** | `backup/v6.4.0` | `0ec04da` | `INNternat_v6.4.0_Sicherung.zip` |
+| **6.5.0** | `backup/v6.5.0` | `a4f6499` | `INNternat_v6.5.0_Sicherung.zip` |
+| **6.6.0** | `backup/v6.6.0` | `8d45202` | `INNternat_v6.6.0_Sicherung.zip` |
+| **6.7.1** | `backup/v6.7.1` | `b5658fe` | `INNternat_v6.7.1_Sicherung.zip` |
+| **6.8.0** | `backup/v6.8.0` | `80dfe6b` | `INNternat_v6.8.0_Sicherung.zip` |
+| **6.9.1** | `backup/v6.9.1` | `2b12e6a` | `INNternat_v6.9.1_Sicherung.zip` |
+| **6.10.0** | `backup/v6.10.0` | `ed861df` | `INNternat_v6.10.0_Sicherung.zip` |
+| **6.11.0** | `backup/v6.11.0` | `e401d50` | `INNternat_v6.11.0_Sicherung.zip` |
+| **6.12.0** | `backup/v6.12.0` | `c6b7a12` | `INNternat_v6.12.0_Sicherung.zip` |
+| **6.13.0** | `backup/v6.13.0` | `7577366` | `INNternat_v6.13.0_Sicherung.zip` |
+| **6.14.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+
+**Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
+TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
+Dadurch haben **alle Commits ab dem 03.10. neue Nummern**. Diese Datei nennt bereits die neuen. Der Inhalt jedes
+Sicherungsstands ist Byte für Byte gleich geblieben, geprüft für alle 19 Branches. Die alte Historie liegt vollständig als
+`Git-Historie_vor_Bereinigung_2026-10-15.bundle` vor (an den Nutzer übergeben; enthält echte Namen – nicht hochladen),
+dazu die Zuordnung alt → neu (`commit-map_2026-10-15.txt`). Wiederherstellen ginge mit
+`git clone Git-Historie_vor_Bereinigung_2026-10-15.bundle`.
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -64,11 +73,11 @@ git switch -c arbeit-v517 origin/backup/v5.17.0-vor-ui-overhaul
 
 # Änderungen seit 6.1.0 bzw. 6.0.0 zurücknehmen, ohne Verlauf umzuschreiben (Revert-Commits)
 git switch claude/ui-overhaul-v6
-git revert --no-edit 91ce80d..HEAD
-git revert --no-edit e36222c..HEAD
-git revert --no-edit 88e2171..HEAD
+git revert --no-edit 601ae13..HEAD
+git revert --no-edit 62ce38c..HEAD
+git revert --no-edit d40959c..HEAD
 # … oder alles seit 5.17.0
-git revert --no-edit 2072131..HEAD
+git revert --no-edit 4d6bd76..HEAD
 
 # nur einzelne Schritte zurücknehmen (neuester zuerst, Abhängigkeiten siehe unten)
 git revert --no-edit <commit>
@@ -78,117 +87,128 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 
 ## 5. Die Schritte (je ein Commit auf `claude/ui-overhaul-v6`)
 
-**6.0.0** (seit `2072131`):
+**6.0.0** (seit `4d6bd76`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `178baef` | Daten/Infrastruktur | Datensicherung beim Start (`belegung/datensicherung.py`), `.gitignore` | – |
-| `4098d18` | fachlich | Bewohner-Schlüssel für Gebäudeplan/UWT, Notizen auch für Zimmer | – |
-| `61d77a8` | UI | Zimmer- und Personenkarte (`ui/zimmerkarte.py`, `ui/notizen.py`) | `4098d18` |
-| `c5ec862` | UI | Mehrere Fenster, einklappbare Hinweise, Zuteilen-Leiste | `61d77a8` |
-| `c19bbb3` | UI | Datensicherung in den Einstellungen | `178baef` |
-| `db37470`, `49819ad`, `88e2171` | Doku/Daten | Version 6.0.0, „vor Update“-Sicherung, ROLLBACK.md | – |
+| `f1af493` | Daten/Infrastruktur | Datensicherung beim Start (`belegung/datensicherung.py`), `.gitignore` | – |
+| `4a90ad0` | fachlich | Bewohner-Schlüssel für Gebäudeplan/UWT, Notizen auch für Zimmer | – |
+| `0f29d62` | UI | Zimmer- und Personenkarte (`ui/zimmerkarte.py`, `ui/notizen.py`) | `4a90ad0` |
+| `75a2e74` | UI | Mehrere Fenster, einklappbare Hinweise, Zuteilen-Leiste | `0f29d62` |
+| `3df9b30` | UI | Datensicherung in den Einstellungen | `f1af493` |
+| `0d04e75`, `bd2498e`, `d40959c` | Doku/Daten | Version 6.0.0, „vor Update“-Sicherung, ROLLBACK.md | – |
 
-**6.1.0** (seit `88e2171`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `71cbb38` | UI | Eigener Kalender für Datumsfelder (`widgets.KalenderPopup`) | – |
-| `8658836` | Leistung | Minimiert/Infobereich: nichts neu rechnen, Speicher freigeben | – |
-| `ccba34e` | UI | Tabs im Hauptfenster; kein Überlauf bei 1000 px | `8658836` |
-| `b8132e0` | UI + rein | Startseite „Mein Dashboard“ (`belegung/cockpit.py`, `ui/seiten/start.py`) | `ccba34e` |
-| `e36222c` | Doku | Version 6.1.0, README, ROLLBACK.md | – |
-
-**6.2.0** (seit `e36222c`):
+**6.1.0** (seit `d40959c`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `a1b42ec` | UI | Name des Dashboards änderbar; Design-Auswahl; Tab-Symbole; Reinigung-Leiste | – |
-| `ecec09c`, `91ce80d` | Doku | Version 6.2.0, README, ROLLBACK.md, Offene Punkte | – |
+| `30e77b5` | UI | Eigener Kalender für Datumsfelder (`widgets.KalenderPopup`) | – |
+| `fdc614a` | Leistung | Minimiert/Infobereich: nichts neu rechnen, Speicher freigeben | – |
+| `0a3a3df` | UI | Tabs im Hauptfenster; kein Überlauf bei 1000 px | `fdc614a` |
+| `3b86504` | UI + rein | Startseite „Mein Dashboard“ (`belegung/cockpit.py`, `ui/seiten/start.py`) | `0a3a3df` |
+| `62ce38c` | Doku | Version 6.1.0, README, ROLLBACK.md | – |
 
-**6.3.0** (seit `91ce80d`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `8909148` | UI + rein | Startseiten-Titel, KW mit Daten, Engpässe erklärt, Grenzen einstellbar | – |
-| `f3e8a04` | rein + UI | Posteingang (`belegung/mails.py`, `ui/seiten/posteingang.py`) | – |
-| `3996e13` | fachlich | Optimierung (`belegung/optimierung.py`, `zimmer_wert_details`) | – |
-| `f3a3b3f` | UI | Dialog „Belegung optimieren“, Knopf im Zimmerplan, Kachel | `3996e13` |
-| `e0ee3e9` | Doku | Version 6.3.0, README, ROLLBACK.md | – |
-
-**6.4.0** (seit `e0ee3e9`):
+**6.2.0** (seit `62ce38c`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `f795a23` | fachlich | Umzug während des Aufenthalts (`belegung/umzug.py`, Feld `Belegung.umzug`) | – |
-| `1ecf27b` | UI | Ziehen belegter Balken, Rechtsklick-Menü, Umzug-Dialog, Personenkarte | `f795a23` |
-| `d10572c` | Daten | Gespeicherter Gebäudeplan bleibt für ältere Versionen lesbar (Rückweg) | `f795a23` |
-| `feb961a` | Doku | Version 6.4.0, README, ROLLBACK.md | – |
+| `3e951db` | UI | Name des Dashboards änderbar; Design-Auswahl; Tab-Symbole; Reinigung-Leiste | – |
+| `d1fc866`, `601ae13` | Doku | Version 6.2.0, README, ROLLBACK.md, Offene Punkte | – |
 
-**6.5.0** (seit `feb961a`):
+**6.3.0** (seit `601ae13`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `2b821a4` | Regel | Haus 3.1 UG ausschließlich mit Tier (ohne Tier nur von Hand) | – |
-| `5ef59b9` | fachlich | Optimierung: dieselbe Anreise zusammen auf einen Flur, Tausch über Gruppen | – |
-| `6a77085` | Doku | Version 6.5.0, README, ROLLBACK.md | – |
+| `5ea4ed7` | UI + rein | Startseiten-Titel, KW mit Daten, Engpässe erklärt, Grenzen einstellbar | – |
+| `5c99189` | rein + UI | Posteingang (`belegung/mails.py`, `ui/seiten/posteingang.py`) | – |
+| `62a19b6` | fachlich | Optimierung (`belegung/optimierung.py`, `zimmer_wert_details`) | – |
+| `8c696d2` | UI | Dialog „Belegung optimieren“, Knopf im Zimmerplan, Kachel | `62a19b6` |
+| `4768baf` | Doku | Version 6.3.0, README, ROLLBACK.md | – |
 
-**6.6.0** (seit `6a77085`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `807935a` | rein + UI | ZKL-Import und Abgleich (`belegung/zkl.py`, `ui/zkl_dialog.py`, Karte unter Quellen) | – |
-| `4b161e8` | Doku | Version 6.6.0, README, ROLLBACK.md | – |
-
-**6.7.0** (seit `4b161e8`):
+**6.4.0** (seit `4768baf`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `55606d8` | fachlich + UI | Geplant ↔ belegt für Zuweisungen und Umzüge; ZKL-Vorauswahl | – |
-| `43fec87` | Doku | Version 6.7.0, README, ROLLBACK.md | – |
-| `141d768` | UI | Begriff „Planung abschließen (fest)“, Fehlermeldung beim Neuladen der Zimmerkarte | – |
+| `2c48e73` | fachlich | Umzug während des Aufenthalts (`belegung/umzug.py`, Feld `Belegung.umzug`) | – |
+| `520f2fb` | UI | Ziehen belegter Balken, Rechtsklick-Menü, Umzug-Dialog, Personenkarte | `2c48e73` |
+| `6c6dcbf` | Daten | Gespeicherter Gebäudeplan bleibt für ältere Versionen lesbar (Rückweg) | `2c48e73` |
+| `0ec04da` | Doku | Version 6.4.0, README, ROLLBACK.md | – |
 
-**6.8.0** (seit `141d768`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `4130eab` | UI | Tabellen sortierbar (`widgets.Tabelle`), Zeilen-Zuordnung an den Aufrufstellen, Doku | – |
-
-**6.9.0** (seit `4130eab`):
+**6.5.0** (seit `0ec04da`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `8bc111d` | fachlich + UI | Je Kurs ein Flur; „Kurs zusammenführen“ (Bewohner-Tausch als Umzugspaar); Doku | – |
-| `752f97e` | UI | Sortieren nach Auswahllisten/Häkchen in Tabellenzellen (`widgets.widget_text`) | – |
+| `c2b8f39` | Regel | Haus 3.1 UG ausschließlich mit Tier (ohne Tier nur von Hand) | – |
+| `fc29fd2` | fachlich | Optimierung: dieselbe Anreise zusammen auf einen Flur, Tausch über Gruppen | – |
+| `a4f6499` | Doku | Version 6.5.0, README, ROLLBACK.md | – |
 
-**6.10.0** (seit `752f97e`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `2233c00` | UI + rein | Abreiseliste (Reiter „Abreisen“, `cockpit.abreiseliste`, `drucklisten.abreiseliste_html`), Zimmer-Sortierung, kompakte Reiter | – |
-
-**6.11.0** (seit `2233c00`):
+**6.6.0** (seit `a4f6499`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `9590a6d`, `357a575` | rein + UI | Renovierung/Boden je Zimmer, Zimmerliste filtern & drucken (`belegung/zimmerliste.py`) | – |
+| `594d0d2` | rein + UI | ZKL-Import und Abgleich (`belegung/zkl.py`, `ui/zkl_dialog.py`, Karte unter Quellen) | – |
+| `8d45202` | Doku | Version 6.6.0, README, ROLLBACK.md | – |
 
-**6.12.0** (seit `357a575`):
-
-| Commit | Art | Inhalt | hängt ab von |
-|---|---|---|---|
-| `a4c978b` | rein + UI | „Frei nach Planung“ (`eintragen.nach_planung`), Renovierung ohne Datum, Haus 6/4. OG | – |
-
-**6.13.0** (seit `a4c978b`):
+**6.7.0** (seit `8d45202`):
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| `74e72ba` | rein | Protokoll erst nach dem Speichern; `zuweisung_setzen` lehnt Doppelbelegung ab; `neu_planen_vorschlag`; `belegung/aenderungen.py` (Vorschau, Rückgängig) | – |
-| `34a9ae2` | UI | Vorschau-Dialog, sicheres Speichern, Rückgängig (Meldung, Strg+Z); Zimmerplan-Reiter in 3 Gruppen | `74e72ba` |
-| `5c65c4a` | Doku/Tests | `tests/test_aenderungen.py`, `UX_KONZEPT.md`, Version 6.13.0 | – |
+| `e43d9ac` | fachlich + UI | Geplant ↔ belegt für Zuweisungen und Umzüge; ZKL-Vorauswahl | – |
+| `ba85e32` | Doku | Version 6.7.0, README, ROLLBACK.md | – |
+| `b5658fe` | UI | Begriff „Planung abschließen (fest)“, Fehlermeldung beim Neuladen der Zimmerkarte | – |
+
+**6.8.0** (seit `b5658fe`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `80dfe6b` | UI | Tabellen sortierbar (`widgets.Tabelle`), Zeilen-Zuordnung an den Aufrufstellen, Doku | – |
+
+**6.9.0** (seit `80dfe6b`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `f070321` | fachlich + UI | Je Kurs ein Flur; „Kurs zusammenführen“ (Bewohner-Tausch als Umzugspaar); Doku | – |
+| `2b12e6a` | UI | Sortieren nach Auswahllisten/Häkchen in Tabellenzellen (`widgets.widget_text`) | – |
+
+**6.10.0** (seit `2b12e6a`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `ed861df` | UI + rein | Abreiseliste (Reiter „Abreisen“, `cockpit.abreiseliste`, `drucklisten.abreiseliste_html`), Zimmer-Sortierung, kompakte Reiter | – |
+
+**6.11.0** (seit `ed861df`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `8470f2c`, `e401d50` | rein + UI | Renovierung/Boden je Zimmer, Zimmerliste filtern & drucken (`belegung/zimmerliste.py`) | – |
+
+**6.12.0** (seit `e401d50`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `c6b7a12` | rein + UI | „Frei nach Planung“ (`eintragen.nach_planung`), Renovierung ohne Datum, Haus 6/4. OG | – |
+
+**6.13.0** (seit `c6b7a12`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| `e6f7dbe` | rein | Protokoll erst nach dem Speichern; `zuweisung_setzen` lehnt Doppelbelegung ab; `neu_planen_vorschlag`; `belegung/aenderungen.py` (Vorschau, Rückgängig) | – |
+| `18b6d89` | UI | Vorschau-Dialog, sicheres Speichern, Rückgängig (Meldung, Strg+Z); Zimmerplan-Reiter in 3 Gruppen | `e6f7dbe` |
+| `4af8c66` | Doku/Tests | `tests/test_aenderungen.py`, `UX_KONZEPT.md`, Version 6.13.0 | – |
 | (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Datenformate unverändert: 6.12 liest alles, was 6.13 schreibt. Ein Rückweg zu 6.12 ist ohne Datenverlust möglich.
+
+**6.14.0** (seit `7577366`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (1) | rein | `belegung/vorgaenge.py` (Vorgänge für „Heute“) | – |
+| (2) | UI | Start „Heute“; Importe nach Daten & Import (`ui/zimmerquellen.py`), Reiter „Quellen“ entfällt; Verlauf; Planungs-Einstellungen unter Einstellungen; Seitenleiste Arbeiten/Auswerten/Verwalten; Zuteilen „Mehr“; ein Ablauf „Zimmer wechseln“ | (1) |
+| (3) | Doku/Tests | `tests/test_vorgaenge.py`, `UX_KONZEPT.md` Teil 2, Version 6.14.0 | (1), (2) |
+
+Datenformate unverändert. Neu in `einstellungen.json`: `start_ansicht` (heute/kacheln) – ältere Versionen ignorieren es.
+Gemerkte Tabs mit dem Reiter „Quellen“ öffnen „Zuteilen“; nach einem Rückweg zu 6.13 ist „Quellen“ wieder da.
 
 ## 6. Was sich geändert hat – und was nicht
 
