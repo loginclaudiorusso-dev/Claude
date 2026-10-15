@@ -27,6 +27,33 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.13 – Änderungen sicher und nachvollziehbar
+
+* **Vorschau vor dem Speichern:** Würde eine Aktion mehr ändern als die gewählte Person, zeigt ein Fenster vorher
+  „alt → neu“, und zwar je Person. Das betrifft:
+  * Zuteilen → Übernehmen (z. B. nach „Neu“ werden schon gespeicherte Zimmer anders, „fest“ entfällt, jemand
+    verliert sein Zimmer)
+  * Konflikte lösen (inkl. DZ-Partner, die mitziehen)
+
+  Grau steht, was dadurch zusätzlich passiert. Rot steht, was erst gelöst werden muss: Das Zimmer ist inzwischen
+  belegt oder wurde in einem anderen Fenster geändert. Dann wird nichts gespeichert. Nur neue Planungen gehen wie
+  bisher ohne Rückfrage.
+* **Rückgängig:** Nach jeder Zimmer-Änderung erscheint unten rechts die Meldung mit dem Knopf **„Rückgängig“**,
+  alternativ **Strg+Z**. Das gilt für Zuteilen, Verschieben, Umzug, „fest“, Zurücknehmen und Konflikte. Wurde
+  danach schon etwas anderes gespeichert, lehnt das Programm ab, statt fremde Änderungen zu überschreiben.
+* **Nie doppelt belegen:** Ein Zimmer, das im Zeitraum belegt oder gesperrt ist, kann auch von Hand nicht mehr
+  vergeben werden. Das gilt für Personenkarte, Personendialog und Posteingang. Ausnahmen gegen Regeln (z. B.
+  Gästezimmer) gehen weiterhin.
+* **Kein halber Stand:** Bricht das Speichern ab (z. B. Netzlaufwerk weg), bleibt der Stand davor. Das
+  Änderungsprotokoll zeigt nur, was wirklich gespeichert wurde.
+* **Klarere Rückfragen:**
+  * „Planung entfernen“ fragt nach.
+  * Beim Zimmerwechsel einer „festen“ Planung steht dabei, dass sie wieder „geplant“ wird.
+  * Umzug zurücknehmen nennt bei einem Tausch den Gegen-Umzug.
+* **Reiter im Zimmerplan nach Aufgaben geordnet:** Planen (Zuteilen · Zeitstrahl · Häuser) | Erledigen (Aufgaben ·
+  Abreisen · Reinigung) | Verwalten (Zimmer · Quellen). Jeder Reiter erklärt im Tooltip, wofür er da ist.
+* Analyse und Konzept: `UX_KONZEPT.md`.
+
 ## Neu in 6.12
 
 * **Frei nach Planung:** Wie viele Zimmer sind noch frei, wenn alle Anreisen ein Zimmer haben – auch die noch ohne

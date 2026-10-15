@@ -1,4 +1,4 @@
-# Rückweg: von 6.12 zurück zu 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.13 zurück zu 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -20,7 +20,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.9.1** | `backup/v6.9.1` | `752f97e` | `INNternat_v6.9.1_Sicherung.zip` |
 | **6.10.0** | `backup/v6.10.0` | `2233c00` | `INNternat_v6.10.0_Sicherung.zip` |
 | **6.11.0** | `backup/v6.11.0` | `357a575` | `INNternat_v6.11.0_Sicherung.zip` |
-| **6.12.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.12.0** | `backup/v6.12.0` | `a4c978b` | `INNternat_v6.12.0_Sicherung.zip` |
+| **6.13.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 Zusätzlich lokale Git-Tags `v5.17.0-sicherung`, `v6.0.0-sicherung`, `v6.1.0-sicherung`, `v6.2.0-sicherung` und `v6.3.0` (Tags lassen sich aus der
 Arbeitsumgebung nicht nach GitHub pushen – die Branches oben genügen).
@@ -176,7 +177,18 @@ Kein `git reset --hard`, kein Force-Push nötig – die Sicherungs-Branches blei
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (letzter) | rein + UI | „Frei nach Planung“ (`eintragen.nach_planung`), Renovierung ohne Datum, Haus 6/4. OG | – |
+| `a4c978b` | rein + UI | „Frei nach Planung“ (`eintragen.nach_planung`), Renovierung ohne Datum, Haus 6/4. OG | – |
+
+**6.13.0** (seit `a4c978b`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (1) | rein | Protokoll erst nach dem Speichern; `zuweisung_setzen` lehnt Doppelbelegung ab; `neu_planen_vorschlag`; `belegung/aenderungen.py` (Vorschau, Rückgängig) | – |
+| (2) | UI | Vorschau-Dialog, sicheres Speichern, Rückgängig (Meldung, Strg+Z) an allen Zimmer-Änderungen | (1) |
+| (3) | UI | Zimmerplan-Reiter in 3 Gruppen mit Tooltips | – |
+| (4) | Doku/Tests | `tests/test_aenderungen.py`, `UX_KONZEPT.md`, Version 6.13.0 | (1)–(3) |
+
+Datenformate unverändert: 6.12 liest alles, was 6.13 schreibt. Ein Rückweg zu 6.12 ist ohne Datenverlust möglich.
 
 ## 6. Was sich geändert hat – und was nicht
 
