@@ -21,7 +21,7 @@ CLAUDE_MODELLE = [("claude-opus-5", "Claude Opus 5 (beste Qualität)"), ("claude
 
 class EinstellungenSeite(Seite):
     titel = "Einstellungen"
-    untertitel = "Darstellung und Assistent"
+    untertitel = "Darstellung, Zimmerplanung, Erinnerungen, Datensicherung"
     zeigt_filter = False
     zeigt_bezug = False
 
@@ -163,6 +163,9 @@ class EinstellungenSeite(Seite):
         self.e_mail.editingFinished.connect(self._erinnerung_speichern)
         self._erinnerung_sichtbar()
         self.lay.addWidget(erin)
+        from ..zimmerquellen import PlanungEinstellungen
+
+        self.lay.addWidget(PlanungEinstellungen(zustand))
 
         sich = Karte("Datensicherung", "Alle Arbeitsdaten (Zuweisungen, Termine, Notizen, Importe, Einstellungen) – "
                                        "automatisch beim Start einmal am Tag und vor jedem Update")

@@ -395,7 +395,7 @@ class PersonBlock(QWidget):
                 zeile.addWidget(st_k)
             zeile.addWidget(weg)
         elif b.bis >= date.today():
-            neu = knopf("Umzug in ein anderes Zimmer …", "ghost", "haus")
+            neu = knopf("Zimmer wechseln (Umzug ab …) …", "ghost", "haus")
             neu.setToolTip("Ab einem Tag in ein anderes Zimmer – das alte wird danach frei")
             neu.clicked.connect(lambda: umzug_oeffnen(k, k.z, zid=b.zimmer, schluessel=um.schluessel_zu(k.stand, b),
                                                       name=b.name) and k._neu_laden())
@@ -424,9 +424,10 @@ class PersonBlock(QWidget):
                                     "nachher: ohne Zimmer. Das Zimmer wird frei, die Person steht unter Zuteilen."
                                     + ("\n\nDie Planung war „fest“." if fest else "")) != QMessageBox.Yes:
                 return False
-        elif fest and QMessageBox.question(k, "Zimmer ändern", f"{name}: {alt} → {neu}?\n\nDie Planung war „fest“ – "
-                                           "im neuen Zimmer gilt sie wieder als geplant.") != QMessageBox.Yes:
-            return False
+        elif zw.get("zimmer"):                 # Wechsel: derselbe Ablauf wie im Zeitstrahl (Regeln, DZ-Partner, Vorschau)
+            from .aenderung_ui import zimmer_wechseln_geplant
+
+            return zimmer_wechseln_geplant(k, k.z, k.stand, self.bw.schluessel, neu_zimmer, "Zimmerkarte")
         titel = f"{name}: {alt} → {neu or 'ohne Zimmer'}"
         return ausfuehren(k, k.z, titel, lambda: zp.zuweisung_setzen(k.stand, self.bw.schluessel, neu_zimmer, "Zimmerkarte"),
                           titel + ".")

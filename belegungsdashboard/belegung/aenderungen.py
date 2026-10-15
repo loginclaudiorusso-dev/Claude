@@ -229,7 +229,7 @@ def rueckgaengig(quelle: str = "Rückgängig") -> tuple[bool, str]:
         _verlauf.clear()                        # ältere Schritte passen dann auch nicht mehr
         return False, (f"„{s.titel}“ kann nicht mehr rückgängig gemacht werden: Danach wurde noch etwas an der "
                        "Planung gespeichert (z. B. in einem anderen Fenster). Bitte von Hand korrigieren – was sich "
-                       "geändert hat, steht unter Zimmerplan → Quellen → Änderungsprotokoll.")
+                       "geändert hat, steht unter Zimmerplan → Mehr → Verlauf.")
     geschrieben = []
     try:
         for name, inhalt in s.vorher.items():

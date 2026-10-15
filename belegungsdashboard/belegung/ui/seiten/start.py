@@ -1,4 +1,8 @@
-"""Startseite „Mein Dashboard“: Kacheln selbst zusammenstellen – hinzufügen, entfernen, Breite wählen und per
+"""Startseite mit zwei Ansichten:
+
+* **Heute** (Standard): eine ruhige, priorisierte Vorgangsliste (``belegung/vorgaenge.py``) – je Vorgang eine Zeile
+  mit genau einer Aktion, die direkt zur Bearbeitung führt; „Zuerst klären“, „Als Nächstes“, „Zur Info“ (eingeklappt).
+* **Übersicht**: „Mein Dashboard“ – Kacheln selbst zusammenstellen – hinzufügen, entfernen, Breite wählen und per
 Ziehen umordnen („Anpassen“ oben rechts). Die Anordnung wird gespeichert.
 
 Die Kacheln zeigen, was heute zu tun ist (Zimmer, Anreisen, Abreisen, Reinigung, Erinnerungen …) und führen
@@ -13,17 +17,23 @@ from html import escape
 from PySide6.QtCore import QMimeData, Qt, Signal
 from PySide6.QtGui import QDrag
 from PySide6.QtWidgets import (
-    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QWidget,
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from ... import cockpit, eintragen
 from ... import termine as tm
 from ... import zimmerplan as zp
 from ..basis import Seite, Zustand, sichtbar
-from ..widgets import Karte, Pille, icon_setzen, knopf, label, leeren
+from ..widgets import Karte, Pille, Segment, icon_setzen, knopf, label, leeren
 
 MIME = "application/x-belegung-kachel"
 WOTAG = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def theme_alpha_rand() -> str:
+    from .. import theme
+
+    return theme.alpha(theme.T.text_3, .25)
 
 
 def _tag(d: date, heute: date) -> str:
@@ -159,6 +169,21 @@ class StartSeite(Seite):
         self.b_hinzu.setVisible(False)
         self.b_standard.setVisible(False)
 
+        # Ansicht: „Heute“ (Vorgänge) oder „Übersicht“ (Kacheln) – wird gemerkt
+        from ... import speicher
+
+        self.ansicht = "kacheln" if speicher.einstellungen().get("start_ansicht") == "kacheln" else "heute"
+        self.ansicht_wahl = Segment(["Heute", "Übersicht"], 1 if self.ansicht == "kacheln" else 0,
+                                    tipps=["Was jetzt zu tun ist – nach Dringlichkeit, mit direktem Absprung",
+                                           "Kacheln mit Kennzahlen und Listen – selbst zusammengestellt"])
+        self.ansicht_wahl.geaendert.connect(self._ansicht_wechseln)
+        self.lay.addWidget(self.ansicht_wahl, 0, Qt.AlignLeft)
+        self.feed_w = QWidget()
+        self.feed = QVBoxLayout(self.feed_w)
+        self.feed.setContentsMargins(0, 0, 0, 0)
+        self.feed.setSpacing(10)
+        self.lay.addWidget(self.feed_w)
+        self._info_offen = False
         self.hinweis = label("Anpassen: Kacheln an der Leiste „⠿ ziehen“ auf eine andere Kachel ziehen (wird davor "
                              "eingesetzt), Breite umschalten oder mit × entfernen. „Fertig“ speichert.", "klein",
                              umbruch=True)
@@ -275,6 +300,14 @@ class StartSeite(Seite):
             self.stand = zp.laden()
         except Exception:                      # noqa: BLE001 – Startseite bleibt bedienbar
             self.stand = None
+        heute_ansicht = self.ansicht == "heute" and not self.bearbeiten
+        self.feed_w.setVisible(heute_ansicht)
+        self.raster_w.setVisible(not heute_ansicht)
+        self.b_anpassen.setVisible(not heute_ansicht)
+        self.ansicht_wahl.setVisible(not self.bearbeiten)
+        if heute_ansicht:
+            self._heute_zeigen(heute)
+            return
         while self.raster.count():
             item = self.raster.takeAt(0)
             if item.widget() is not None:
@@ -321,6 +354,131 @@ class StartSeite(Seite):
         if getattr(self, "_widgets", None):
             self._anordnen()
 
+    # ---- Ansicht „Heute“ ----------------------------------------------------------------------
+
+    def _ansicht_wechseln(self, i: int) -> None:
+        from ... import speicher
+
+        self.ansicht = "kacheln" if i == 1 else "heute"
+        speicher.einstellung_setzen("start_ansicht", self.ansicht)
+        self.aktualisieren()
+
+    def _heute_zeigen(self, heute: date) -> None:
+        from ... import gebaeudeplan, mails, vorgaenge
+
+        leeren(self.feed)
+        try:
+            liste = vorgaenge.sammeln(self.stand, heute, tm.alle(), mails.eingaenge(), mails.ARTEN,
+                                      gebaeudeplan.neuer_plan_da())
+        except Exception:                      # noqa: BLE001 – Startseite bleibt bedienbar
+            liste = []
+            self.feed.addWidget(label("Die Vorgänge konnten nicht vollständig geladen werden.", "muted"))
+        anzahl = {s: sum(1 for v in liste if v.stufe == s) for s in vorgaenge.STUFEN}
+        kopf = f"{WOTAG[heute.weekday()]} {heute:%d.%m.%Y}"
+        if anzahl["dringend"]:
+            kopf += f" · <b>{anzahl['dringend']} zuerst klären</b>"
+        if anzahl["bald"]:
+            kopf += f" · {anzahl['bald']} als Nächstes"
+        self.feed.addWidget(label(kopf, "muted"))
+        if not anzahl["dringend"] and not anzahl["bald"]:
+            k = Karte("Alles erledigt", "Nichts Dringendes und nichts Offenes. Unten steht, was heute sonst ansteht.")
+            self.feed.addWidget(k)
+        for stufe in vorgaenge.STUFEN:
+            teil = [v for v in liste if v.stufe == stufe]
+            if not teil:
+                continue
+            if stufe == "info":
+                b = QPushButton(f"{'▾' if self._info_offen else '▸'}  {vorgaenge.STUFE_TEXT[stufe]} ({len(teil)})")
+                b.setProperty("variant", "zeile")
+                b.setCursor(Qt.PointingHandCursor)
+                b.clicked.connect(self._info_umschalten)
+                self.feed.addWidget(b, 0, Qt.AlignLeft)
+                if not self._info_offen:
+                    continue
+            else:
+                self.feed.addWidget(label(vorgaenge.STUFE_TEXT[stufe], "abschnitt"))
+            karte = Karte(abstand=4)
+            for i, v in enumerate(teil):
+                if i:
+                    strich = QFrame()
+                    strich.setFrameShape(QFrame.HLine)
+                    strich.setStyleSheet(f"color: {theme_alpha_rand()};")
+                    karte.inhalt.addWidget(strich)
+                karte.inhalt.addWidget(self._vorgang_zeile(v))
+            self.feed.addWidget(karte)
+
+    def _info_umschalten(self) -> None:
+        self._info_offen = not self._info_offen
+        self._heute_zeigen(date.today())
+
+    def _vorgang_zeile(self, v) -> QWidget:
+        from .. import theme
+
+        t = theme.T
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(4, 6, 4, 6)
+        h.setSpacing(12)
+        farbe = {"dringend": t.ueber, "bald": t.knapp, "info": t.text_3}[v.stufe]
+        punkt = QLabel("●")
+        punkt.setStyleSheet(f"color: {farbe}; font-size: 10px;")
+        h.addWidget(punkt, 0, Qt.AlignTop)
+        text = QVBoxLayout()
+        text.setSpacing(1)
+        titel = label(escape(v.titel), "fett", umbruch=True)
+        text.addWidget(titel)
+        if v.detail:
+            text.addWidget(label(escape(v.detail), "klein", umbruch=True))
+        h.addLayout(text, 1)
+        if v.erledigen:
+            fertig = knopf("", "icon", "haken", "Erledigt – aus der Liste nehmen")
+            fertig.clicked.connect(lambda _=False, tid=v.erledigen: self._termin_erledigt(tid))
+            h.addWidget(fertig, 0, Qt.AlignVCenter)
+        b = knopf(v.aktion, "primary" if v.stufe == "dringend" else "ghost")
+        b.clicked.connect(lambda _=False, v=v: self._vorgang_oeffnen(v))
+        h.addWidget(b, 0, Qt.AlignVCenter)
+        return w
+
+    def _gebaeudeplan_importieren(self) -> None:
+        self.z.navigieren.emit("daten")
+        seite = getattr(self.window(), "seiten", {}).get("daten")
+        if seite is not None:
+            seite.gebaeudeplan_importieren()
+
+    def _termin_erledigt(self, tid: str) -> None:
+        t = next((x for x in tm.alle() if x.id == tid), None)
+        if t is not None:
+            tm.erledigt_setzen(t, True)
+            self.z.meldung.emit(f"Erledigt: {t.titel}", "ok")
+            self.z.termine_geaendert.emit()
+
+    def _vorgang_oeffnen(self, v) -> None:
+        """Direkt dorthin, wo der Vorgang bearbeitet wird."""
+        art, _, wert = v.ziel.partition(":")
+        if art == "anreise":
+            self._anreise(date.fromisoformat(wert))
+        elif art == "konflikte":
+            seite = self._zimmerplan("Aufgaben")
+            if seite is not None:
+                if seite.stand is None:
+                    seite.neu_laden()
+                seite._konflikte_loesen()
+        elif art == "umzug":
+            from ..umzug_dialog import umzug_oeffnen
+
+            umzug_oeffnen(self, self.z, uid=wert)
+        elif art == "person":
+            from ..zimmerkarte import karte_oeffnen
+
+            karte_oeffnen(self, self.z, person=wert)
+        elif art in ("posteingang", "termine"):
+            self.z.navigieren.emit(art)
+        elif art == "gebaeudeplan":
+            self._gebaeudeplan_importieren()
+        else:
+            self._zimmerplan({"eintragen": "Aufgaben", "engpaesse": "Aufgaben", "facility": "Aufgaben",
+                              "reinigung": "Reinigung", "abreisen": "Abreisen"}.get(art, "Aufgaben"))
+
     # ---- Hilfen ----------------------------------------------------------------------------
 
     def _link(self, kachel: Kachel, text: str, aktion) -> None:
@@ -328,14 +486,16 @@ class StartSeite(Seite):
         b.clicked.connect(aktion)
         kachel.inhalt.addWidget(b, 0, Qt.AlignLeft)
 
-    def _zimmerplan(self, reiter: str | None = None) -> None:
+    def _zimmerplan(self, reiter: str | None = None):
         self.z.navigieren.emit("zimmerplan")
         fenster = self.window()
         seite = getattr(fenster, "seiten", {}).get("zimmerplan")
         if seite is not None and reiter:
             from .zimmerplan import TABS
 
-            seite.tabs.setzen(TABS.index(reiter), still=False)
+            if reiter in TABS:
+                seite.tabs.setzen(TABS.index(reiter), still=False)
+        return seite
 
     def _zeile(self, kachel: Kachel, links: str, rechts: QWidget | None = None, aktion=None, tip: str = "") -> None:
         h = QHBoxLayout()
@@ -545,7 +705,7 @@ class StartSeite(Seite):
         for text, icon, aktion in (
                 ("Name oder Zimmer suchen", "personen", lambda: fenster.suchen() if hasattr(fenster, "suchen") else None),
                 ("Person anlegen", "plus", self._person_anlegen),
-                ("Gebäudeplan importieren", "hochladen", lambda: self._zimmerplan("Quellen")),
+                ("Gebäudeplan importieren", "hochladen", self._gebaeudeplan_importieren),
                 ("Neuer Termin", "kalender", lambda: self.z.navigieren.emit("termine"))):
             b = knopf(text, "ghost", icon)
             b.clicked.connect(aktion)

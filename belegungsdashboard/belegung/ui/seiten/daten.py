@@ -1,4 +1,8 @@
-"""Daten & Import: Pivot-Quelle, Kapazitäten, Anreisen Goslar, Mieten, UWT, manuelle Einträge."""
+"""Daten & Import – der eine Ort für alle Listen und Dateien, aus denen das Programm rechnet.
+
+Zimmerplanung: Anreisen Goslar, UWT, Gebäudeplan & ZKL (bis 6.13 als „Quellen“ im Zimmerplan)
+Statistik:     Pivot & Kapazitäten, Mieten, manuelle Einträge
+"""
 
 from __future__ import annotations
 
@@ -16,9 +20,13 @@ from ..basis import Seite, Zustand
 from ..widgets import DatumFeld, FlowLayout, Karte, Leer, Pille, Segment, Tabelle, knopf, label, leeren, zahl
 
 
+REITER = ["Anreisen", "UWT", "Gebäudeplan & ZKL", "Pivot & Kapazitäten", "Mieten", "Manuelle Einträge"]
+REITER_VOR_614 = ["Anreisen", "UWT", "Mieten", "Manuelle Einträge", "Pivot & Kapazitäten"]   # gemerkte Nummern
+
+
 class DatenSeite(Seite):
     titel = "Daten & Import"
-    untertitel = "Quelle, Kapazitäten und Listen pflegen"
+    untertitel = "Alle Listen und Dateien, aus denen das Programm rechnet – für Zimmerplanung und Statistik"
     zeigt_filter = False
     zeigt_bezug = False
     reiter_attr = "reiter"
@@ -171,17 +179,64 @@ class DatenSeite(Seite):
                                    ["l", "l", "l", "l", "r", "l", "l"])
         self.man_karte.inhalt.addWidget(self.man_tabelle)
 
-        # Reiter statt einer langen Seite
-        self.reiter = Segment(["Anreisen", "UWT", "Mieten", "Manuelle Einträge", "Quelle && Kapazitäten"], 0)
+        # Reiter statt einer langen Seite – Zimmerplanung | Statistik
+        from ..zimmerquellen import ZimmerQuellen
+
+        self.zimmer_quellen = ZimmerQuellen(zustand)
+        self.reiter = Segment([n.replace("&", "&&") for n in REITER], 0, trenner=(3,), tipps=[
+            "Zimmerplanung: Anreiselisten Goslar hochladen, Personen, Abreisen und Erinnerungen",
+            "Zimmerplanung: Blockplan und Klassenlisten der UWT",
+            "Zimmerplanung: Gebäudeplan (Word), Zimmerkontrollliste (ZKL), Zimmer-Pivot",
+            "Statistik: Pivot-Datei und Kapazitäten je Standort",
+            "Statistik: Mietverträge (zählen zur Netto-Belegung)",
+            "Statistik: einzelne Belegungen ohne Liste (DRK, Landkreis, FRAI …)"])
         self.reiter.geaendert.connect(self._reiter)
         self.lay.addWidget(self.reiter, 0, Qt.AlignLeft)
-        self._reiter_seiten = [[self.anr_karte], [self.uwt_karte], [self.mieten_karte], [self.man_karte],
-                               [self.quelle_karte, self.kap_karte]]
+        self._reiter_seiten = [[self.anr_karte], [self.uwt_karte], [self.zimmer_quellen],
+                               [self.quelle_karte, self.kap_karte], [self.mieten_karte], [self.man_karte]]
         for karten in self._reiter_seiten:
             for k in karten:
                 self.lay.addWidget(k)
         self.lay.addStretch()
         self._reiter(0)
+
+    # Reiter über den Namen merken (die Reihenfolge hat sich mit 6.14 geändert)
+    def ansicht_lesen(self) -> dict:
+        return {"reiter_name": REITER[self.reiter.index()]}
+
+    def ansicht_setzen(self, ansicht: dict) -> None:
+        name = ansicht.get("reiter_name")
+        if name not in REITER and isinstance(ansicht.get("reiter"), int) and 0 <= ansicht["reiter"] < len(REITER_VOR_614):
+            name = REITER_VOR_614[ansicht["reiter"]]
+        if name in REITER and REITER.index(name) != self.reiter.index():
+            self.reiter.setzen(REITER.index(name), still=False)
+
+    def gebaeudeplan_importieren(self) -> None:
+        from ..zimmerquellen import plan_importieren
+
+        self.reiter.setzen(REITER.index("Gebäudeplan & ZKL"), still=False)
+        plan_importieren(self, self.z)
+
+    # Zimmerplanung geht auch ohne Pivot-Datei
+    def anstossen(self) -> None:
+        self._veraltet = True
+        from ..basis import sichtbar
+
+        if sichtbar(self):
+            self._ausfuehren()
+
+    def showEvent(self, e):
+        from PySide6.QtWidgets import QWidget as _W
+
+        _W.showEvent(self, e)
+        if self._veraltet:
+            self._ausfuehren()
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        scroll = getattr(self, "scroll", None)
+        breite = scroll.viewport().width() if scroll is not None else self.width()
+        self.reiter.eng_wenn_noetig(breite - 2 * 32)      # Seitenränder
 
     def _reiter(self, i: int) -> None:
         for k, karten in enumerate(self._reiter_seiten):
@@ -191,7 +246,16 @@ class DatenSeite(Seite):
     # ---- Anzeige ------------------------------------------------------------------------
 
     def aktualisieren(self) -> None:
+        self._anreisen_anzeigen()
+        self._uwt_anzeigen()
+        self._man_anzeigen()
         ds = self.z.ds
+        for r in (3, 4):                       # Statistik-Reiter brauchen die Pivot-Datei
+            self.reiter._gruppe.button(r).setToolTip(self.reiter._gruppe.button(r).toolTip().split(" (")[0]
+                                                     + ("" if ds else " (erst nach „Aktualisieren“ unten links)"))
+        if ds is None:
+            self.quelle_text.setText("Noch keine Pivot-Datei geladen – unten links „Aktualisieren“.")
+            return
         abruf = f"Pivot zuletzt vom Server abgerufen am {ds.pivot.abrufdatum:%d.%m.%Y}" if ds.pivot.abrufdatum else "Abrufdatum unbekannt"
         self.quelle_text.setText(
             f"<b>{ds.quelle}</b><br>{abruf}. Daten vom {ds.erster_tag:%d.%m.%Y} bis {ds.letzter_tag:%d.%m.%Y}; "
@@ -200,9 +264,6 @@ class DatenSeite(Seite):
             n.setValue(ds.kapazitaet(s))
             b.setValue(ds.kapazitaet(s, True))
         self._import_anzeigen("mieten")
-        self._anreisen_anzeigen()
-        self._uwt_anzeigen()
-        self._man_anzeigen()
 
     def _import_anzeigen(self, art: str) -> None:
         karte, lay = self.import_karten[art]

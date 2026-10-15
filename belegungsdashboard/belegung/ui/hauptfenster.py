@@ -204,11 +204,12 @@ class HauptFenster(QMainWindow):
 
         self.nav = QButtonGroup(self)
         self.nav_knoepfe: dict[str, QPushButton] = {}
-        eintraege = [("start", "Start"), ("Analyse", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
-                     ("assistent", "Assistent"), ("Verwaltung", None), ("termine", "Termine"), ("posteingang", "Posteingang"),
-                     ("zimmerplan", "Zimmerplan"),
-                     ("inventar", "Inventar"),
-                     ("daten", "Daten && Import"),
+        # Nach Aufgaben: täglich Arbeiten · Auswerten · selten Verwalten
+        eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Posteingang"),
+                     ("termine", "Termine"),
+                     ("Auswerten", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
+                     ("assistent", "Assistent"),
+                     ("Verwalten", None), ("daten", "Daten && Import"), ("inventar", "Inventar"),
                      ("einstellungen", "Einstellungen")]
         icon_name = {"start": "start", "uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
                      "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
@@ -473,9 +474,17 @@ class HauptFenster(QMainWindow):
             self.zeigen(key)
 
     def zeigen(self, key: str) -> None:
-        """Seite im aktuellen Tab zeigen (Seitenleiste, Sprünge aus anderen Seiten)."""
+        """Seite im aktuellen Tab zeigen (Seitenleiste, Sprünge aus anderen Seiten). „seite:Reiter“ wählt dort
+        zusätzlich den Reiter mit dieser Beschriftung."""
+        key, _, reiter = key.partition(":")
         if key not in self.seiten:
             return
+        if reiter:
+            r = self.seiten[key]._reiter_segment()
+            if r is not None:
+                namen = [r.beschriftung(i) for i in range(len(r._gruppe.buttons()))]
+                if reiter in namen:
+                    r.setzen(namen.index(reiter), still=False)
         i = self.tabs.currentIndex()
         if i >= 0:
             d = dict(self._tab_daten(i))

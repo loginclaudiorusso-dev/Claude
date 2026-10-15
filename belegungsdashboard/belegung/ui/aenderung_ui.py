@@ -134,3 +134,53 @@ def rueckgaengig(parent, zustand, fragen: bool = True) -> None:
         zustand.zimmer_geaendert.emit()
     elif "nicht mehr" in text:
         QMessageBox.information(parent, "Rückgängig nicht möglich", text)
+
+
+def zimmer_wechseln_geplant(parent, zustand, stand, person: str, nach: str, quelle: str = "Zimmer gewechselt") -> bool:
+    """Der eine Ablauf für „Zimmer wechseln“ bei geplanten Personen (noch nicht eingezogen) – aus Zeitstrahl und
+    Personenkarte. Prüft die Regeln, sagt „vorher → nachher“ samt Folgen („fest“ entfällt, Ausnahme), fragt beim
+    DZ-Partner nach (optionale Folgeänderung – nie automatisch), prüft gegen den frischen Stand und speichert
+    sicher mit Rückgängig. Wer schon eingezogen ist, zieht über den Umzug-Dialog um. True = gespeichert."""
+    from .. import zimmerplan as zp
+
+    fehler, hinweis, partner = zp.verschieben_pruefen(stand, person, nach)
+    if fehler:
+        QMessageBox.warning(parent, "Zimmerwechsel nicht möglich", fehler)
+        return False
+    b = next(x for x in stand.bedarf if x.schluessel == person)
+    von = (stand.zugewiesen(person) or {}).get("zimmer", "")
+    z_neu = stand.lage.zimmer[nach]
+    alt = von.removeprefix("GS-") or "–"
+    text = (f"{b.name} ({b.von:%d.%m.} – {b.bis:%d.%m.%Y})\n\nVorher: {alt}  →  nachher: {z_neu.kurz}. "
+            f"{alt} wird dafür frei.")
+    if (stand.zugewiesen(person) or {}).get("status") == "belegt":
+        text += "\n\nDie Planung war „fest“ – im neuen Zimmer gilt sie wieder als geplant."
+    if hinweis:
+        text += f"\n\nAchtung – Ausnahme: {hinweis}"
+    text += "\n\nDanach im Belegungssystem umbuchen (steht unter Aufgaben → Eintragen)."
+    mit: list = []
+    if partner:
+        ohne = frozenset({person} | {x.schluessel for x in partner})
+        passt_beide = stand.lage.freie_betten(nach, b.von, b.bis, ohne) >= 1 + len(partner)
+        box = QMessageBox(QMessageBox.Question, "Zimmer wechseln",
+                          text + f"\n\nDZ-Partner laut Liste: {', '.join(x.name for x in partner)}."
+                          + ("" if passt_beide else " Für beide ist dort kein Platz."), parent=parent)
+        beide = box.addButton("Beide wechseln", QMessageBox.AcceptRole) if passt_beide else None
+        allein = box.addButton(f"Nur {b.name.split(',')[0]}", QMessageBox.AcceptRole)
+        box.addButton("Abbrechen", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is None or box.clickedButton() not in (beide, allein):
+            return False
+        if box.clickedButton() is beide:
+            mit = partner
+    elif QMessageBox.question(parent, "Zimmer wechseln", text) != QMessageBox.Yes:
+        return False
+    zts = [zp.Zuteilung(x, z_neu) for x in [b] + mit]
+    v = aenderungen.zuweisungen_vorschau(zp.laden(), zts, gesehen=stand.zuweisungen)
+    if v.konflikte:                       # inzwischen woanders geändert oder belegt – nichts überschreiben
+        QMessageBox.warning(parent, "Zimmerwechsel nicht möglich", "\n".join(v.konflikte))
+        return False
+    namen = ", ".join(x.name for x in [b] + mit)
+    return ausfuehren(parent, zustand, f"{namen}: {alt} → {z_neu.kurz}",
+                      lambda: zp.zuweisungen_speichern(zts, quelle),
+                      f"{namen}: {alt} → {z_neu.kurz}.", "warnung" if hinweis else "ok")

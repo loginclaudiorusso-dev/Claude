@@ -1,20 +1,23 @@
-"""Zimmerplan Goslar: Zuteilen, Zeitstrahl, Häuser, Zimmer-Stammdaten und Quellen – je ein Reiter."""
+"""Zimmerplan Goslar: Planen (Zuteilen, Zeitstrahl, Häuser), Erledigen (Aufgaben, Abreisen, Reinigung), Zimmer.
+
+Importe (Gebäudeplan, ZKL, Zimmer-Pivot) stehen seit 6.14 unter Daten & Import, die Planungs-Einstellungen unter
+Einstellungen, der Verlauf unter „Mehr“ (``belegung/ui/zimmerquellen.py``)."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-    QHeaderView, QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QTableWidgetItem, QVBoxLayout, QWidget,
+    QHeaderView, QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
 from ... import zimmerplan as zp
 from .. import drucken, theme
-from ..basis import Seite, Worker, Zustand, sichtbar
+from ..basis import Seite, Zustand, sichtbar
 from ..widgets import FlowLayout, Hinweis, Karte, Leer, Mehrfachauswahl, Pille, Segment, Tabelle, DatumFeld, knopf, label, leeren
 from ..zeitstrahl import Zeitstrahl
 
@@ -36,7 +39,7 @@ def _status_farben() -> dict[str, tuple[str, str]]:
 
 
 # Nach Aufgaben gruppiert: Planen | Erledigen (Tagesgeschäft) | Verwalten (Stammdaten, Importe, Protokoll)
-TABS = ["Zuteilen", "Zeitstrahl", "Häuser", "Aufgaben", "Abreisen", "Reinigung", "Zimmer", "Quellen"]
+TABS = ["Zuteilen", "Zeitstrahl", "Häuser", "Aufgaben", "Abreisen", "Reinigung", "Zimmer"]
 TAB_GRUPPEN = (3, 6)                         # Trennstrich vor „Aufgaben“ und vor „Zimmer“
 TAB_TIPPS = {
     "Zuteilen": "Planen: Anreisen Zimmer geben – Vorschlag prüfen, anpassen, übernehmen",
@@ -46,8 +49,8 @@ TAB_TIPPS = {
     "Abreisen": "Erledigen: wer wann abreist – Liste drucken",
     "Reinigung": "Erledigen: Reinigungsliste der Woche",
     "Zimmer": "Verwalten: Zimmer-Stammdaten, Zimmerliste filtern und drucken, Renovierungen",
-    "Quellen": "Verwalten: Gebäudeplan, Zimmer-Pivot und ZKL importieren · Änderungsprotokoll",
 }
+WEGGEFALLEN = {"Quellen": "Zuteilen"}       # alte Reiter (gemerkte Tabs) → wohin stattdessen
 TABS_VOR_610 = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Zimmer", "Quellen"]   # alte Nummern
 ABREISE_ZEITRAUM = ["Heute", "Morgen", "Diese Woche", "Nächste Woche", "14 Tage", "Monat"]
 
@@ -93,12 +96,10 @@ class ZimmerplanSeite(Seite):
             ka.setSpacing(4)
             optimieren = knopf("Optimieren", "ghost", "funke", "Belegung prüfen: Regelverstöße, bessere Zimmer, Tausche")
             optimieren.clicked.connect(self.optimieren)
-            fenster = knopf("Neues Fenster", "ghost", "fenster")
-            fenster.setToolTip("Den aktuellen Reiter zusätzlich in einem eigenen Fenster öffnen – z. B. den "
-                               "Zeitstrahl neben „Zuteilen“. Änderungen erscheinen in allen Fenstern.")
-            fenster.clicked.connect(self._neues_fenster)
+            mehr = knopf("Mehr", "ghost", None, "Verlauf der Änderungen, neues Fenster, Importe, Einstellungen")
+            mehr.setMenu(self._mehr_menue())
             ka.addWidget(optimieren)
-            ka.addWidget(fenster)
+            ka.addWidget(mehr)
         self.lay.addLayout(kopf)
         # Kennzahlen in eigener Zeile unter den Reitern – brechen bei schmalem Fenster sauber um
         kz = QWidget()
@@ -113,7 +114,7 @@ class ZimmerplanSeite(Seite):
         self._zs_arten: set[str] = set()      # Zeitstrahl-Filter nach Art (Legende anklicken)
         bauen = {"Zuteilen": self._zuteilen_bauen, "Aufgaben": self._aufgaben_bauen, "Zeitstrahl": self._zeitstrahl_bauen,
                  "Häuser": self._haeuser_bauen, "Reinigung": self._reinigung_bauen, "Abreisen": self._abreisen_bauen,
-                 "Zimmer": self._stamm_bauen, "Quellen": self._quellen_bauen}
+                 "Zimmer": self._stamm_bauen}
         self.seiten = [bauen[t]() for t in TABS]
         for w in self.seiten:
             self.lay.addWidget(w)
@@ -167,10 +168,6 @@ class ZimmerplanSeite(Seite):
         self.zu_karte.inhalt.addWidget(status)
         unter = QHBoxLayout()
         unter.setSpacing(8)
-        self.b_plus = knopf("Person", "ghost", "plus", "Person von Hand zu dieser Anreise hinzufügen")
-        self.b_plus.clicked.connect(self._person_hinzufuegen)
-        neu = knopf("Neu", "ghost", "funke", "Eigene Änderungen verwerfen und neu vorschlagen")
-        neu.clicked.connect(self._neu_vorschlagen)
         self.b_excel = knopf("Export", "ghost", "tabelle", "Anreiseliste, Excel, Zimmerschilder oder Schlüsselliste dieser Anreise")
         export = QMenu(self.b_excel)
         export.addAction("Anreiseliste drucken …", lambda: self._anreise_drucken("anreise"))
@@ -180,17 +177,20 @@ class ZimmerplanSeite(Seite):
         self.b_excel.setMenu(export)
         self.b_ok = knopf("Übernehmen", "primary", "haken", "Zuteilung speichern – zählt dann bei weiteren Vorschlägen als belegt")
         self.b_ok.clicked.connect(self._uebernehmen)
-        self.b_zurueck = knopf("Zurücknehmen", "ghost", "loeschen", "Gespeicherte Planung wieder entfernen")
-        menue = QMenu(self.b_zurueck)
-        self.m_anreise = menue.addAction("Planung dieser Anreise zurücknehmen", self._anreise_zuruecknehmen)
+        # Seltenes unter „Mehr“ – sichtbar bleiben nur Export und die Hauptaktion „Übernehmen“
+        self.b_mehr = knopf("Mehr", "ghost", None, "Person hinzufügen, neu vorschlagen, Planung zurücknehmen")
+        menue = QMenu(self.b_mehr)
+        self.b_plus = menue.addAction("Person zu dieser Anreise hinzufügen …", self._person_hinzufuegen)
+        menue.addAction("Neu vorschlagen (eigene Änderungen verwerfen)", self._neu_vorschlagen)
         menue.addSeparator()
+        self.m_anreise = menue.addAction("Planung dieser Anreise zurücknehmen", self._anreise_zuruecknehmen)
         self.m_uwt_weg = menue.addAction("Alle kommenden UWT-Planungen zurücknehmen", self._uwt_zuruecknehmen)
         menue.addAction("Alle kommenden UWT neu automatisch zuteilen", self._uwt_neu)
         menue.aboutToShow.connect(self._zurueck_menue)
-        self.b_zurueck.setMenu(menue)
+        self.b_mehr.setMenu(menue)
         aktionen = QWidget()            # Knöpfe brechen im schmalen Fenster um, statt die Seite zu verbreitern
         knoepfe = FlowLayout(aktionen, abstand=8)
-        for x in (self.b_plus, neu, self.b_zurueck, self.b_excel):
+        for x in (self.b_excel, self.b_mehr):
             knoepfe.addWidget(x)
         unter.addWidget(aktionen, 1, Qt.AlignTop)
         unter.addWidget(self.b_ok, 0, Qt.AlignTop)
@@ -712,7 +712,7 @@ class ZimmerplanSeite(Seite):
 
         self.fc_karte = Karte("Facility-Check nach langem Aufenthalt",
                               "Nach einem Auszug nach langer Maßnahme: Elektrik prüfen, Fensterwartung. Erledigtes abhaken. "
-                              "Ab wie vielen Monaten: Quellen → Planung.")
+                              "Ab wie vielen Monaten: Einstellungen → Zimmerplanung.")
         self.fc_inhalt = QVBoxLayout()
         self.fc_karte.inhalt.addLayout(self.fc_inhalt)
         v.addWidget(self.fc_karte)
@@ -761,94 +761,6 @@ class ZimmerplanSeite(Seite):
         v.addStretch()
         return w
 
-    def _quellen_bauen(self) -> QWidget:
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.setSpacing(16)
-        # Karten untereinander: so umbrechen die Texte sauber und nichts wird abgeschnitten
-        zeile = QVBoxLayout()
-        zeile.setSpacing(16)
-        self.plan_karte = Karte("Gebäudeplan", "Word-Export aus dem Belegungssystem – Grundlage für Zimmer und Belegung")
-        self.plan_text = label("", "muted", umbruch=True)
-        self.plan_karte.inhalt.addWidget(self.plan_text)
-        knoepfe = QHBoxLayout()
-        knoepfe.setSpacing(8)
-        imp = knopf("Gebäudeplan importieren", "primary", "hochladen")
-        imp.clicked.connect(self._plan_importieren)
-        knoepfe.addWidget(imp)
-        einf = knopf("Aus Zwischenablage einfügen", "ghost", "kopieren")
-        einf.setToolTip("Im Belegungssystem die Gebäudeansicht markieren (Strg+A) und kopieren (Strg+C) – dann hier klicken")
-        einf.clicked.connect(self._plan_einfuegen)
-        knoepfe.addWidget(einf)
-        ordner = knopf("Ordner öffnen", "ghost", "datei")
-        ordner.setToolTip("Gebäudepläne (.docx), die hier liegen, werden beim Öffnen des Zimmerplans automatisch übernommen")
-        ordner.clicked.connect(self._eingang_oeffnen)
-        knoepfe.addWidget(ordner)
-        knoepfe.addStretch()
-        self.plan_karte.inhalt.addLayout(knoepfe)
-        zeile.addWidget(self.plan_karte, 1)
-        self.pivot_karte = Karte("Zimmer-Pivot", "Belegung je Zimmer und Tag (Rios) – ergänzt Buchungen, die im Plan fehlen")
-        self.pivot_text = label("", "muted", umbruch=True)
-        self.pivot_karte.inhalt.addWidget(self.pivot_text)
-        self.b_pivot = knopf("Zimmer-Pivot importieren", "primary", "tabelle")
-        self.b_pivot.clicked.connect(self._pivot_importieren)
-        self.pivot_karte.inhalt.addWidget(self.b_pivot, 0, Qt.AlignLeft)
-        zeile.addWidget(self.pivot_karte, 1)
-        self.zkl_karte = Karte("Zimmerkontrollliste (ZKL)", "Excel des Internatsdienstes – ergänzt Tier, TN-Nummer und "
-                                                           "Zimmer-Infos; Abweichungen zum Entscheiden")
-        self.zkl_text = label("", "muted", umbruch=True)
-        self.zkl_karte.inhalt.addWidget(self.zkl_text)
-        kn = QHBoxLayout()
-        kn.setSpacing(8)
-        self.b_zkl = knopf("ZKL importieren", "primary", "tabelle")
-        self.b_zkl.clicked.connect(self._zkl_importieren)
-        kn.addWidget(self.b_zkl)
-        self.b_zkl_abgleich = knopf("Abgleich anzeigen", "ghost")
-        self.b_zkl_abgleich.clicked.connect(self._zkl_abgleich)
-        kn.addWidget(self.b_zkl_abgleich)
-        kn.addStretch()
-        self.zkl_karte.inhalt.addLayout(kn)
-        zeile.addWidget(self.zkl_karte, 1)
-        v.addLayout(zeile)
-        einst = Karte("Planung", "Gilt für alle Vorschläge")
-        f = QHBoxLayout()
-        f.addWidget(label("Puffer nach jeder Abreise (Reinigung)", "klein"))
-        self.puffer = QSpinBox()
-        self.puffer.setRange(0, 7)
-        self.puffer.setSuffix(" Tag(e)")
-        self.puffer.setToolTip("0 = am Abreisetag wieder belegbar · 1 = frühestens am Tag nach der Abreise")
-        self.puffer.setValue(int(speicher.einstellungen().get("zimmer_puffer", 1)))
-        self.puffer.valueChanged.connect(lambda v: (speicher.einstellung_setzen("zimmer_puffer", v), self.neu_laden()))
-        f.addWidget(self.puffer)
-        f.addStretch()
-        einst.inhalt.addLayout(f)
-        f = QHBoxLayout()                  # eigene Zeile – passt auch im schmalen Fenster
-        f.addWidget(label("Facility-Check ab Aufenthalt von", "klein"))
-        self.fc_monate = QSpinBox()
-        self.fc_monate.setRange(1, 36)
-        self.fc_monate.setSuffix(" Monaten")
-        self.fc_monate.setToolTip("Nach einem Auszug nach so langer Zeit: Meldung „Elektrik prüfen, Fensterwartung“")
-        self.fc_monate.setValue(int(speicher.einstellungen().get("facility_monate", 6)))
-        self.fc_monate.valueChanged.connect(lambda v: (speicher.einstellung_setzen("facility_monate", v),
-                                                       self._tab_inhalt(self.tabs.index())))
-        f.addWidget(self.fc_monate)
-        f.addStretch()
-        einst.inhalt.addLayout(f)
-        v.addWidget(einst)
-        self.prot_karte = Karte("Änderungsprotokoll", "Wer wann wen in welches Zimmer geplant, umgeplant oder entfernt hat "
-                                                      "(neueste zuerst)")
-        self.prot_tab = Tabelle(["Zeit", "Aktion", "Name", "Zimmer", "Anlass", "Wer"], ["l"] * 6, dehnen=2)
-        self.prot_tab.setTextElideMode(Qt.ElideRight)
-        self.prot_karte.inhalt.addWidget(self.prot_tab)
-        self.prot_mehr = knopf("Ältere anzeigen", "ghost")
-        self.prot_mehr.clicked.connect(lambda: self._protokoll_zeigen(self._prot_anzahl + 100))
-        self.prot_karte.inhalt.addWidget(self.prot_mehr, 0, Qt.AlignLeft)
-        self._prot_anzahl = 30
-        v.addWidget(self.prot_karte)
-        v.addStretch()
-        return w
-
     # ================================================================== Anzeige
 
     def aktualisieren(self) -> None:
@@ -859,7 +771,6 @@ class ZimmerplanSeite(Seite):
             self.stand = zp.laden()
             self._kopf_zeigen()
             self._aufgaben_zaehler()
-            self._quellen_zeigen()
             self._anreisen_fuellen()
             self._tab_inhalt(self.tabs.index())
             return
@@ -890,7 +801,6 @@ class ZimmerplanSeite(Seite):
                                 "unter Zuteilen änderbar.", "ok")
         self._kopf_zeigen()
         self._aufgaben_zaehler()
-        self._quellen_zeigen()
         ziel = getattr(self.z, "zimmer_anreise", None)
         if ziel:
             # EMR sind schon am Vortag des Listendatums da – dann den Vortag wählen
@@ -922,10 +832,13 @@ class ZimmerplanSeite(Seite):
     def ansicht_setzen(self, ansicht: dict) -> None:
         """Tab gewechselt: Reiter, Haus, Suche und Monat des Zeitstrahls wie zuletzt in diesem Tab."""
         ansicht = dict(ansicht)
+        if ansicht.get("reiter_name") in WEGGEFALLEN:   # z. B. „Quellen“ (bis 6.13)
+            ansicht["reiter_name"] = WEGGEFALLEN[ansicht["reiter_name"]]
         if ansicht.get("reiter_name") in TABS:          # Reiter über den Namen – Nummern ändern sich mit neuen Reitern
             ansicht["reiter"] = TABS.index(ansicht["reiter_name"])
         elif isinstance(ansicht.get("reiter"), int) and 0 <= ansicht["reiter"] < len(TABS_VOR_610):
-            ansicht["reiter"] = TABS.index(TABS_VOR_610[ansicht["reiter"]])   # gespeichert vor 6.10 (nur Nummer)
+            alt = TABS_VOR_610[ansicht["reiter"]]                             # gespeichert vor 6.10 (nur Nummer)
+            ansicht["reiter"] = TABS.index(WEGGEFALLEN.get(alt, alt))
         if isinstance(ansicht.get("zs_haus"), int):
             self.zs_haus.setzen(ansicht["zs_haus"])
         if isinstance(ansicht.get("zs_suche"), str):
@@ -954,6 +867,23 @@ class ZimmerplanSeite(Seite):
     def _fremd_geaendert(self) -> None:
         if not self._eigene_aenderung:
             self.anstossen()
+
+    def _gebaeudeplan_importieren(self) -> None:
+        from ..zimmerquellen import plan_importieren
+
+        if plan_importieren(self, self.z):
+            self.neu_laden()
+
+    def _mehr_menue(self) -> QMenu:
+        from ..zimmerquellen import verlauf_oeffnen
+
+        m = QMenu(self)
+        m.addAction("Verlauf – wer hat wann was geändert …", lambda: verlauf_oeffnen(self, self.z))
+        m.addAction("Diesen Reiter in neuem Fenster öffnen", self._neues_fenster)
+        m.addSeparator()
+        m.addAction("Importe (Gebäudeplan, ZKL) …", lambda: self.z.navigieren.emit("daten:Gebäudeplan & ZKL"))
+        m.addAction("Einstellungen der Zimmerplanung …", lambda: self.z.navigieren.emit("einstellungen"))
+        return m
 
     def optimieren(self) -> None:
         from ..optimieren import OptimierenDialog
@@ -1017,12 +947,12 @@ class ZimmerplanSeite(Seite):
             h = Hinweis("Noch kein Gebäudeplan da – die Zimmer sind bekannt, die aktuelle Belegung aber nicht. "
                         "Plan importieren oder in den Ordner „Gebaeudeplan“ legen.",
                         "warnung", "Gebäudeplan importieren")
-            h.knopf.clicked.connect(self._plan_importieren)
+            h.knopf.clicked.connect(self._gebaeudeplan_importieren)
             self.hinweise.addWidget(h)
         elif st.plan.stand and (heute - st.plan.stand).days > 7:
             h = Hinweis(f"Der Gebäudeplan ist vom {st.plan.stand:%d.%m.%Y} – für verlässliche Vorschläge bitte den "
                         "aktuellen Plan importieren.", "info", "Importieren")
-            h.knopf.clicked.connect(self._plan_importieren)
+            h.knopf.clicked.connect(self._gebaeudeplan_importieren)
             self.hinweise.addWidget(h)
         fremd = sorted((b for zid, bs in st.lage.belegungen.items() if zp.nur_emr(st.lage.zimmer[zid]) for b in bs
                         if b.bis >= heute and zp.belegung_gruppe(b) not in (None, "EMR")), key=lambda b: b.zimmer)
@@ -1613,10 +1543,10 @@ class ZimmerplanSeite(Seite):
                     m.addAction("Umzug wieder auf geplant" if u.belegt else "Umzug abschließen (fest)",
                                 lambda: self._status_umzug(u.id, not u.belegt))
                 m.addAction("Umzug zurücknehmen", lambda: zurueck_nehmen(self, self.z, b.umzug))
-            elif ganz_verschieben(b):
-                m.addAction("In ein anderes Zimmer verschieben …", lambda: karte_oeffnen(self, self.z, zid, schluessel))
-            elif b.bis >= date.today():
-                m.addAction("Umzug in ein anderes Zimmer …", lambda: self._umzug(b))
+            elif ganz_verschieben(b):              # noch nicht eingezogen: Zimmer in der Personenkarte wählen
+                m.addAction("Zimmer wechseln …", lambda: karte_oeffnen(self, self.z, zid, schluessel))
+            elif b.bis >= date.today():            # eingezogen: Umzug ab einem Tag
+                m.addAction("Zimmer wechseln (Umzug ab …) …", lambda: self._umzug(b))
             if not b.umzug and b.person and self.stand.zugewiesen(b.person):
                 m.addAction("Wieder auf geplant" if b.art == "belegt" else "Planung abschließen (fest)",
                             lambda: self._status_person(b.person, b.art != "belegt", b.name))
@@ -1628,52 +1558,12 @@ class ZimmerplanSeite(Seite):
     # ---- Zeitstrahl: geplante Zuweisung per Ziehen verschieben ------------------------------
 
     def _zs_verschieben(self, person: str, von: str, nach: str) -> None:
-        if self.stand is None:
-            return
-        fehler, hinweis, partner = zp.verschieben_pruefen(self.stand, person, nach)
-        if fehler:
-            QMessageBox.warning(self, "Verschieben nicht möglich", fehler)
-            return
-        b = next(x for x in self.stand.bedarf if x.schluessel == person)
-        z_neu = self.stand.lage.zimmer[nach]
-        text = (f"{b.name} ({b.von:%d.%m.} – {b.bis:%d.%m.%Y}) von Zimmer {von.removeprefix('GS-')} "
-                f"nach {z_neu.kurz} verschieben?\n\nVorher: {von.removeprefix('GS-')}  →  nachher: {z_neu.kurz}. "
-                f"{von.removeprefix('GS-')} wird dafür frei.")
-        if (self.stand.zugewiesen(person) or {}).get("status") == "belegt":
-            text += "\n\nDie Planung war „fest“ – im neuen Zimmer gilt sie wieder als geplant."
-        if hinweis:
-            text += f"\n\nAchtung – Ausnahme: {hinweis}"
-        text += "\n\nDanach im Belegungssystem umbuchen (steht unter Aufgaben → Eintragen)."
-        mit: list = []
-        if partner:
-            ohne = frozenset({person} | {x.schluessel for x in partner})
-            passt_beide = self.stand.lage.freie_betten(nach, b.von, b.bis, ohne) >= 1 + len(partner)
-            box = QMessageBox(QMessageBox.Question, "Zimmer verschieben",
-                              text + f"\n\nDZ-Partner laut Liste: {', '.join(x.name for x in partner)}.", parent=self)
-            beide = box.addButton("Beide verschieben", QMessageBox.AcceptRole) if passt_beide else None
-            allein = box.addButton(f"Nur {b.name.split(',')[0]}", QMessageBox.AcceptRole)
-            box.addButton("Abbrechen", QMessageBox.RejectRole)
-            box.exec()
-            if box.clickedButton() not in (beide, allein) or box.clickedButton() is None:
-                return
-            if box.clickedButton() is beide:
-                mit = partner
-        elif QMessageBox.question(self, "Zimmer verschieben", text) != QMessageBox.Yes:
-            return
-        from ... import aenderungen
-        from ..aenderung_ui import ausfuehren
+        from ..aenderung_ui import zimmer_wechseln_geplant
 
-        zts = [zp.Zuteilung(x, z_neu) for x in [b] + mit]
-        v = aenderungen.zuweisungen_vorschau(zp.laden(), zts, gesehen=self.stand.zuweisungen)
-        if v.konflikte:                       # inzwischen woanders geändert oder belegt
-            QMessageBox.warning(self, "Verschieben nicht möglich", "\n".join(v.konflikte))
+        if self.stand is not None and zimmer_wechseln_geplant(self, self.z, self.stand, person, nach, "Zeitstrahl verschoben"):
             self._nach_aenderung()
-            return
-        namen = ", ".join(x.name for x in [b] + mit)
-        if ausfuehren(self, self.z, f"{namen} nach {z_neu.kurz}",
-                      lambda: zp.zuweisungen_speichern(zts, "Zeitstrahl verschoben"),
-                      f"{namen}: {von.removeprefix('GS-')} → {z_neu.kurz}.", "warnung" if hinweis else "ok"):
-            self._nach_aenderung()
+        elif self.stand is not None:
+            self.neu_laden()                   # z. B. inzwischen woanders geändert: frisch anzeigen
 
     # ---- Zurücknehmen und Konflikte -----------------------------------------------------
 
@@ -2102,7 +1992,7 @@ class ZimmerplanSeite(Seite):
             if z.aktiv:
                 haeuser.setdefault(z.haus, []).append(z)
         if not haeuser:
-            self.haeuser.addWidget(Leer("haus", "Kein Gebäudeplan", "Unter „Quellen“ den Gebäudeplan (.docx) importieren."))
+            self.haeuser.addWidget(Leer("haus", "Kein Gebäudeplan", "Unter Daten & Import → „Gebäudeplan & ZKL“ den Gebäudeplan (.docx) importieren."))
             return
         status_je = {z.id: st.lage.status_am(z.id, tag) for z in st.zimmer if z.aktiv}
         zaehler: dict[str, int] = {}
@@ -2254,181 +2144,4 @@ class ZimmerplanSeite(Seite):
         self.z.meldung.emit("Zimmer-Stammdaten gespeichert.", "ok")
         self._nach_aenderung()
 
-    # ================================================================== Quellen
-
-    def _protokoll_zeigen(self, anzahl: int | None = None) -> None:
-        from ... import protokoll
-
-        self._prot_anzahl = anzahl or self._prot_anzahl
-        alle = protokoll.laden()
-        zeilen = []
-        for e in alle[:self._prot_anzahl]:
-            alt, neu = e.get("alt", "").removeprefix("GS-"), e.get("neu", "").removeprefix("GS-")
-            zimmer = f"{alt} → {neu}" if alt and neu else (neu or alt)
-            zeilen.append([datetime.fromisoformat(e["zeit"]).strftime("%d.%m. %H:%M"), e.get("aktion", ""),
-                           e.get("name", ""), zimmer, e.get("quelle", ""), e.get("wer", "")])
-        self.prot_tab.fuellen(zeilen)
-        self.prot_tab.hoehe_anpassen(12)
-        self.prot_tab.setVisible(bool(zeilen))
-        self.prot_mehr.setVisible(len(alle) > self._prot_anzahl)
-
-    def _quellen_zeigen(self) -> None:
-        self._protokoll_zeigen()
-        st = self.stand
-        heute = date.today()
-        if st.plan is None:
-            self.plan_text.setText(f"Noch kein Plan importiert – die {len(st.zimmer)} Zimmer sind mitgeliefert, die Belegung "
-                                   "fehlt aber. Neueste Plan-Datei (.docx) in den Ordner „Gebaeudeplan“ legen oder "
-                                   "importieren.")
-        else:
-            stand = f"Stand {st.plan.stand:%d.%m.%Y}" if st.plan.stand else "Stand unbekannt"
-            aktiv = [z for z in st.zimmer if z.aktiv]
-            self.plan_text.setText(f"<b>{st.plan.datei}</b> · {stand}<br>{len(aktiv)} Zimmer mit "
-                                   f"{sum(z.betten for z in aktiv)} Betten in Haus 2, 3.1, 3.2, 3.3 und 6 "
-                                   f"(inkl. {sum(1 for z in aktiv if z.gaeste)} Gästezimmer)."
-                                   + ("<br>" + "<br>".join(st.plan.hinweise[:2]) if st.plan.hinweise else "")
-                                   + "<br>Aktualisieren: Word-Datei im Ordner „Gebaeudeplan“ speichern (wird automatisch "
-                                   "übernommen) – oder im Belegungssystem alles kopieren und „Aus Zwischenablage einfügen“.")
-        self._zkl_zeigen()
-        zpv = st.zimmer_pivot
-        if zpv is None:
-            self.pivot_text.setText("Noch nicht importiert (optional). Ergänzt gebuchte Tage, die im Gebäudeplan fehlen.")
-        else:
-            extra = {zid for zid, bs in st.lage.belegungen.items() for b in bs if b.name == zp.PIVOT_NAME and b.bis >= heute}
-            stand = f"Stand {zpv.stand:%d.%m.%Y}" if zpv.stand else "Stand unbekannt"
-            self.pivot_text.setText(f"<b>{zpv.datei}</b> · {stand}<br>{zpv.zimmer} Zimmer, {zpv.zeitraum[0]:%d.%m.%Y} – "
-                                    f"{zpv.zeitraum[1]:%d.%m.%Y}<br>"
-                                    + (f"<b>{len(extra)} Zimmer</b> mit Buchungen, die im Gebäudeplan fehlen – im Zeitstrahl "
-                                       "lila." if extra else "Stimmt mit dem Gebäudeplan überein."))
-
-    def _zkl_zeigen(self) -> None:
-        from ... import zkl
-
-        st, daten = self.stand, zkl.laden()
-        self.b_zkl_abgleich.setEnabled(daten is not None)
-        if daten is None:
-            self.zkl_text.setText("Noch nicht importiert (optional). Liefert Tier (Kundengruppe „Reha-Tier“), TN-Nummern "
-                                  "der Bewohner und Zimmer-Infos – und zeigt, wo ZKL und Gebäudeplan voneinander abweichen.")
-            return
-        offen = zkl.abgleich(st, daten)
-        tier = sum(1 for bs in st.lage.belegungen.values() for b in bs if b.art == "belegt" and zkl.hat_tier(st.lage, b))
-        stand = f", Daten bis {daten.stand:%d.%m.%Y}" if daten.stand else ""
-        self.zkl_text.setText(f"<b>{daten.datei}</b> · Blatt „{daten.blatt}“{stand} · importiert "
-                              f"{daten.importiert[:10]}<br>{len(daten.zimmer)} Zimmer, {tier} Bewohner mit Tier, "
-                              f"{len(daten.uebernommen)} als belegt übernommen<br>"
-                              + (f"<b>{sum(1 for p in offen if p.aktion)} offene Abweichungen</b> – „Abgleich anzeigen“."
-                                 if any(p.aktion for p in offen) else "Keine offenen Abweichungen."))
-
-    def _zkl_importieren(self) -> None:
-        from ... import zkl
-
-        start = speicher.einstellungen().get("import_ordner_zkl") or str(Path.home())
-        pfad, _ = QFileDialog.getOpenFileName(self, "Zimmerkontrollliste (ZKL) wählen", start,
-                                              "Excel (*.xlsx *.xlsm);;Alle Dateien (*)")
-        if not pfad:
-            return
-        speicher.einstellung_setzen("import_ordner_zkl", str(Path(pfad).parent))
-        self.b_zkl.setEnabled(False)
-        self.b_zkl.setText("Wird gelesen …")
-
-        def fertig(ergebnis) -> None:
-            zkl.speichern(ergebnis)
-            self.z.meldung.emit(f"ZKL importiert: {len(ergebnis.zimmer)} Zimmer aus Blatt „{ergebnis.blatt}“.", "ok")
-            self._nach_aenderung()
-            self._zkl_abgleich()
-
-        bekannt = {z.id for z in self.stand.zimmer} if self.stand else None
-        self._zkl_worker = Worker(zkl.lesen, Path(pfad), bekannt, parent=self)
-        self._zkl_worker.fertig.connect(fertig)
-        self._zkl_worker.fehler.connect(lambda t: self.z.meldung.emit(f"ZKL konnte nicht gelesen werden: {t}", "fehler"))
-        self._zkl_worker.finished.connect(lambda: (self.b_zkl.setEnabled(True), self.b_zkl.setText("ZKL importieren")))
-        self._zkl_worker.start()
-
-    def _zkl_abgleich(self) -> None:
-        from ..zkl_dialog import ZklAbgleichDialog
-
-        if ZklAbgleichDialog(self.z, self).exec():
-            self._nach_aenderung()
-
-    def _plan_importieren(self) -> None:
-        start = speicher.einstellungen().get("import_ordner_gebaeudeplan") or str(Path.home())
-        pfad, _ = QFileDialog.getOpenFileName(self, "Gebäudeplan wählen", start, "Word (*.docx);;Alle Dateien (*)")
-        if not pfad:
-            return
-        speicher.einstellung_setzen("import_ordner_gebaeudeplan", str(Path(pfad).parent))
-        try:
-            plan = gebaeudeplan.lesen(Path(pfad))
-        except Exception as exc:
-            self.z.meldung.emit(f"Gebäudeplan konnte nicht gelesen werden: {exc}", "fehler")
-            return
-        kennung = None
-        try:      # Kopie in den Eingangsordner – dann gilt diese Datei als aktueller Stand
-            import shutil
-
-            ziel = gebaeudeplan.eingangsordner() / Path(pfad).name
-            ziel.parent.mkdir(parents=True, exist_ok=True)
-            if ziel.resolve() != Path(pfad).resolve():
-                shutil.copy2(pfad, ziel)
-            kennung = {"pfad": ziel.name, "geaendert": int(ziel.stat().st_mtime)}
-        except OSError:
-            pass
-        gebaeudeplan.speichern(plan, kennung)
-        belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
-        self.z.meldung.emit(f"Gebäudeplan importiert: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-        self._nach_aenderung()
-
-    def _plan_einfuegen(self) -> None:
-        from PySide6.QtWidgets import QApplication, QMessageBox
-
-        mime = QApplication.clipboard().mimeData()
-        text = mime.text() if mime and mime.hasText() else ""
-        html = mime.html() if mime and mime.hasHtml() else ""
-        try:
-            plan = gebaeudeplan.aus_zwischenablage(text, html)
-        except ValueError as exc:
-            self.z.meldung.emit(str(exc), "fehler")
-            return
-        belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
-        gesperrt = sum(1 for b in plan.belegungen if b.art == "gesperrt")
-        frage = QMessageBox.question(
-            self, "Gebäudeplan einfügen",
-            f"Erkannt: {len(plan.zimmer)} Zimmer mit {sum(z.betten for z in plan.zimmer)} Betten, "
-            f"{belegt} Belegungen, {gesperrt} Sperrungen.\n\nAls aktuellen Gebäudeplan (Stand heute) übernehmen?")
-        if frage != QMessageBox.Yes:
-            return
-        speicher.schreiben(f"{speicher.IMPORT_ORDNER}/gebaeudeplan_eingefuegt.json",
-                           {"text": text, "html": html[:2_000_000]})       # Rohdaten zur Nachkontrolle
-        gebaeudeplan.speichern(plan, {"pfad": "Zwischenablage", "geaendert": 0})
-        self.z.meldung.emit(f"Gebäudeplan eingefügt: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-        self._nach_aenderung()
-
-    def _eingang_oeffnen(self) -> None:
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-
-        ordner = gebaeudeplan.eingangsordner()
-        ordner.mkdir(parents=True, exist_ok=True)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(ordner)))
-
-    def _pivot_importieren(self) -> None:
-        from ... import zimmerpivot
-
-        start = speicher.einstellungen().get("import_ordner_zimmerpivot") or str(Path.home())
-        pfad, _ = QFileDialog.getOpenFileName(self, "Zimmer-Pivot wählen", start, "Excel (*.xlsx *.xlsm);;Alle Dateien (*)")
-        if not pfad:
-            return
-        speicher.einstellung_setzen("import_ordner_zimmerpivot", str(Path(pfad).parent))
-        self.b_pivot.setEnabled(False)
-        self.b_pivot.setText("Wird gelesen …")
-
-        def fertig(ergebnis) -> None:
-            zimmerpivot.speichern(ergebnis)
-            self.z.meldung.emit(f"Zimmer-Pivot importiert: {ergebnis.zimmer} Zimmer, "
-                                f"{ergebnis.zeitraum[0]:%d.%m.%Y} – {ergebnis.zeitraum[1]:%d.%m.%Y}.", "ok")
-            self._nach_aenderung()
-
-        self._pivot_worker = Worker(zimmerpivot.lesen, Path(pfad), parent=self)
-        self._pivot_worker.fertig.connect(fertig)
-        self._pivot_worker.fehler.connect(lambda t: self.z.meldung.emit(f"Zimmer-Pivot konnte nicht gelesen werden: {t}", "fehler"))
-        self._pivot_worker.finished.connect(lambda: (self.b_pivot.setEnabled(True), self.b_pivot.setText("Zimmer-Pivot importieren")))
-        self._pivot_worker.start()
+    # ================================================================== Ende

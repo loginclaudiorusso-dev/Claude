@@ -242,7 +242,8 @@ def test_reiter_gruppiert_und_alte_nummern(qapp):
     from belegung.ui.seiten import zimmerplan as seite
 
     assert seite.TABS[0] == "Zuteilen" and set(seite.TABS) == set(seite.TAB_TIPPS)
-    assert all(seite.TABS_VOR_610[i] in seite.TABS for i in range(len(seite.TABS_VOR_610)))
+    assert all(seite.WEGGEFALLEN.get(t, t) in seite.TABS for t in seite.TABS_VOR_610)
+    assert "Quellen" not in seite.TABS                       # Importe stehen seit 6.14 unter Daten & Import
 
 
 def test_frei_nur_wenn_niemand_nachrueckt(daten):
