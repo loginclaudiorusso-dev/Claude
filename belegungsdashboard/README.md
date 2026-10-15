@@ -27,6 +27,18 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.11
+
+* **Renovierung und Boden je Zimmer:** neue Zimmer-Eigenschaften „renoviert am“ und „Boden“ (mit Merker „vermutet“).
+  Die mitgelieferte Renovierungsliste (`Renovierungen_Import.tsv` im Programmordner, 77 Zimmer) wird beim ersten
+  Start einmal übernommen – Boden „Vinyl (vermutet)“. Ein sicher eingetragener Boden wird nie überschrieben.
+* **Zimmerliste** (Zimmerplan → Reiter „Zimmer“, oben): filtern nach Haus, Renovierung (renoviert, nicht
+  renoviert, seit Jahr), Boden, Tier-/Doppel-/Gästezimmer, Bad über den Flur, heute frei, Suche. Sortierbar,
+  **Drucken/PDF** (Querformat, mit/ohne Bewohner) und **Kopieren** für Excel. Zeilen markieren →
+  **„Eigenschaften setzen …“** (Renovierung/Boden für mehrere Zimmer); **„Renovierungen einfügen …“** für weitere
+  Listen aus Excel (Haus, Zimmer, Notiz, Datum). Kennt der Zimmerplan den Boden nicht, steht der Boden laut ZKL da.
+* Zimmerkarte zeigt „renoviert … · Boden …“.
+
 ## Neu in 6.10
 
 * **Abreiseliste** – Zimmerplan → Reiter **„Abreisen“** (auch von der Startseiten-Kachel „Abreisen“ → „Abreiseliste

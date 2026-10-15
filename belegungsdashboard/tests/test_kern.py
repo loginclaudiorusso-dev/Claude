@@ -2453,3 +2453,42 @@ def test_abreiseliste_und_zimmer_sortierung(tmp_path, monkeypatch):
     html = drucklisten.abreiseliste_html(a, "14.10. – 20.10.2026")
     assert "Donnerstag, 15.10.2026" in html and "Weg, Wanda" in html and html.count("☐") == 4
     assert "Keine Abreisen" in drucklisten.abreiseliste_html([], "x")
+
+
+def test_zimmerliste_renovierung_filter(tmp_path, monkeypatch):
+    """Renovierungsliste einlesen (Haus 3.3-Nummern, die es nur in 3.2 gibt → 3.2), einmaliger Auto-Import mit
+    Boden „Vinyl (vermutet)“, Filter und Druckliste."""
+    from belegung import zimmerliste as zl
+    from belegung import zimmerplan as zp
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    zimmer = [zp.Zimmer("GS-3.2-110", "3.2", "1", "110"), zp.Zimmer("GS-3.3-317", "3.3", "3", "317"),
+              zp.Zimmer("GS-2-402", "2", "4", "402"), zp.Zimmer("GS-6-405", "6", "4", "405", nur_maenner=True),
+              zp.Zimmer("GS-3.1-E20", "3.1", "E", "E20", tiere=True)]
+    zimmer[2].boden = "Teppich"                                         # sicher eingetragen → bleibt
+    lage = zp.Lage({z.id: z for z in zimmer}, {z.id: [] for z in zimmer})
+    st = zp.Planstand(None, {}, zimmer, lage, [], [])
+    text = ("3.1\tE20\t\t\t27.09.2019\n3.3\t110\t\t\t20.12.2019\n3.3\t317\t\t\t20.12.2019\n"
+            "2\t402\t\tfertigstellung 07.01.26\t07.01.2026\n6\t205\t\t\t17.03.2020\n")
+    e, fehler = zl.renovierungen_lesen(text, {z.id for z in zimmer})
+    assert [(x.zimmer, x.datum) for x in e] == [("GS-3.1-E20", date(2019, 9, 27)), ("GS-3.2-110", date(2019, 12, 20)),
+                                               ("GS-3.3-317", date(2019, 12, 20)), ("GS-2-402", date(2026, 1, 7))]
+    assert len(fehler) == 1 and fehler[0].startswith("6")
+    (tmp_path / zl.IMPORT_DATEI).write_text(text, encoding="utf-8")
+    n, _f = zl.auto_import(st)
+    assert n == 4 and zl.auto_import(st) is None                      # nur einmal
+    z = {x.id: x for x in st.zimmer}
+    assert z["GS-3.2-110"].boden == "Vinyl" and z["GS-3.2-110"].boden_vermutet
+    assert z["GS-2-402"].boden == "Teppich" and z["GS-2-402"].renoviert == "2026-01-07"
+    assert {r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="ja"))} == {"GS-3.1-E20", "GS-3.2-110", "GS-3.3-317", "GS-2-402"}
+    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="nein"))] == ["GS-6-405"]
+    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(renoviert="seit:2026"))] == ["GS-2-402"]
+    assert {r.zimmer.id for r in zl.filtern(st, zl.Filter(boden="Vinyl"))} == {"GS-3.1-E20", "GS-3.2-110", "GS-3.3-317"}
+    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(merkmale={"tiere"}))] == ["GS-3.1-E20"]
+    assert [r.zimmer.id for r in zl.filtern(st, zl.Filter(haus="6", heute_frei=True))] == ["GS-6-405"]
+    html = zl.liste_html(zl.filtern(st, zl.Filter(boden="Vinyl")), zl.Filter(boden="Vinyl"))
+    assert "Vinyl (vermutet)" in html and "Boden Vinyl" in html and "20.12.2019" in html
+    # gespeichert in den Stammdaten (ältere Versionen ignorieren die Felder)
+    gespeichert = zp.speicher.lesen(zp.STAMM_DATEI, {})
+    assert {k: gespeichert["GS-3.2-110"][k] for k in ("renoviert", "boden", "boden_vermutet")} == \
+        {"renoviert": "2019-12-20", "boden": "Vinyl", "boden_vermutet": True}

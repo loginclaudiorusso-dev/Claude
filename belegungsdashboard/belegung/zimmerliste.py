@@ -1,0 +1,237 @@
+"""Zimmerliste: Zimmer nach Eigenschaften filtern und ausdrucken – Renovierung, Boden, Tier-/Doppel-/Gästezimmer,
+Bad über den Flur, heute frei. Dazu das Einlesen einer Renovierungsliste (aus Excel kopiert).
+
+Renovierung und Boden stehen in den Zimmer-Stammdaten (``renoviert``, ``boden``, ``boden_vermutet``). Kennt der
+Zimmerplan den Boden nicht, wird der Boden laut ZKL angezeigt (falls importiert). Rein, ohne Qt.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from html import escape
+
+from . import speicher
+from . import zimmerplan as zp
+
+BOEDEN = ["Vinyl", "PVC", "Teppich", "Laminat", "Linoleum", "Fliesen"]
+IMPORT_DATEI = "Renovierungen_Import.tsv"     # liegt sie im Programm- oder Datenordner, wird sie einmal übernommen
+_DATUM = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})")
+
+
+def boden_text(z: zp.Zimmer) -> str:
+    return f"{z.boden} (vermutet)" if z.boden and z.boden_vermutet else z.boden
+
+
+def reno_datum(z: zp.Zimmer) -> date | None:
+    try:
+        return date.fromisoformat(z.renoviert) if z.renoviert else None
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------------------
+# Renovierungsliste einlesen
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class Renovierung:
+    zimmer: str
+    datum: date
+    notiz: str = ""
+
+
+def _datum(text: str) -> date | None:
+    m = _DATUM.search(text or "")
+    if not m:
+        return None
+    t, mo, j = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    try:
+        return date(j + 2000 if j < 100 else j, mo, t)
+    except ValueError:
+        return None
+
+
+def renovierungen_lesen(text: str, bekannt: set[str]) -> tuple[list[Renovierung], list[str]]:
+    """Zeilen wie „3.1  E20  …  27.09.2019“ bzw. „2 402 fertigstellung 07.01.26 07.01.2026“ (Tabulator oder
+    Leerzeichen): Haus, Zimmer, optional Notiz, Datum (letztes Datum der Zeile). Gibt (Treffer, unbekannte Zeilen)."""
+    from .zkl import zimmer_id
+
+    erg, fehler = [], []
+    for zeile in (text or "").splitlines():
+        teile = [t.strip() for t in re.split(r"\t|\s{2,}", zeile.strip()) if t.strip()]
+        if len(teile) < 2:
+            teile = zeile.split()
+        if len(teile) < 3:
+            if zeile.strip():
+                fehler.append(zeile.strip())
+            continue
+        daten = [d for t in teile if (d := _datum(t))]
+        zid = zimmer_id(f"{teile[0]}-{teile[1]}", bekannt)
+        if not daten or zid is None or zid not in bekannt:
+            fehler.append(zeile.strip())
+            continue
+        notiz = " ".join(t for t in teile[2:] if not _DATUM.fullmatch(t))
+        erg.append(Renovierung(zid, daten[-1], notiz))
+    return erg, fehler
+
+
+def renovierungen_anwenden(stand: zp.Planstand, eintraege: list[Renovierung], boden: str = "",
+                           vermutet: bool = True) -> int:
+    """Renovierungsdatum setzen (das neuere gewinnt) und – wenn angegeben – den Boden, sofern noch keiner sicher
+    eingetragen ist. Speichert die Stammdaten. Gibt die Zahl geänderter Zimmer zurück."""
+    zimmer = {z.id: z for z in stand.zimmer}
+    n = 0
+    for e in eintraege:
+        z = zimmer.get(e.zimmer)
+        if z is None:
+            continue
+        alt = (z.renoviert, z.boden, z.boden_vermutet)
+        if not z.renoviert or z.renoviert < e.datum.isoformat():
+            z.renoviert = e.datum.isoformat()
+        if boden and (not z.boden or z.boden_vermutet):
+            z.boden, z.boden_vermutet = boden, vermutet
+        n += alt != (z.renoviert, z.boden, z.boden_vermutet)
+    if n:
+        zp.stammdaten_speichern(stand.zimmer, stand.plan)
+    return n
+
+
+def auto_import(stand: zp.Planstand) -> tuple[int, list[str]] | None:
+    """Einmalig: ``Renovierungen_Import.tsv`` aus Programm- oder Datenordner übernehmen (Boden: Vinyl, vermutet).
+    None = keine (neue) Datei."""
+    from .konfig import programmordner
+
+    for ordner in dict.fromkeys([speicher.pfad(""), programmordner()]):
+        pfad = ordner / IMPORT_DATEI
+        if not pfad.is_file():
+            continue
+        text = pfad.read_text(encoding="utf-8-sig")
+        kennung = hashlib.sha1(text.encode()).hexdigest()[:16]
+        if kennung in speicher.einstellungen().get("renovierung_importe", []):
+            return None
+        eintraege, fehler = renovierungen_lesen(text, {z.id for z in stand.zimmer})
+        n = renovierungen_anwenden(stand, eintraege, "Vinyl", True)
+        speicher.einstellung_setzen("renovierung_importe",
+                                    speicher.einstellungen().get("renovierung_importe", []) + [kennung])
+        return n, fehler
+    return None
+
+
+# ---------------------------------------------------------------------------------------
+# Filtern
+# ---------------------------------------------------------------------------------------
+
+MERKMALE = {"tiere": "Tier-Zimmer", "doppel": "Doppelzimmer", "maenner": "Bad über den Flur (nur Männer)",
+            "gaeste": "Gästezimmer"}
+
+
+@dataclass
+class Filter:
+    haus: str = ""                    # "" = alle
+    renoviert: str = "alle"           # alle | ja | nein | seit:JJJJ
+    boden: str = "alle"               # alle | unbekannt | <Belag> (auch vermutet)
+    merkmale: set[str] = field(default_factory=set)
+    nur_internat: bool = True
+    heute_frei: bool = False
+    text: str = ""
+
+    def beschreibung(self) -> str:
+        teile = [f"Haus {self.haus}" if self.haus else "alle Häuser"]
+        if self.renoviert == "ja":
+            teile.append("renoviert")
+        elif self.renoviert == "nein":
+            teile.append("nicht renoviert / unbekannt")
+        elif self.renoviert.startswith("seit:"):
+            teile.append(f"renoviert seit {self.renoviert[5:]}")
+        if self.boden != "alle":
+            teile.append(f"Boden {self.boden}")
+        teile += [MERKMALE[m] for m in sorted(self.merkmale)]
+        if self.heute_frei:
+            teile.append("heute frei")
+        if self.text:
+            teile.append(f"„{self.text}“")
+        return " · ".join(teile)
+
+
+@dataclass
+class Zeile:
+    zimmer: zp.Zimmer
+    boden: str            # Anzeige (eigener Eintrag, sonst „PVC (ZKL)“)
+    heute: str            # frei | Name(n) | gesperrt …
+    frei: bool
+
+
+def _boden_anzeige(lage: zp.Lage, z: zp.Zimmer) -> str:
+    if z.boden:
+        return boden_text(z)
+    e = getattr(lage, "zkl", {}).get(z.id)
+    if e is None or not e.boden:
+        return ""
+    belag = {"tep": "Teppich", "tep sw": "Teppich", "pvc": "PVC", "pvc-d": "PVC"}.get(e.boden.lower(), e.boden)
+    return f"{belag} (ZKL)"
+
+
+def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Zeile]:
+    heute = heute or date.today()
+    erg = []
+    for z in stand.zimmer:
+        if f.nur_internat and not z.aktiv or f.haus and z.haus != f.haus:
+            continue
+        d = reno_datum(z)
+        if f.renoviert == "ja" and d is None or f.renoviert == "nein" and d is not None:
+            continue
+        if f.renoviert.startswith("seit:") and (d is None or d.year < int(f.renoviert[5:])):
+            continue
+        boden = _boden_anzeige(stand.lage, z)
+        if f.boden == "unbekannt" and boden or f.boden not in ("alle", "unbekannt") and \
+                not boden.lower().startswith(f.boden.lower()):
+            continue
+        if "tiere" in f.merkmale and not z.tiere or "doppel" in f.merkmale and z.betten < 2 \
+                or "maenner" in f.merkmale and not z.nur_maenner or "gaeste" in f.merkmale and not z.gaeste:
+            continue
+        status, bs = stand.lage.status_am(z.id, heute)
+        frei = status == "frei"
+        if f.heute_frei and not frei:
+            continue
+        if status == "gesperrt":
+            jetzt = "gesperrt" + (f" ({bs[0].grund})" if bs and bs[0].grund else "")
+        else:
+            namen = [b.name for b in bs if b.art in ("belegt", "geplant") and b.name and b.name != zp.PIVOT_NAME]
+            jetzt = ", ".join(namen) if namen else ("frei" if frei else "belegt")
+        if f.text and f.text.lower() not in f"{z.kurz} {z.notiz} {boden} {jetzt}".lower():
+            continue
+        erg.append(Zeile(z, boden, jetzt, frei))
+    return erg
+
+
+def merkmal_kurz(z: zp.Zimmer) -> str:
+    return " ".join(k for k, an in (("Tier", z.tiere), ("DZ", z.betten > 1), ("M", z.nur_maenner), ("Gast", z.gaeste),
+                                    ("außer Betrieb", not z.aktiv)) if an)
+
+
+def liste_html(zeilen: list[Zeile], f: Filter, namen: bool = True) -> str:
+    """Zimmerliste zum Ausdrucken – nach Haus und Zimmer, mit Filter in der Überschrift."""
+    from .drucklisten import _STIL
+
+    teile = [_STIL, "<h1>Zimmerliste</h1>",
+             f"<div class='klein'>Internat Goslar · {escape(f.beschreibung())} · {len(zeilen)} Zimmer · "
+             f"Stand {datetime.now():%d.%m.%Y %H:%M}</div><br>",
+             "<table class='liste' width='100%' cellspacing='0'><tr><th width='10%'>Zimmer</th><th width='12%'>Etage</th>"
+             "<th width='13%'>Merkmale</th><th width='12%'>Renoviert</th><th width='15%'>Boden</th>"
+             + ("<th width='20%'>Heute</th>" if namen else "") + "<th>Notiz</th></tr>"]
+    for r in zeilen:
+        z = r.zimmer
+        d = reno_datum(z)
+        teile.append(f"<tr><td><b>{escape(z.kurz)}</b></td><td>{escape(zp.flur_text(z))}</td>"
+                     f"<td>{escape(merkmal_kurz(z))}</td><td>{d:%d.%m.%Y}</td>" if d else
+                     f"<tr><td><b>{escape(z.kurz)}</b></td><td>{escape(zp.flur_text(z))}</td>"
+                     f"<td>{escape(merkmal_kurz(z))}</td><td class='leer'>–</td>")
+        teile.append(f"<td>{escape(r.boden) or '<span class=leer>–</span>'}</td>"
+                     + (f"<td>{escape(r.heute)}</td>" if namen else "") + f"<td>{escape(z.notiz)}</td></tr>")
+    teile.append("</table>")
+    if not zeilen:
+        teile.append("<p class='leer'>Keine Zimmer für diese Auswahl.</p>")
+    return "".join(teile)

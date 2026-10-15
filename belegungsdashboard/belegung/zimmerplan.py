@@ -148,6 +148,9 @@ class Zimmer:
     gaeste: bool = False
     aktiv: bool = True         # False = gehört nicht zum Internat (z. B. Jugendhilfe, Lager)
     notiz: str = ""
+    renoviert: str = ""        # Datum der letzten Renovierung (ISO), "" = unbekannt
+    boden: str = ""            # Bodenbelag, z. B. „Vinyl“ ("" = unbekannt)
+    boden_vermutet: bool = False   # Boden nur vermutet („ziemlich sicher“)
 
     @property
     def nummer(self) -> int:

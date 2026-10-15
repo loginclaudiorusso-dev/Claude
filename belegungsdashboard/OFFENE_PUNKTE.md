@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.10.0, 14.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.11.0, 15.10.2026)
 
 ## Als Nächstes
 
@@ -23,6 +23,8 @@
 - 6.10: Abreiseliste (Reiter „Abreisen“), Zimmer-Sortierung Haus → Etage → Nummer. Nutzer meldete, dass Zuteilen →
   Zimmer nicht sortiert – im Test (auch echter Mausklick) sortiert es; Version beim Nutzer prüfen lassen.
   Hinweis: gemerkte Reiter-Nummern (offene Tabs) verschieben sich durch den neuen Reiter um eins.
+- 6.11: Renovierung/Boden je Zimmer, Zimmerliste. 2 Zeilen der Renovierungsliste nicht im Zimmerplan (6-205
+  Jugendhilfe, 3.1-220); „3.3-110/301/305/313“ als 3.2 zugeordnet – vom Nutzer bestätigen lassen.
 - **Datenschutz offen:** Repository auf GitHub ist öffentlich; frühe Commits (8ef10e3, 227827c vom 03.10.) enthalten
   echte Namen/TN-Nr. in Testdaten. Nutzer entscheidet: Repository privat schalten und/oder Historie bereinigen.
 - Mail-Erkennung mit weiteren echten Beispielen nachschärfen (Anmeldungen zu Maßnahmen, Verlängerungen).

@@ -129,6 +129,11 @@ class ZimmerKarte(QDialog):
         fl.addWidget(Pille(STATUS_TEXT[status].capitalize() + " heute",
                            {"frei": "ok", "teilweise": "knapp", "gesperrt": "ueber"}.get(status, "neutral")))
         fl.addWidget(label(f"{zp.flur_text(z)} · {z.betten} Bett{'en' if z.betten > 1 else ''}", "muted"))
+        from .. import zimmerliste as zl
+
+        if (d := zl.reno_datum(z)) or z.boden:
+            fl.addWidget(label(" · ".join(t for t in (f"renoviert {d:%d.%m.%Y}" if d else "",
+                                                      f"Boden {zl.boden_text(z)}" if z.boden else "") if t), "muted"))
         for text, an in (("Tiere erlaubt", z.tiere), ("nur Männer (Bad über den Flur)", z.nur_maenner),
                          ("Gästezimmer", z.gaeste), ("Doppelzimmer", z.betten > 1)):
             if an:

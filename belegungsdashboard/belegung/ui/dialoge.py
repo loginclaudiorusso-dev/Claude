@@ -1067,3 +1067,130 @@ class TerminDialog(QDialog):
         self.ergebnis = termine.Termin(self.termin.id if self.termin else "", self.datum.datum(), self.titel.text().strip(),
                                             self.text.toPlainText().strip(), "eigen", vorlauf=self.vorlauf.value())
         self.accept()
+
+
+class ZimmerEigenschaftenDialog(QDialog):
+    """Renovierung und Boden für ein oder mehrere Zimmer setzen (Zimmerplan → Zimmer → Zimmerliste)."""
+
+    def __init__(self, stand, zimmer: list, parent=None):
+        from .. import zimmerliste as zl
+        from .. import zimmerplan as zp
+
+        super().__init__(parent)
+        self.stand, self.zimmer = stand, zimmer
+        self.setWindowTitle("Eigenschaften setzen")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(12)
+        v.addWidget(label("Eigenschaften setzen", "seitentitel"))
+        namen = ", ".join(z.kurz for z in zimmer[:12]) + (f" … (+{len(zimmer) - 12})" if len(zimmer) > 12 else "")
+        v.addWidget(label(f"{len(zimmer)} Zimmer: {namen}", "muted", umbruch=True))
+        raster = QGridLayout()
+        raster.setHorizontalSpacing(12)
+        self.reno = QComboBox()
+        self.reno.addItems(["Renovierung: nicht ändern", "renoviert am …", "Renovierung entfernen"])
+        self.reno_datum = DatumFeld(date.today())
+        self.reno.currentIndexChanged.connect(lambda i: self.reno_datum.setEnabled(i == 1))
+        self.reno_datum.setEnabled(False)
+        raster.addWidget(self.reno, 0, 0)
+        raster.addWidget(self.reno_datum, 0, 1)
+        self.boden = QComboBox()
+        self.boden.addItem("Boden: nicht ändern", None)
+        for b in zl.BOEDEN:
+            self.boden.addItem(b, b)
+        self.boden.addItem("Boden entfernen (unbekannt)", "")
+        self.vermutet = QCheckBox("nur vermutet („ziemlich sicher“)")
+        raster.addWidget(self.boden, 1, 0)
+        raster.addWidget(self.vermutet, 1, 1)
+        v.addLayout(raster)
+        unten = QHBoxLayout()
+        unten.addStretch()
+        ab = knopf("Abbrechen", "ghost")
+        ab.clicked.connect(self.reject)
+        ok = knopf("Speichern", "primary", "haken")
+        ok.clicked.connect(self._speichern)
+        unten.addWidget(ab)
+        unten.addWidget(ok)
+        v.addLayout(unten)
+        self._zp = zp
+
+    def _speichern(self) -> None:
+        alle = {z.id: z for z in self.stand.zimmer}
+        boden = self.boden.currentData()
+        for z in self.zimmer:
+            ziel = alle.get(z.id)
+            if ziel is None:
+                continue
+            if self.reno.currentIndex() == 1:
+                ziel.renoviert = self.reno_datum.datum().isoformat()
+            elif self.reno.currentIndex() == 2:
+                ziel.renoviert = ""
+            if boden is not None:
+                ziel.boden, ziel.boden_vermutet = boden, bool(boden) and self.vermutet.isChecked()
+        self._zp.stammdaten_speichern(self.stand.zimmer, self.stand.plan)
+        self.accept()
+
+
+class RenovierungenDialog(QDialog):
+    """Renovierungsliste aus Excel einfügen: Haus, Zimmer, (Notiz), Datum – je Zeile."""
+
+    def __init__(self, stand, parent=None):
+        from PySide6.QtWidgets import QPlainTextEdit
+
+        from .. import zimmerliste as zl
+
+        super().__init__(parent)
+        self.stand = stand
+        self.setWindowTitle("Renovierungen einfügen")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 20)
+        v.setSpacing(10)
+        v.addWidget(label("Renovierungen einfügen", "seitentitel"))
+        v.addWidget(label("In Excel die Spalten Haus, Zimmer, (Notiz,) Datum markieren, kopieren (Strg+C) und hier "
+                          "einfügen (Strg+V). Gilt das neuere Datum; ein sicher eingetragener Boden bleibt.", "muted",
+                          umbruch=True))
+        self.text = QPlainTextEdit()
+        self.text.setPlaceholderText("3.1\tE20\t\t27.09.2019\n2\t402\tfertigstellung\t07.01.2026")
+        self.text.setMinimumHeight(220)
+        self.text.textChanged.connect(self._pruefen)
+        v.addWidget(self.text)
+        zeile = QHBoxLayout()
+        self.boden = QComboBox()
+        self.boden.addItem("Boden nicht setzen", "")
+        for b in zl.BOEDEN:
+            self.boden.addItem(f"Boden: {b}", b)
+        self.boden.setCurrentIndex(1)
+        self.vermutet = QCheckBox("nur vermutet („ziemlich sicher“)")
+        self.vermutet.setChecked(True)
+        zeile.addWidget(self.boden)
+        zeile.addWidget(self.vermutet)
+        zeile.addStretch()
+        v.addLayout(zeile)
+        self.info = label("", "klein", umbruch=True)
+        v.addWidget(self.info)
+        unten = QHBoxLayout()
+        unten.addStretch()
+        ab = knopf("Abbrechen", "ghost")
+        ab.clicked.connect(self.reject)
+        self.ok = knopf("Übernehmen", "primary", "haken")
+        self.ok.clicked.connect(self._uebernehmen)
+        self.ok.setEnabled(False)
+        unten.addWidget(ab)
+        unten.addWidget(self.ok)
+        v.addLayout(unten)
+        self.resize(640, 520)
+        self._zl = zl
+
+    def _pruefen(self) -> None:
+        self._eintraege, fehler = self._zl.renovierungen_lesen(self.text.toPlainText(), {z.id for z in self.stand.zimmer})
+        self.info.setText(f"<b>{len(self._eintraege)} Zimmer erkannt</b>"
+                          + (f" · nicht zugeordnet: {', '.join(fehler[:6])}" + (" …" if len(fehler) > 6 else "")
+                             if fehler else ""))
+        self.ok.setEnabled(bool(self._eintraege))
+
+    def _uebernehmen(self) -> None:
+        n = self._zl.renovierungen_anwenden(self.stand, self._eintraege, self.boden.currentData(),
+                                            self.vermutet.isChecked())
+        if parent := self.parent():
+            parent.z.meldung.emit(f"Renovierungen übernommen: {n} Zimmer geändert.", "ok")
+        self.accept()

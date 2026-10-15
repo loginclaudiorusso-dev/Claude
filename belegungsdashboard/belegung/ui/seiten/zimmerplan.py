@@ -487,6 +487,8 @@ class ZimmerplanSeite(Seite):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(16)
+        v.addWidget(self._zimmerliste_bauen())
         karte = Karte("Zimmer-Stammdaten", "Aus den Grundrissen abgeleitet – bitte einmal prüfen. Häkchen per Klick, "
                                            "Flur/Betten/Notiz per Doppelklick ändern, dann speichern.")
         leiste = QHBoxLayout()
@@ -505,6 +507,167 @@ class ZimmerplanSeite(Seite):
         karte.inhalt.addWidget(self.stamm)
         v.addWidget(karte)
         return w
+
+    # ---- Zimmerliste: nach Eigenschaften filtern und drucken -------------------------------
+
+    def _zimmerliste_bauen(self) -> QWidget:
+        from ... import zimmerliste as zl
+
+        karte = Karte("Zimmerliste", "Zimmer nach Eigenschaften filtern – Renovierung, Boden, Tier-/Doppel-/Gästezimmer, "
+                                     "heute frei – und ausdrucken")
+        oben = QWidget()
+        fluss = FlowLayout(oben, abstand=10)
+        self.zl_haus = Segment(["Alle", "Haus 2", "Haus 3.1", "Haus 3.2", "Haus 3.3", "Haus 6"], 0)
+        self.zl_haus.geaendert.connect(lambda _i: self._zimmerliste_zeigen())
+        fluss.addWidget(self.zl_haus)
+        self.zl_reno = QComboBox()
+        jahr = date.today().year
+        for text, wert in [("Renovierung: egal", "alle"), ("renoviert", "ja"), ("nicht renoviert / unbekannt", "nein")] + \
+                [(f"renoviert seit {j}", f"seit:{j}") for j in range(jahr - 1, jahr - 6, -1)]:
+            self.zl_reno.addItem(text, wert)
+        self.zl_boden = QComboBox()
+        for text, wert in [("Boden: egal", "alle")] + [(b, b) for b in zl.BOEDEN] + [("Boden unbekannt", "unbekannt")]:
+            self.zl_boden.addItem(text, wert)
+        for box in (self.zl_reno, self.zl_boden):
+            box.currentIndexChanged.connect(lambda _i: self._zimmerliste_zeigen())
+            fluss.addWidget(box)
+        self.zl_merkmale: dict[str, QCheckBox] = {}
+        for k, text in (("tiere", "Tier-Zimmer"), ("doppel", "Doppelzimmer"), ("maenner", "Bad über den Flur"),
+                        ("gaeste", "Gästezimmer")):
+            cb = QCheckBox(text)
+            cb.toggled.connect(lambda _a: self._zimmerliste_zeigen())
+            self.zl_merkmale[k] = cb
+            fluss.addWidget(cb)
+        self.zl_frei = QCheckBox("heute frei")
+        self.zl_frei.toggled.connect(lambda _a: self._zimmerliste_zeigen())
+        fluss.addWidget(self.zl_frei)
+        self.zl_alle = QCheckBox("auch außer Betrieb")
+        self.zl_alle.setToolTip("Auch Zimmer, die nicht zum Internat gehören (Lager, Jugendhilfe …)")
+        self.zl_alle.toggled.connect(lambda _a: self._zimmerliste_zeigen())
+        fluss.addWidget(self.zl_alle)
+        self.zl_suche = QLineEdit()
+        self.zl_suche.setPlaceholderText("Suche: Zimmer, Name, Notiz …")
+        self.zl_suche.setClearButtonEnabled(True)
+        self.zl_suche.setMinimumWidth(200)
+        self.zl_suche.textChanged.connect(lambda _t: self._zimmerliste_zeigen())
+        fluss.addWidget(self.zl_suche)
+        karte.inhalt.addWidget(oben)
+        knoepfe = QWidget()
+        kf = FlowLayout(knoepfe, abstand=8)
+        for text, variante, icon, fn in (("Drucken", "primary", "datei", lambda: self._zimmerliste_drucken(False)),
+                                         ("PDF", "ghost", "datei", lambda: self._zimmerliste_drucken(True)),
+                                         ("Kopieren", "ghost", "kopieren", self._zimmerliste_kopieren),
+                                         ("Eigenschaften setzen …", "ghost", "haken", self._eigenschaften_setzen),
+                                         ("Renovierungen einfügen …", "ghost", "hochladen", self._renovierungen_einfuegen)):
+            b = knopf(text, variante, icon)
+            b.clicked.connect(fn)
+            kf.addWidget(b)
+        self.zl_namen = QCheckBox("Bewohner drucken")
+        self.zl_namen.setChecked(True)
+        kf.addWidget(self.zl_namen)
+        karte.inhalt.addWidget(knoepfe)
+        self.zl_info = label("", "muted", umbruch=True)
+        karte.inhalt.addWidget(self.zl_info)
+        self.zl_tab = Tabelle(["Zimmer", "Etage", "Merkmale", "Renoviert", "Boden", "Heute", "Notiz"], ["l"] * 7, dehnen=5)
+        self.zl_tab.setTextElideMode(Qt.ElideRight)
+        self.zl_tab.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.zl_tab.setToolTip("Mehrere Zeilen markieren (Strg/Umschalt) → „Eigenschaften setzen …“ · Doppelklick: Zimmerkarte")
+        self.zl_tab.cellDoubleClicked.connect(self._zimmerliste_oeffnen)
+        karte.inhalt.addWidget(self.zl_tab)
+        self._zl_zeilen: list = []
+        return karte
+
+    def _zl_filter(self):
+        from ... import zimmerliste as zl
+
+        i = self.zl_haus.index()
+        return zl.Filter(haus="" if i == 0 else HAEUSER[i - 1], renoviert=self.zl_reno.currentData(),
+                         boden=self.zl_boden.currentData(), merkmale={k for k, cb in self.zl_merkmale.items() if cb.isChecked()},
+                         nur_internat=not self.zl_alle.isChecked(), heute_frei=self.zl_frei.isChecked(),
+                         text=self.zl_suche.text().strip())
+
+    def _zimmerliste_zeigen(self) -> None:
+        from ... import zimmerliste as zl
+
+        if self.stand is None:
+            return
+        f = self._zl_filter()
+        self._zl_zeilen = zl.filtern(self.stand, f)
+        self.zl_tab.fuellen([[r.zimmer.kurz, zp.flur_text(r.zimmer).split(" · ", 1)[-1], zl.merkmal_kurz(r.zimmer),
+                              f"{d:%d.%m.%Y}" if (d := zl.reno_datum(r.zimmer)) else "–", r.boden or "–", r.heute,
+                              r.zimmer.notiz] for r in self._zl_zeilen])
+        self.zl_tab.hoehe_anpassen(16)
+        reno = sum(1 for r in self._zl_zeilen if r.zimmer.renoviert)
+        self.zl_info.setText(f"<b>{len(self._zl_zeilen)} Zimmer</b> · {f.beschreibung()} · davon {reno} renoviert, "
+                             f"{sum(1 for r in self._zl_zeilen if r.frei)} heute frei")
+
+    def _zl_gewaehlt(self) -> list:
+        sel = self.zl_tab.selectionModel()
+        reihen = sorted({self.zl_tab.daten_zeile(i.row()) for i in sel.selectedRows()}) if sel else []
+        return [self._zl_zeilen[r].zimmer for r in reihen if r < len(self._zl_zeilen)]
+
+    def _zimmerliste_oeffnen(self, r: int, _c: int = 0) -> None:
+        from ..zimmerkarte import karte_oeffnen
+
+        i = self.zl_tab.daten_zeile(r)
+        if 0 <= i < len(self._zl_zeilen):
+            karte_oeffnen(self, self.z, self._zl_zeilen[i].zimmer.id)
+
+    def _zl_ansicht(self) -> list:
+        """Zeilen in der angezeigten Reihenfolge (so wie sortiert)."""
+        return [self._zl_zeilen[self.zl_tab.daten_zeile(r)] for r in range(self.zl_tab.rowCount())
+                if self.zl_tab.daten_zeile(r) < len(self._zl_zeilen)]
+
+    def _zimmerliste_drucken(self, pdf: bool) -> None:
+        from ... import zimmerliste as zl
+
+        self._html_ausgeben(zl.liste_html(self._zl_ansicht(), self._zl_filter(), self.zl_namen.isChecked()), True,
+                            f"Zimmerliste_{date.today():%Y-%m-%d}.pdf" if pdf else None)
+
+    def _zimmerliste_kopieren(self) -> None:
+        from PySide6.QtGui import QGuiApplication
+
+        from ... import zimmerliste as zl
+
+        zeilen = ["Zimmer\tEtage\tMerkmale\tRenoviert\tBoden\tHeute\tNotiz"]
+        for r in self._zl_ansicht():
+            d = zl.reno_datum(r.zimmer)
+            zeilen.append("\t".join([r.zimmer.kurz, zp.flur_text(r.zimmer), zl.merkmal_kurz(r.zimmer),
+                                     f"{d:%d.%m.%Y}" if d else "", r.boden, r.heute, r.zimmer.notiz]))
+        QGuiApplication.clipboard().setText("\n".join(zeilen))
+        self.z.meldung.emit(f"{len(zeilen) - 1} Zimmer kopiert – in Excel einfügen (Strg+V).", "ok")
+
+    def _eigenschaften_setzen(self) -> None:
+        from ..dialoge import ZimmerEigenschaftenDialog
+
+        zimmer = self._zl_gewaehlt()
+        if not zimmer:
+            QMessageBox.information(self, "Eigenschaften setzen", "Bitte zuerst eine oder mehrere Zeilen markieren "
+                                    "(Strg/Umschalt + Klick).")
+            return
+        if ZimmerEigenschaftenDialog(self.stand, zimmer, self).exec():
+            self.z.meldung.emit(f"Eigenschaften für {len(zimmer)} Zimmer gespeichert.", "ok")
+            self._nach_aenderung()
+
+    def _renovierungen_einfuegen(self) -> None:
+        from ..dialoge import RenovierungenDialog
+
+        if RenovierungenDialog(self.stand, self).exec():
+            self._nach_aenderung()
+
+    def _renovierungen_auto(self) -> None:
+        from ... import zimmerliste as zl
+
+        try:
+            erg = zl.auto_import(self.stand)
+        except Exception:                 # noqa: BLE001 – Import darf den Start nie verhindern
+            return
+        if erg is not None:
+            n, fehler = erg
+            self.stand = zp.laden()
+            nicht = ", ".join("-".join(x.split()[:2]) for x in fehler[:5])
+            self.z.meldung.emit(f"Renovierungsliste übernommen: {n} Zimmer renoviert, Boden „Vinyl (vermutet)“"
+                                + (f" – nicht im Zimmerplan: {nicht}" if fehler else "") + ".", "ok")
 
     def _aufgaben_bauen(self) -> QWidget:
         w = QWidget()
@@ -696,6 +859,7 @@ class ZimmerplanSeite(Seite):
 
             self.z.meldung.emit(uwt_meldung(uwt_neu), "ok")
         self.stand = zp.laden()
+        self._renovierungen_auto()
         if neu is not None and (k := zp.konflikte(self.stand.lage)):
             self.z.meldung.emit(f"Achtung: {len(k)} geplante Zimmer kollidieren mit dem neuen Gebäudeplan – "
                                 "Hinweis im Zimmerplan, „Neu planen“ löst es.", "warnung")
@@ -1952,6 +2116,7 @@ class ZimmerplanSeite(Seite):
     # ================================================================== Stammdaten
 
     def _stamm_zeigen(self) -> None:
+        self._zimmerliste_zeigen()
         haus = HAEUSER[self.stamm_haus.index()]
         self._stamm_zimmer = [z for z in self.stand.zimmer if z.haus == haus]
         tab = self.stamm
