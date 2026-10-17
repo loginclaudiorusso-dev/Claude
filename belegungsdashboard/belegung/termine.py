@@ -306,3 +306,49 @@ def meldetext(termine: list[Termin]) -> tuple[str, str]:
     if len(termine) > 4:
         zeilen.append(f"… und {len(termine) - 4} weitere")
     return f"{len(termine)} Erinnerungen fällig", "\n".join(zeilen)
+
+
+# ---------------------------------------------------------------------------------------
+# Dringlichkeit und Gruppen – nur für die Anzeige (die Termine selbst bleiben einzeln)
+# ---------------------------------------------------------------------------------------
+
+DRINGLICHKEIT = [("ueberfaellig", "Überfällig"), ("heute", "Heute"), ("bald", "Demnächst (7 Tage)"),
+                 ("spaeter", "Später")]
+
+
+def dringlichkeit(t: Termin, heute: date) -> str:
+    """Aus dem Termindatum: vor heute = überfällig, heute, in ≤ 7 Tagen = demnächst, sonst später."""
+    if t.datum < heute:
+        return "ueberfaellig"
+    if t.datum == heute:
+        return "heute"
+    return "bald" if t.datum <= heute + timedelta(days=7) else "spaeter"
+
+
+def gruppieren(termine: list[Termin], heute: date, ab: int = 2) -> list[tuple[str, list[tuple[str, list[Termin]]]]]:
+    """[(Dringlichkeit, [(Gruppentitel oder "", Termine)])]: gleiche Art am selben Tag ab ``ab`` Einträgen als eine
+    (aufklappbare) Gruppe, sonst einzeln (Titel ""). Reihenfolge: Dringlichkeit, Datum, Art. Kein Termin geht verloren."""
+    erg = []
+    for stufe, _text in DRINGLICHKEIT:
+        teil = sorted((t for t in termine if dringlichkeit(t, heute) == stufe),
+                      key=lambda t: (t.datum, list(ARTEN).index(t.art) if t.art in ARTEN else 99, t.titel))
+        if not teil:
+            continue
+        bloecke: list[tuple[str, list[Termin]]] = []
+        schluessel: dict[tuple, int] = {}
+        for t in teil:
+            k = (t.datum, t.art)
+            if k in schluessel:
+                bloecke[schluessel[k]][1].append(t)
+            else:
+                schluessel[k] = len(bloecke)
+                bloecke.append(("", [t]))
+        fertig = []
+        for _titel, liste in bloecke:
+            if len(liste) >= ab:
+                art = ARTEN.get(liste[0].art, liste[0].art)
+                fertig.append((f"{art} am {liste[0].datum:%d.%m.%Y} · {len(liste)} Erinnerungen", liste))
+            else:
+                fertig += [("", [t]) for t in liste]
+        erg.append((stufe, fertig))
+    return erg

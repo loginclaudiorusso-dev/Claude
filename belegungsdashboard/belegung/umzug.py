@@ -180,7 +180,7 @@ def bedarf_zu(stand: zp.Planstand, b: Belegung, ab: date) -> zp.Bedarf:
     from . import zkl
 
     tier = zkl.hat_tier(stand.lage, b)
-    return zp.Bedarf(zp.gp_schluessel(b.name), b.name, b.massnahme, gruppe, max(ab, b.von), b.bis,
+    return zp.Bedarf(zp.gp_schluessel(b.name, b.zimmer, b.von), b.name, b.massnahme, gruppe, max(ab, b.von), b.bis,
                      zp.geschlecht_raten(b.name), True, tier=tier if tier is not None else bool(z and zp.nur_tier(z)))
 
 

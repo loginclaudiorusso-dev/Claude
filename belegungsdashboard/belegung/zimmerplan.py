@@ -1195,7 +1195,11 @@ def zimmer_schluessel(zid: str) -> str:
     return f"zimmer:{zid}"
 
 
-def gp_schluessel(name: str) -> str:
+def gp_schluessel(name: str, zimmer: str = "", von: date | None = None) -> str:
+    """Schlüssel für Personen nur aus dem Gebäudeplan (Notizen, Erinnerungen). Fehlt der Name (leer oder Platzhalter
+    wie „unknown1“), wäre er nicht eindeutig – dann aus Zimmer und Einzugstag, damit nichts vermischt wird."""
+    if name_fehlt(name) and zimmer:
+        return f"gp:?{zimmer.removeprefix('GS-')}:{von.isoformat() if von else ''}"
     return "gp:" + " ".join(sorted(_namenswoerter(name)))
 
 
@@ -1205,12 +1209,12 @@ def bewohner_aus(stand: "Planstand", b: Belegung) -> Bewohner:
     bedarf = None
     if b.person:                                 # eigene Planung (geplant oder hier als belegt markiert)
         bedarf = next((x for x in stand.bedarf if x.schluessel == b.person), None)
-    elif b.name:
+    elif b.name and not name_fehlt(b.name):       # Platzhalter („unknown1“) nie einer Person zuordnen
         woerter = _namenswoerter(b.name)
         toleranz = timedelta(days=3)
         bedarf = next((x for x in stand.bedarf if (w := _namenswoerter(x.name)) and w <= woerter
                        and x.von <= b.bis + toleranz and b.von - toleranz <= x.bis), None)
-    schluessel = bedarf.schluessel if bedarf else (b.person or gp_schluessel(b.name))
+    schluessel = bedarf.schluessel if bedarf else (b.person or gp_schluessel(b.name, b.zimmer, b.von))
     return Bewohner(schluessel, b.name, b.massnahme, belegung_gruppe(b) or "", b.von, b.bis, b.zimmer, b.art, bedarf,
                     b.umzug, bool(b.person))
 
@@ -1551,12 +1555,27 @@ class Balken:
     belegung: Belegung
 
 
+# Platzhalter statt Namen (z. B. „unknown1“ aus dem Export des Belegungssystems, leere Namensfelder): Die Daten
+# bleiben, wie sie sind – angezeigt wird ehrlich „Name nicht verfügbar“, der Rohwert steht im Tooltip/Detail.
+PLATZHALTER_NAME = re.compile(r"^\s*(unknown|unbekannt|n\.?\s*n\.?|xx+|\?+)\s*\d*\s*$", re.IGNORECASE)
+NAME_FEHLT = "Name nicht verfügbar"
+
+
+def name_fehlt(name: str | None) -> bool:
+    return not (name or "").strip() or bool(PLATZHALTER_NAME.match(name or ""))
+
+
+def anzeige_name(name: str | None) -> str:
+    """Name für die Anzeige – Platzhalter/leer → „Name nicht verfügbar“ (die Daten werden nicht verändert)."""
+    return NAME_FEHLT if name_fehlt(name) else name
+
+
 def balken_text(b: Belegung) -> tuple[str, str]:
     if b.art == "gesperrt":
         return f"Gesperrt · {b.grund}" if b.grund else "Gesperrt", "gesperrt"
     if b.name == PIVOT_NAME:
         return "belegt (laut Zimmer-Pivot)", "pivot"
-    text = b.name + (f" ({b.massnahme})" if b.massnahme else "")
+    text = anzeige_name(b.name) + (f" ({b.massnahme})" if b.massnahme else "")
     return text, ("geplant" if b.art == "geplant" else "belegt")
 
 

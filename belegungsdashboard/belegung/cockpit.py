@@ -154,7 +154,7 @@ def abreiseliste(stand: zp.Planstand, von: date, bis: date) -> list[Abreise]:
                 continue
             naechste = min((x.von for x in bs if x is not b and x.art in ("belegt", "geplant") and x.von >= b.bis
                             and x.name != zp.PIVOT_NAME), default=None)
-            ergebnis.append(Abreise(b.bis, b.name, b.massnahme, zid, b.von, b.art, naechste,
+            ergebnis.append(Abreise(b.bis, zp.anzeige_name(b.name), b.massnahme, zid, b.von, b.art, naechste,
                                     zp.bewohner_aus(stand, b).schluessel))
     return sorted(ergebnis, key=lambda a: (a.tag, zp._haus_sort(a.zimmer.split("-")[1]), a.zimmer, a.name))
 
