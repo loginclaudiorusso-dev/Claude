@@ -291,7 +291,7 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Ältere Versionen ignorieren `sperrt` und teilen unbewohnbare Zimmer dann wieder zu. Es gehen keine Daten
   verloren.
 
-**6.20.0** (seit `d284505`): ein Commit.
+**6.20.0** (seit `d284505`): ein Commit (`4eddc71`).
 * Inhalt:
   * `belegung/mieter.py` (Vertrag, Vordrucke mit pypdf, Nebenabrede .docx)
   * `ui/mieter_dialog.py` (Masken)
