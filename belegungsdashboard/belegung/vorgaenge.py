@@ -113,6 +113,15 @@ def zimmerplan_vorgaenge(stand: zp.Planstand, heute: date, engpaesse: bool = Tru
         erg.append(Vorgang("facility", "info", f"{len(checks)} Facility-Check{'s' if len(checks) > 1 else ''} nach Auszug",
                            ", ".join(c.zimmer.removeprefix("GS-") for c in checks[:5]), "Ansehen", "facility",
                            min(c.bis for c in checks)))
+    # Offene Mängel (für das FM)
+    from . import maengel as mg
+
+    offen = mg.offen_je_zimmer()
+    if offen:
+        n = sum(len(x) for x in offen.values())
+        erg.append(Vorgang("maengel", "info", f"{len(offen)} Zimmer mit offenen Mängeln ({n})",
+                           ", ".join(zid.removeprefix("GS-") for zid in sorted(offen)[:6]) + (" …" if len(offen) > 6 else ""),
+                           "Ansehen", "maengel", min(m.seit for x in offen.values() for m in x)))
     # Engpässe nach Planung (5 Wochen)
     if engpaesse:
         try:

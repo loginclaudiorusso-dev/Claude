@@ -161,12 +161,13 @@ class Filter:
     boeden: set[str] = field(default_factory=set)      # mehrere Böden (oder-verknüpft), auch „unbekannt“
     gruppen: set[str] = field(default_factory=set)     # Personengruppen …
     gruppen_modus: str = "wohnt"      # … die dort wohnen | die dort wohnen dürfen („darf“)
+    maengel: set[str] = field(default_factory=set)     # offene Mängel dieser Arten („*“ = irgendein Mangel)
 
     @property
     def aktiv(self) -> bool:
         """Ist irgendein Filter gesetzt (außer Haus)?"""
         return (self.renoviert != "alle" or self.boden != "alle" or bool(self.merkmale or self.boeden or self.gruppen)
-                or not self.nur_internat or self.heute_frei or bool(self.text) or bool(self.status))
+                or not self.nur_internat or self.heute_frei or bool(self.text) or bool(self.status) or bool(self.maengel))
 
     def beschreibung(self) -> str:
         teile = [f"Haus {self.haus}" if self.haus else "alle Häuser"]
@@ -183,6 +184,10 @@ class Filter:
         if self.boeden:
             teile.append("Boden " + " oder ".join(sorted(self.boeden)))
         teile += [MERKMALE[m] for m in sorted(self.merkmale)]
+        if self.maengel:
+            from .maengel import NAMEN
+
+            teile.append("Mängel" if "*" in self.maengel else "Mangel: " + " oder ".join(NAMEN.get(m, m) for m in sorted(self.maengel)))
         if self.gruppen:
             teile.append(("wohnt: " if self.gruppen_modus == "wohnt" else "erlaubt für: ")
                          + ", ".join(zp.GRUPPE_LABEL.get(g, g) for g in sorted(self.gruppen)))
@@ -201,6 +206,7 @@ class Zeile:
     frei: bool
     status: str = ""      # frei | teilweise | belegt | geplant | gesperrt (am Stichtag)
     belegungen: list = field(default_factory=list)     # Belegungen am Stichtag (für die Kartenansicht)
+    maengel: list = field(default_factory=list)        # offene Mängel (maengel.Mangel)
 
 
 def _boden_anzeige(lage: zp.Lage, z: zp.Zimmer) -> str:
@@ -214,7 +220,10 @@ def _boden_anzeige(lage: zp.Lage, z: zp.Zimmer) -> str:
 
 
 def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Zeile]:
+    from . import maengel as mg
+
     heute = heute or date.today()
+    offen = mg.offen_je_zimmer()
     erg = []
     for z in stand.zimmer:
         if f.nur_internat and not z.aktiv or f.haus and z.haus != f.haus:
@@ -251,9 +260,12 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
         else:
             namen = [b.name for b in bs if b.art in ("belegt", "geplant") and b.name and b.name != zp.PIVOT_NAME]
             jetzt = ", ".join(namen) if namen else ("frei" if frei else "belegt")
-        if f.text and f.text.lower() not in f"{z.kurz} {z.notiz} {boden} {jetzt}".lower():
+        m = offen.get(z.id, [])
+        if f.maengel and not (m and ("*" in f.maengel or any(x.art in f.maengel for x in m))):
             continue
-        erg.append(Zeile(z, boden, jetzt, frei, status, [b for b in bs if b.art != "freigabe"]))
+        if f.text and f.text.lower() not in f"{z.kurz} {z.notiz} {boden} {jetzt} {' '.join(x.text for x in m)}".lower():
+            continue
+        erg.append(Zeile(z, boden, jetzt, frei, status, [b for b in bs if b.art != "freigabe"], m))
     return erg
 
 
