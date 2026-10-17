@@ -27,6 +27,34 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.20 – Mieter: Unterlagen per Maske
+
+* **Zimmerplan → Mehr → „Neuer Mieter – Unterlagen erstellen …“:**
+  * Die Maske fragt Anrede, Vor- und Nachname, Mietbeginn und Zimmer.
+  * Zur Auswahl stehen die passenden freien Zimmer (Haus 6). Mit „alle Zimmer“ geht auch ein anderes, mit Warnung.
+  * Vorgeschlagen und änderbar: Ende nach 6 Monaten (01.09. → 28.02.), 450,00 €, ca. 11 m², 1 Schlüssel, Kaution
+    bis Mietbeginn.
+  * Die Vertragsnummer zählt weiter (26-011, 26-012 …). Beim ersten Mal einmal mit der zuletzt vergebenen
+    abgleichen.
+* **„Unterlagen erstellen (PDF)“** speichert **eine PDF** und öffnet sie. Darin:
+  * **Mietvertrag** mit dem Wortlaut von MV26-010. „Mieterin/Mieter“ und alle Pronomen richten sich nach der
+    Anrede.
+  * **Wohnungsgeberbestätigung:** Einzugsdatum, Name, Zimmer, „eingezogen“ angekreuzt.
+  * **SEPA-Lastschriftmandat:** Mandatsreferenz „MV …“, Zahlungsempfänger, Kontoinhaber, Anschrift. Die Bankdaten
+    trägt der Mieter ein.
+  * **Mietschuldenfreiheitsbescheinigung:** Mieter und Anschrift vorausgefüllt, ohne Kreuze.
+* **Zimmerplan:** Der Mieter ist sofort als „Mieter“ im Zimmer eingetragen (geplant) und erscheint unter
+  Aufgaben → Eintragen, bis er im Belegungssystem steht.
+* **Verlängerung** (Mehr → „Mietvertrag verlängern“, oder in der Personenkarte des Mieters):
+  * Neues Ende wählen. Es entsteht die **Nebenabrede als Word-Datei (.docx)** und als PDF.
+  * Das Ende im Zimmerplan verschiebt sich mit.
+  * Mieter, die nicht mit dem Programm angelegt wurden, gibt man von Hand ein. Dann entsteht nur die Nebenabrede.
+* **Vorlagen** liegen im Ordner `Vorlagen/Mieter` neben dem Programm (nur im Update-Paket, nicht im Git):
+  * `Mietvertrag.vorlage`: der Wortlaut als Text, mit Notepad änderbar. „[die Mieterin|der Mieter]“ wählt nach
+    Anrede, „{von}“ usw. werden ausgefüllt.
+  * die drei PDF-Vordrucke und das Logo.
+  * Eigene, angepasste Vorlagen im Datenordner unter `Vorlagen/Mieter` haben Vorrang.
+
 ## Neu in 6.19 – „!“-Filter, FM-Bericht, unbewohnbare Zimmer
 
 * **„!“ = Mängel:**

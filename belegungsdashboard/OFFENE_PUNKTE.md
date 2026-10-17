@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.19.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.20.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -60,6 +60,21 @@
   zugeteilt. Von selbst sperren nur Schimmel und Ungeziefer, den Rest entscheidet der Nutzer je Mangel. Aus der ZKL
   ist bisher nichts als unbewohnbar markiert. Kandidaten für den Nutzer: 2-204 (Matratze fehlt), 3.3-205 (Reno – alle
   Möbel raus), 3.1-U04 (Feuermelder fehlt).
+- 6.20: Mieter-Unterlagen per Maske (Mietvertrag, Wohnungsgeberbestätigung, SEPA, Mietschuldenfreiheit),
+  Eintrag im Zimmerplan, Verlängerung als Nebenabrede (.docx + PDF). Vom Nutzer zu prüfen:
+  * Wortlaut in `Vorlagen/Mieter/Mietvertrag.vorlage`. Gegenüber MV26-010 sind offensichtliche Fehler geglättet:
+    * „Einzelzimmern“ → „Einzelzimmer“.
+    * „Britten“ → „ein dem Dritten“ (§ 7.4).
+    * „Zustimmung des Vermieters“ → „der Vermieterin“ (§ 10.5).
+    * § 12.1: „Der Vermieterin oder ihren Beauftragten steht … frei“ und „darf die Vermieterin“.
+    * § 8.2: „die Vermieterin … zu benachrichtigen“.
+    * „seinem Beauftragten“ → „ihrem“.
+    * Pronomen durchgehend passend zur Anrede (das Original mischte „sie/er“).
+    * § 4: „XX.XX.20XX“ ist jetzt das Kaution-bis-Datum aus der Maske.
+  * Layout: Der Vertrag ist neu gesetzt (Wortlaut gleich, Seiten kompakter als das Word-Original). Das Logo steht
+    auf Seite 1.
+  * Die Word-Datei der Nebenabrede ist ohne Word erzeugt. Bitte einmal in Word öffnen und ansehen.
+  * Die alte Vorlage `.doc` (Nebenabrede) wird nicht mehr gebraucht. Ihr Text steckt im Programm.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

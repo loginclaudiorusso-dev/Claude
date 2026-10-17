@@ -190,7 +190,7 @@ def _design_qss(t: Theme, name: str) -> str:
     if name == "modern":
         teile.append(f"""
 QFrame[karte="true"] {{ border-radius: 14px; border-color: {t.border}; }}
-QPushButton, QLineEdit, QSpinBox, QDateEdit, QComboBox {{ border-radius: 9px; }}
+QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {{ border-radius: 9px; }}
 QFrame[segment="true"] {{ border-radius: 19px; }}
 QFrame[segment="true"] QPushButton {{ border-radius: 15px; }}
 QPushButton[nav="true"] {{ border-radius: 9px; padding: 10px 12px; }}
@@ -207,7 +207,7 @@ QWidget { font-size: 12px; }
 QFrame[karte="true"] { border-radius: 6px; }
 QPushButton { padding: 5px 11px; border-radius: 5px; min-height: 16px; }
 QPushButton[nav="true"] { padding: 6px 10px; border-radius: 5px; }
-QLineEdit, QSpinBox, QDateEdit, QComboBox { padding: 4px 8px; border-radius: 5px; min-height: 16px; }
+QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox { padding: 4px 8px; border-radius: 5px; min-height: 16px; }
 QFrame[segment="true"] { border-radius: 6px; }
 QFrame[segment="true"] QPushButton { padding: 5px 11px; border-radius: 4px; }
 QPushButton[variant="chip"] { padding: 4px 10px; font-size: 12px; }
@@ -223,7 +223,7 @@ QTabBar#ansichten::tab { padding: 5px 8px 5px 10px; }
     elif name == "warm":
         teile.append(f"""
 QFrame[karte="true"] {{ border-radius: 16px; }}
-QPushButton, QLineEdit, QSpinBox, QDateEdit, QComboBox {{ border-radius: 10px; }}
+QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {{ border-radius: 10px; }}
 QFrame[segment="true"] {{ border-radius: 12px; }}
 QFrame[segment="true"] QPushButton {{ border-radius: 9px; }}
 QPushButton[nav="true"] {{ border-radius: 10px; }}
@@ -445,13 +445,13 @@ QFrame[segment="true"] QPushButton:hover {{ color: {t.text}; }}
 QFrame[segment="true"] QPushButton:checked {{ background: {t.surface}; color: {t.text}; font-weight: 600; border: 1px solid {t.border}; }}
 
 /* ---------- Eingaben ---------- */
-QLineEdit, QSpinBox, QDateEdit, QComboBox, QPlainTextEdit, QTextEdit {{
+QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox, QPlainTextEdit, QTextEdit {{
     background: {t.surface}; color: {t.text}; border: 1px solid {t.border_strong};
     border-radius: {RADIUS_KLEIN}px; padding: 8px 10px; min-height: 18px; selection-background-color: {t.accent}; selection-color: {t.accent_text};
 }}
-QLineEdit:focus, QSpinBox:focus, QDateEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {t.fokus}; }}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {t.fokus}; }}
 QLineEdit:disabled, QComboBox:disabled {{ color: {t.text_3}; background: {t.surface_2}; }}
-QSpinBox::up-button, QSpinBox::down-button {{ width: 0; border: none; }}
+QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0; border: none; }}
 QComboBox::drop-down, QDateEdit::drop-down {{ border: none; width: 24px; }}
 QComboBox::down-arrow {{ image: url({pfeil}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{

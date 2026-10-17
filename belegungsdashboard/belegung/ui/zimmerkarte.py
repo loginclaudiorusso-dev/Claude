@@ -357,6 +357,10 @@ class PersonBlock(QWidget):
                 alle.setToolTip("Geschlecht, Tier, Gruppe, Bemerkung, Abreise-Erinnerung – oder Person entfernen")
                 alle.clicked.connect(self._alle_angaben)
                 knoepfe.addWidget(alle)
+            if bw.schluessel.startswith("mv:"):            # Mieter aus „Neuer Mieter“: Verlängerung per Nebenabrede
+                vl = knopf("Mietvertrag verlängern …", "ghost", "drucker")
+                vl.clicked.connect(lambda _c=False, nr=bw.schluessel[3:]: self._verlaengern(nr))
+                knoepfe.addWidget(vl)
             knoepfe.addStretch()
             v.addLayout(knoepfe)
             self.info = label("", "klein", umbruch=True)
@@ -481,6 +485,11 @@ class PersonBlock(QWidget):
                 karte_oeffnen(eltern, zustand, ziel, self.bw.schluessel)
             return
         k._neu_laden()
+
+    def _verlaengern(self, nr: str) -> None:
+        from .mieter_dialog import VerlaengernDialog
+
+        VerlaengernDialog(self.karte.z, nr, self.window()).exec()
 
     def _alle_angaben(self) -> None:
         from .dialoge import person_bearbeiten

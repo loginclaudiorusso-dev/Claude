@@ -1,4 +1,4 @@
-# Rückweg: von 6.19.0 zurück zu 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.20.0 zurück zu 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -28,7 +28,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.17.0** | `backup/v6.17.0` | `9ee6996` | `INNternat_v6.17.0_Sicherung.zip` |
 | **6.17.1** | `backup/v6.17.1` | `8ff80d4` | `INNternat_v6.17.1_Sicherung.zip` |
 | **6.18.0** | `backup/v6.18.0` | `28c61fd` | `INNternat_v6.18.0_Sicherung.zip` |
-| **6.19.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.19.0** | `backup/v6.19.0` | `d284505` | `INNternat_v6.19.0_Sicherung.zip` |
+| **6.20.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -289,6 +290,19 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Daten: In `zimmer_maengel.json` kann je Mangel `sperrt` stehen.
 * Ältere Versionen ignorieren `sperrt` und teilen unbewohnbare Zimmer dann wieder zu. Es gehen keine Daten
   verloren.
+
+**6.20.0** (seit `d284505`): ein Commit.
+* Inhalt:
+  * `belegung/mieter.py` (Vertrag, Vordrucke mit pypdf, Nebenabrede .docx)
+  * `ui/mieter_dialog.py` (Masken)
+  * Mieter als Bedarf im Zimmerplan, Menüeinträge, Knopf in der Personenkarte
+  * `tests/test_mieter.py`, Version 6.20.0
+* Die Vorlagen in `Vorlagen/Mieter` liegen nur im Zip.
+* Daten: neu ist `mieter.json` (Mietverträge); Zuweisungen mit Personenschlüssel `mv:<Nr>`.
+* Ältere Versionen:
+  * Sie kennen die Mieter-Bedarfe nicht und verwerfen deshalb diese Zuweisungen beim Laden. Die Mieter stehen dort
+    nicht im Zimmerplan.
+  * `mieter.json` bleibt erhalten. Nach erneutem Update ist alles wieder da.
 
 ## 6. Was sich geändert hat – und was nicht
 

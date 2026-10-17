@@ -1407,8 +1407,10 @@ def laden(puffer: int | None = None, ohne_umzug: str | None = None) -> Planstand
     from . import zimmerpivot
 
     personen, _ = anreiseliste.laden()
+    from . import mieter
+
     bedarf = angaben_anwenden(bedarf_aus_personen(personen) + bedarf_aus_uwt(uwt.laden(), uwt.klassen_laden()),
-                              angaben_laden())
+                              angaben_laden()) + mieter.bedarf_liste()
     schluessel = {b.schluessel for b in bedarf}
     # Zuweisungen ohne Person (gelöscht, kein Internat mehr, UWT-Platzhalter ersetzt, Block entfernt)
     # blockieren kein Zimmer mehr

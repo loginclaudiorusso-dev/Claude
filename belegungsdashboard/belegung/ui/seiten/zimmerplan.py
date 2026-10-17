@@ -790,12 +790,27 @@ class ZimmerplanSeite(Seite):
         from ..zimmerquellen import verlauf_oeffnen
 
         m = QMenu(self)
+        m.addAction(icons.icon("person", theme.T.text_2, 16), "Neuer Mieter – Unterlagen erstellen …", self.neuer_mieter)
+        m.addAction("Mietvertrag verlängern (Nebenabrede) …", self.mieter_verlaengern)
+        m.addSeparator()
         m.addAction("Verlauf – wer hat wann was geändert …", lambda: verlauf_oeffnen(self, self.z))
         m.addAction("Diesen Reiter in neuem Fenster öffnen", self._neues_fenster)
         m.addSeparator()
         m.addAction("Importe (Gebäudeplan, ZKL) …", lambda: self.z.navigieren.emit("daten:Gebäudeplan & ZKL"))
         m.addAction("Einstellungen der Zimmerplanung …", lambda: self.z.navigieren.emit("einstellungen"))
         return m
+
+    def neuer_mieter(self, zimmer: str = "") -> None:
+        from ..mieter_dialog import NeuerMieterDialog
+
+        if NeuerMieterDialog(self.z, zimmer, self.window()).exec():
+            self.neu_laden()
+
+    def mieter_verlaengern(self, nr: str = "") -> None:
+        from ..mieter_dialog import VerlaengernDialog
+
+        if VerlaengernDialog(self.z, nr, self.window()).exec():
+            self.neu_laden()
 
     def optimieren(self) -> None:
         from ..optimieren import OptimierenDialog
