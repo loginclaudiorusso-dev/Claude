@@ -80,7 +80,22 @@ class HauptFenster(QMainWindow):
         self.fortschritt.setVisible(False)
         rechts.addWidget(self.fortschritt)
         self.stapel = QStackedWidget()
-        rechts.addWidget(self.stapel, 1)
+        self._mitte_w = QWidget()
+        self._mitte = QHBoxLayout(self._mitte_w)
+        self._mitte.setContentsMargins(0, 0, 0, 0)
+        self._mitte.setSpacing(0)
+        self._mitte.addWidget(self.stapel, 1)
+        from .neuigkeiten_leiste import NeuigkeitenLeiste
+
+        # Neuigkeiten am rechten Rand – über die Glocke ein-/ausblendbar. Im breiten Fenster neben dem Inhalt,
+        # im schmalen schwebt sie darüber (sonst würden die Seiten zu schmal).
+        self.leiste = NeuigkeitenLeiste(self._mitte_w)
+        self.leiste.setVisible(bool(speicher.einstellungen().get("neuigkeiten_offen", False)))
+        self.leiste.oeffnen.connect(self._neuigkeit_oeffnen)
+        self.leiste.geaendert.connect(self._glocke_zaehlen)
+        self._leiste_angedockt = None
+        self._mitte_w.installEventFilter(self)
+        rechts.addWidget(self._mitte_w, 1)
         h.addLayout(rechts, 1)
 
         # neue UWT-Pläne aus dem Ordner „UWT“ übernehmen, bevor die Seiten laden
@@ -126,6 +141,8 @@ class HauptFenster(QMainWindow):
         zustand.name_geaendert.connect(self.name_anzeigen)
         self.toast = Toast(wurzel)
         zustand.meldung.connect(self.toast.zeigen)
+        zustand.neuigkeit.connect(self._neuigkeit)
+        self.leiste.aktualisieren()
         zustand.aenderung_gespeichert.connect(
             lambda text, art: self.toast.zeigen(text, art, aktion=("Rückgängig", lambda: rueckgaengig(self, zustand, False))))
         zustand.navigieren.connect(self.zeigen)
@@ -156,9 +173,9 @@ class HauptFenster(QMainWindow):
         self._melde_timer.start()
         QTimer.singleShot(1500, lambda: self.erinnerungen_pruefen(melden=True))
         if uwt_neu:
-            QTimer.singleShot(800, lambda: zustand.meldung.emit(uwt_meldung(uwt_neu), "ok"))
+            zustand.neuigkeit.emit(uwt_meldung(uwt_neu), "ok", "daten:UWT", "")
         if listen_neu:
-            QTimer.singleShot(1200, lambda: zustand.meldung.emit("Listen übernommen: " + "; ".join(listen_neu), "ok"))
+            zustand.neuigkeit.emit("Listen übernommen: " + "; ".join(listen_neu), "ok", "daten:Anreisen", "")
 
     # ---- Aufbau ---------------------------------------------------------------------------
 
@@ -290,6 +307,9 @@ class HauptFenster(QMainWindow):
         self.bezug_filter.setToolTip("Netto: Reha und Verträge · Brutto: zusätzlich FRAI, Jugendhilfe, andere Bereiche")
         self.bezug_filter.geaendert.connect(lambda i: self.z.brutto_setzen(i == 1))
         h.addWidget(self.bezug_filter, 0, Qt.AlignVCenter)
+        self.glocke = knopf("", "ghost", "glocke", "Neuigkeiten ein-/ausblenden")
+        self.glocke.clicked.connect(self._leiste_umschalten)
+        h.addWidget(self.glocke, 0, Qt.AlignVCenter)
         return kopf
 
     # ---- Navigation / Filter ------------------------------------------------------------
@@ -482,7 +502,9 @@ class HauptFenster(QMainWindow):
         if reiter:
             r = self.seiten[key]._reiter_segment()
             if r is not None:
-                namen = [r.beschriftung(i) for i in range(len(r._gruppe.buttons()))]
+                import re
+
+                namen = [re.sub(r"\s*\(\d+\)$", "", r.beschriftung(i)) for i in range(len(r._gruppe.buttons()))]
                 if reiter in namen:
                     r.setzen(namen.index(reiter), still=False)
         i = self.tabs.currentIndex()
@@ -532,6 +554,9 @@ class HauptFenster(QMainWindow):
         m.exec(b.mapToGlobal(b.rect().bottomLeft()))
 
     def eventFilter(self, obj, e) -> bool:
+        if obj is getattr(self, "_mitte_w", None) and e.type() == QEvent.Resize:
+            self._leiste_platzieren()             # Leiste andocken oder schweben lassen (je nach Breite)
+            return False
         if e.type() == QEvent.MouseButtonRelease and e.button() == Qt.MiddleButton:
             key = next((k for k, b in self.nav_knoepfe.items() if b is obj), None)
             if key is not None:
@@ -592,7 +617,8 @@ class HauptFenster(QMainWindow):
         elif ds.erinnerungen and not getattr(self, "_erinnert", False):
             self._erinnert = True
             n = len(ds.erinnerungen)
-            self.z.meldung.emit(f"{n} Abreise-Erinnerung{'en' if n > 1 else ''} fällig – siehe Termine.", "info")
+            self.z.neuigkeit.emit(f"{n} Abreise-Erinnerung{'en' if n > 1 else ''} fällig", "info", "termine",
+                                  f"abreise-erinnerungen:{date.today()}")
 
     def _ladefehler(self, text: str) -> None:
         self._stand_anzeigen()
@@ -664,11 +690,82 @@ class HauptFenster(QMainWindow):
 
         SuchDialog(self, self.suche.text().strip()).exec()
 
-    def benachrichtigen(self, titel: str, text: str) -> None:
+    def benachrichtigen(self, titel: str, text: str, ziel: str = "termine") -> None:
+        """Windows-Meldung (Infobereich) und Eintrag unter Neuigkeiten – keine Einblendung im Fenster mehr."""
         if self.tray is not None:
             self.tray.showMessage(titel, text, QSystemTrayIcon.Information, 20000)
-        if self.isVisible():
-            self.z.meldung.emit(f"{titel}: {text.splitlines()[0]}", "info")
+        self.z.neuigkeit.emit(f"{titel}: {text.splitlines()[0]}" if text else titel, "info", ziel, "")
+
+    # ---- Neuigkeiten (Glocke + Leiste) ----------------------------------------------------
+
+    def _neuigkeit(self, text: str, art: str, ziel: str, schluessel: str) -> None:
+        from .. import neuigkeiten
+
+        try:
+            neuigkeiten.hinzufuegen(text, art, ziel, schluessel)
+        except OSError:
+            log.exception("Neuigkeit konnte nicht gespeichert werden")
+            self.toast.zeigen(text, art)           # wenigstens anzeigen
+            return
+        self.leiste.aktualisieren()
+
+    def _glocke_zaehlen(self) -> None:
+        from .. import neuigkeiten
+
+        n = neuigkeiten.ungelesen()
+        self.glocke.setText(f" {n}" if n else "")
+        self.glocke.setProperty("variant", "chip" if n else "ghost")
+        self.glocke.setProperty("aktiv", "true" if n else "false")
+        self.glocke.style().unpolish(self.glocke)
+        self.glocke.style().polish(self.glocke)
+        self.glocke.setToolTip(f"{n} ungelesene Neuigkeit{'en' if n != 1 else ''} – Leiste ein-/ausblenden" if n
+                               else "Neuigkeiten ein-/ausblenden")
+
+    LEISTE_ANDOCKEN_AB = 1360       # Fensterbreite, ab der die Leiste neben dem Inhalt steht
+
+    def _leiste_umschalten(self) -> None:
+        an = self.leiste.isHidden()                 # isHidden: unabhängig davon, ob das Fenster schon zu sehen ist
+        self.leiste.setVisible(an)
+        speicher.einstellung_setzen("neuigkeiten_offen", an)
+        if an:
+            self.leiste.aktualisieren()
+        self._leiste_platzieren()
+
+    def _leiste_platzieren(self) -> None:
+        andocken = self.width() >= self.LEISTE_ANDOCKEN_AB
+        if andocken != self._leiste_angedockt:
+            self._leiste_angedockt = andocken
+            sichtbar = not self.leiste.isHidden()
+            if andocken:
+                self._mitte.addWidget(self.leiste)
+                self.leiste.setGraphicsEffect(None)
+            else:
+                self._mitte.removeWidget(self.leiste)
+                from PySide6.QtGui import QColor
+                from PySide6.QtWidgets import QGraphicsDropShadowEffect
+
+                schatten = QGraphicsDropShadowEffect(self.leiste)
+                schatten.setBlurRadius(24)
+                schatten.setOffset(-4, 0)
+                schatten.setColor(QColor(0, 0, 0, 60))
+                self.leiste.setGraphicsEffect(schatten)
+            self.leiste.setVisible(sichtbar)
+        if not andocken:
+            m = self._mitte_w
+            self.leiste.setGeometry(m.width() - self.leiste.width(), 0, self.leiste.width(), m.height())
+            self.leiste.raise_()
+
+    def _neuigkeit_oeffnen(self, ziel: str) -> None:
+        if ziel.startswith("person:"):
+            from .zimmerkarte import karte_oeffnen
+
+            karte_oeffnen(self, self.z, person=ziel.removeprefix("person:"))
+        elif ziel.startswith("zimmer:"):
+            from .zimmerkarte import karte_oeffnen
+
+            karte_oeffnen(self, self.z, ziel.removeprefix("zimmer:"))
+        else:
+            self.zeigen(ziel)
 
     def erinnerungen_pruefen(self, melden: bool = False) -> None:
         """Zählt offene Erinnerungen in der Seitenleiste; meldet neue (einmal am Tag je Erinnerung)."""
@@ -725,7 +822,7 @@ class HauptFenster(QMainWindow):
             neu = rl.zu_melden(rs, heute)
             if neu:
                 titel = "Reinigung offen – Anreise steht an" if len(neu) == 1 else f"{len(neu)} Reinigungen offen – Anreisen stehen an"
-                self.benachrichtigen(titel, "\n".join(rl.konflikt_text(r) for r in neu[:4]))
+                self.benachrichtigen(titel, "\n".join(rl.konflikt_text(r) for r in neu[:4]), "zimmerplan:Reinigung")
                 rl.gemeldet_setzen(neu, heute)
             try:
                 from .. import eintragen
@@ -737,7 +834,7 @@ class HauptFenster(QMainWindow):
             if fac:
                 self.benachrichtigen("Facility-Check nach langem Aufenthalt" if len(fac) == 1 else
                                      f"{len(fac)} Facility-Checks nach langem Aufenthalt",
-                                     "\n".join(c.text for c in fac[:4]))
+                                     "\n".join(c.text for c in fac[:4]), "zimmerplan:Aufgaben")
                 eintragen.facility_gemeldet(fac)
 
     def vorholen(self, seite: str | None = None) -> None:

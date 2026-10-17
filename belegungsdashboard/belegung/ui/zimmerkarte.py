@@ -138,6 +138,12 @@ class ZimmerKarte(QDialog):
                          ("Gästezimmer", z.gaeste), ("Doppelzimmer", z.betten > 1)):
             if an:
                 fl.addWidget(Pille(text, "akzent"))
+        from .. import maengel as mg
+
+        if (offen := mg.offen(z.id)):
+            p = Pille(f"{len(offen)} Mangel" if len(offen) == 1 else f"{len(offen)} Mängel", "ueber")
+            p.setToolTip("<br>".join(f"{m.text} – seit {m.seit:%d.%m.%Y}" for m in offen))
+            fl.addWidget(p)
         if status in ("frei", "teilweise"):
             bis = self.stand.lage.frei_bis(z.id, heute)
             fl.addWidget(label(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung", "fett"))
@@ -490,8 +496,9 @@ class ZimmerBlock(Karte):
     """Zum Zimmer selbst: dauerhafter Hinweis, Notizen mit Wiedervorlage, Ausstattung."""
 
     def __init__(self, karte: ZimmerKarte, z: zp.Zimmer):
-        super().__init__("Zum Zimmer", "Hinweise und Wiedervorlagen, z. B. „Heizung defekt – Hausmeister“")
+        super().__init__("Zum Zimmer", "Zustand, Hinweise und Wiedervorlagen")
         self.karte, self.z = karte, z
+        self._maengel_bauen()
         self.inhalt.addWidget(label("Dauerhafter Hinweis", "fett"))
         zeile = QHBoxLayout()
         self.hinweis = QLineEdit(z.notiz)
@@ -518,6 +525,42 @@ class ZimmerBlock(Karte):
         inv = knopf("Inventar öffnen", "ghost")
         inv.clicked.connect(lambda: karte.z.navigieren.emit("inventar"))
         self.inhalt.addWidget(inv, 0, Qt.AlignLeft)
+
+    def _maengel_bauen(self) -> None:
+        """Mängel als Vorschläge: antippen = offen (seit heute), noch einmal = behoben. Filterbar unter Zimmerplan →
+        Zimmer („Mängel“), druckbar als Mängelliste für das FM."""
+        from .. import maengel as mg
+
+        offen = {m.art: m for m in mg.offen(self.z.id)}
+        kopf = QHBoxLayout()
+        kopf.addWidget(label("Zustand", "fett"))
+        kopf.addWidget(label("– antippen, was nicht in Ordnung ist; nochmal antippen, wenn behoben", "klein"), 1)
+        self.inhalt.addLayout(kopf)
+        feld = QWidget()
+        fl = FlowLayout(feld, abstand=5)
+        # offene zuerst, dann die übrigen Vorschläge
+        for art, text in sorted(mg.KATALOG, key=lambda x: x[0] not in offen):
+            b = knopf(text, "chip", "werkzeug" if art in offen else None)
+            b.setCheckable(True)
+            b.setChecked(art in offen)
+            b.setToolTip(f"Offen seit {offen[art].seit:%d.%m.%Y} – antippen, wenn behoben" if art in offen
+                         else "Als Mangel melden")
+            b.toggled.connect(lambda an, a=art, t=text: self._mangel(a, t, an))
+            fl.addWidget(b)
+        self.inhalt.addWidget(feld)
+
+    def _mangel(self, art: str, text: str, an: bool) -> None:
+        from .. import maengel as mg
+
+        k = self.karte
+        if not mg.setzen(self.z.id, art, an):
+            return
+        k._speichert = True                    # diese Karte nicht neu aufbauen (Chips stimmen schon)
+        try:
+            k.z.meldung.emit(f"Zimmer {self.z.kurz}: {text} – " + ("gemeldet." if an else "behoben."), "ok")
+            k.z.zimmer_geaendert.emit()
+        finally:
+            k._speichert = False
 
     def _hinweis_speichern(self) -> None:
         text = self.hinweis.text().strip()

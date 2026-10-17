@@ -473,8 +473,8 @@ class ZimmerplanSeite(Seite):
             n, fehler = erg
             self.stand = zp.laden()
             nicht = ", ".join("-".join(x.split()[:2]) for x in fehler[:5])
-            self.z.meldung.emit(f"Renovierungsliste übernommen: {n} Zimmer aktualisiert (Renovierung, Boden)"
-                                + (f" – nicht im Zimmerplan: {nicht}" if fehler else "") + ".", "ok")
+            self.z.neuigkeit.emit(f"Renovierungsliste übernommen: {n} Zimmer aktualisiert (Renovierung, Boden)"
+                                  + (f" – nicht im Zimmerplan: {nicht}" if fehler else "") + ".", "ok", "zimmerplan:Zimmer", "")
 
     def _aufgaben_bauen(self) -> QWidget:
         w = QWidget()
@@ -570,17 +570,18 @@ class ZimmerplanSeite(Seite):
         if neu is not None:
             belegt = sum(1 for b in neu.belegungen if b.art == "belegt")
             stand = f" (Stand {neu.stand:%d.%m.%Y})" if neu.stand else ""
-            self.z.meldung.emit(f"Gebäudeplan {neu.datei}{stand} automatisch übernommen: {belegt} Belegungen.", "ok")
+            self.z.neuigkeit.emit(f"Gebäudeplan {neu.datei}{stand} automatisch übernommen: {belegt} Belegungen.", "ok",
+                                  "daten:Gebäudeplan & ZKL", "")
         uwt_neu = uwt.automatisch_importieren()
         if uwt_neu:
             from ..hauptfenster import uwt_meldung
 
-            self.z.meldung.emit(uwt_meldung(uwt_neu), "ok")
+            self.z.neuigkeit.emit(uwt_meldung(uwt_neu), "ok", "daten:UWT", "")
         self.stand = zp.laden()
         self._renovierungen_auto()
         if neu is not None and (k := zp.konflikte(self.stand.lage)):
-            self.z.meldung.emit(f"Achtung: {len(k)} geplante Zimmer kollidieren mit dem neuen Gebäudeplan – "
-                                "Hinweis im Zimmerplan, „Neu planen“ löst es.", "warnung")
+            self.z.neuigkeit.emit(f"Achtung: {len(k)} geplante Zimmer kollidieren mit dem neuen Gebäudeplan – "
+                                "Hinweis im Zimmerplan, „Neu planen“ löst es.", "warnung", "zimmerplan:Aufgaben", "")
         # kommende UWT gleich zuteilen (DZ-Partner zusammen) – jede Person nur einmal automatisch
         try:
             auto = zp.uwt_automatisch_zuteilen(self.stand)
@@ -589,8 +590,8 @@ class ZimmerplanSeite(Seite):
         if auto:
             self.stand = zp.laden()
             klassen = sorted({zt.bedarf.massnahme.removeprefix("UWT ") for zt in auto})
-            self.z.meldung.emit(f"UWT automatisch zugeteilt: {len(auto)} Personen ({', '.join(klassen)}) – "
-                                "unter Zuteilen änderbar.", "ok")
+            self.z.neuigkeit.emit(f"UWT automatisch zugeteilt: {len(auto)} Personen ({', '.join(klassen)}) – "
+                                "unter Zuteilen änderbar.", "ok", "zimmerplan:Zuteilen", "")
         self._kopf_zeigen()
         self._aufgaben_zaehler()
         ziel = getattr(self.z, "zimmer_anreise", None)

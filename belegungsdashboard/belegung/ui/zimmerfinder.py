@@ -31,7 +31,8 @@ ANSICHTEN = [("uebersicht", "Übersicht", "raster", "Alle Zimmer als Kacheln –
              ("karten", "Karten", "karten", "Je Etage eine Spalte, je Zimmer Status, Bewohner und Zeitraum"),
              ("liste", "Liste", "liste", "Tabelle zum Drucken, Kopieren und Bearbeiten")]
 STATUS = [("", "Alle"), ("frei", "Frei"), ("belegt", "Belegt"), ("geplant", "Geplant"), ("gesperrt", "Gesperrt")]
-SCHNELL = [("reno", "Renoviert", "funke", "Renoviert (mit oder ohne Datum)"),
+SCHNELL = [("maengel", "Mängel", "werkzeug", "Zimmer mit offenen Mängeln (in der Zimmerkarte antippen)"),
+           ("reno", "Renoviert", "farbrolle", "Renoviert (mit oder ohne Datum)"),
            ("Vinyl", "Vinyl", "boden", "Boden Vinyl – auch vermutet"),
            ("Teppich", "Teppich", "teppich", "Boden Teppich – auch laut ZKL"),
            ("tiere", "Tier", "pfote", "Tier-Zimmer"),
@@ -68,7 +69,7 @@ class ZimmerFinder(QWidget):
         self._haus = e.get("haus") if e.get("haus") in HAEUSER else ""
         self._status = ""
         self._mehr: dict[str, object] = {"boeden": set(), "merkmale": set(), "renoviert": "alle", "gruppen": set(),
-                                         "modus": "wohnt", "alle": False}
+                                         "modus": "wohnt", "alle": False, "maengel": set()}
         self._zeilen: list[zl.Zeile] = []
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -163,6 +164,10 @@ class ZimmerFinder(QWidget):
         self.a_namen.setChecked(True)
         m.addSeparator()
         m.addAction("Kopieren (für Excel)", self._kopieren)
+        m.addSeparator()
+        m.addAction("Mängelliste für das FM drucken …", lambda: self._maengel_drucken(False))
+        m.addAction("Mängelliste als PDF …", lambda: self._maengel_drucken(True))
+        m.addAction("Mängelliste kopieren (für eine Mail)", self._maengel_kopieren)
         m.addAction("Belegung am Tag als Excel …", self._excel)
         self.b_drucken.setMenu(m)
         vier.addWidget(self.b_drucken)
@@ -251,6 +256,11 @@ class ZimmerFinder(QWidget):
         for b in [x for x in zl.BOEDEN if x not in ("Vinyl", "Teppich")] + ["unbekannt"]:
             schalter(boden, "Boden unbekannt" if b == "unbekannt" else b, b in mehr["boeden"],
                      lambda b=b: self._mehr_umschalten("boeden", b))
+        from .. import maengel as mg
+
+        mm = m.addMenu("Mangel")
+        for art, text in mg.KATALOG:
+            schalter(mm, text, art in mehr["maengel"], lambda a=art: self._mehr_umschalten("maengel", a))
         reno = m.addMenu("Renovierung")
         jahr = date.today().year
         for text, wert in [("egal", "alle"), ("nicht renoviert / unbekannt", "nein")] + \
@@ -284,7 +294,7 @@ class ZimmerFinder(QWidget):
             b.setChecked(False)
             b.blockSignals(False)
         self._mehr = {"boeden": set(), "merkmale": set(), "renoviert": "alle", "gruppen": set(), "modus": "wohnt",
-                      "alle": False}
+                      "alle": False, "maengel": set()}
         self.suche.blockSignals(True)
         self.suche.clear()
         self.suche.blockSignals(False)
@@ -297,7 +307,8 @@ class ZimmerFinder(QWidget):
                          boeden=set(mehr["boeden"]) | ({"Vinyl", "Teppich"} & an),
                          merkmale=set(mehr["merkmale"]) | ({"tiere", "doppel"} & an), nur_internat=not mehr["alle"],
                          text=self.suche.text().strip(), status=self._status, gruppen=set(mehr["gruppen"]),
-                         gruppen_modus=mehr["modus"])
+                         gruppen_modus=mehr["modus"],
+                         maengel=set(mehr["maengel"]) | ({"*"} if "maengel" in an else set()))
 
     # ---- Anzeigen ----------------------------------------------------------------------------
 
@@ -312,7 +323,7 @@ class ZimmerFinder(QWidget):
         n = {s: sum(1 for r in alle if r.status == s or (s == "frei" and r.status == "teilweise")) for s, _t in STATUS if s}
         for s, text in STATUS:
             self.status_knoepfe[s].setText(text if not s else f"{text} {n.get(s, 0)}")
-        extra = bool(self._mehr["boeden"] or self._mehr["merkmale"] or self._mehr["gruppen"]
+        extra = bool(self._mehr["boeden"] or self._mehr["merkmale"] or self._mehr["gruppen"] or self._mehr["maengel"]
                      or self._mehr["renoviert"] != "alle" or self._mehr["alle"])
         self.b_filter.setProperty("aktiv", "true" if extra else "false")
         self.b_filter.style().unpolish(self.b_filter)
@@ -349,6 +360,8 @@ class ZimmerFinder(QWidget):
         if r.status in ("frei", "teilweise"):
             bis = self.seite.stand.lage.frei_bis(z.id, tag)
             zeilen.append(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung")
+        if r.maengel:
+            zeilen.append("⚠ " + escape("; ".join(f"{m.text} (seit {m.seit:%d.%m.})" for m in r.maengel)))
         reno = zl.reno_text(z)
         if reno or r.boden:
             zeilen.append(" · ".join(x for x in (f"renoviert {reno}" if reno else "", r.boden) if x))
@@ -371,7 +384,7 @@ class ZimmerFinder(QWidget):
             muster = label(text, "klein")
             muster.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:5px; padding:2px 7px;")
             self.l_legende.addWidget(muster)
-        self.l_legende.addWidget(label("D Doppel · T Tier · M Bad über den Flur · G Gäste · ✦ renoviert", "klein"))
+        self.l_legende.addWidget(label("D Doppel · T Tier · M Bad über den Flur · G Gäste · R renoviert · ⚠ Mangel", "klein"))
         for haus, zeilen in self._nach_haus().items():
             frei = sum(1 for r in zeilen if r.status in ("frei", "teilweise"))
             karte = Karte(f"Haus {haus}", f"{len(zeilen)} Zimmer · {frei} frei am {tag:%d.%m.%Y}")
@@ -388,7 +401,7 @@ class ZimmerFinder(QWidget):
                     z = r.zimmer
                     bg, fg = farben.get(r.status, farben["belegt"])
                     merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner),
-                                                   ("G", z.gaeste), ("✦", bool(z.renoviert))) if an)
+                                                   ("G", z.gaeste), ("R", bool(z.renoviert)), ("⚠", bool(r.maengel))) if an)
                     b = QPushButton(f"{z.nr} {merk}".strip())
                     b.setCursor(Qt.PointingHandCursor)
                     b.setStyleSheet(f"QPushButton {{ background:{bg}; color:{fg}; border:none; border-radius:6px; "
@@ -459,11 +472,15 @@ class ZimmerFinder(QWidget):
         text, stufe = STATUS_PILLE.get(r.status, (r.status, "neutral"))
         oben.addWidget(Pille(text, stufe))
         v.addLayout(oben)
-        merkmale = [x for x in (f"✦ {zl.reno_text(z)}" if z.renoviert else "", r.boden,
+        merkmale = [x for x in (f"renoviert {zl.reno_text(z)}" if z.renoviert else "", r.boden,
                                 "Tier" if z.tiere else "", "Bad über den Flur" if z.nur_maenner else "",
                                 "Gäste" if z.gaeste else "") if x]
         if merkmale:
             v.addWidget(label(escape(" · ".join(merkmale)), "klein", umbruch=True))
+        if r.maengel:
+            mang = label("⚠ " + escape(" · ".join(m.text for m in r.maengel)), "klein", umbruch=True)
+            mang.setStyleSheet(f"color: {t.ueber};")
+            v.addWidget(mang)
         for b in r.belegungen:
             zeile = QHBoxLayout()
             zeile.setSpacing(8)
@@ -483,6 +500,8 @@ class ZimmerFinder(QWidget):
                                  "klein"))
             zeile.addLayout(text, 1)
             v.addLayout(zeile)
+        for lbl in k.findChildren(QLabel):        # Klick auf den Text öffnet ebenfalls die Zimmerkarte
+            lbl.setAttribute(Qt.WA_TransparentForMouseEvents)
         return k
 
     # Liste: Tabelle
@@ -507,6 +526,27 @@ class ZimmerFinder(QWidget):
     def _drucken(self, pdf: bool) -> None:
         self.seite._html_ausgeben(zl.liste_html(self._ansicht_zeilen(), self.filter(), self.a_namen.isChecked()), True,
                                   f"Zimmerliste_{date.today():%Y-%m-%d}.pdf" if pdf else None)
+
+    def _maengel_offen(self) -> list:
+        """Offene Mängel der angezeigten Zimmer (ohne Mängel-Filter: alle offenen)."""
+        return [m for r in self._ansicht_zeilen() for m in r.maengel]
+
+    def _maengel_drucken(self, pdf: bool) -> None:
+        from .. import maengel as mg
+
+        kurz = {z.id: z.kurz for z in self.seite.stand.zimmer}
+        self.seite._html_ausgeben(mg.fm_html(self._maengel_offen(), lambda zid: kurz.get(zid, zid)), False,
+                                  f"Maengelliste_{date.today():%Y-%m-%d}.pdf" if pdf else None)
+
+    def _maengel_kopieren(self) -> None:
+        from PySide6.QtGui import QGuiApplication
+
+        from .. import maengel as mg
+
+        offen = self._maengel_offen()
+        kurz = {z.id: z.kurz for z in self.seite.stand.zimmer}
+        QGuiApplication.clipboard().setText(mg.fm_text(offen, lambda zid: kurz.get(zid, zid)))
+        self.z.meldung.emit(f"{len(offen)} Mängel kopiert – in die Mail an das FM einfügen (Strg+V).", "ok")
 
     def _kopieren(self) -> None:
         from PySide6.QtGui import QGuiApplication

@@ -30,6 +30,7 @@ class Zustand(QObject):
     name_geaendert = Signal()           # Name des Dashboards geändert (Seitenleiste, Fenstertitel)
     zimmer_geaendert = Signal()         # Zimmerplan (Zuweisung, Stammdaten, Gebäudeplan) -> andere Fenster neu
     aenderung_gespeichert = Signal(str, str)   # wie meldung, aber mit „Rückgängig“ (aenderungen.letzter())
+    neuigkeit = Signal(str, str, str, str)     # Hintergrund-Meldung → Glocke/Leiste: Text, Art, Ziel, Schlüssel
 
     def __init__(self):
         super().__init__()

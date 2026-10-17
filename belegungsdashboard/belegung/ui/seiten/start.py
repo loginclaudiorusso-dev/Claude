@@ -473,6 +473,14 @@ class StartSeite(Seite):
             karte_oeffnen(self, self.z, person=wert)
         elif art in ("posteingang", "termine"):
             self.z.navigieren.emit(art)
+        elif art == "maengel":
+            seite = self._zimmerplan("Zimmer")
+            if seite is not None:
+                if seite.stand is None:
+                    seite.neu_laden()
+                seite.finder._zuruecksetzen()
+                seite.finder.schnell["maengel"].setChecked(True)
+                seite.finder._ansicht_setzen("liste")
         elif art == "gebaeudeplan":
             self._gebaeudeplan_importieren()
         else:
