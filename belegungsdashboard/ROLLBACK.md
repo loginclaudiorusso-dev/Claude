@@ -266,7 +266,7 @@ Rückweg für die Inventardaten: Inventar → Gegenstände → „Nachttischlamp
 entfernt sie aus allen Zimmern. Alternativ geht es über Einstellungen → Datensicherung (Stand vor dem Update).
 Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 
-**6.18.0** (seit `8ff80d4`): ein Commit.
+**6.18.0** (seit `8ff80d4`): ein Commit (`df12a2f`).
 * Inhalt: `belegung/zimmerzustand.py` (einmaliger Import), Katalog „Renovierung nötig“, Reno-Monat in
   `zimmerliste`, Notizen in der Zimmerkarte, `tests/test_zimmerzustand.py`, Version 6.18.0.
 * Die Datei `Zimmerzustand_Import.tsv` (aus der ZKL, mit Zimmerdaten) liegt nur im Zip.
