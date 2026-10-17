@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.14.0, 15.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.15.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -30,6 +30,9 @@
 - 6.13 (Master-Prompt UX/Sicherheit): Vorschau vor folgenreichen Zimmer-Änderungen, Rückgängig, keine
   Doppelbelegung von Hand, kein halber Stand, Reiter gruppiert. Analyse und nächste Schritte: `UX_KONZEPT.md` (B.3).
   Vom Nutzer zu entscheiden: „Quellen“ umbenennen/zusammenlegen; Personenkarte als einziger Einstieg für Zimmerwechsel.
+- 6.15: Zimmer finden (Reiter „Zimmer“: Chips, Übersicht/Karten/Liste), Reiter angeheftet, Drucken neben Übernehmen,
+  Renovierungsliste +23 (Vinyl vermutet – Nutzer schaut die Zimmer noch an). Nicht im Gebäudeplan: 6-101, 6-204,
+  6-205, 6-208, 3.1-214, 3.1-220. **Idee Nutzer:** „Newsflash“ am rechten Rand – Vorschläge gemacht, nicht gebaut.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

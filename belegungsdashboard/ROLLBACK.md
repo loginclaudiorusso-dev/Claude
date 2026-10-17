@@ -1,4 +1,4 @@
-# Rückweg: von 6.14 zurück zu 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.14.1 zurück zu 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -22,7 +22,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.11.0** | `backup/v6.11.0` | `e401d50` | `INNternat_v6.11.0_Sicherung.zip` |
 | **6.12.0** | `backup/v6.12.0` | `c6b7a12` | `INNternat_v6.12.0_Sicherung.zip` |
 | **6.13.0** | `backup/v6.13.0` | `7577366` | `INNternat_v6.13.0_Sicherung.zip` |
-| **6.14.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.14.0** | `backup/v6.14.0` | `85d7ffb` | `INNternat_v6.14.0_Sicherung.zip` |
+| **6.14.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -210,6 +211,21 @@ Datenformate unverändert: 6.12 liest alles, was 6.13 schreibt. Ein Rückweg zu 
 
 Datenformate unverändert. Neu in `einstellungen.json`: `start_ansicht` (heute/kacheln) – ältere Versionen ignorieren es.
 Gemerkte Tabs mit dem Reiter „Quellen“ öffnen „Zuteilen“; nach einem Rückweg zu 6.13 ist „Quellen“ wieder da.
+
+**6.14.1** (seit `85d7ffb`): ein Commit – Zuteilen-Knopf „Export“ heißt „Drucken“ (nur Beschriftung). Rückweg: Zip 6.14.0
+oder `git revert` dieses Commits.
+
+**6.15.0** (seit `85d7ffb`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (1) | rein | `zimmerliste.Filter`: Status am Tag, mehrere Böden, Personengruppen | – |
+| (2) | UI | Reiter „Zimmer“ = `ui/zimmerfinder.py` (Übersicht/Karten/Liste, Chips), „Stammdaten“ eigener Reiter, Reiter angeheftet (`Seite.anheften`), Zuteilen „Drucken“ neben „Übernehmen“, neue Symbole | (1) |
+| (3) | Doku/Tests | `tests/test_zimmerfinder.py`, Version 6.15.0 | – |
+
+Datenformate unverändert; neu in `einstellungen.json`: `zimmer_finder` (Ansicht, Haus). Gemerkte Tabs „Häuser“ öffnen
+„Zimmer“. Die erweiterte `Renovierungen_Import.tsv` (nur im Zip) wird einmal übernommen – Rückweg für die Zimmerdaten:
+Einstellungen → Datensicherung (Stand vor dem Update) oder Renovierung je Zimmer in der Liste über „Bearbeiten“ ändern.
 
 ## 6. Was sich geändert hat – und was nicht
 

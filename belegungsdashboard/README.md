@@ -27,6 +27,25 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.15 – Zimmer finden
+
+* **Reiter bleiben stehen:** Im Zimmerplan (und unter Daten & Import) scrollen Reiter und Kennzahlen nicht mehr mit.
+* **Reiter „Zimmer“ = Zimmer finden** (ersetzt „Häuser“ und die Zimmerliste):
+  * eine Suchleiste (Zimmer, Name, Notiz) und ein Tag, an dem Status und Bewohner gelten,
+  * Chips zum An-/Ausschalten: **Status** (Frei · Belegt · Geplant · Gesperrt, mit Anzahl), **Haus** (2 · 3.1 · 3.2 ·
+    3.3 · 6) und **Eigenschaften** mit Symbolen: ✦ Renoviert · Vinyl · Teppich · Tier · Doppel,
+  * Seltenes unter **„Filter“**: andere Böden, „renoviert seit …“, Bad über den Flur, Gästezimmer, Personengruppe,
+    Zimmer außer Betrieb; **„Zurücksetzen“** erscheint, sobald etwas gefiltert ist,
+  * drei Ansichten zum Umschalten: **Übersicht** (Kacheln wie bisher „Häuser“), **Karten** (je Etage eine Spalte, je
+    Zimmer Status, Bewohner, Maßnahme, Zeitraum – wie der Gebäudeplan im Belegungssystem) und **Liste** (Tabelle),
+  * oben die Kennzahlen der Auswahl (Zimmer · belegt · frei · Auslastung) und **„Drucken“** (Zimmerliste, PDF,
+    Kopieren für Excel, Belegung als Excel). In der Liste zusätzlich „Bearbeiten“ (Renovierung/Boden setzen).
+* **Stammdaten** sind jetzt ein eigener Reiter (bisher unter „Zimmer“).
+* **Zuteilen:** „Drucken“ steht rechts direkt neben „Übernehmen“ (bisher „Export“ links).
+* **Renovierungsliste ergänzt:** 23 weitere Zeilen (u. a. Haus 2, 3.–5. OG; Haus 3.1/3.2/3.3/6 aus 2018/2019) –
+  renoviert, Boden **Vinyl (vermutet)**; ein schon sicher eingetragener Boden bleibt. 6 Zeilen gibt es im
+  Gebäudeplan nicht (6-101, 6-204, 6-205, 6-208, 3.1-214, 3.1-220).
+
 ## Neu in 6.14 – ruhiger, nach Aufgaben geordnet
 
 * **Start „Heute“:** eine ruhige Liste der Vorgänge statt sieben gleich lauter Kacheln, gegliedert in **Zuerst
