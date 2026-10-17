@@ -1,4 +1,4 @@
-# Rückweg: von 6.17.1 zurück zu 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.18.0 zurück zu 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -26,7 +26,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.15.0** | `backup/v6.15.0` | `1553db3` | `INNternat_v6.15.0_Sicherung.zip` |
 | **6.16.0** | `backup/v6.16.0` | `968ca87` | `INNternat_v6.16.0_Sicherung.zip` |
 | **6.17.0** | `backup/v6.17.0` | `9ee6996` | `INNternat_v6.17.0_Sicherung.zip` |
-| **6.17.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.17.1** | `backup/v6.17.1` | `8ff80d4` | `INNternat_v6.17.1_Sicherung.zip` |
+| **6.18.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -264,6 +265,19 @@ beides weiter, die beiden neuen Gegenstände bleiben dann einfach im Inventar.
 Rückweg für die Inventardaten: Inventar → Gegenstände → „Nachttischlampe (neu)“ bzw. „Matratze Bett1“ löschen. Das
 entfernt sie aus allen Zimmern. Alternativ geht es über Einstellungen → Datensicherung (Stand vor dem Update).
 Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
+
+**6.18.0** (seit `8ff80d4`): ein Commit.
+* Inhalt: `belegung/zimmerzustand.py` (einmaliger Import), Katalog „Renovierung nötig“, Reno-Monat in
+  `zimmerliste`, Notizen in der Zimmerkarte, `tests/test_zimmerzustand.py`, Version 6.18.0.
+* Die Datei `Zimmerzustand_Import.tsv` (aus der ZKL, mit Zimmerdaten) liegt nur im Zip.
+* Der Import schreibt `zimmer_stammdaten.json`, `zimmer_maengel.json` und in `einstellungen.json` den Eintrag
+  `zustand_importe`.
+* Ältere Versionen:
+  * Sie zeigen einen Reno-Monat („2026-08“) als „ja (Datum ?)“.
+  * Den Mangel „renovierung“ zeigen sie als Rohtext.
+  * Es gehen keine Daten verloren.
+* Rückweg für die Daten: Einstellungen → Datensicherung (Stand vor dem Update). Einzelne Mängel lassen sich in der
+  Zimmerkarte abhaken.
 
 ## 6. Was sich geändert hat – und was nicht
 

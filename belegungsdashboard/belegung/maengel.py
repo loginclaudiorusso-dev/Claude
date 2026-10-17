@@ -33,6 +33,7 @@ KATALOG: list[tuple[str, str]] = [
     ("geruch", "Geruch (Rauch u. a.)"),
     ("ungeziefer", "Ungeziefer"),
     ("grundreinigung", "Grundreinigung nötig"),
+    ("renovierung", "Renovierung nötig"),        # z. B. ZKL „-> Reno“, „Reno1/Reno2“
     ("sonstiges", "Sonstiges"),
 ]
 NAMEN = dict(KATALOG)

@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.17.1, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.18.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -45,7 +45,17 @@
   Nachttischlampe (32 Zimmer) und Bett1 (15 Zimmer). Noch nicht übernommen, Nutzer entscheidet:
   * „Matratze getauscht“ (mit Maß/Härte/Datum) und „Rauchmelder neu“.
   * Blatt „Sonstige“: nicht eindeutig zugeordnet.
-  * Blatt „Fehlende Zimmer“: 39 Zimmer laut Raumplan, die es im System nicht gibt (z. B. 2-113, Gästezimmer 2-601 ff.).
+  * Blatt „Fehlende Zimmer“ (siehe auch 6.18): 39 Zimmer laut Raumplan, die es im System nicht gibt (z. B. 2-113, Gästezimmer 2-601 ff.).
+- 6.18: Zimmerzustand aus ZKL_26_V1 übernommen (Reno als Monat, Boden PVC/Teppich, 71 Mängel, Katalog
+  „Renovierung nötig“). Zu klären mit dem Nutzer:
+  * Was bedeuten Art „A“/„B“ und Reno „R“/„RZ“/„K0“?
+  * Ist „PVC“ in der ZKL dasselbe wie „Vinyl“? Haus 6/4. OG ist sicher als Vinyl eingetragen, die ZKL sagt PVC.
+    Dort wurde nichts geändert.
+  * Haben sich ältere ZKL-Notizen ohne Erledigt-Vermerk erledigt? Nicht übernommen wurden 2-218, 3.3-204, 3.3-224
+    und 3.3-301. Übernommen wurden u. a. 2-106, 3.1-114 und 3.3-323; sie lassen sich in der Zimmerkarte antippen,
+    wenn sie behoben sind.
+  * 28 Zimmer aus der ZKL gibt es im Zimmerplan nicht (JWG 3.1-2xx/3xx, Jugendhilfe Haus 6, 2-124, 2-413, 2-513,
+    2-514, 2-517, 3.3-123, 3.3-319, 6-1009).
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

@@ -30,11 +30,16 @@ RENOVIERT_OHNE_DATUM = "ja"      # renoviert, Datum unbekannt
 
 def reno_text(z: zp.Zimmer) -> str:
     d = reno_datum(z)
+    if d and len(z.renoviert) == 7:                 # nur Monat bekannt (z. B. aus der ZKL „26-08“)
+        return f"{d:%m/%Y}"
     return f"{d:%d.%m.%Y}" if d else ("ja (Datum ?)" if z.renoviert else "")
 
 
 def reno_datum(z: zp.Zimmer) -> date | None:
+    """Datum der Renovierung; bei „JJJJ-MM“ (nur Monat bekannt) der Monatserste."""
     try:
+        if z.renoviert and len(z.renoviert) == 7:
+            return date.fromisoformat(z.renoviert + "-01")
         return date.fromisoformat(z.renoviert) if z.renoviert else None
     except ValueError:
         return None

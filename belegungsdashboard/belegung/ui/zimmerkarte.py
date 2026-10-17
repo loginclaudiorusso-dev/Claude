@@ -546,11 +546,14 @@ class ZimmerBlock(Karte):
             b = knopf(text, "chip", "werkzeug" if art in offen else None)
             b.setCheckable(True)
             b.setChecked(art in offen)
-            b.setToolTip(f"Offen seit {offen[art].seit:%d.%m.%Y} – antippen, wenn behoben" if art in offen
-                         else "Als Mangel melden")
+            b.setToolTip(f"Offen seit {offen[art].seit:%d.%m.%Y}" + (f" – {offen[art].notiz}" if offen[art].notiz else "")
+                         + " – antippen, wenn behoben" if art in offen else "Als Mangel melden")
             b.toggled.connect(lambda an, a=art, t=text: self._mangel(a, t, an))
             fl.addWidget(b)
         self.inhalt.addWidget(feld)
+        details = [f"{mg.NAMEN.get(a, a)}: {m.notiz}" for a, m in offen.items() if m.notiz]
+        if details:                            # z. B. aus der ZKL übernommene Einzelheiten
+            self.inhalt.addWidget(label(" · ".join(details), "klein", umbruch=True))
 
     def _mangel(self, art: str, text: str, an: bool) -> None:
         from .. import maengel as mg

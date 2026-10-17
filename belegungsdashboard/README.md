@@ -27,6 +27,32 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.18 – Zimmerzustand aus der ZKL
+
+Beim ersten Start wird der Zimmerzustand aus der **ZKL_26_V1** einmal übernommen. Die Daten liegen in
+`Zimmerzustand_Import.tsv`, nur im Update-Paket. Es gelten dieselben Regeln wie bei Renovierungsliste und Mängeln:
+
+* **Renovierung:**
+  * Die ZKL-Spalte „Reno“ (z. B. „26-08“) wird als Monat übernommen und als „08/2026“ angezeigt.
+  * Das neuere Datum gewinnt.
+  * Ein genaues Datum aus der Renovierungsliste bleibt stehen, wenn die ZKL dieselbe Renovierung 1–2 Monate später
+    nennt.
+  * Unklare Kürzel (R, RZ, K0, „9-x“) werden nicht übernommen.
+* **Boden:**
+  * Spalte „Art“: PVC bzw. Teppich (Tep, Filz, Velour). Was die ZKL nennt, gilt als sicher.
+  * Ein vermuteter Boden (z. B. „Vinyl (vermutet)“ aus der Renovierungsliste) wird ersetzt. Ein sicher eingetragener
+    bleibt und wird gemeldet.
+  * „A“/„B“ sind ohne Legende unklar und werden nicht übernommen.
+  * Böden aus der alten Liste „ZKL -Doof“ werden nur übernommen, wenn das Zimmer seitdem nicht renoviert wurde.
+* **Mängel:**
+  * Eindeutige, offene Befunde aus „XXX (2)“ und „Begehung“ werden als Mängel übernommen, mit Datum (falls genannt)
+    und Notiz „ZKL: …“.
+  * Neu im Katalog: **„Renovierung nötig“** (ZKL „-> Reno“, „Reno1/Reno2“).
+  * Befunde, die als erledigt markiert sind oder durch eine spätere Renovierung überholt wurden, werden nicht
+    übernommen.
+* **Anzeige:** Die Zimmerkarte zeigt die Notizen der offenen Mängel unter den Chips. Eine Neuigkeit (Glocke) nennt
+  die Zahlen.
+
 ## Neu in 6.17.1 – Inventur: neue Lampen und Bett1-Matratzen
 
 * Beim ersten Start wird die Inventur einmal ins **Inventar** übernommen: **Nachttischlampe (neu)** in 32 Zimmern

@@ -578,6 +578,17 @@ class ZimmerplanSeite(Seite):
             self.z.neuigkeit.emit(f"Inventur übernommen ({was})" + (f" – {len(fehler)} Zeilen ohne Zimmer" if fehler else "")
                                   + ".", "ok", "inventar", "")
 
+    def _zustand_auto(self) -> None:
+        from ... import zimmerzustand
+
+        try:
+            erg = zimmerzustand.auto_import(self.stand)
+        except Exception:                 # noqa: BLE001 – Import darf den Start nie verhindern
+            return
+        if erg is not None:
+            self.stand = zp.laden()
+            self.z.neuigkeit.emit(f"Zimmerzustand aus der ZKL übernommen: {erg.text()}.", "ok", "zimmerplan:Zimmer", "")
+
     def _aufgaben_bauen(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
@@ -682,6 +693,7 @@ class ZimmerplanSeite(Seite):
         self.stand = zp.laden()
         self._renovierungen_auto()
         self._inventar_auto()
+        self._zustand_auto()
         if neu is not None and (k := zp.konflikte(self.stand.lage)):
             self.z.neuigkeit.emit(f"Achtung: {len(k)} geplante Zimmer kollidieren mit dem neuen Gebäudeplan – "
                                 "Hinweis im Zimmerplan, „Neu planen“ löst es.", "warnung", "zimmerplan:Aufgaben", "")
