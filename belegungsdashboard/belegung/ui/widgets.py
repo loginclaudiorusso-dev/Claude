@@ -122,7 +122,7 @@ def icon_setzen(b: QPushButton | QToolButton) -> None:
     t = theme.T
     variant = b.property("variant")
     farbe = t.accent_text if variant == "primary" else (t.ueber if variant == "gefahr" else t.text_2)
-    b.setIcon(icons.icon(name, farbe, 16))
+    b.setIcon(icons.icon(name, farbe, 16, t.accent if variant == "chip" else None))   # Chip an: Akzentfarbe
     b.setIconSize(QSize(16, 16))
 
 

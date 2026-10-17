@@ -534,7 +534,7 @@ class StartSeite(Seite):
             raster.addWidget(w, 0, i)
             raster.addWidget(Pille(text, stufe), 1, i, Qt.AlignLeft)
         k.inhalt.addLayout(raster)
-        self._link(k, "Zimmerplan öffnen →", lambda: self._zimmerplan("Häuser"))
+        self._link(k, "Zimmer ansehen →", lambda: self._zimmerplan("Zimmer"))
 
     def _k_erinnerungen(self, k: Kachel, heute: date) -> None:
         offen = [t for t in tm.alle() if t.faellig(heute)]

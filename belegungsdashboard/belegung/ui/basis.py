@@ -121,6 +121,15 @@ class Seite(QWidget):
         self._veraltet = True
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(0, 0, 0, 0)
+        aussen.setSpacing(0)
+        # Angeheftet: Reiter u. Ä. scrollen nicht mit (``anheften``) – bleibt leer und unsichtbar, wenn unbenutzt
+        self._kopf_w = QWidget()
+        self._kopf_w.setObjectName("seiteninhalt")
+        self.kopf_fest = QVBoxLayout(self._kopf_w)
+        self.kopf_fest.setContentsMargins(28, 8, 28, 8)
+        self.kopf_fest.setSpacing(10)
+        self._kopf_w.hide()
+        aussen.addWidget(self._kopf_w)
         inhalt = QWidget()
         inhalt.setObjectName("seiteninhalt")
         if self.scrollbar:
@@ -150,6 +159,17 @@ class Seite(QWidget):
             h.addWidget(w, (stretch or [1] * len(widgets))[i])
         self.lay.addWidget(behaelter)
         return h
+
+    def anheften(self, element, ausrichtung=None) -> None:
+        """Widget oder Layout oben anheften – es bleibt beim Scrollen stehen (z. B. die Reiter)."""
+        self._kopf_w.show()
+        if isinstance(element, QWidget):
+            if ausrichtung is not None:
+                self.kopf_fest.addWidget(element, 0, ausrichtung)
+            else:
+                self.kopf_fest.addWidget(element)
+        else:
+            self.kopf_fest.addLayout(element)
 
     # ---- Ansicht für Tabs: welcher Unterreiter usw. ----------------------------------------
 

@@ -48,6 +48,19 @@ _PFADE = {
     "glocke": '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
     "fenster": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 6.5h.01"/>',
     "schloss": '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    # 6.15 – Zimmer finden
+    "suche": '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.6-4.6"/>',
+    "boden": '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9.3h18M3 14.6h18M10 4v5.3M15 9.3v5.3M8 14.6V20M17 14.6V20"/>',
+    "teppich": '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M7 8c2-1.5 3 1.5 5 0s3 1.5 5 0M7 12c2-1.5 3 1.5 5 0s3 1.5 5 0M7 16c2-1.5 3 1.5 5 0s3 1.5 5 0"/>',
+    "pfote": '<ellipse cx="12" cy="16" rx="4.2" ry="3.6"/><circle cx="6" cy="10.5" r="1.8"/><circle cx="9.5" cy="6.5" r="1.8"/><circle cx="14.5" cy="6.5" r="1.8"/><circle cx="18" cy="10.5" r="1.8"/>',
+    "bett": '<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11" r="2"/>',
+    "dusche": '<path d="M5 21V6a3 3 0 0 1 6 0"/><path d="M8 9h7l-1.5 3h-4z"/><path d="M10 15v1M13 15v2M16 15v1M11.5 19v1M14.5 19v1"/>',
+    "filter": '<path d="M3 5h18l-7 8.5V20l-4-2v-4.5z"/>',
+    "raster": '<rect x="3" y="3" width="5" height="5" rx="1"/><rect x="10" y="3" width="5" height="5" rx="1"/><rect x="17" y="3" width="4" height="5" rx="1"/><rect x="3" y="10" width="5" height="5" rx="1"/><rect x="10" y="10" width="5" height="5" rx="1"/><rect x="17" y="10" width="4" height="5" rx="1"/><rect x="3" y="17" width="5" height="4" rx="1"/><rect x="10" y="17" width="5" height="4" rx="1"/>',
+    "karten": '<rect x="3" y="3" width="8" height="18" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
+    "liste": '<path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="2.6"/>',
+    "drucker": '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><rect x="7" y="14" width="10" height="7" rx="1"/>',
+    "person": '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
 }
 
 

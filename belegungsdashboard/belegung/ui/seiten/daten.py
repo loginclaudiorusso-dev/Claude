@@ -191,7 +191,7 @@ class DatenSeite(Seite):
             "Statistik: Mietverträge (zählen zur Netto-Belegung)",
             "Statistik: einzelne Belegungen ohne Liste (DRK, Landkreis, FRAI …)"])
         self.reiter.geaendert.connect(self._reiter)
-        self.lay.addWidget(self.reiter, 0, Qt.AlignLeft)
+        self.anheften(self.reiter, Qt.AlignLeft)          # Reiter bleiben beim Scrollen oben
         self._reiter_seiten = [[self.anr_karte], [self.uwt_karte], [self.zimmer_quellen],
                                [self.quelle_karte, self.kap_karte], [self.mieten_karte], [self.man_karte]]
         for karten in self._reiter_seiten:

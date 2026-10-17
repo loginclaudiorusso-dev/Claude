@@ -10,8 +10,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
-    QHeaderView, QLineEdit, QMenu, QMessageBox, QPushButton, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
+    QHeaderView, QLineEdit, QMenu, QMessageBox, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
@@ -26,31 +26,19 @@ WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
           "November", "Dezember"]
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
-STATUS_TEXT = {"frei": "frei", "teilweise": "teilweise frei", "belegt": "belegt", "geplant": "geplant",
-               "gesperrt": "gesperrt"}
-
-
-def _status_farben() -> dict[str, tuple[str, str]]:
-    t = theme.T
-    return {"frei": (theme.alpha(t.ok, .20), t.text), "teilweise": (theme.alpha(t.knapp, .22), t.text),
-            "belegt": (theme.alpha(t.text_3, .32), t.text),     # deutlich sichtbar, auch im dunklen Design
-            "geplant": (theme.alpha(t.kategorie.get("Reha", t.accent), .22), t.text),   # blau wie im Zeitstrahl
-            "gesperrt": (theme.alpha(t.ueber, .14), t.text_3)}
-
-
 # Nach Aufgaben gruppiert: Planen | Erledigen (Tagesgeschäft) | Verwalten (Stammdaten, Importe, Protokoll)
-TABS = ["Zuteilen", "Zeitstrahl", "Häuser", "Aufgaben", "Abreisen", "Reinigung", "Zimmer"]
-TAB_GRUPPEN = (3, 6)                         # Trennstrich vor „Aufgaben“ und vor „Zimmer“
+TABS = ["Zuteilen", "Zeitstrahl", "Zimmer", "Aufgaben", "Abreisen", "Reinigung", "Stammdaten"]
+TAB_GRUPPEN = (3, 6)                         # Trennstrich vor „Aufgaben“ und vor „Stammdaten“
 TAB_TIPPS = {
     "Zuteilen": "Planen: Anreisen Zimmer geben – Vorschlag prüfen, anpassen, übernehmen",
     "Zeitstrahl": "Planen: wer wann wo wohnt – ziehen = verschieben/Umzug, Rechtsklick = alle Aktionen",
-    "Häuser": "Planen: freie und belegte Zimmer an einem Tag, nach Haus und Etage",
+    "Zimmer": "Zimmer finden: suchen und filtern (frei, renoviert, Vinyl, Tier …) – als Übersicht, Karten oder Liste",
     "Aufgaben": "Erledigen: im Belegungssystem eintragen, Konflikte, Engpässe",
     "Abreisen": "Erledigen: wer wann abreist – Liste drucken",
     "Reinigung": "Erledigen: Reinigungsliste der Woche",
-    "Zimmer": "Verwalten: Zimmer-Stammdaten, Zimmerliste filtern und drucken, Renovierungen",
+    "Stammdaten": "Verwalten: Flur, Betten, Merkmale und Notiz je Zimmer",
 }
-WEGGEFALLEN = {"Quellen": "Zuteilen"}       # alte Reiter (gemerkte Tabs) → wohin stattdessen
+WEGGEFALLEN = {"Quellen": "Zuteilen", "Häuser": "Zimmer"}   # „Zimmer“ (bis 6.14 Stammdaten + Liste) → Finder       # alte Reiter (gemerkte Tabs) → wohin stattdessen
 TABS_VOR_610 = ["Zuteilen", "Aufgaben", "Zeitstrahl", "Häuser", "Reinigung", "Zimmer", "Quellen"]   # alte Nummern
 ABREISE_ZEITRAUM = ["Heute", "Morgen", "Diese Woche", "Nächste Woche", "14 Tage", "Monat"]
 
@@ -74,7 +62,6 @@ class ZimmerplanSeite(Seite):
         self._hand: set[str] = set()          # Zimmer in dieser Sitzung von Hand gewählt (Vorschau: „angefordert“)
         self._anreise_kennung: str | None = None
         self._anreise_liste: list = []
-        self._haus_filter: str | None = None
         self._monat = date.today().replace(day=1)
         zustand.listen_geaendert.connect(self.anstossen)   # auch ohne geladene Pivot aktualisieren
         zustand.zimmer_geaendert.connect(self._fremd_geaendert)   # anderes Fenster / Zimmerkarte hat gespeichert
@@ -100,12 +87,12 @@ class ZimmerplanSeite(Seite):
             mehr.setMenu(self._mehr_menue())
             ka.addWidget(optimieren)
             ka.addWidget(mehr)
-        self.lay.addLayout(kopf)
+        self.anheften(kopf)                 # Reiter und Kennzahlen bleiben beim Scrollen oben stehen
         # Kennzahlen in eigener Zeile unter den Reitern – brechen bei schmalem Fenster sauber um
         kz = QWidget()
         kz.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)   # nicht in die Höhe wachsen
         self.kennzahlen = FlowLayout(kz, abstand=6)
-        self.lay.addWidget(kz)
+        self.anheften(kz)
         self.hinweise = QVBoxLayout()
         self.hinweise.setSpacing(8)
         self.lay.addLayout(self.hinweise)
@@ -113,8 +100,8 @@ class ZimmerplanSeite(Seite):
         self._woche = date.today()
         self._zs_arten: set[str] = set()      # Zeitstrahl-Filter nach Art (Legende anklicken)
         bauen = {"Zuteilen": self._zuteilen_bauen, "Aufgaben": self._aufgaben_bauen, "Zeitstrahl": self._zeitstrahl_bauen,
-                 "Häuser": self._haeuser_bauen, "Reinigung": self._reinigung_bauen, "Abreisen": self._abreisen_bauen,
-                 "Zimmer": self._stamm_bauen}
+                 "Zimmer": self._zimmer_bauen, "Reinigung": self._reinigung_bauen, "Abreisen": self._abreisen_bauen,
+                 "Stammdaten": self._stamm_bauen}
         self.seiten = [bauen[t]() for t in TABS]
         for w in self.seiten:
             self.lay.addWidget(w)
@@ -168,16 +155,18 @@ class ZimmerplanSeite(Seite):
         self.zu_karte.inhalt.addWidget(status)
         unter = QHBoxLayout()
         unter.setSpacing(8)
-        self.b_excel = knopf("Export", "ghost", "tabelle", "Anreiseliste, Excel, Zimmerschilder oder Schlüsselliste dieser Anreise")
+        self.b_excel = knopf("Drucken", "ghost", "drucker", "Anreiseliste, Zimmerschilder oder Schlüsselliste dieser Anreise "
+                                                           "drucken – oder als Excel-Liste speichern")
         export = QMenu(self.b_excel)
         export.addAction("Anreiseliste drucken …", lambda: self._anreise_drucken("anreise"))
-        export.addAction("Excel-Liste (Zimmer, Etagen, freie Zimmer)", self._excel)
         export.addAction("Zimmerschilder drucken …", lambda: self._anreise_drucken("schilder"))
         export.addAction("Schlüsselliste drucken …", lambda: self._anreise_drucken("schluessel"))
+        export.addSeparator()
+        export.addAction("Als Excel-Liste speichern (Zimmer, Etagen, freie Zimmer) …", self._excel)
         self.b_excel.setMenu(export)
         self.b_ok = knopf("Übernehmen", "primary", "haken", "Zuteilung speichern – zählt dann bei weiteren Vorschlägen als belegt")
         self.b_ok.clicked.connect(self._uebernehmen)
-        # Seltenes unter „Mehr“ – sichtbar bleiben nur Export und die Hauptaktion „Übernehmen“
+        # Seltenes links unter „Mehr“ – rechts nebeneinander „Drucken“ und die Hauptaktion „Übernehmen“
         self.b_mehr = knopf("Mehr", "ghost", None, "Person hinzufügen, neu vorschlagen, Planung zurücknehmen")
         menue = QMenu(self.b_mehr)
         self.b_plus = menue.addAction("Person zu dieser Anreise hinzufügen …", self._person_hinzufuegen)
@@ -190,9 +179,9 @@ class ZimmerplanSeite(Seite):
         self.b_mehr.setMenu(menue)
         aktionen = QWidget()            # Knöpfe brechen im schmalen Fenster um, statt die Seite zu verbreitern
         knoepfe = FlowLayout(aktionen, abstand=8)
-        for x in (self.b_excel, self.b_mehr):
-            knoepfe.addWidget(x)
+        knoepfe.addWidget(self.b_mehr)
         unter.addWidget(aktionen, 1, Qt.AlignTop)
+        unter.addWidget(self.b_excel, 0, Qt.AlignTop)
         unter.addWidget(self.b_ok, 0, Qt.AlignTop)
         self.zu_karte.inhalt.addLayout(unter)
         # Name und Maßnahme zweizeilig in einer Spalte – so bleibt der Name auch im schmalen Fenster lesbar
@@ -443,68 +432,17 @@ class ZimmerplanSeite(Seite):
         v.addLayout(self.rg_tage)
         return w
 
-    def _haeuser_bauen(self) -> QWidget:
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.setSpacing(12)
-        leiste = QHBoxLayout()
-        leiste.setSpacing(8)
-        leiste.addWidget(label("Stand am", "klein"))
-        self.tag = DatumFeld(date.today())
-        self.tag.geaendert.connect(lambda _d: self._haeuser_zeigen())
-        leiste.addWidget(self.tag)
-        leiste.addSpacing(16)
-        chips = QWidget()
-        chips.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        chip_lay = FlowLayout(chips, abstand=8)      # Status-Chips brechen bei wenig Platz um
-        self.filter_gruppe = QButtonGroup(self)
-        self.filter_gruppe.setExclusive(True)
-        self.filter_knoepfe: dict[str | None, QPushButton] = {}
-        for schluessel, text in ((None, "Alle"), ("frei", "Frei"), ("teilweise", "Teilweise frei"), ("belegt", "Belegt"),
-                                 ("geplant", "Geplant"), ("gesperrt", "Gesperrt")):
-            b = knopf(text, "chip")
-            b.setCheckable(True)
-            b.clicked.connect(lambda _=False, s=schluessel: self._filter_setzen(s))
-            self.filter_gruppe.addButton(b)
-            self.filter_knoepfe[schluessel] = b
-            chip_lay.addWidget(b)
-        self.filter_knoepfe[None].setChecked(True)
-        # Personengruppen: wer wohnt dort – oder wo darf die Gruppe laut Regeln wohnen
-        zweite = leiste
-        zweite.addWidget(label("Gruppe", "klein"))
-        self.h_gruppe = Mehrfachauswahl([(g, zp.GRUPPE_LABEL.get(g, g)) for g in zp.GRUPPEN], "Alle Gruppen")
-        self.h_gruppe.geaendert.connect(lambda _g: self._haeuser_zeigen())
-        zweite.addWidget(self.h_gruppe)
-        self.h_modus = QComboBox()
-        self.h_modus.addItem("wohnt dort", "wohnt")
-        self.h_modus.addItem("darf dort wohnen", "darf")
-        self.h_modus.setToolTip("„wohnt dort“: am gewählten Tag belegt bzw. geplant von dieser Gruppe\n"
-                                "„darf dort wohnen“: laut Regeln erlaubt – mit „Frei“ kombiniert: wo ist Platz für die Gruppe")
-        self.h_modus.currentIndexChanged.connect(lambda _i: self._haeuser_zeigen())
-        zweite.addWidget(self.h_modus)
-        zweite.addStretch()
-        v.addLayout(leiste)
-        v.addWidget(chips)
-        export = knopf("Freie Zimmer als Excel", "ghost", "tabelle")
-        export.clicked.connect(self._excel_frei)
-        chip_lay.addWidget(export)
-        leg = QWidget()
-        leg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self.h_legende = FlowLayout(leg, abstand=10)
-        v.addWidget(leg)
-        v.addWidget(label("Zimmer anklicken für Details · D = Doppel · T = Tiere · M = nur Männer · G = Gäste", "klein"))
-        self.haeuser = QVBoxLayout()
-        self.haeuser.setSpacing(16)
-        v.addLayout(self.haeuser)
-        return w
+    def _zimmer_bauen(self) -> QWidget:
+        from ..zimmerfinder import ZimmerFinder
+
+        self.finder = ZimmerFinder(self)
+        return self.finder
 
     def _stamm_bauen(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(16)
-        v.addWidget(self._zimmerliste_bauen())
         karte = Karte("Zimmer-Stammdaten", "Aus den Grundrissen abgeleitet – bitte einmal prüfen. Häkchen per Klick, "
                                            "Flur/Betten/Notiz per Doppelklick ändern, dann speichern.")
         leiste = QHBoxLayout()
@@ -523,152 +461,6 @@ class ZimmerplanSeite(Seite):
         karte.inhalt.addWidget(self.stamm)
         v.addWidget(karte)
         return w
-
-    # ---- Zimmerliste: nach Eigenschaften filtern und drucken -------------------------------
-
-    def _zimmerliste_bauen(self) -> QWidget:
-        from ... import zimmerliste as zl
-
-        karte = Karte("Zimmerliste", "Zimmer nach Eigenschaften filtern – Renovierung, Boden, Tier-/Doppel-/Gästezimmer, "
-                                     "heute frei – und ausdrucken")
-        oben = QWidget()
-        fluss = FlowLayout(oben, abstand=10)
-        self.zl_haus = Segment(["Alle", "Haus 2", "Haus 3.1", "Haus 3.2", "Haus 3.3", "Haus 6"], 0)
-        self.zl_haus.geaendert.connect(lambda _i: self._zimmerliste_zeigen())
-        fluss.addWidget(self.zl_haus)
-        self.zl_reno = QComboBox()
-        jahr = date.today().year
-        for text, wert in [("Renovierung: egal", "alle"), ("renoviert", "ja"), ("nicht renoviert / unbekannt", "nein")] + \
-                [(f"renoviert seit {j}", f"seit:{j}") for j in range(jahr - 1, jahr - 6, -1)]:
-            self.zl_reno.addItem(text, wert)
-        self.zl_boden = QComboBox()
-        for text, wert in [("Boden: egal", "alle")] + [(b, b) for b in zl.BOEDEN] + [("Boden unbekannt", "unbekannt")]:
-            self.zl_boden.addItem(text, wert)
-        for box in (self.zl_reno, self.zl_boden):
-            box.currentIndexChanged.connect(lambda _i: self._zimmerliste_zeigen())
-            fluss.addWidget(box)
-        self.zl_merkmale: dict[str, QCheckBox] = {}
-        for k, text in (("tiere", "Tier-Zimmer"), ("doppel", "Doppelzimmer"), ("maenner", "Bad über den Flur"),
-                        ("gaeste", "Gästezimmer")):
-            cb = QCheckBox(text)
-            cb.toggled.connect(lambda _a: self._zimmerliste_zeigen())
-            self.zl_merkmale[k] = cb
-            fluss.addWidget(cb)
-        self.zl_frei = QCheckBox("heute frei")
-        self.zl_frei.toggled.connect(lambda _a: self._zimmerliste_zeigen())
-        fluss.addWidget(self.zl_frei)
-        self.zl_alle = QCheckBox("auch außer Betrieb")
-        self.zl_alle.setToolTip("Auch Zimmer, die nicht zum Internat gehören (Lager, Jugendhilfe …)")
-        self.zl_alle.toggled.connect(lambda _a: self._zimmerliste_zeigen())
-        fluss.addWidget(self.zl_alle)
-        self.zl_suche = QLineEdit()
-        self.zl_suche.setPlaceholderText("Suche: Zimmer, Name, Notiz …")
-        self.zl_suche.setClearButtonEnabled(True)
-        self.zl_suche.setMinimumWidth(200)
-        self.zl_suche.textChanged.connect(lambda _t: self._zimmerliste_zeigen())
-        fluss.addWidget(self.zl_suche)
-        karte.inhalt.addWidget(oben)
-        knoepfe = QWidget()
-        kf = FlowLayout(knoepfe, abstand=8)
-        for text, variante, icon, fn in (("Drucken", "primary", "datei", lambda: self._zimmerliste_drucken(False)),
-                                         ("PDF", "ghost", "datei", lambda: self._zimmerliste_drucken(True)),
-                                         ("Kopieren", "ghost", "kopieren", self._zimmerliste_kopieren),
-                                         ("Eigenschaften setzen …", "ghost", "haken", self._eigenschaften_setzen),
-                                         ("Renovierungen einfügen …", "ghost", "hochladen", self._renovierungen_einfuegen)):
-            b = knopf(text, variante, icon)
-            b.clicked.connect(fn)
-            kf.addWidget(b)
-        self.zl_namen = QCheckBox("Bewohner drucken")
-        self.zl_namen.setChecked(True)
-        kf.addWidget(self.zl_namen)
-        karte.inhalt.addWidget(knoepfe)
-        self.zl_info = label("", "muted", umbruch=True)
-        karte.inhalt.addWidget(self.zl_info)
-        self.zl_tab = Tabelle(["Zimmer", "Etage", "Merkmale", "Renoviert", "Boden", "Heute", "Notiz"], ["l"] * 7, dehnen=5)
-        self.zl_tab.setTextElideMode(Qt.ElideRight)
-        self.zl_tab.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.zl_tab.setToolTip("Mehrere Zeilen markieren (Strg/Umschalt) → „Eigenschaften setzen …“ · Doppelklick: Zimmerkarte")
-        self.zl_tab.cellDoubleClicked.connect(self._zimmerliste_oeffnen)
-        karte.inhalt.addWidget(self.zl_tab)
-        self._zl_zeilen: list = []
-        return karte
-
-    def _zl_filter(self):
-        from ... import zimmerliste as zl
-
-        i = self.zl_haus.index()
-        return zl.Filter(haus="" if i == 0 else HAEUSER[i - 1], renoviert=self.zl_reno.currentData(),
-                         boden=self.zl_boden.currentData(), merkmale={k for k, cb in self.zl_merkmale.items() if cb.isChecked()},
-                         nur_internat=not self.zl_alle.isChecked(), heute_frei=self.zl_frei.isChecked(),
-                         text=self.zl_suche.text().strip())
-
-    def _zimmerliste_zeigen(self) -> None:
-        from ... import zimmerliste as zl
-
-        if self.stand is None:
-            return
-        f = self._zl_filter()
-        self._zl_zeilen = zl.filtern(self.stand, f)
-        self.zl_tab.fuellen([[r.zimmer.kurz, zp.flur_text(r.zimmer).split(" · ", 1)[-1], zl.merkmal_kurz(r.zimmer),
-                              zl.reno_text(r.zimmer) or "–", r.boden or "–", r.heute,
-                              r.zimmer.notiz] for r in self._zl_zeilen])
-        self.zl_tab.hoehe_anpassen(16)
-        reno = sum(1 for r in self._zl_zeilen if r.zimmer.renoviert)
-        self.zl_info.setText(f"<b>{len(self._zl_zeilen)} Zimmer</b> · {f.beschreibung()} · davon {reno} renoviert, "
-                             f"{sum(1 for r in self._zl_zeilen if r.frei)} heute frei")
-
-    def _zl_gewaehlt(self) -> list:
-        sel = self.zl_tab.selectionModel()
-        reihen = sorted({self.zl_tab.daten_zeile(i.row()) for i in sel.selectedRows()}) if sel else []
-        return [self._zl_zeilen[r].zimmer for r in reihen if r < len(self._zl_zeilen)]
-
-    def _zimmerliste_oeffnen(self, r: int, _c: int = 0) -> None:
-        from ..zimmerkarte import karte_oeffnen
-
-        i = self.zl_tab.daten_zeile(r)
-        if 0 <= i < len(self._zl_zeilen):
-            karte_oeffnen(self, self.z, self._zl_zeilen[i].zimmer.id)
-
-    def _zl_ansicht(self) -> list:
-        """Zeilen in der angezeigten Reihenfolge (so wie sortiert)."""
-        return [self._zl_zeilen[self.zl_tab.daten_zeile(r)] for r in range(self.zl_tab.rowCount())
-                if self.zl_tab.daten_zeile(r) < len(self._zl_zeilen)]
-
-    def _zimmerliste_drucken(self, pdf: bool) -> None:
-        from ... import zimmerliste as zl
-
-        self._html_ausgeben(zl.liste_html(self._zl_ansicht(), self._zl_filter(), self.zl_namen.isChecked()), True,
-                            f"Zimmerliste_{date.today():%Y-%m-%d}.pdf" if pdf else None)
-
-    def _zimmerliste_kopieren(self) -> None:
-        from PySide6.QtGui import QGuiApplication
-
-        from ... import zimmerliste as zl
-
-        zeilen = ["Zimmer\tEtage\tMerkmale\tRenoviert\tBoden\tHeute\tNotiz"]
-        for r in self._zl_ansicht():
-            zeilen.append("\t".join([r.zimmer.kurz, zp.flur_text(r.zimmer), zl.merkmal_kurz(r.zimmer),
-                                     zl.reno_text(r.zimmer), r.boden, r.heute, r.zimmer.notiz]))
-        QGuiApplication.clipboard().setText("\n".join(zeilen))
-        self.z.meldung.emit(f"{len(zeilen) - 1} Zimmer kopiert – in Excel einfügen (Strg+V).", "ok")
-
-    def _eigenschaften_setzen(self) -> None:
-        from ..dialoge import ZimmerEigenschaftenDialog
-
-        zimmer = self._zl_gewaehlt()
-        if not zimmer:
-            QMessageBox.information(self, "Eigenschaften setzen", "Bitte zuerst eine oder mehrere Zeilen markieren "
-                                    "(Strg/Umschalt + Klick).")
-            return
-        if ZimmerEigenschaftenDialog(self.stand, zimmer, self).exec():
-            self.z.meldung.emit(f"Eigenschaften für {len(zimmer)} Zimmer gespeichert.", "ok")
-            self._nach_aenderung()
-
-    def _renovierungen_einfuegen(self) -> None:
-        from ..dialoge import RenovierungenDialog
-
-        if RenovierungenDialog(self.stand, self).exec():
-            self._nach_aenderung()
 
     def _renovierungen_auto(self) -> None:
         from ... import zimmerliste as zl
@@ -902,8 +694,8 @@ class ZimmerplanSeite(Seite):
     def _tab_inhalt(self, i: int) -> None:
         if self.stand is None or not 0 <= i < len(TABS):
             return
-        {"Aufgaben": self._aufgaben_zeigen, "Zeitstrahl": self._zeitstrahl_zeigen, "Häuser": self._haeuser_zeigen,
-         "Reinigung": self._reinigung_zeigen, "Abreisen": self._abreisen_zeigen, "Zimmer": self._stamm_zeigen}.get(TABS[i], lambda: None)()
+        {"Aufgaben": self._aufgaben_zeigen, "Zeitstrahl": self._zeitstrahl_zeigen, "Zimmer": self.finder.zeigen,
+         "Reinigung": self._reinigung_zeigen, "Abreisen": self._abreisen_zeigen, "Stammdaten": self._stamm_zeigen}.get(TABS[i], lambda: None)()
 
     def _kopf_zeigen(self) -> None:
         st = self.stand
@@ -1666,12 +1458,6 @@ class ZimmerplanSeite(Seite):
             self._excel_schreiben(pfad, f"Zimmerliste Anreise {b0.von:%d.%m.%Y}" + (f" – {titel}" if titel else ""),
                                   self._zuteilungen, b0.von)
 
-    def _excel_frei(self) -> None:
-        tag = self.tag.datum()
-        pfad = self._speicherort(f"Freie_Zimmer_{tag:%Y-%m-%d}.xlsx")
-        if pfad:
-            self._excel_schreiben(pfad, f"Belegung am {tag:%d.%m.%Y}", [], tag)
-
     def _excel_schreiben(self, pfad: Path, titel: str, zuteilungen, tag: date) -> None:
         try:
             zimmerexport.exportieren(pfad, titel, zuteilungen, self.stand.lage, tag)
@@ -1968,109 +1754,6 @@ class ZimmerplanSeite(Seite):
 
     # ================================================================== Häuser
 
-    def _filter_setzen(self, status: str | None) -> None:
-        self._haus_filter = status
-        if status in self.filter_knoepfe:
-            self.filter_knoepfe[status].setChecked(True)
-        self._haeuser_zeigen()
-
-    def _haeuser_zeigen(self) -> None:
-        if self.stand is None:
-            return
-        leeren(self.haeuser)
-        farben = _status_farben()
-        leeren(self.h_legende)            # Farblegende (bei jedem Aufbau – passt sich dem Design an)
-        for status, text in (("frei", "frei"), ("teilweise", "teilweise frei (Doppelzimmer, 1 Bett frei)"),
-                             ("belegt", "belegt"), ("geplant", "geplant (Zimmerplan)"), ("gesperrt", "gesperrt")):
-            bg, fg = farben[status]
-            muster = label(text, "klein")
-            muster.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:5px; padding:2px 7px;")
-            self.h_legende.addWidget(muster)
-        st, tag = self.stand, self.tag.datum()
-        haeuser: dict[str, list[zp.Zimmer]] = {}
-        for z in st.zimmer:
-            if z.aktiv:
-                haeuser.setdefault(z.haus, []).append(z)
-        if not haeuser:
-            self.haeuser.addWidget(Leer("haus", "Kein Gebäudeplan", "Unter Daten & Import → „Gebäudeplan & ZKL“ den Gebäudeplan (.docx) importieren."))
-            return
-        status_je = {z.id: st.lage.status_am(z.id, tag) for z in st.zimmer if z.aktiv}
-        zaehler: dict[str, int] = {}
-        for s, _b in status_je.values():
-            zaehler[s] = zaehler.get(s, 0) + 1
-        for schluessel, b in self.filter_knoepfe.items():
-            basis = {None: "Alle", "frei": "Frei", "teilweise": "Teilweise frei", "belegt": "Belegt",
-                     "geplant": "Geplant", "gesperrt": "Gesperrt"}[schluessel]
-            b.setText(basis if schluessel is None else f"{basis} ({zaehler.get(schluessel, 0)})")
-        gruppen, modus = self.h_gruppe.auswahl(), self.h_modus.currentData()
-        gruppen_je = {z.id: zp.gruppen_am(st.lage, z.id, tag) for z in st.zimmer if z.aktiv}
-
-        def passt_gruppe(z, auswahl: set | None = None) -> bool:
-            auswahl = gruppen if auswahl is None else auswahl
-            if not auswahl:
-                return True
-            if modus == "wohnt":
-                return bool(auswahl & gruppen_je[z.id])
-            return any(zp.erlaubt(z, g) for g in auswahl)
-
-        # Anzahl je Gruppe (unter dem gewählten Status) im Auswahlmenü anzeigen
-        aktive = [z for z in st.zimmer if z.aktiv and self._haus_filter in (None, status_je[z.id][0])]
-        self.h_gruppe.anzahl_setzen({g: sum(1 for z in aktive if passt_gruppe(z, {g})) for g in zp.GRUPPEN})
-        gefiltert = self._haus_filter is not None or bool(gruppen)
-        gezeigt = 0
-        for haus, zimmer in haeuser.items():
-            sichtbar = [z for z in zimmer if self._haus_filter in (None, status_je[z.id][0]) and passt_gruppe(z)]
-            if not sichtbar:
-                continue
-            gezeigt += 1
-            frei = sum(1 for z in zimmer if status_je[z.id][0] in ("frei", "teilweise"))
-            karte = Karte(f"Haus {haus}", f"{len(zimmer)} Zimmer · {frei} frei am {tag:%d.%m.%Y}"
-                          + (f" · {len(sichtbar)} angezeigt" if gefiltert else ""))
-            karte.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)   # umbrechende Etagen nicht abschneiden
-            gitter = QGridLayout()
-            gitter.setHorizontalSpacing(18)
-            gitter.setVerticalSpacing(10)
-            etagen = sorted({z.etage for z in sichtbar}, key=zp._etage_sort, reverse=True)
-            flure = [None]          # West/Ost nicht anzeigen – je Etage alle Zimmer nach Nummer
-            for r, e in enumerate(etagen, start=1):
-                gitter.addWidget(label(zp.etage_text(e), "fett"), r, 0, Qt.AlignTop)
-                for c, f in enumerate(flure):
-                    feld = QWidget()
-                    fl = FlowLayout(feld, abstand=4)
-                    for z in sorted((z for z in sichtbar if z.etage == e), key=lambda z: z.nummer):
-                        status, bel = status_je[z.id]
-                        bg, fg = farben[status]
-                        merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner), ("G", z.gaeste)) if an)
-                        kachel = QPushButton(f"{z.nr} {merk}".strip())
-                        kachel.setCursor(Qt.PointingHandCursor)
-                        kachel.setStyleSheet(f"QPushButton {{ background:{bg}; color:{fg}; border:none; border-radius:6px; "
-                                             f"padding:4px 7px; font-size:11.5px; }} QPushButton:hover {{ border:1px solid {theme.T.accent}; }}")
-                        kachel.setToolTip(self._tooltip(z, status, bel, tag))
-                        kachel.clicked.connect(lambda _=False, zid=z.id: self._zimmer_details(zid))
-                        fl.addWidget(kachel)
-                    gitter.addWidget(feld, r, c + 1)
-            for c in range(len(flure)):
-                gitter.setColumnStretch(c + 1, 1)
-            karte.inhalt.addLayout(gitter)
-            self.haeuser.addWidget(karte)
-        if not gezeigt:
-            self.haeuser.addWidget(Leer("haus", "Keine Zimmer für diese Auswahl",
-                                        f"Am {tag:%d.%m.%Y} passt kein Zimmer zu Status und Gruppe – Filter ändern "
-                                        "oder anderen Tag wählen."))
-
-    def _tooltip(self, z: zp.Zimmer, status: str, bel, tag: date) -> str:
-        zeilen = [f"<b>{z.id}</b> · {zp.flur_text(z)} · {STATUS_TEXT[status]}"]
-        for b in bel:
-            if b.art == "freigabe":
-                continue
-            text, _art = zp.balken_text(b)
-            zeilen.append(f"{text} bis {b.bis:%d.%m.%Y}")
-        if status in ("frei", "teilweise"):
-            bis = self.stand.lage.frei_bis(z.id, tag)
-            zeilen.append(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung")
-        zeilen.append("<i>Klicken für Details</i>")
-        return "<br>".join(zeilen)
-
     def _zimmer_details(self, zid: str) -> None:
         """Zimmer- und Personenkarte (eigenes Fenster, mehrere gleichzeitig möglich)."""
         from ..zimmerkarte import karte_oeffnen
@@ -2102,7 +1785,6 @@ class ZimmerplanSeite(Seite):
     # ================================================================== Stammdaten
 
     def _stamm_zeigen(self) -> None:
-        self._zimmerliste_zeigen()
         haus = HAEUSER[self.stamm_haus.index()]
         self._stamm_zimmer = [z for z in self.stand.zimmer if z.haus == haus]
         tab = self.stamm
