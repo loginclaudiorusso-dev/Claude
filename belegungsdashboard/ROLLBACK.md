@@ -1,4 +1,4 @@
-# Rückweg: von 6.17.0 zurück zu 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.17.1 zurück zu 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -25,7 +25,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.14.0** | `backup/v6.14.0` | `85d7ffb` | `INNternat_v6.14.0_Sicherung.zip` |
 | **6.15.0** | `backup/v6.15.0` | `1553db3` | `INNternat_v6.15.0_Sicherung.zip` |
 | **6.16.0** | `backup/v6.16.0` | `968ca87` | `INNternat_v6.16.0_Sicherung.zip` |
-| **6.17.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.17.0** | `backup/v6.17.0` | `9ee6996` | `INNternat_v6.17.0_Sicherung.zip` |
+| **6.17.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -254,6 +255,15 @@ erhalten.
 
 Datenformate unverändert; neu in `einstellungen.json` nur `zs_zeitraum` (Zoom des Zeitstrahls) – ältere Versionen
 ignorieren es. Gespeicherte Ansichten des Zeitstrahls öffnen in 6.16 wieder im Monat. Rückweg ohne Datenverlust.
+
+**6.17.1** (seit `9ee6996`): ein Commit. Er enthält den einmaligen Inventur-Import (`inventar.auto_import`,
+`tests/test_inventar_import.py`) und Version 6.17.1. Die Datei `Inventar_Import.tsv` liegt nur im Zip, nicht im Repo.
+Der Import schreibt `inventar.json` und in `einstellungen.json` den Eintrag `inventar_importe`. Ältere Versionen lesen
+beides weiter, die beiden neuen Gegenstände bleiben dann einfach im Inventar.
+
+Rückweg für die Inventardaten: Inventar → Gegenstände → „Nachttischlampe (neu)“ bzw. „Matratze Bett1“ löschen. Das
+entfernt sie aus allen Zimmern. Alternativ geht es über Einstellungen → Datensicherung (Stand vor dem Update).
+Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 
 ## 6. Was sich geändert hat – und was nicht
 

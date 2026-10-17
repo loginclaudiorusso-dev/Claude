@@ -565,6 +565,19 @@ class ZimmerplanSeite(Seite):
             self.z.neuigkeit.emit(f"Renovierungsliste übernommen: {n} Zimmer aktualisiert (Renovierung, Boden)"
                                   + (f" – nicht im Zimmerplan: {nicht}" if fehler else "") + ".", "ok", "zimmerplan:Zimmer", "")
 
+    def _inventar_auto(self) -> None:
+        from ... import inventar
+
+        try:
+            erg = inventar.auto_import({z.id for z in self.stand.zimmer})
+        except Exception:                 # noqa: BLE001 – Import darf den Start nie verhindern
+            return
+        if erg is not None:
+            n, je, fehler = erg
+            was = " · ".join(f"{name}: {k} Zimmer" for name, k in je.items())
+            self.z.neuigkeit.emit(f"Inventur übernommen ({was})" + (f" – {len(fehler)} Zeilen ohne Zimmer" if fehler else "")
+                                  + ".", "ok", "inventar", "")
+
     def _aufgaben_bauen(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
@@ -668,6 +681,7 @@ class ZimmerplanSeite(Seite):
             self.z.neuigkeit.emit(uwt_meldung(uwt_neu), "ok", "daten:UWT", "")
         self.stand = zp.laden()
         self._renovierungen_auto()
+        self._inventar_auto()
         if neu is not None and (k := zp.konflikte(self.stand.lage)):
             self.z.neuigkeit.emit(f"Achtung: {len(k)} geplante Zimmer kollidieren mit dem neuen Gebäudeplan – "
                                 "Hinweis im Zimmerplan, „Neu planen“ löst es.", "warnung", "zimmerplan:Aufgaben", "")

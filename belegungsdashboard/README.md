@@ -27,6 +27,16 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.17.1 – Inventur: neue Lampen und Bett1-Matratzen
+
+* Beim ersten Start wird die Inventur einmal ins **Inventar** übernommen: **Nachttischlampe (neu)** in 32 Zimmern
+  und **Matratze Bett1** in 15 Zimmern (Kategorie Elektro bzw. Bett & Wäsche). Die Daten kommen aus
+  `Inventar_Import.tsv`, die nur im Update-Paket liegt.
+* Eine Neuigkeit (Glocke) meldet die Übernahme. Danach steht die Ausstattung unter Inventar → Zimmer und in der
+  Zimmerkarte unter „Ausstattung“.
+* Vorhandenes bleibt unberührt: eigene Gegenstände, Anzahlen und die übrige Ausstattung. Wird dieselbe Datei
+  noch einmal gefunden, passiert nichts.
+
 ## Neu in 6.17 – ruhigere, einheitliche Oberfläche
 
 * **Zimmerplan → Zeitstrahl:** Kopf in zwei Zeilen statt fünf, der Plan beginnt deutlich weiter oben.

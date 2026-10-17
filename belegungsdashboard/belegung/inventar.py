@@ -154,6 +154,77 @@ def speichern(inv: Inventar) -> None:
 
 
 # ---------------------------------------------------------------------------------------
+# Einmaliger Import aus einer Inventur (z. B. neue Lampen, Bett1-Matratzen)
+# ---------------------------------------------------------------------------------------
+
+IMPORT_DATEI = "Inventar_Import.tsv"        # liegt sie im Programm- oder Datenordner, wird sie einmal übernommen
+# Kürzel aus der Inventurliste → (Gegenstand im Inventar, Kategorie); eigene Namen, damit Vorhandenes unberührt bleibt
+IMPORT_GEGENSTAENDE = {"nachttischlampe": ("Nachttischlampe (neu)", "Elektro"),
+                       "bett1": ("Matratze Bett1", "Bett & Wäsche")}
+
+
+def import_lesen(text: str, bekannt: set[str]) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Zeilen „Haus ⇥ Zimmer ⇥ Gegenstand …“ → [(Zimmer-ID, Gegenstand, Kategorie)], dazu unbekannte Zeilen."""
+    from .zkl import zimmer_id
+
+    erg, fehler = [], []
+    for zeile in (text or "").splitlines():
+        teile = [t.strip() for t in zeile.split("\t") if t.strip()]
+        if not teile or teile[0].startswith("#"):
+            continue
+        zid = zimmer_id(f"{teile[0]}-{teile[1]}", bekannt) if len(teile) >= 3 else None
+        if zid is None or zid not in bekannt:
+            fehler.append(zeile.strip())
+            continue
+        for t in teile[2:]:
+            name, kategorie = IMPORT_GEGENSTAENDE.get(t.lower().replace(" ", ""), (t, "Sonstiges"))
+            erg.append((zid, name, kategorie))
+    return erg, fehler
+
+
+def import_anwenden(inv: Inventar, eintraege: list[tuple[str, str, str]], notiz: str = "") -> int:
+    """Gegenstände anlegen (falls neu) und je Zimmer mindestens 1 eintragen – vorhandene Anzahlen bleiben.
+    Gibt die Zahl neuer Zuordnungen zurück."""
+    n = 0
+    for zid, name, kategorie in eintraege:
+        g = inv.nach_name(name)
+        if g is None:
+            g = Gegenstand(name, kategorie, notiz=notiz)
+            inv.gegenstand_speichern(g)
+        if inv.anzahl(zid, g.id) == 0:
+            inv.setzen(zid, g.id, 1)
+            n += 1
+    return n
+
+
+def auto_import(bekannt: set[str]) -> tuple[int, dict[str, int], list[str]] | None:
+    """Einmalig ``Inventar_Import.tsv`` übernehmen. Gibt (neue Zuordnungen, {Gegenstand: Zimmer}, unbekannte Zeilen)
+    oder None, wenn es keine (neue) Datei gibt."""
+    import hashlib
+
+    from .konfig import programmordner
+
+    for ordner in dict.fromkeys([speicher.pfad(""), programmordner()]):
+        pfad = ordner / IMPORT_DATEI
+        if not pfad.is_file():
+            continue
+        text = pfad.read_text(encoding="utf-8-sig")
+        kennung = hashlib.sha1(text.encode()).hexdigest()[:16]
+        if kennung in speicher.einstellungen().get("inventar_importe", []):
+            return None
+        eintraege, fehler = import_lesen(text, bekannt)
+        inv = laden()
+        n = import_anwenden(inv, eintraege, "aus Inventur-Abgleich übernommen")
+        speichern(inv)
+        speicher.einstellung_setzen("inventar_importe", speicher.einstellungen().get("inventar_importe", []) + [kennung])
+        je: dict[str, int] = {}
+        for _zid, name, _k in eintraege:
+            je[name] = je.get(name, 0) + 1
+        return n, je, fehler
+    return None
+
+
+# ---------------------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.17.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.17.1, 17.10.2026)
 
 ## Als Nächstes
 
@@ -41,6 +41,11 @@
   * „unknown1“: Die Ursache steckt vermutlich im neueren Gebäudeplan-Export. In den hier vorliegenden Daten kommt der
     Name nicht vor. Daten & Import → Gebäudeplan nennt jetzt Anzahl und Zimmer.
   * Windows-Darstellung (Schrift, 125/150 %) live ansehen.
+- 6.17.1: Aus der Inventur-Datei „Inventur_Abgleich_System.xlsx“ wurden nur die gewünschten Spalten übernommen:
+  Nachttischlampe (32 Zimmer) und Bett1 (15 Zimmer). Noch nicht übernommen, Nutzer entscheidet:
+  * „Matratze getauscht“ (mit Maß/Härte/Datum) und „Rauchmelder neu“.
+  * Blatt „Sonstige“: nicht eindeutig zugeordnet.
+  * Blatt „Fehlende Zimmer“: 39 Zimmer laut Raumplan, die es im System nicht gibt (z. B. 2-113, Gästezimmer 2-601 ff.).
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
