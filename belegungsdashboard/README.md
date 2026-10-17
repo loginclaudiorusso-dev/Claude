@@ -27,6 +27,27 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.21 – Seite „Mieter“, Mängel in Warnsignalfarben
+
+* **„Mieter“ links in der Seitenleiste** (unter Arbeiten):
+  * Alle Mietverträge aus dem Programm mit Nr., Zimmer, Beginn, Ende, Miete, Status (beginnt / läuft / endet bald /
+    beendet) und Zahl der Verlängerungen.
+  * Darunter „Verlängern (Nebenabrede)“, „Unterlagen neu erstellen“ und „Personenkarte“.
+  * „Weitere Mieter laut Gebäudeplan“: Mieter, die nicht mit dem Programm angelegt wurden. Für sie entsteht per
+    Doppelklick die Nebenabrede, der Name ist vorausgefüllt.
+  * „Neuer Mieter“ oben rechts.
+  * Die Seitenleiste zeigt „Mieter (n)“, wenn Verträge in den nächsten 6 Wochen enden.
+* **Mängel in Warnsignalfarben:** überall ein Warnzeichen „!“ bzw. Warndreieck in Signalfarbe – fest, im hellen und
+  dunklen Design gleich, Bedeutung zusätzlich im Tooltip/Text:
+  * **rot** = nicht bewohnbar (Mangel als „macht unbewohnbar“ markiert – Zimmer wird nicht zugeteilt),
+  * **orange** = dringend (Funktion gestört: Heizung, Bad, Abfluss, Wasser, Elektrik, Tür/Schloss, Rauchmelder, Matratze,
+    Geruch),
+  * **gelb** = leicht (Optik/Komfort: Rollo/Plissee, Wand, Teppich alt, Möbel, Reinigung …).
+  Ein Zimmer zeigt seine höchste Stufe. **Kacheln**: Warndreieck + Rand in der Farbe, „nicht bewohnbar“ ganz rot
+  umrandet; **Zeitstrahl**: runde „!“-Marke an der Nummer; **Kennzahl** oben „⚠ 40 Zimmer mit Mängeln“ plus drei farbige
+  Zahlen (rot · orange · gelb); **Zimmerkarte**, Karten, Legende; **Filter → Mangel** nach Farbe; **FM-Bericht**: farbige
+  Marke je Mangel, im Excel Spalte „Stufe“ als farbige Zelle, je Zimmer der wichtigste Mangel zuerst.
+
 ## Neu in 6.20 – Mieter: Unterlagen per Maske
 
 * **Zimmerplan → Mehr → „Neuer Mieter – Unterlagen erstellen …“:**

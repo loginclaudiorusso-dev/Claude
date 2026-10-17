@@ -131,6 +131,36 @@ def standard_ende(von: date, monate: int = STANDARD_MONATE) -> date:
     return ziel.replace(day=tag) - timedelta(days=1)
 
 
+BALD_TAGE = 42      # „endet bald“: in den nächsten 6 Wochen – Zeit für die Nebenabrede
+
+
+def status(mv: Mietvertrag, heute: date | None = None) -> tuple[str, str]:
+    """(Text, Stufe) – beginnt / läuft / endet bald / beendet."""
+    heute = heute or date.today()
+    if mv.von > heute:
+        return f"beginnt {mv.von:%d.%m.}", "akzent"
+    if mv.bis < heute:
+        return "beendet", "neutral"
+    tage = (mv.bis - heute).days
+    if tage <= BALD_TAGE:
+        return f"endet in {tage} Tagen" if tage else "endet heute", "knapp"
+    return "läuft", "ok"
+
+
+def weitere_mieter(stand, heute: date | None = None) -> list:
+    """Mieter laut Zimmerplan/Gebäudeplan, die nicht hier angelegt sind (aktuell oder künftig)."""
+    from . import zimmerplan as zp
+
+    heute = heute or date.today()
+    erg = []
+    for zid, bs in stand.lage.belegungen.items():
+        for b in bs:
+            if (b.art in ("belegt", "geplant") and b.bis >= heute and not b.person.startswith("mv:")
+                    and zp.gruppe_von(b.massnahme, "") == "Mieter" and b.name and b.name != zp.PIVOT_NAME):
+                erg.append(b)
+    return sorted(erg, key=lambda b: (b.bis, b.name))
+
+
 def pruefen(mv: Mietvertrag, andere: list[Mietvertrag] | None = None) -> list[str]:
     """Fehler, die das Erstellen verhindern."""
     fehler = []

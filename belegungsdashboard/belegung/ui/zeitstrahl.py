@@ -131,7 +131,7 @@ class Zeitstrahl(QWidget):
         self._layout: list[tuple] = []     # (art, y, h, objekt)
         self.gruppen: set[str] = set()     # andere Gruppen blass zeichnen (Gruppenfilter „wohnt dort“)
         self.arten: set[str] = set()       # andere Arten blass zeichnen (Legende als Filter)
-        self.maengel: set[str] = set()     # Zimmer mit offenen Mängeln → rotes „!“ an der Nummer
+        self.maengel: dict[str, int] = {}  # Zimmer → Mängel-Stufe (1–3) → „!“ in Signalfarbe (gelb/orange/rot)
         self._treffer: list[tuple[QRectF, object]] = []
         self.verschiebbar = False          # Balken mit Person per Ziehen in ein anderes Zimmer (Planung/Umzug)
         self._druck: tuple | None = None   # (Startpunkt, Zimmer-ID, Balken) beim Drücken auf einen Balken
@@ -221,13 +221,24 @@ class Zeitstrahl(QWidget):
             p.setPen(QColor(t.text))
             merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner), ("G", z.gaeste)) if an)
             p.drawText(QRectF(12, y, self.LINKS - 16, h), Qt.AlignVCenter | Qt.AlignLeft, z.nr)
-            if z.id in self.maengel:
-                f = QFont(schrift)
+            if (st := self.maengel.get(z.id, 0)):
+                from .. import maengel as mg
+                from .widgets import mangel_farben
+
+                bg, fg = mangel_farben(st)
+                f = QFont(klein)
                 f.setBold(True)
+                fm = QFontMetricsF(f)
+                zeichen = mg.zeichen(st)
+                bh = min(h - 6, fm.height() + 2)
+                bw = bh                                  # runde Marke in Signalfarbe
+                marke = QRectF(18 + QFontMetricsF(schrift).horizontalAdvance(z.nr), y + (h - bh) / 2, bw, bh)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(bg))
+                p.drawEllipse(marke)
                 p.setFont(f)
-                p.setPen(QColor(t.ueber))
-                p.drawText(QRectF(16 + QFontMetricsF(schrift).horizontalAdvance(z.nr), y, 12, h),
-                           Qt.AlignVCenter | Qt.AlignLeft, "!")
+                p.setPen(QColor(fg))
+                p.drawText(marke, Qt.AlignCenter, zeichen)
                 p.setFont(schrift)
                 p.setPen(QColor(t.text))
             if merk:

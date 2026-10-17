@@ -90,3 +90,28 @@ def test_nur_unbewohnbare_maengel_sperren_die_zuteilung(tmp_path, monkeypatch):
     mg.setzen(z.id, "schimmel", True)                                  # Schimmel sperrt von sich aus
     assert z.id in zp.laden().lage.unbewohnbar
     assert any(r.dringend for r in mg.bericht(mg.offen()))
+
+
+def test_stufen_und_filter(tmp_path, monkeypatch):
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    from belegung import maengel as mg
+    from belegung import zimmerliste as zl
+    from belegung import zimmerplan as zp
+
+    mg.setzen("GS-2-101", "fenster", True)              # Rollo/Plissee: leicht (!)
+    mg.setzen("GS-2-102", "fenster", True)
+    mg.setzen("GS-2-102", "heizung", True)              # dringend (!!) – höchste Stufe zählt
+    mg.setzen("GS-2-103", "moebel", True)
+    mg.sperren_setzen("GS-2-103", "moebel", True)       # vom Nutzer als unbewohnbar markiert (!!!)
+    je = mg.offen_je_zimmer()
+    assert [mg.stufe(je[z]) for z in ("GS-2-101", "GS-2-102", "GS-2-103")] == [1, 2, 3]
+    assert [mg.STUFEN[s][3] for s in (1, 2, 3)] == ["gelb", "orange", "rot"] and mg.stufe([]) == 0
+    assert mg.stufe_text(3) == "rot – nicht bewohnbar" and mg.zeichen(2) == "!"
+    st = zp.laden()
+    ids = lambda f: {r.zimmer.id for r in zl.filtern(st, f)}
+    assert ids(zl.Filter(maengel={"stufe:3"})) == {"GS-2-103"}
+    assert ids(zl.Filter(maengel={"stufe:2", "stufe:3"})) == {"GS-2-102", "GS-2-103"}
+    assert ids(zl.Filter(maengel={"*"})) == {"GS-2-101", "GS-2-102", "GS-2-103"}
+    assert "rot (nicht bewohnbar)" in zl.Filter(maengel={"stufe:3"}).beschreibung()
+    z = mg.bericht(mg.offen())
+    assert [(r.kurz, r.stufe) for r in z][:3] == [("2-101", 1), ("2-102", 2), ("2-102", 1)]   # je Zimmer: wichtigster zuerst

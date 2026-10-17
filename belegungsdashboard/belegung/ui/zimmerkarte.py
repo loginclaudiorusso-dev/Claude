@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from .. import anreiseliste, inventar
 from .. import zimmerplan as zp
 from .notizen import NotizenWidget
-from .widgets import DatumFeld, FlowLayout, Hinweis, Karte, Pille, Tabelle, knopf, label, leeren
+from .widgets import DatumFeld, FlowLayout, Hinweis, Karte, Pille, Tabelle, knopf, label, leeren, mangel_marke
 from .zeitstrahl import Zeitstrahl
 
 STATUS_TEXT = {"frei": "frei", "teilweise": "teilweise frei", "belegt": "belegt", "geplant": "geplant",
@@ -141,9 +141,11 @@ class ZimmerKarte(QDialog):
         from .. import maengel as mg
 
         if (offen := mg.offen(z.id)):
-            p = Pille(f"{len(offen)} Mangel" if len(offen) == 1 else f"{len(offen)} Mängel", "ueber")
-            p.setToolTip("<br>".join(f"{m.text} – seit {m.seit:%d.%m.%Y}" for m in offen))
-            fl.addWidget(p)
+            st = mg.stufe(offen)
+            fl.addWidget(mangel_marke(st, "<br>".join(f"{mg.STUFEN[m.stufe][3]}: {m.text} – seit {m.seit:%d.%m.%Y}"
+                                                      for m in sorted(offen, key=lambda m: -m.stufe))))
+            fl.addWidget(label(f"{len(offen)} Mangel" if len(offen) == 1 else f"{len(offen)} Mängel"
+                               + f" · {mg.stufe_text(st)}", "fett"))
         if status in ("frei", "teilweise"):
             bis = self.stand.lage.frei_bis(z.id, heute)
             fl.addWidget(label(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung", "fett"))
@@ -567,6 +569,7 @@ class ZimmerBlock(Karte):
         for a, m in offen.items():
             zeile = QHBoxLayout()
             zeile.setSpacing(8)
+            zeile.addWidget(mangel_marke(m.stufe), 0, Qt.AlignTop)
             text = label(f"<b>{mg.NAMEN.get(a, a)}</b>" + (f" – {m.notiz}" if m.notiz else "")
                          + f" · seit {m.seit:%d.%m.%Y}", "klein", umbruch=True)
             text.setTextFormat(Qt.RichText)

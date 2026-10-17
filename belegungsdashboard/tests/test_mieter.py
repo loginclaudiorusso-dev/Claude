@@ -114,3 +114,24 @@ def test_paket_fuellt_vordrucke(tmp_path):
     assert len(r.pages) == 3
     assert "Testfall" in r.pages[1].extract_text() and "01.09.2026" in r.pages[1].extract_text()
     assert "MV 26-011" in r.pages[2].extract_text() and "Hanna Testfall" in r.pages[2].extract_text()
+
+
+def test_status_und_weitere_mieter(daten):
+    from belegung import mieter as mt
+
+    mv = _mv()
+    assert mt.status(mv, date(2026, 8, 1))[1] == "akzent"                    # beginnt
+    assert mt.status(mv, date(2026, 10, 17)) == ("läuft", "ok")
+    assert mt.status(mv, date(2027, 2, 1)) == ("endet in 27 Tagen", "knapp")
+    assert mt.status(mv, date(2027, 3, 1)) == ("beendet", "neutral")
+    from types import SimpleNamespace
+
+    from belegung.gebaeudeplan import Belegung
+    lage = SimpleNamespace(belegungen={"GS-6-1": [Belegung("GS-6-1", date(2026, 1, 1), date(2027, 3, 31), "belegt",
+                                                            "Beispiel, Kai", "Miete Goslar")],
+                                       "GS-6-2": [Belegung("GS-6-2", date(2026, 1, 1), date(2027, 3, 31), "geplant",
+                                                            "Testfall, Hanna", "Miete Goslar MV 26-011", person="mv:26-011")],
+                                       "GS-2-1": [Belegung("GS-2-1", date(2026, 1, 1), date(2027, 3, 31), "belegt",
+                                                            "Reha, Rita", "GS ASS XY 2601")]})
+    weitere = mt.weitere_mieter(SimpleNamespace(lage=lage), date(2026, 10, 17))
+    assert [b.name for b in weitere] == ["Beispiel, Kai"]                      # eigene (mv:) und Reha nicht

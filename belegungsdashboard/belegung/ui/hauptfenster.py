@@ -117,6 +117,7 @@ class HauptFenster(QMainWindow):
         from .seiten.daten import DatenSeite
         from .seiten.einstellungen import EinstellungenSeite
         from .seiten.inventar import InventarSeite
+        from .seiten.mieter import MieterSeite
         from .seiten.posteingang import PosteingangSeite
         from .seiten.prognose import PrognoseSeite
         from .seiten.start import StartSeite
@@ -129,7 +130,7 @@ class HauptFenster(QMainWindow):
             "uebersicht": UebersichtSeite(zustand), "belegung": BelegungSeite(zustand),
             "prognose": PrognoseSeite(zustand), "assistent": AssistentSeite(zustand),
             "termine": TermineSeite(zustand), "posteingang": PosteingangSeite(zustand),
-            "zimmerplan": ZimmerplanSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
+            "zimmerplan": ZimmerplanSeite(zustand), "mieter": MieterSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
         }
         for s in self.seiten.values():
             self.stapel.addWidget(s)
@@ -230,13 +231,13 @@ class HauptFenster(QMainWindow):
         nl.setSpacing(2)
         # Nach Aufgaben: täglich Arbeiten · Auswerten · selten Verwalten
         eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Posteingang"),
-                     ("termine", "Termine"),
+                     ("termine", "Termine"), ("mieter", "Mieter"),
                      ("Auswerten", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
                      ("assistent", "Assistent"),
                      ("Verwalten", None), ("daten", "Daten && Import"), ("inventar", "Inventar"),
                      ("einstellungen", "Einstellungen")]
         icon_name = {"start": "start", "uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
-                     "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
+                     "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "mieter": "person", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
                 nl.addWidget(label(key.upper(), "nav_gruppe"))
@@ -827,6 +828,15 @@ class HauptFenster(QMainWindow):
             return
         offen = [t for t in alle if t.faellig(heute)]
         self.nav_knoepfe["termine"].setText(f"  Termine ({len(offen)})" if offen else "  Termine")
+        try:
+            from .. import mieter as mt
+
+            bald = sum(1 for m in mt.laden() if mt.status(m, heute)[1] == "knapp")
+            self.nav_knoepfe["mieter"].setText(f"  Mieter ({bald})" if bald else "  Mieter")
+            self.nav_knoepfe["mieter"].setToolTip(f"{bald} Mietvertr{'äge enden' if bald > 1 else 'ag endet'} in den "
+                                                  f"nächsten {mt.BALD_TAGE // 7} Wochen" if bald else "")
+        except Exception:
+            log.exception("Mieter konnten nicht gelesen werden")
         try:
             from .. import mails
 

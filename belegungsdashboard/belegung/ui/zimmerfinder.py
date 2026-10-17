@@ -20,11 +20,13 @@ from PySide6.QtWidgets import (
     QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
+from .. import maengel as mg
 from .. import speicher
 from .. import zimmerliste as zl
 from .. import zimmerplan as zp
 from . import icons, theme
-from .widgets import DatumFeld, FlowLayout, Karte, Leer, Pille, Tabelle, knopf, label, leeren
+from .widgets import (DatumFeld, FlowLayout, Karte, Leer, Pille, Tabelle, knopf, label, leeren, mangel_farben,
+                      mangel_html, mangel_icon)
 
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
 ANSICHTEN = [("uebersicht", "Übersicht", "raster", "Alle Zimmer als Kacheln – auf einen Blick"),
@@ -264,6 +266,11 @@ class ZimmerFinder(QWidget):
         from .. import maengel as mg
 
         mm = m.addMenu("Mangel")
+        for st in (3, 2, 1):
+            a = schalter(mm, f"{mg.STUFEN[st][3].capitalize()} – {mg.STUFEN[st][0]}", f"stufe:{st}" in mehr["maengel"],
+                         lambda st=st: self._mehr_umschalten("maengel", f"stufe:{st}"))
+            a.setIcon(mangel_icon(st))
+        mm.addSeparator()
         for art, text in mg.KATALOG:
             schalter(mm, text, art in mehr["maengel"], lambda a=art: self._mehr_umschalten("maengel", a))
         reno = m.addMenu("Renovierung")
@@ -368,9 +375,10 @@ class ZimmerFinder(QWidget):
             bis = self.seite.stand.lage.frei_bis(z.id, tag)
             zeilen.append(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung")
         if r.maengel:
-            if any(m.unbewohnbar for m in r.maengel):
-                zeilen.append("<b>Nicht bewohnbar – wird nicht zugeteilt</b>")
-            zeilen.append("! " + escape("; ".join(f"{m.text} (seit {m.seit:%d.%m.})" for m in r.maengel)))
+            st = mg.stufe(r.maengel)
+            zeilen.append(f"{mangel_html(st)} <b>{mg.stufe_text(st)}</b>"
+                          + (" – wird nicht zugeteilt" if st == 3 else ""))
+            zeilen.append(escape("; ".join(f"{m.text} (seit {m.seit:%d.%m.})" for m in r.maengel)))
         reno = zl.reno_text(z)
         if reno or r.boden:
             zeilen.append(" · ".join(x for x in (f"renoviert {reno}" if reno else "", r.boden) if x))
@@ -393,7 +401,12 @@ class ZimmerFinder(QWidget):
             muster = label(text, "klein")
             muster.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:5px; padding:2px 7px;")
             self.l_legende.addWidget(muster)
-        self.l_legende.addWidget(label("D Doppel · T Tier · M Bad über den Flur · G Gäste · R renoviert · ⚠ Mangel", "klein"))
+        self.l_legende.addWidget(label("D Doppel · T Tier · M Bad über den Flur · G Gäste · R renoviert", "klein"))
+        for st in (3, 2, 1):                       # Mängel-Stufen: Zeichen + Farbe (nicht nur Farbe)
+            bg, fg = mangel_farben(st)
+            muster = label(f"! {mg.STUFEN[st][0]}", "klein")
+            muster.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:5px; padding:2px 8px; font-weight:800;")
+            self.l_legende.addWidget(muster)
         for haus, zeilen in self._nach_haus().items():
             frei = sum(1 for r in zeilen if r.status in ("frei", "teilweise"))
             karte = Karte(f"Haus {haus}", f"{len(zeilen)} Zimmer · {frei} frei am {tag:%d.%m.%Y}")
@@ -410,12 +423,21 @@ class ZimmerFinder(QWidget):
                     z = r.zimmer
                     bg, fg = farben.get(r.status, farben["belegt"])
                     merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner),
-                                                   ("G", z.gaeste), ("R", bool(z.renoviert)), ("!", bool(r.maengel))) if an)
+                                                   ("G", z.gaeste), ("R", bool(z.renoviert))) if an)
+                    st = mg.stufe(r.maengel)
                     b = QPushButton(f"{z.nr} {merk}".strip())
                     b.setCursor(Qt.PointingHandCursor)
-                    b.setStyleSheet(f"QPushButton {{ background:{bg}; color:{fg}; border:none; border-radius:6px; "
-                                    f"padding:4px 7px; font-size:11.5px; }} QPushButton:hover {{ border:1px solid "
-                                    f"{theme.T.accent}; }}")
+                    # Mängel: Warndreieck in Signalfarbe (gelb/orange/rot) + Rand in derselben Farbe,
+                    # bei „nicht bewohnbar“ ganz rot umrandet
+                    mb, _mf = mangel_farben(st)
+                    if st:
+                        b.setIcon(mangel_icon(st, 15))
+                        b.setAccessibleDescription(f"Mangel: {mg.stufe_text(st)}")
+                    rand = ("border:none;" if not st else f"border:none; border-left:6px solid {mb};" if st < 3
+                            else f"border:3px solid {mb}; border-left:6px solid {mb};")
+                    b.setStyleSheet(f"QPushButton {{ background:{bg}; color:{fg}; {rand} border-radius:6px; "
+                                    f"padding:4px 7px; font-size:11.5px; {'font-weight:700;' if st >= 2 else ''} }} "
+                                    f"QPushButton:hover {{ border:1px solid {theme.T.accent}; }}")
                     b.setToolTip(self._tooltip(r, tag))
                     b.clicked.connect(lambda _=False, zid=z.id: self._oeffnen(zid))
                     fl.addWidget(b)
@@ -487,8 +509,11 @@ class ZimmerFinder(QWidget):
         if merkmale:
             v.addWidget(label(escape(" · ".join(merkmale)), "klein", umbruch=True))
         if r.maengel:
-            mang = label("! " + escape(" · ".join(m.text for m in r.maengel)), "klein", umbruch=True)
-            mang.setStyleSheet(f"color: {t.ueber};")
+            st = mg.stufe(r.maengel)
+            mang = label(mangel_html(st) + " " + escape(" · ".join(m.text for m in sorted(r.maengel, key=lambda m: -m.stufe))),
+                         "klein", umbruch=True)
+            mang.setTextFormat(Qt.RichText)
+            mang.setStyleSheet(f"color: {mangel_farben(st)[0] if st >= 2 else t.text};")
             v.addWidget(mang)
         for b in r.belegungen:
             zeile = QHBoxLayout()

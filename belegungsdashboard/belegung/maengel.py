@@ -41,6 +41,14 @@ NAMEN = dict(KATALOG)
 # („macht unbewohnbar“ in der Zimmerkarte) – ein kaputtes Rollo ist kein Grund, eine fehlende Matratze schon.
 UNBEWOHNBAR_STANDARD = {"schimmel", "ungeziefer"}
 
+# Stufen für die Anzeige (Warnsignalfarbe rot / orange / gelb): 3 = nicht bewohnbar (sperrt die Zuteilung), 2 = dringend (Funktion gestört),
+# 1 = leicht (Optik/Komfort – z. B. Rollo, Wand, Teppich alt). Die Stufe eines Zimmers ist die höchste seiner Mängel.
+STUFE_DRINGEND = {"heizung", "bad", "abfluss", "wasser", "elektrik", "tuer", "rauchmelder", "matratze", "geruch",
+                  "schimmel", "ungeziefer"}
+# (Name, Zeichen, Signalfarbe, Farbname): Warnsignalfarben wie bei Schildern – rot, orange, gelb
+STUFEN = {3: ("nicht bewohnbar", "!", "#E02424", "rot"), 2: ("dringend", "!", "#F97316", "orange"),
+          1: ("leicht", "!", "#FACC15", "gelb")}
+
 
 @dataclass
 class Mangel:
@@ -54,6 +62,10 @@ class Mangel:
     @property
     def unbewohnbar(self) -> bool:
         return self.sperrt if self.sperrt is not None else self.art in UNBEWOHNBAR_STANDARD
+
+    @property
+    def stufe(self) -> int:
+        return 3 if self.unbewohnbar else (2 if self.art in STUFE_DRINGEND else 1)
 
     @property
     def text(self) -> str:
@@ -92,6 +104,21 @@ def offen_je_zimmer() -> dict[str, list[Mangel]]:
     for m in offen():
         erg.setdefault(m.zimmer, []).append(m)
     return erg
+
+
+def stufe(maengel_: list[Mangel]) -> int:
+    """Höchste Stufe der (offenen) Mängel eines Zimmers – 0 = keine."""
+    return max((m.stufe for m in maengel_ if m.behoben is None), default=0)
+
+
+def zeichen(stufe_: int) -> str:
+    return STUFEN.get(stufe_, ("", ""))[1]
+
+
+def stufe_text(stufe_: int) -> str:
+    """„rot – nicht bewohnbar“ – für Stellen ohne Farbe (Tooltip, Mail, Filtertext)."""
+    s = STUFEN.get(stufe_)
+    return f"{s[3]} – {s[0]}" if s else ""
 
 
 def unbewohnbar_je_zimmer() -> dict[str, str]:
@@ -160,6 +187,7 @@ class BerichtZeile:
     tage: int              # wie lange schon offen
     zimmer_heute: str = "" # frei | belegt | … – damit das FM weiß, ob es klopfen muss (keine Namen)
     dringend: bool = False # macht das Zimmer unbewohnbar → zuerst
+    stufe: int = 1         # 3 nicht bewohnbar · 2 dringend · 1 leicht
     @property
     def schluessel(self) -> str:
         return f"{self.zimmer}|{self.art}"
@@ -176,9 +204,9 @@ def bericht(offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"), stat
     status = status or {}
     erg = [BerichtZeile(m.zimmer, kurz(m.zimmer), m.zimmer.removeprefix("GS-").partition("-")[0], m.art,
                         NAMEN.get(m.art, m.art), m.notiz, m.seit, (heute - m.seit).days,
-                        ZIMMER_HEUTE.get(status.get(m.zimmer, ""), status.get(m.zimmer, "")), m.unbewohnbar)
+                        ZIMMER_HEUTE.get(status.get(m.zimmer, ""), status.get(m.zimmer, "")), m.unbewohnbar, m.stufe)
            for m in offene]
-    return sorted(erg, key=lambda r: (_sort(r.zimmer), not r.dringend, r.mangel))
+    return sorted(erg, key=lambda r: (_sort(r.zimmer), -r.stufe, r.mangel))
 
 
 def fm_html(offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"), status: dict[str, str] | None = None,
@@ -199,7 +227,7 @@ def fm_html(offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"), stat
                      "<table class='liste' width='100%' cellspacing='0'><tr><th width='9%'>Zimmer</th>"
                      "<th width='10%'>heute</th><th width='20%'>Mangel</th><th>Details</th><th width='8%'>seit</th>"
                      "<th width='11%'>erledigt am</th><th width='9%'>Kürzel</th></tr>")
-        teile += [f"<tr><td><b>{escape(r.kurz)}</b></td><td>{escape(r.zimmer_heute)}</td><td><b>{escape(r.mangel)}</b></td>"
+        teile += [f"<tr><td><b>{escape(r.kurz)}</b></td><td>{escape(r.zimmer_heute)}</td><td>{_marke_html(r.stufe)} <b>{escape(r.mangel)}</b></td>"
                   f"<td>{escape(r.details)}</td><td>{r.seit:%d.%m.%y}</td><td></td><td></td></tr>" for r in dringend]
         teile.append("</table>")
     je_art: dict[str, int] = {}
@@ -209,7 +237,8 @@ def fm_html(offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"), stat
         je_haus[r.haus] = je_haus.get(r.haus, 0) + 1
     teile.append("<h2>Überblick</h2><table class='liste' cellspacing='0'><tr><th>Mangel</th><th>Anzahl</th></tr>")
     teile += [f"<tr><td>{escape(a)}</td><td>{n}</td></tr>" for a, n in sorted(je_art.items(), key=lambda x: -x[1])]
-    teile.append("</table><div class='klein'>Je Haus: "
+    teile.append("</table><div class='klein'>Farben: " + " · ".join(f"{_marke_html(s)} {STUFEN[s][0]}" for s in (3, 2, 1))
+                 + " – Je Haus: "
                  + " · ".join(f"Haus {escape(h)}: {n}" for h, n in je_haus.items()) + "</div>")
     for haus in je_haus:
         teile.append(f"<h2>Haus {escape(haus)}</h2><table class='liste' width='100%' cellspacing='0'><tr>"
@@ -220,13 +249,22 @@ def fm_html(offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"), stat
             erst = r.zimmer != vorher
             vorher = r.zimmer
             teile.append(f"<tr><td><b>{escape(r.kurz) if erst else ''}</b></td><td>{escape(r.zimmer_heute) if erst else ''}</td>"
-                         f"<td>{'<b>! ' if r.dringend else ''}{escape(r.mangel)}{' (unbewohnbar)</b>' if r.dringend else ''}</td><td>{escape(r.details)}</td>"
+                         f"<td>{_marke_html(r.stufe)} {'<b>' if r.stufe >= 2 else ''}{escape(r.mangel)}"
+                         f"{' (unbewohnbar)' if r.dringend else ''}{'</b>' if r.stufe >= 2 else ''}</td><td>{escape(r.details)}</td>"
                          f"<td>{r.seit:%d.%m.%y}</td><td></td><td></td></tr>")
         teile.append("</table>")
     return "".join(teile)
 
 
-EXCEL_SPALTEN = ["Haus", "Zimmer", "Zimmer heute", "Mangel", "Details", "unbewohnbar", "offen seit", "Tage offen",
+def _marke_html(stufe_: int) -> str:
+    s = STUFEN.get(stufe_)
+    if not s:
+        return ""
+    schrift = "#FFFFFF" if stufe_ == 3 else "#1B1B1B"
+    return f"<span style='background-color:{s[2]}; color:{schrift}; font-weight:bold;'>&nbsp;!&nbsp;</span>"
+
+
+EXCEL_SPALTEN = ["Haus", "Zimmer", "Zimmer heute", "Mangel", "Details", "Stufe", "offen seit", "Tage offen",
                  "erledigt am", "Bemerkung FM", "Schlüssel"]
 
 
@@ -244,16 +282,18 @@ def fm_excel(pfad, offene: list[Mangel], kurz=lambda zid: zid.removeprefix("GS-"
     ws.title = "Mängel"
     ws.append(EXCEL_SPALTEN)
     for r in zeilen:
-        ws.append([r.haus, r.kurz, r.zimmer_heute, r.mangel, r.details, "ja – dringend" if r.dringend else "", r.seit,
+        ws.append([r.haus, r.kurz, r.zimmer_heute, r.mangel, r.details, stufe_text(r.stufe), r.seit,
                    r.tage, None, None, r.schluessel])
     kopf = PatternFill("solid", fgColor="E3EFED")
     for c in ws[1]:
         c.font, c.fill = Font(bold=True), kopf
     gelb = PatternFill("solid", fgColor="FFF6D5")      # hier trägt das FM ein
-    rot = Font(bold=True, color="B42318")
-    for c in ws["F"][1:]:
-        if c.value:
-            c.font = rot
+    nach_name = {v[3]: (k, v[2]) for k, v in STUFEN.items()}
+    for c in ws["F"][1:]:                          # Stufe als Warnsignalfarbe (Zellfarbe), Text bleibt lesbar
+        k, farbe = nach_name.get(str(c.value or "").split(" ")[0], (0, ""))
+        if farbe:
+            c.fill = PatternFill("solid", fgColor=farbe.lstrip("#"))
+            c.font = Font(bold=True, color="FFFFFF" if k == 3 else "1B1B1B")
     for zeile in ws.iter_rows(min_row=2, min_col=9, max_col=10):
         for c in zeile:
             c.fill = gelb

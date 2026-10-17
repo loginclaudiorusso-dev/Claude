@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.20.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.21.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -75,6 +75,9 @@
     auf Seite 1.
   * Die Word-Datei der Nebenabrede ist ohne Word erzeugt. Bitte einmal in Word öffnen und ansehen.
   * Die alte Vorlage `.doc` (Nebenabrede) wird nicht mehr gebraucht. Ihr Text steckt im Programm.
+- 6.21: Seite „Mieter“ in der Seitenleiste; Mängel in Warnsignalfarben rot / orange / gelb. Zuordnung der Mängelarten zu „dringend“
+  (Heizung, Bad, Abfluss, Wasser, Elektrik, Tür, Rauchmelder, Matratze, Geruch) bzw. „leicht“ (Rest) ist ein
+  Vorschlag; „nicht bewohnbar“ setzt der Nutzer je Mangel. Bei Bedarf Zuordnung mit dem Nutzer/FM abstimmen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

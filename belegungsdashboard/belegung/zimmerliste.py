@@ -192,7 +192,16 @@ class Filter:
         if self.maengel:
             from .maengel import NAMEN
 
-            teile.append("Mängel" if "*" in self.maengel else "Mangel: " + " oder ".join(NAMEN.get(m, m) for m in sorted(self.maengel)))
+            from .maengel import STUFEN
+
+            stufen = sorted((int(t[6:]) for t in self.maengel if t.startswith("stufe:")), reverse=True)
+            arten = sorted(t for t in self.maengel if not t.startswith("stufe:") and t != "*")
+            if stufen:
+                teile.append("Mängel " + " oder ".join(f"{STUFEN[s][3]} ({STUFEN[s][0]})" for s in stufen if s in STUFEN))
+            if "*" in self.maengel and not stufen:
+                teile.append("Mängel")
+            if arten:
+                teile.append("Mangel: " + " oder ".join(NAMEN.get(m, m) for m in arten))
         if self.gruppen:
             teile.append(("wohnt: " if self.gruppen_modus == "wohnt" else "erlaubt für: ")
                          + ", ".join(zp.GRUPPE_LABEL.get(g, g) for g in sorted(self.gruppen)))
@@ -266,7 +275,11 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
             namen = [b.name for b in bs if b.art in ("belegt", "geplant") and b.name and b.name != zp.PIVOT_NAME]
             jetzt = ", ".join(namen) if namen else ("frei" if frei else "belegt")
         m = offen.get(z.id, [])
-        if f.maengel and not (m and ("*" in f.maengel or any(x.art in f.maengel for x in m))):
+        stufen = {int(t[6:]) for t in f.maengel if t.startswith("stufe:")}
+        arten = {t for t in f.maengel if not t.startswith("stufe:")}
+        if stufen and mg.stufe(m) not in stufen:              # rot / orange / gelb – nach höchster Stufe im Zimmer
+            continue
+        if arten and not (m and ("*" in arten or any(x.art in arten for x in m))):
             continue
         if f.text and f.text.lower() not in f"{z.kurz} {z.notiz} {boden} {jetzt} {' '.join(x.text for x in m)}".lower():
             continue

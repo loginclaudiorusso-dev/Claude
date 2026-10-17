@@ -52,6 +52,60 @@ def label(text: str = "", r: str | None = None, umbruch: bool = False) -> QLabel
     return lbl
 
 
+def mangel_farben(stufe: int) -> tuple[str, str]:
+    """(Signalfarbe, Schrift) der Mängel-Marke: rot · orange · gelb – fest, in hellem und dunklem Design gleich."""
+    from .. import maengel as mg
+
+    s = mg.STUFEN.get(stufe)
+    if s is None:
+        return theme.T.text_3, theme.T.text
+    return s[2], ("#FFFFFF" if stufe == 3 else "#1B1B1B")
+
+
+def mangel_icon(stufe: int, groesse: int = 16):
+    """Warndreieck „!“ in Signalfarbe (wie ein Warnschild) – für Kacheln, Menüs, Knöpfe."""
+    from PySide6.QtCore import QPointF, QRectF
+    from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
+
+    bg, fg = mangel_farben(stufe)
+    pm = QPixmap(groesse * 2, groesse * 2)                 # doppelte Auflösung → scharf bei 125/150 %
+    pm.fill(QColor(0, 0, 0, 0))
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    g = groesse * 2
+    dreieck = QPolygonF([QPointF(g / 2, g * 0.06), QPointF(g * 0.96, g * 0.92), QPointF(g * 0.04, g * 0.92)])
+    p.setPen(QPen(QColor("#1B1B1B" if stufe != 3 else bg), g * 0.06))
+    p.setBrush(QColor(bg))
+    p.drawPolygon(dreieck)
+    f = QFont()
+    f.setBold(True)
+    f.setPixelSize(int(g * 0.58))
+    p.setFont(f)
+    p.setPen(QColor(fg))
+    p.drawText(QRectF(0, g * 0.24, g, g * 0.68), Qt.AlignCenter, "!")
+    p.end()
+    pm.setDevicePixelRatio(2)
+    return QIcon(pm)
+
+
+def mangel_marke(stufe: int, tipp: str = "") -> QLabel:
+    """Kleine Marke „!“ in Signalfarbe (rot/orange/gelb) – Bedeutung im Tooltip und als Text für Screenreader."""
+    from .. import maengel as mg
+
+    bg, fg = mangel_farben(stufe)
+    m = QLabel("!")
+    m.setStyleSheet(f"background:{bg}; color:{fg}; font-weight:900; border-radius:8px; padding:0px 7px;")
+    m.setToolTip(tipp or mg.stufe_text(stufe))
+    m.setAccessibleName(f"Mangel: {mg.stufe_text(stufe)}")
+    return m
+
+
+def mangel_html(stufe: int) -> str:
+    """Dieselbe Marke für Rich-Text-Labels."""
+    bg, fg = mangel_farben(stufe)
+    return f"<span style='background-color:{bg}; color:{fg}; font-weight:900;'>&nbsp;!&nbsp;</span>"
+
+
 class KurzLabel(QLabel):
     """Einzeiliges Label, das bei wenig Platz mit „…“ kürzt (voller Text im Tooltip) statt zu verbreitern."""
 

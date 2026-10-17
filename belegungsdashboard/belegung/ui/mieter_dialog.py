@@ -50,6 +50,20 @@ def _vorlagen_hinweis() -> Hinweis | None:
                    + ". Bitte das aktuelle Update-Paket entpacken.", "fehler")
 
 
+def unterlagen_speichern(eltern, mv: mt.Mietvertrag) -> tuple[Path, list[str]] | None:
+    """Speicherort fragen, Vertrag setzen und alle Vordrucke in eine PDF. None = abgebrochen."""
+    name = f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
+    pfad, _ = QFileDialog.getSaveFileName(eltern, "Mietunterlagen speichern", str(_ordner_start() / name), "PDF (*.pdf)")
+    if not pfad:
+        return None
+    ziel = Path(pfad if pfad.lower().endswith(".pdf") else pfad + ".pdf")
+    speicher.einstellung_setzen("export_ordner", str(ziel.parent))
+    ordner = mt.vorlagen_ordner()
+    vorlage = (ordner / mt.VERTRAG).read_text(encoding="utf-8")
+    vertrag = _html_als_pdf(mt.vertrag_html(mv, vorlage, ordner / mt.LOGO))
+    return ziel, mt.paket_erstellen(mv, vertrag, ziel, ordner)
+
+
 class NeuerMieterDialog(QDialog):
     """Name, Zimmer, ab wann – der Rest ist vorgeschlagen und änderbar."""
 
@@ -199,20 +213,14 @@ class NeuerMieterDialog(QDialog):
         if fehler:
             self.warnung.setText("<b>Bitte prüfen:</b> " + " ".join(fehler))
             return
-        name = f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
-        pfad, _ = QFileDialog.getSaveFileName(self, "Mietunterlagen speichern", str(_ordner_start() / name), "PDF (*.pdf)")
-        if not pfad:
-            return
-        ziel = Path(pfad if pfad.lower().endswith(".pdf") else pfad + ".pdf")
-        speicher.einstellung_setzen("export_ordner", str(ziel.parent))
-        ordner = mt.vorlagen_ordner()
         try:
-            vorlage = (ordner / mt.VERTRAG).read_text(encoding="utf-8")
-            vertrag = _html_als_pdf(mt.vertrag_html(mv, vorlage, ordner / mt.LOGO))
-            teile = mt.paket_erstellen(mv, vertrag, ziel, ordner)
+            erg = unterlagen_speichern(self, mv)
         except OSError as e:
             self.warnung.setText(f"Konnte nicht speichern (ist die Datei noch geöffnet?): {e}")
             return
+        if erg is None:
+            return
+        ziel, teile = erg
         mt.anlegen(mv)
         self.z.zimmer_geaendert.emit()
         self.z.meldung.emit(f"Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: " + ", ".join(teile)
@@ -224,9 +232,10 @@ class NeuerMieterDialog(QDialog):
 class VerlaengernDialog(QDialog):
     """Mieter wählen (oder von Hand), neues Ende → Nebenabrede als .docx und .pdf; Zimmerplan zieht mit."""
 
-    def __init__(self, zustand, nr: str = "", parent=None):
+    def __init__(self, zustand, nr: str = "", parent=None, name: str = "", bis: date | None = None):
         super().__init__(parent)
         self.z = zustand
+        self._hand_bis = bis
         self.mieter = sorted(mt.laden(), key=lambda m: m.bis)
         self.setWindowTitle("Mietvertrag verlängern")
         self.setMinimumWidth(520)
@@ -279,6 +288,11 @@ class VerlaengernDialog(QDialog):
         self.wahl.currentIndexChanged.connect(lambda _i: self._gewaehlt())
         if nr:
             self.wahl.setCurrentIndex(max(self.wahl.findData(nr), 0))
+        elif name:                                  # Mieter laut Zimmerplan, nicht hier angelegt: von Hand vorbelegt
+            self.wahl.setCurrentIndex(self.wahl.count() - 1)
+            nach, _, vor = name.partition(",")
+            self.hand_nachname.setText(nach.strip())
+            self.hand_vorname.setText(vor.strip())
         self._gewaehlt()
 
     def _aktuell(self) -> mt.Mietvertrag | None:
@@ -293,8 +307,10 @@ class VerlaengernDialog(QDialog):
             self.bisher.setText(f"{mv.bis:%d.%m.%Y}")
             self.bis.setzen(mt.standard_ende(mv.bis + timedelta(days=1)))
         else:
-            self.bisher.setText("– (nur die Nebenabrede, ohne Zimmerplan)")
-            self.bis.setzen(mt.standard_ende(date.today()))
+            bisher = self._hand_bis
+            self.bisher.setText((f"{bisher:%d.%m.%Y} laut Zimmerplan – " if bisher else "– ")
+                                + "nur die Nebenabrede, der Zimmerplan bleibt")
+            self.bis.setzen(mt.standard_ende((bisher + timedelta(days=1)) if bisher else date.today()))
 
     def _erstellen(self) -> None:
         mv = self._aktuell()

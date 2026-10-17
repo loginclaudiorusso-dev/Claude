@@ -872,17 +872,28 @@ class ZimmerplanSeite(Seite):
         from ... import maengel as mg
 
         aktiv = {z.id for z in st.zimmer if z.aktiv}
-        mit_m = {m.zimmer for m in mg.offen()} & aktiv
-        if mit_m:                                    # „!“ – ein Klick zeigt genau diese Zimmer (und den FM-Bericht)
-            gesperrt = set(st.lage.unbewohnbar) & aktiv
-            b = knopf(f"{len(mit_m)} Zimmer mit Mängeln" + (f" · {len(gesperrt)} unbewohnbar" if gesperrt else ""), "chip",
-                      "ausrufe", "Zimmer mit offenen Mängeln zeigen – Bericht für das FM dort unter „Drucken“"
+        je_zimmer = {zid: ms for zid, ms in mg.offen_je_zimmer().items() if zid in aktiv}
+        if je_zimmer:                                # „!“ – ein Klick zeigt genau diese Zimmer (und den FM-Bericht)
+            from ..widgets import mangel_farben, mangel_icon, mangel_marke
+
+            stufen = [mg.stufe(ms) for ms in je_zimmer.values()]
+            hoechste = max(stufen)
+            b = knopf(f"{len(je_zimmer)} Zimmer mit Mängeln", "chip", None,
+                      "Zimmer mit offenen Mängeln zeigen – Bericht für das FM dort unter „Drucken“<br>"
+                      + "<br>".join(f"{mg.stufe_text(s)}: {stufen.count(s)} Zimmer" for s in (3, 2, 1))
                       + ("<br>Nicht bewohnbar (werden nicht zugeteilt): "
-                         + ", ".join(sorted(st.lage.zimmer[z].kurz for z in gesperrt)) if gesperrt else ""))
-            b.setStyleSheet(f"color: {theme.T.ueber};")
-            b.setIcon(icons.icon("ausrufe", theme.T.ueber, 16))
+                         + ", ".join(sorted(st.lage.zimmer[z].kurz for z, ms in je_zimmer.items() if mg.stufe(ms) == 3))
+                         if hoechste == 3 else ""))
+            farbe = mangel_farben(hoechste)[0]
+            b.setStyleSheet(f"font-weight: 700; border: 2px solid {farbe};")
+            b.setIcon(mangel_icon(hoechste, 16))
             b.clicked.connect(self.maengel_zeigen)
             self.kennzahlen.addWidget(b)
+            for s_ in (3, 2, 1):                     # je Signalfarbe eine Zahl: rot · orange · gelb
+                if (n := stufen.count(s_)):
+                    zahl = mangel_marke(s_, f"{mg.stufe_text(s_)}: {n} Zimmer")
+                    zahl.setText(str(n))
+                    self.kennzahlen.addWidget(zahl)
         leeren(self.hinweise)
         if st.plan is None:
             h = Hinweis("Noch kein Gebäudeplan da – die Zimmer sind bekannt, die aktuelle Belegung aber nicht. "
@@ -1665,10 +1676,10 @@ class ZimmerplanSeite(Seite):
         self.zeitstrahl.arten = set(self._zs_arten)
         from ... import maengel as mg
 
-        mit_m = {m.zimmer for m in mg.offen()}
-        self.zeitstrahl.maengel = mit_m              # „!“ an der Zimmernummer
+        stufen = {zid: mg.stufe(ms) for zid, ms in mg.offen_je_zimmer().items()}
+        self.zeitstrahl.maengel = stufen             # „!“ in Signalfarbe an der Zimmernummer
         if self._zs_maengel:
-            zeilen = [(z, spuren) for z, spuren in zeilen if z.id in mit_m]
+            zeilen = [(z, spuren) for z, spuren in zeilen if z.id in stufen]
         if suche:
             zeilen = [(z, spuren) for z, spuren in zeilen
                       if suche in z.id.lower() or suche in z.nr.lower() or suche in z.kurz.lower()
