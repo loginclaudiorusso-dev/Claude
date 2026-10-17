@@ -256,7 +256,7 @@ erhalten.
 Datenformate unverändert; neu in `einstellungen.json` nur `zs_zeitraum` (Zoom des Zeitstrahls) – ältere Versionen
 ignorieren es. Gespeicherte Ansichten des Zeitstrahls öffnen in 6.16 wieder im Monat. Rückweg ohne Datenverlust.
 
-**6.17.1** (seit `9ee6996`): ein Commit. Er enthält den einmaligen Inventur-Import (`inventar.auto_import`,
+**6.17.1** (seit `9ee6996`): ein Commit (`5277c4c`). Er enthält den einmaligen Inventur-Import (`inventar.auto_import`,
 `tests/test_inventar_import.py`) und Version 6.17.1. Die Datei `Inventar_Import.tsv` liegt nur im Zip, nicht im Repo.
 Der Import schreibt `inventar.json` und in `einstellungen.json` den Eintrag `inventar_importe`. Ältere Versionen lesen
 beides weiter, die beiden neuen Gegenstände bleiben dann einfach im Inventar.
