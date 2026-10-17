@@ -247,9 +247,9 @@ erhalten.
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (1) | rein | `belegung/datenstatus.py`, `termine.dringlichkeit/gruppieren`, `zimmerplan.anzeige_name` + eindeutige Schlüssel für fehlende Namen | – |
-| (2) | UI | Zeitstrahl-Kopf/Zoom/Filter/angeheftete Datumsleiste, Termine nach Dringlichkeit, Übersicht-KPIs/Hinweise, Datenstand in der Seitenleiste, Kontrast/Fokus, kleine Fenster | (1) |
-| (3) | Doku/Tests | `tests/test_ui_617.py`, `UX_KONZEPT.md` Teil 4, Version 6.17.0 | – |
+| `1a5c19c` | rein | `belegung/datenstatus.py`, `termine.dringlichkeit/gruppieren`, `zimmerplan.anzeige_name` + eindeutige Schlüssel für fehlende Namen | – |
+| `a666148` | UI | Zeitstrahl-Kopf/Zoom/Filter/angeheftete Datumsleiste, Termine nach Dringlichkeit, Übersicht-KPIs/Hinweise, Datenstand in der Seitenleiste, Kontrast/Fokus, kleine Fenster | `1a5c19c` |
+| `a29064b` | Doku/Tests | `tests/test_ui_617.py`, `UX_KONZEPT.md` Teil 4, Version 6.17.0 | – |
 | (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Datenformate unverändert; neu in `einstellungen.json` nur `zs_zeitraum` (Zoom des Zeitstrahls) – ältere Versionen
