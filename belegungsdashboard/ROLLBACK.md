@@ -305,7 +305,7 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
     nicht im Zimmerplan.
   * `mieter.json` bleibt erhalten. Nach erneutem Update ist alles wieder da.
 
-**6.21.0** (seit `744319a`): ein Commit.
+**6.21.0** (seit `744319a`): ein Commit (`01f3f14`).
 * Inhalt:
   * Seite „Mieter“ (`ui/seiten/mieter.py`, Seitenleiste)
   * Mängel in Warnsignalfarben (`maengel.STUFEN/stufe`, Filter „stufe:n“, Warndreieck/Marken in Finder/Zeitstrahl/Karte/Bericht)
