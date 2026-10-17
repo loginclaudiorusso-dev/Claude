@@ -205,3 +205,76 @@ Ergebnis: Beide Bereiche dienten derselben Aufgabe, nämlich Daten ins Programm 
   * Zimmer wechseln + Rückgängig
   * Sortierung (179 Spaltenklicks, 0 Fehler)
 * Kein Überlauf bei 1000 px, 100/125/150 %, in allen 4 Designs.
+
+# Teil 4 – Ganzheitliche UI-/UX-Optimierung (6.17)
+
+## Analyse (vorher, 6.16.0)
+
+| Bereich | Problem | Ursache |
+|---|---|---|
+| Zimmerplan → Zeitstrahl | Der Plan begann erst bei ≈ 500 px (1440 × 900). Darüber lagen 5 Zeilen: Navigation, Haus, Gruppe, Modus, Legende. | Jede Filterart hatte eine eigene Zeile, alle immer sichtbar. |
+| Zeitstrahl | Die Datumsleiste scrollte weg. Es gab nur die Monatsansicht. Lange Namen wurden hart abgeschnitten. | Der Kopf war Teil des gemalten Inhalts, es gab keinen Zoom und keine gestufte Beschriftung. |
+| Zeitstrahl | Die Legende war nur über Farbe lesbar. | Die Muster (Rahmen, gepunktet, schraffiert) waren nicht in der Legende zu sehen. |
+| Termine | Gleiche Abreise-Erinnerungen standen untereinander, große „Erledigt“-Knöpfe. | Es gab keine Gruppierung und keine Dringlichkeitsstufen. |
+| Übersicht | 7+ einzelne Abreise-Hinweise drückten den Inhalt nach unten. Die KPI-Hauptzahl war „belegt“ statt Auslastung. | – |
+| Übersicht/Prognose | Bei 1000 px lief die Seite mit Daten über (Prognose 2–15 px). | Lange Pillen und Kopf-Steuerung neben dem Titel. ueberlauf.py prüfte nur ohne Daten. |
+| Datenstand | „Aktuell“ war möglich, obwohl das letzte Laden fehlgeschlagen war. Den Gebäudeplan-Stand gab es nur im Zimmerplan. | Fehler wurden nicht gemerkt. Es gab mehrere Stellen für den Datenstand. |
+| Namen | „unknown1“ (Nutzer-Screenshot) erschien als echter Name. Mehrere Platzhalter wurden zu einer „Person“ verschmolzen. | Der Platzhalter aus dem Export wurde wie ein Name behandelt, der Schlüssel bestand nur aus dem Namen. |
+| Kontrast | Kleine graue Schrift lag in einigen Designs unter 4,5 : 1. | text_3 war pro Design von Hand gewählt. |
+| Tastatur | Der Fokus auf Ghost-, Chip- und Icon-Knöpfen war kaum zu sehen. | Es gab keine Fokus-Regel im QSS. |
+| 720 px Höhe | Die Datenstand-Karte überdeckte die Navigation. | Die Seitenleiste konnte nicht scrollen. |
+
+## Umgesetzt
+
+* **Designsystem:**
+  * `theme.kontrast/lesbar` stellen für Neben- und Hilfstext ≥ 4,5 : 1 auf Fläche, Karte und Seitenleiste sicher, in allen Designs, hell und dunkel. Hochkontrast bleibt unverändert.
+  * Einheitliche Fokus-Umrandung.
+  * Ruhigerer aktiver Eintrag in der Seitenleiste (Modern).
+* **Zeitstrahl:**
+  * 2 Kopfzeilen: Zeitraum + Zoom + Haus, dann Suche + „Filter“ (mit Zähler und Nennung) + Zurücksetzen + Muster-Legende.
+  * Die Datumsleiste bleibt stehen.
+  * Zoom 2 Wochen / Monat / 3 Monate, wird gemerkt.
+  * Gestufte Balken-Beschriftung, Tooltip mit Belegungsart.
+* **Termine:**
+  * Dringlichkeit (`termine.dringlichkeit`).
+  * Gruppen nur für die Anzeige (`termine.gruppieren`): keine Daten zusammengelegt, jede Erinnerung bleibt einzeln abhakbar.
+* **Übersicht:**
+  * KPI-Karte mit Auslastung als Hauptzahl, Trend im Kopf.
+  * 2 × 2 Karten im schmalen Fenster.
+  * Abreise-Erinnerungen als ein Hinweis, aufklappbar.
+* **Datenstand:**
+  * `belegung/datenstatus.py` (rein) für Pivot und Gebäudeplan.
+  * Ein fehlgeschlagenes Laden hat Vorrang: nie „aktuell“ nach einem Fehler.
+* **Fehlende Namen:**
+  * `zimmerplan.anzeige_name`: „Name nicht verfügbar“.
+  * Eindeutiger Schlüssel aus Zimmer und Anreise.
+  * Hinweis unter Daten & Import.
+  * Gespeicherte Daten bleiben unverändert.
+* **Kleine Fenster:**
+  * Die Navigation scrollt.
+  * Der Standort-Umschalter wird erst enger, dann kurz („Pyrmont“, „Weser“).
+  * Prognose-Steuerung in einer eigenen umbrechenden Zeile.
+  * Diagramm-Rand ≥ 40 pt.
+
+## Bewusst nicht
+
+* Kein neues Framework und keine neue Bibliothek.
+* Donut und Verlauf in der Übersicht bleiben, weil sie die Zusammensetzung bzw. den Trend auf einen Blick zeigen.
+* Keine Änderung an gespeicherten Daten oder Datenformaten. Neu ist nur die Einstellung `zs_zeitraum`.
+
+## Prüfung (6.17)
+
+* Automatische Tests: 168, davon neu `tests/test_ui_617.py` (10). Abgedeckt sind:
+  * Dringlichkeit
+  * Gruppen verlieren nichts
+  * Platzhalter-Namen und eindeutige Schlüssel
+  * Datenstatus nach Fehler
+  * Beschriftungsstufen
+  * Kontrast in allen Designs
+  * Zeitraum je Zoom
+  * KPI-Mindestbreite
+* Überlauf bei 1000 px, 100/125/150 %, alle 4 Designs, **mit und ohne Pivot-Daten**: keiner. Mit offener Leiste: keiner.
+* Sortierung (172 Spaltenklicks, 0 Fehler).
+* E2E Zuteilen/Rückgängig/Zimmer wechseln.
+* Zeitstrahl: Plan beginnt bei y = 336 statt ≈ 500 (1440 × 900), Filter/Reset, Suche.
+* Sichtprüfung dunkel/Modern bei 1280 × 720, 1440 × 900, 1920 × 1080 sowie hell/Klassisch bei 1000 × 800.

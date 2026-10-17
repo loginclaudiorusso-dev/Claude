@@ -1,4 +1,4 @@
-# Rückweg: von 6.14.1 zurück zu 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.17.0 zurück zu 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -23,7 +23,9 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.12.0** | `backup/v6.12.0` | `c6b7a12` | `INNternat_v6.12.0_Sicherung.zip` |
 | **6.13.0** | `backup/v6.13.0` | `7577366` | `INNternat_v6.13.0_Sicherung.zip` |
 | **6.14.0** | `backup/v6.14.0` | `85d7ffb` | `INNternat_v6.14.0_Sicherung.zip` |
-| **6.14.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.15.0** | `backup/v6.15.0` | `1553db3` | `INNternat_v6.15.0_Sicherung.zip` |
+| **6.16.0** | `backup/v6.16.0` | `968ca87` | `INNternat_v6.16.0_Sicherung.zip` |
+| **6.17.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -240,6 +242,18 @@ Einstellungen → Datensicherung (Stand vor dem Update) oder Renovierung je Zimm
 Neu im Datenordner: `zimmer_maengel.json` und `importe/neuigkeiten.json`; in `einstellungen.json`
 `neuigkeiten_offen`. Ältere Versionen ignorieren sie – nach einem Rückweg sind Mängel nicht sichtbar, bleiben aber
 erhalten.
+
+**6.17.0** (seit `968ca87`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (1) | rein | `belegung/datenstatus.py`, `termine.dringlichkeit/gruppieren`, `zimmerplan.anzeige_name` + eindeutige Schlüssel für fehlende Namen | – |
+| (2) | UI | Zeitstrahl-Kopf/Zoom/Filter/angeheftete Datumsleiste, Termine nach Dringlichkeit, Übersicht-KPIs/Hinweise, Datenstand in der Seitenleiste, Kontrast/Fokus, kleine Fenster | (1) |
+| (3) | Doku/Tests | `tests/test_ui_617.py`, `UX_KONZEPT.md` Teil 4, Version 6.17.0 | – |
+| (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
+
+Datenformate unverändert; neu in `einstellungen.json` nur `zs_zeitraum` (Zoom des Zeitstrahls) – ältere Versionen
+ignorieren es. Gespeicherte Ansichten des Zeitstrahls öffnen in 6.16 wieder im Monat. Rückweg ohne Datenverlust.
 
 ## 6. Was sich geändert hat – und was nicht
 

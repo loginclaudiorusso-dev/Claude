@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.16.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.17.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -36,6 +36,11 @@
 - 6.16: Glocke + Leiste „Neuigkeiten“ (Nutzer: A ausblendbar + B; Hintergrund-Meldungen nur noch dort), Mängel je
   Zimmer (Vorschläge in der Zimmerkarte, Filter, FM-Liste), Symbole Farbrolle/Werkzeug. Mängel-Katalog ggf. mit dem
   Nutzer/FM abstimmen.
+- 6.17: UI/UX-Gesamtüberarbeitung (Zeitstrahl-Kopf, Termine nach Dringlichkeit, Übersicht, Datenstand, Kontrast/Fokus).
+  Zu prüfen beim Nutzer:
+  * „unknown1“: Die Ursache steckt vermutlich im neueren Gebäudeplan-Export. In den hier vorliegenden Daten kommt der
+    Name nicht vor. Daten & Import → Gebäudeplan nennt jetzt Anzahl und Zimmer.
+  * Windows-Darstellung (Schrift, 125/150 %) live ansehen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

@@ -27,6 +27,45 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.17 – ruhigere, einheitliche Oberfläche
+
+* **Zimmerplan → Zeitstrahl:** Kopf in zwei Zeilen statt fünf, der Plan beginnt deutlich weiter oben.
+  * Zeile 1: Zeitraum ‹ › Heute, Zoom **2 Wochen · Monat · 3 Monate** (wird gemerkt), Haus 2 · 3.1 · 3.2 · 3.3 · 6 · Alle.
+  * Zeile 2: Suche (Name oder Zimmer – sucht in allen Häusern), **„Filter“** mit Personengruppe, wohnt/darf
+    wohnen und Belegungsart. Aktive Filter werden genannt, „Zurücksetzen“ erscheint nur dann.
+  * Kleine Legende mit Muster: belegt = voll, geplant = Rahmen, Pivot = gepunktet, gesperrt = schraffiert. Damit
+    ist sie nicht nur über Farbe lesbar.
+  * Die Datumsleiste bleibt beim Scrollen oben stehen.
+  * Balken kürzen ihre Beschriftung stufenweise (voller Name → Name → Nachname → „…“). Der Tooltip zeigt alles.
+* **Termine:** Erinnerungen nach Dringlichkeit (überfällig · heute · nächste 7 Tage · später).
+  * Gleiche Erinnerungen eines Tages (z. B. 7 Abreisen) stehen in einer aufklappbaren Gruppe. Die Daten bleiben
+    einzeln, „Erledigt“ gilt weiter je Erinnerung.
+  * Zeilen sind kompakter, „Erledigt“ ist ein kleines ✓.
+  * Die Kennzahlen bleiben oben stehen.
+* **Übersicht:**
+  * Die KPI-Karten zeigen die **Auslastung** als Hauptzahl, darunter belegt · frei · Plätze und den Trend je Woche.
+  * Im schmalen Fenster stehen die Karten 2 × 2.
+  * Abreise-Erinnerungen sind zu einem Hinweis zusammengefasst („N fällig · X schon abgereist“). Mit „Anzeigen“
+    stehen sie wieder einzeln mit „Erledigt“ da.
+* **Datenstand an einer Stelle (Seitenleiste):** Pivot und Gebäudeplan mit echtem Alter.
+  * Ist das letzte Laden oder der Server-Abruf fehlgeschlagen, steht dort „Laden fehlgeschlagen“ bzw. „Abruf
+    fehlgeschlagen“ – nie „aktuell“.
+  * Gibt es keinen Zeitstempel, steht dort „Alter unbekannt“.
+* **Platzhalter statt Namen** (z. B. „unknown1“ aus dem Gebäudeplan-Export) werden als **„Name nicht verfügbar“**
+  angezeigt.
+  * Die Daten werden nicht verändert.
+  * Mehrere solche Belegungen werden nicht mehr fälschlich als eine Person behandelt.
+  * Unter Daten & Import → Gebäudeplan steht, wie viele es sind und in welchen Zimmern.
+* **Designsystem:**
+  * Kleine Schrift hat in allen Designs mindestens 4,5 : 1 Kontrast.
+  * Sichtbarer Tastatur-Fokus auf Knöpfen, Chips und Tabellen.
+  * Der aktive Eintrag in der Seitenleiste (Modern) ist ruhiger.
+* **Kleine Fenster:**
+  * Die Navigation scrollt, die Datenstand-Karte bleibt immer sichtbar (720 px Höhe).
+  * Der Standort-Umschalter wird enger statt abgeschnitten.
+  * Prognose: Kopf und KPI-Karten laufen bei 1000 px nicht mehr über.
+  * Diagramme behalten links genug Platz für die Achsenzahlen.
+
 ## Neu in 6.16 – Neuigkeiten, Mängel, eigene Symbole
 
 * **Glocke oben rechts + Leiste „Neuigkeiten“:** Was im Hintergrund passiert (Gebäudeplan oder UWT automatisch
