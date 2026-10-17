@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from PySide6.QtCore import QPoint, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
 from .. import zimmerplan as zp
@@ -131,6 +131,7 @@ class Zeitstrahl(QWidget):
         self._layout: list[tuple] = []     # (art, y, h, objekt)
         self.gruppen: set[str] = set()     # andere Gruppen blass zeichnen (Gruppenfilter „wohnt dort“)
         self.arten: set[str] = set()       # andere Arten blass zeichnen (Legende als Filter)
+        self.maengel: set[str] = set()     # Zimmer mit offenen Mängeln → rotes „!“ an der Nummer
         self._treffer: list[tuple[QRectF, object]] = []
         self.verschiebbar = False          # Balken mit Person per Ziehen in ein anderes Zimmer (Planung/Umzug)
         self._druck: tuple | None = None   # (Startpunkt, Zimmer-ID, Balken) beim Drücken auf einen Balken
@@ -220,6 +221,15 @@ class Zeitstrahl(QWidget):
             p.setPen(QColor(t.text))
             merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner), ("G", z.gaeste)) if an)
             p.drawText(QRectF(12, y, self.LINKS - 16, h), Qt.AlignVCenter | Qt.AlignLeft, z.nr)
+            if z.id in self.maengel:
+                f = QFont(schrift)
+                f.setBold(True)
+                p.setFont(f)
+                p.setPen(QColor(t.ueber))
+                p.drawText(QRectF(16 + QFontMetricsF(schrift).horizontalAdvance(z.nr), y, 12, h),
+                           Qt.AlignVCenter | Qt.AlignLeft, "!")
+                p.setFont(schrift)
+                p.setPen(QColor(t.text))
             if merk:
                 p.setFont(klein)
                 p.setPen(QColor(t.text_3))

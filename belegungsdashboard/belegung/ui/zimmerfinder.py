@@ -31,7 +31,7 @@ ANSICHTEN = [("uebersicht", "Übersicht", "raster", "Alle Zimmer als Kacheln –
              ("karten", "Karten", "karten", "Je Etage eine Spalte, je Zimmer Status, Bewohner und Zeitraum"),
              ("liste", "Liste", "liste", "Tabelle zum Drucken, Kopieren und Bearbeiten")]
 STATUS = [("", "Alle"), ("frei", "Frei"), ("belegt", "Belegt"), ("geplant", "Geplant"), ("gesperrt", "Gesperrt")]
-SCHNELL = [("maengel", "Mängel", "werkzeug", "Zimmer mit offenen Mängeln (in der Zimmerkarte antippen)"),
+SCHNELL = [("maengel", "Mängel", "ausrufe", "! Nur Zimmer mit offenen Mängeln – Bericht für das FM unter „Drucken“"),
            ("reno", "Renoviert", "farbrolle", "Renoviert (mit oder ohne Datum)"),
            ("Vinyl", "Vinyl", "boden", "Boden Vinyl – auch vermutet"),
            ("Teppich", "Teppich", "teppich", "Boden Teppich – auch laut ZKL"),
@@ -165,9 +165,14 @@ class ZimmerFinder(QWidget):
         m.addSeparator()
         m.addAction("Kopieren (für Excel)", self._kopieren)
         m.addSeparator()
-        m.addAction("Mängelliste für das FM drucken …", lambda: self._maengel_drucken(False))
-        m.addAction("Mängelliste als PDF …", lambda: self._maengel_drucken(True))
-        m.addAction("Mängelliste kopieren (für eine Mail)", self._maengel_kopieren)
+        fm = m.addMenu(icons.icon("ausrufe", theme.T.ueber, 16), "Mängelbericht für das FM")
+        fm.addAction("Drucken …", lambda: self._maengel_drucken(False))
+        fm.addAction("Als PDF …", lambda: self._maengel_drucken(True))
+        fm.addAction("Als Excel zum Abarbeiten …", self._maengel_excel)
+        fm.addAction("Kopieren (für eine Mail)", self._maengel_kopieren)
+        fm.addSeparator()
+        fm.addAction("Erledigte aus der FM-Excel übernehmen …", self._maengel_erledigt_einlesen)
+        m.addSeparator()
         m.addAction("Belegung am Tag als Excel …", self._excel)
         self.b_drucken.setMenu(m)
         vier.addWidget(self.b_drucken)
@@ -321,6 +326,8 @@ class ZimmerFinder(QWidget):
         self._zeilen = sorted(zl.filtern(st, f, tag), key=lambda r: (zp._haus_sort(r.zimmer.haus), r.zimmer.nummer))
         # Zähler an den Status-Chips (für das gewählte Haus)
         n = {s: sum(1 for r in alle if r.status == s or (s == "frei" and r.status == "teilweise")) for s, _t in STATUS if s}
+        mit_maengeln = sum(1 for r in alle if r.maengel)
+        self.schnell["maengel"].setText(f"Mängel {mit_maengeln}" if mit_maengeln else "Mängel")
         for s, text in STATUS:
             self.status_knoepfe[s].setText(text if not s else f"{text} {n.get(s, 0)}")
         extra = bool(self._mehr["boeden"] or self._mehr["merkmale"] or self._mehr["gruppen"] or self._mehr["maengel"]
@@ -361,7 +368,9 @@ class ZimmerFinder(QWidget):
             bis = self.seite.stand.lage.frei_bis(z.id, tag)
             zeilen.append(f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung")
         if r.maengel:
-            zeilen.append("⚠ " + escape("; ".join(f"{m.text} (seit {m.seit:%d.%m.})" for m in r.maengel)))
+            if any(m.unbewohnbar for m in r.maengel):
+                zeilen.append("<b>Nicht bewohnbar – wird nicht zugeteilt</b>")
+            zeilen.append("! " + escape("; ".join(f"{m.text} (seit {m.seit:%d.%m.})" for m in r.maengel)))
         reno = zl.reno_text(z)
         if reno or r.boden:
             zeilen.append(" · ".join(x for x in (f"renoviert {reno}" if reno else "", r.boden) if x))
@@ -401,7 +410,7 @@ class ZimmerFinder(QWidget):
                     z = r.zimmer
                     bg, fg = farben.get(r.status, farben["belegt"])
                     merk = "".join(k for k, an in (("D", z.betten > 1), ("T", z.tiere), ("M", z.nur_maenner),
-                                                   ("G", z.gaeste), ("R", bool(z.renoviert)), ("⚠", bool(r.maengel))) if an)
+                                                   ("G", z.gaeste), ("R", bool(z.renoviert)), ("!", bool(r.maengel))) if an)
                     b = QPushButton(f"{z.nr} {merk}".strip())
                     b.setCursor(Qt.PointingHandCursor)
                     b.setStyleSheet(f"QPushButton {{ background:{bg}; color:{fg}; border:none; border-radius:6px; "
@@ -478,7 +487,7 @@ class ZimmerFinder(QWidget):
         if merkmale:
             v.addWidget(label(escape(" · ".join(merkmale)), "klein", umbruch=True))
         if r.maengel:
-            mang = label("⚠ " + escape(" · ".join(m.text for m in r.maengel)), "klein", umbruch=True)
+            mang = label("! " + escape(" · ".join(m.text for m in r.maengel)), "klein", umbruch=True)
             mang.setStyleSheet(f"color: {t.ueber};")
             v.addWidget(mang)
         for b in r.belegungen:
@@ -531,12 +540,74 @@ class ZimmerFinder(QWidget):
         """Offene Mängel der angezeigten Zimmer (ohne Mängel-Filter: alle offenen)."""
         return [m for r in self._ansicht_zeilen() for m in r.maengel]
 
+    def nur_maengel(self) -> None:
+        """Von außen (Kennzahl „! N Zimmer mit Mängeln“): alle Häuser, nur Zimmer mit Mängeln."""
+        self._zuruecksetzen()
+        if hasattr(self, "_haus_setzen"):
+            self._haus_setzen("")
+        self.schnell["maengel"].setChecked(True)
+
+    def _bericht_daten(self) -> tuple[list, dict, dict]:
+        kurz = {z.id: z.kurz for z in self.seite.stand.zimmer}
+        status = {r.zimmer.id: r.status for r in self._ansicht_zeilen()}
+        return self._maengel_offen(), kurz, status
+
     def _maengel_drucken(self, pdf: bool) -> None:
         from .. import maengel as mg
 
+        offen, kurz, status = self._bericht_daten()
+        self.seite._html_ausgeben(mg.fm_html(offen, lambda zid: kurz.get(zid, zid), status), True,
+                                  f"Maengelbericht_FM_{date.today():%Y-%m-%d}.pdf" if pdf else None)
+
+    def _maengel_excel(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        from .. import maengel as mg
+
+        offen, kurz, status = self._bericht_daten()
+        pfad, _ = QFileDialog.getSaveFileName(self, "Mängelbericht als Excel", f"Maengelbericht_FM_{date.today():%Y-%m-%d}.xlsx",
+                                              "Excel (*.xlsx)")
+        if not pfad:
+            return
+        try:
+            n = mg.fm_excel(pfad, offen, lambda zid: kurz.get(zid, zid), status)
+        except OSError as e:
+            self.z.meldung.emit(f"Konnte nicht speichern (ist die Datei noch in Excel offen?): {e}", "fehler")
+            return
+        self.z.meldung.emit(f"{n} Mängel gespeichert. Das FM trägt „erledigt am“ ein – danach hier "
+                            "„Erledigte aus der FM-Excel übernehmen“.", "ok")
+
+    def _maengel_erledigt_einlesen(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from .. import maengel as mg
+
+        pfad, _ = QFileDialog.getOpenFileName(self, "Ausgefüllte FM-Excel wählen", "", "Excel (*.xlsx)")
+        if not pfad:
+            return
+        try:
+            eintraege, fehler = mg.fm_erledigte_lesen(pfad)
+        except Exception as e:          # noqa: BLE001 – kaputte/fremde Datei: Meldung statt Absturz
+            self.z.meldung.emit(f"Datei konnte nicht gelesen werden: {e}", "fehler")
+            return
         kurz = {z.id: z.kurz for z in self.seite.stand.zimmer}
-        self.seite._html_ausgeben(mg.fm_html(self._maengel_offen(), lambda zid: kurz.get(zid, zid)), False,
-                                  f"Maengelliste_{date.today():%Y-%m-%d}.pdf" if pdf else None)
+        offen = {(m.zimmer, m.art) for m in mg.offen()}
+        neu = [e for e in eintraege if (e[0], e[1]) in offen]
+        if not neu:
+            self.z.meldung.emit("Keine neuen erledigten Mängel in der Datei" + (f" ({len(fehler)} unlesbar)" if fehler else "")
+                                + ".", "info")
+            return
+        liste = "<br>".join(f"{kurz.get(z, z)}: {mg.NAMEN.get(a, a)} – erledigt {d:%d.%m.%Y}" + (f" ({b})" if b else "")
+                            for z, a, d, b in neu[:25]) + (f"<br>… und {len(neu) - 25} weitere" if len(neu) > 25 else "")
+        if fehler:
+            liste += "<br><br>Nicht lesbar (bitte von Hand): " + ", ".join(fehler[:10])
+        if QMessageBox.question(self, "Erledigte übernehmen", f"{len(neu)} Mängel als behoben markieren?<br><br>{liste}") \
+                != QMessageBox.Yes:
+            return
+        n = mg.erledigte_uebernehmen(neu)
+        self.z.meldung.emit(f"{n} Mängel als behoben übernommen (Verlauf bleibt erhalten).", "ok")
+        self.z.zimmer_geaendert.emit()
+        self.zeigen()
 
     def _maengel_kopieren(self) -> None:
         from PySide6.QtGui import QGuiApplication

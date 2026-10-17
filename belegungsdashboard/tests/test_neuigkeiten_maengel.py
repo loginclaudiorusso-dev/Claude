@@ -53,7 +53,7 @@ def test_mangel_melden_und_beheben(daten):
     assert protokoll.laden(1)[0]["aktion"] == "Mangel behoben"
     text = mg.fm_text(mg.offen())
     assert "Zimmer 2-301: Schimmel/Feuchtigkeit (seit 12.10.)" in text
-    assert "Mängelliste" in mg.fm_html(mg.offen())
+    assert "Mängelbericht" in mg.fm_html(mg.offen())
 
 
 def test_maengel_filtern_und_vorgang(daten):

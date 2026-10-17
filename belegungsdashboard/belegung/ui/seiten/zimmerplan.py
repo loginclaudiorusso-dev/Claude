@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
 from ... import zimmerplan as zp
-from .. import drucken, theme
+from .. import drucken, icons, theme
 from ..basis import Seite, Zustand, sichtbar
 from ..widgets import FlowLayout, Hinweis, Karte, Leer, Pille, Segment, Tabelle, DatumFeld, knopf, label, leeren
 from ..zeitstrahl import Zeitstrahl
@@ -105,6 +105,7 @@ class ZimmerplanSeite(Seite):
 
         self._woche = date.today()
         self._zs_arten: set[str] = set()      # Zeitstrahl-Filter nach Art (Legende anklicken)
+        self._zs_maengel = False               # Zeitstrahl-Filter „!“: nur Zimmer mit offenen Mängeln
         bauen = {"Zuteilen": self._zuteilen_bauen, "Aufgaben": self._aufgaben_bauen, "Zeitstrahl": self._zeitstrahl_bauen,
                  "Zimmer": self._zimmer_bauen, "Reinigung": self._reinigung_bauen, "Abreisen": self._abreisen_bauen,
                  "Stammdaten": self._stamm_bauen}
@@ -260,7 +261,6 @@ class ZimmerplanSeite(Seite):
         self.zs_suche.setPlaceholderText("Name oder Zimmer suchen …")
         self.zs_suche.setClearButtonEnabled(True)
         self.zs_suche.setAccessibleName("Zeitstrahl durchsuchen")
-        from .. import icons
 
         self.zs_suche.addAction(icons.icon("suche", theme.T.text_3, 16), QLineEdit.LeadingPosition)
         self.zs_suche.setMinimumWidth(180)
@@ -318,6 +318,8 @@ class ZimmerplanSeite(Seite):
         for modus, text in (("wohnt", "… wohnt dort (andere blass)"), ("darf", "… darf dort wohnen (Regeln)")):
             schalter(gr, text, self._zs_modus == modus,
                      lambda md=modus: (setattr(self, "_zs_modus", md), self._zeitstrahl_zeigen()))
+        schalter(m, "! nur Zimmer mit Mängeln", self._zs_maengel,
+                 lambda: (setattr(self, "_zs_maengel", not self._zs_maengel), self._zeitstrahl_zeigen()))
         art = m.addMenu("Belegungsart")
         for a, text in ZS_ARTEN:
             schalter(art, f"nur Zimmer mit „{text}“", a in self._zs_arten,
@@ -326,6 +328,7 @@ class ZimmerplanSeite(Seite):
     def _zs_zuruecksetzen(self) -> None:
         self._zs_gruppen.clear()
         self._zs_arten.clear()
+        self._zs_maengel = False
         self._zs_modus = "wohnt"
         self.zs_suche.blockSignals(True)
         self.zs_suche.clear()
@@ -851,6 +854,20 @@ class ZimmerplanSeite(Seite):
                          + (f", {np_.ohne_platz} fänden keins" if np_.ohne_platz else "") + "):<br>"
                          + "<br>".join(f"{n.text}: <b>{n.gesamt}</b> frei (jetzt {j.gesamt})" for j, n in np_.wochen))
             self.kennzahlen.addWidget(p)
+        from ... import maengel as mg
+
+        aktiv = {z.id for z in st.zimmer if z.aktiv}
+        mit_m = {m.zimmer for m in mg.offen()} & aktiv
+        if mit_m:                                    # „!“ – ein Klick zeigt genau diese Zimmer (und den FM-Bericht)
+            gesperrt = set(st.lage.unbewohnbar) & aktiv
+            b = knopf(f"{len(mit_m)} Zimmer mit Mängeln" + (f" · {len(gesperrt)} unbewohnbar" if gesperrt else ""), "chip",
+                      "ausrufe", "Zimmer mit offenen Mängeln zeigen – Bericht für das FM dort unter „Drucken“"
+                      + ("<br>Nicht bewohnbar (werden nicht zugeteilt): "
+                         + ", ".join(sorted(st.lage.zimmer[z].kurz for z in gesperrt)) if gesperrt else ""))
+            b.setStyleSheet(f"color: {theme.T.ueber};")
+            b.setIcon(icons.icon("ausrufe", theme.T.ueber, 16))
+            b.clicked.connect(self.maengel_zeigen)
+            self.kennzahlen.addWidget(b)
         leeren(self.hinweise)
         if st.plan is None:
             h = Hinweis("Noch kein Gebäudeplan da – die Zimmer sind bekannt, die aktuelle Belegung aber nicht. "
@@ -906,6 +923,13 @@ class ZimmerplanSeite(Seite):
             h.setToolTip("<br>".join(a.text for a in liste))
             self.hinweise.addWidget(h)
         self._hinweise_falten()
+
+    def maengel_zeigen(self) -> None:
+        """Reiter „Zimmer“ mit Filter „!“ (nur Zimmer mit offenen Mängeln, alle Häuser)."""
+        i = TABS.index("Zimmer")
+        self.tabs.setzen(i)
+        self._tab(i)
+        self.finder.nur_maengel()
 
     def _hinweise_falten(self) -> None:
         """Info-Hinweise hinter einen Knopf in der Kennzahlen-Zeile – Warnungen und Konflikte bleiben sichtbar.
@@ -1624,6 +1648,12 @@ class ZimmerplanSeite(Seite):
             zeilen = [(z, spuren) for z, spuren in zeilen
                       if any(bk.art in self._zs_arten for spur in spuren for bk in spur)]
         self.zeitstrahl.arten = set(self._zs_arten)
+        from ... import maengel as mg
+
+        mit_m = {m.zimmer for m in mg.offen()}
+        self.zeitstrahl.maengel = mit_m              # „!“ an der Zimmernummer
+        if self._zs_maengel:
+            zeilen = [(z, spuren) for z, spuren in zeilen if z.id in mit_m]
         if suche:
             zeilen = [(z, spuren) for z, spuren in zeilen
                       if suche in z.id.lower() or suche in z.nr.lower() or suche in z.kurz.lower()
@@ -1634,7 +1664,8 @@ class ZimmerplanSeite(Seite):
         # aktive Filter benennen (nicht nur ein Punkt): was wirkt gerade auf die Zeilen?
         aktiv = ([f"Gruppe: {', '.join(zp.GRUPPE_LABEL.get(g, g) for g in zp.GRUPPEN if g in gruppen)}"
                   + (" (darf)" if modus == "darf" else "")] if gruppen else []) + \
-                ([f"nur {', '.join(t for a, t in ZS_ARTEN if a in self._zs_arten)}"] if self._zs_arten else [])
+                ([f"nur {', '.join(t for a, t in ZS_ARTEN if a in self._zs_arten)}"] if self._zs_arten else []) + \
+                (["! nur Zimmer mit Mängeln"] if self._zs_maengel else [])
         n = len(aktiv) + bool(suche)
         self.zs_filter.setText(f"Filter {len(aktiv)}" if aktiv else "Filter")
         self.zs_filter.setProperty("aktiv", "true" if aktiv else "false")

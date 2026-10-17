@@ -27,6 +27,31 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.19 – „!“-Filter, FM-Bericht, unbewohnbare Zimmer
+
+* **„!“ = Mängel:**
+  * Im Zimmerplan steht oben **„! N Zimmer mit Mängeln“**. Ein Klick zeigt genau diese Zimmer (Reiter Zimmer, alle
+    Häuser).
+  * Dort gibt es den Chip **„! Mängel N“**, an Kacheln und Karten ein „!“.
+  * Im Zeitstrahl: rotes „!“ an der Zimmernummer, dazu „Filter → ! nur Zimmer mit Mängeln“.
+* **Mängelbericht für das FM** (Zimmer → Drucken → Mängelbericht für das FM):
+  * Druck/PDF quer:
+    * Überblick je Mangelart und Haus.
+    * Oben „Dringend – Zimmer nicht bewohnbar“.
+    * Dann je Haus Zimmer, frei/belegt heute (ohne Namen), Mangel, Details, seit, „erledigt am“ und „Kürzel“ zum
+      Abzeichnen.
+  * **Excel zum Abarbeiten:** je Mangel eine Zeile. Das FM trägt **„erledigt am“** ein (Datum oder „x“ = heute) und
+    eine **„Bemerkung FM“**.
+  * **„Erledigte aus der FM-Excel übernehmen“** liest die Datei wieder ein. Nach einer Rückfrage gelten diese
+    Mängel als behoben, mit dem Datum vom FM und der Bemerkung in der Notiz.
+  * Weiterhin: kopieren für eine Mail.
+* **Zuteilung berücksichtigt Mängel, aber nur, wenn sie das Zimmer unbewohnbar machen:**
+  * In der Zimmerkarte steht je offenem Mangel **„macht unbewohnbar“**.
+  * Schimmel und Ungeziefer sind von selbst angehakt. Alles andere hakt man selbst an, z. B. „Matratze fehlt“ oder
+    „Heizung aus“. Ein kaputtes Rollo oder Plissee ist kein Grund.
+  * Unbewohnbare Zimmer schlägt die Zuteilung (auch UWT, Neu planen, Optimieren, „nach Planung frei“) nicht vor,
+    bis der Mangel behoben ist. Von Hand gewählt geht es mit Warnung.
+
 ## Neu in 6.18 – Zimmerzustand aus der ZKL
 
 Beim ersten Start wird der Zimmerzustand aus der **ZKL_26_V1** einmal übernommen. Die Daten liegen in

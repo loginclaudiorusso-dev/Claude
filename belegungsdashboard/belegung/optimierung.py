@@ -179,7 +179,7 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
     heute = heute or date.today()
     ende = heute + timedelta(days=tage)
     lage = zp.Lage(stand.lage.zimmer, {k: list(v) for k, v in stand.lage.belegungen.items()}, stand.lage.puffer,
-                   stand.lage.abgleich, stand.lage.dz)
+                   stand.lage.abgleich, stand.lage.dz, unbewohnbar=stand.lage.unbewohnbar)
     flur_ids = _flur_ids(lage)
     zimmer = [z for z in lage.zimmer.values() if z.aktiv]
     nach_person = {b.schluessel: b for b in stand.bedarf}
@@ -285,7 +285,8 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
             b.tier = bool(tier)
             if b.gruppe in ("Mieter", "Gast") or "," not in bel.name:
                 continue                               # Mietverträge/Gäste und Sammel-Einträge nicht verschieben
-            tmp = zp.Lage(lage.zimmer, {**lage.belegungen, zid: [x for x in bs if x is not bel]}, lage.puffer)
+            tmp = zp.Lage(lage.zimmer, {**lage.belegungen, zid: [x for x in bs if x is not bel]}, lage.puffer,
+                          unbewohnbar=lage.unbewohnbar)
             z0 = lage.zimmer.get(zid)
             if z0 is None or not z0.aktiv:
                 continue
@@ -323,7 +324,7 @@ def vorschlaege(stand: zp.Planstand, heute: date | None = None, tage: int = 180,
     # 4) Bewohner: zwei aus verschiedenen Kursen tauschen die Zimmer, wenn beide danach näher bei ihrem Kurs wohnen
     if mit_tausch:                             # auf dem echten Stand – nicht auf den hypothetischen Umzügen oben
         echt = zp.Lage(stand.lage.zimmer, {k: list(v) for k, v in stand.lage.belegungen.items()}, stand.lage.puffer,
-                       stand.lage.abgleich, stand.lage.dz)
+                       stand.lage.abgleich, stand.lage.dz, unbewohnbar=stand.lage.unbewohnbar)
         erg += bewohner_tausche(stand, echt, koh, heute, {n for v in erg for n in v.namen})
     reihenfolge = {"regel": 0, "umzug": 1, "tausch": 2, "zusammen": 3, "umbuchen": 4}
     return sorted(erg, key=lambda v: (reihenfolge[v.art], -v.gewinn))

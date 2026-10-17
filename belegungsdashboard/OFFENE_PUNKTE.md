@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.18.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.19.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -56,6 +56,10 @@
     wenn sie behoben sind.
   * 28 Zimmer aus der ZKL gibt es im Zimmerplan nicht (JWG 3.1-2xx/3xx, Jugendhilfe Haus 6, 2-124, 2-413, 2-513,
     2-514, 2-517, 3.3-123, 3.3-319, 6-1009).
+- 6.19: „!“-Filter, FM-Bericht (Druck, Excel zum Abarbeiten und Wiedereinlesen), unbewohnbare Zimmer werden nicht
+  zugeteilt. Von selbst sperren nur Schimmel und Ungeziefer, den Rest entscheidet der Nutzer je Mangel. Aus der ZKL
+  ist bisher nichts als unbewohnbar markiert. Kandidaten für den Nutzer: 2-204 (Matratze fehlt), 3.3-205 (Reno – alle
+  Möbel raus), 3.1-U04 (Feuermelder fehlt).
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

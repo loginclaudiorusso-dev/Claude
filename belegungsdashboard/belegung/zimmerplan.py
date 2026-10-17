@@ -368,6 +368,7 @@ class Lage:
     dz: dict[str, str] = field(default_factory=dict)           # Person → DZ-Gruppe (UWT, siehe Bedarf.dz)
     umzuege: dict = field(default_factory=dict)                 # Kennung → umzug.Umzug (mit Status)
     zkl: dict = field(default_factory=dict)                     # Zimmer-ID → zkl.ZklZimmer (Tier, TN-ID, Infos)
+    unbewohnbar: dict = field(default_factory=dict)             # Zimmer-ID → Grund (offener Mangel, der sperrt)
 
     def _relevant(self, zid: str, von: date, bis: date, ohne: set[str] | frozenset = frozenset()) -> list[Belegung]:
         p = max(self.puffer - 1, 0)
@@ -480,7 +481,9 @@ def lage_bauen(zimmer: list[Zimmer], plan: gebaeudeplan.Gebaeudeplan | None, zuw
     for z in zimmer:
         if not z.aktiv:
             belegungen[z.id] = [Belegung(z.id, date(2000, 1, 1), date(2099, 12, 31), "gesperrt", grund="nicht im Internat")]
-    return Lage({z.id: z for z in zimmer}, belegungen, puffer, abgleich)
+    from .maengel import unbewohnbar_je_zimmer
+
+    return Lage({z.id: z for z in zimmer}, belegungen, puffer, abgleich, unbewohnbar=unbewohnbar_je_zimmer())
 
 
 # ---------------------------------------------------------------------------------------
@@ -538,10 +541,15 @@ def gruppen_am(lage: Lage, zid: str, tag: date) -> set[str]:
     return {g for b in lage.belegungen.get(zid, []) if b.von <= tag <= b.bis and (g := belegung_gruppe(b))}
 
 
+UNBEWOHNBAR_GRUND = "nicht bewohnbar"
+
+
 def passt(lage: Lage, z: Zimmer, b: Bedarf, ohne: set[str] | frozenset = frozenset()) -> str | None:
     """None, wenn das Zimmer für den Bedarf zulässig ist – sonst der Grund."""
     if not z.aktiv:
         return "nicht im Internat"
+    if z.id in lage.unbewohnbar:             # offener Mangel, der das Zimmer unbewohnbar macht (z. B. Schimmel)
+        return f"{UNBEWOHNBAR_GRUND}: {lage.unbewohnbar[z.id]}"
     if nur_doppel(z, b.gruppe):
         return DOPPEL_GRUND
     if nur_tier(z) and not b.tier:
@@ -733,7 +741,8 @@ def vorschlagen(lage: Lage, bedarf: list[Bedarf], fest: dict[str, str] | None = 
     fest = fest or {}
     ohne = frozenset(b.schluessel for b in bedarf)   # eigene bisherige Planungen neu vergeben
     belegungen = {k: [x for x in v if x.person not in ohne] for k, v in lage.belegungen.items()}
-    arbeit = Lage(lage.zimmer, belegungen, lage.puffer, dz={**lage.dz, **{b.schluessel: b.dz for b in bedarf if b.dz}})
+    arbeit = Lage(lage.zimmer, belegungen, lage.puffer, dz={**lage.dz, **{b.schluessel: b.dz for b in bedarf if b.dz}},
+                  unbewohnbar=lage.unbewohnbar)
     ergebnis: dict[str, Zuteilung] = {}
 
     def belegen(b: Bedarf, z: Zimmer, grund: str) -> None:

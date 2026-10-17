@@ -181,7 +181,7 @@ def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 1
     ende = heute + timedelta(weeks=wochen)
     offen = [b for b in stand.bedarf if not stand.zugewiesen(b.schluessel) and b.von <= ende and b.bis >= heute]
     lage = zp.Lage(stand.lage.zimmer, {k: list(v) for k, v in stand.lage.belegungen.items()}, stand.lage.puffer,
-                   [], dict(stand.lage.dz))
+                   [], dict(stand.lage.dz), unbewohnbar=stand.lage.unbewohnbar)
     ohne = 0
     for tag in sorted({b.von for b in offen}):
         for zt in zp.vorschlagen(lage, [b for b in offen if b.von == tag]):

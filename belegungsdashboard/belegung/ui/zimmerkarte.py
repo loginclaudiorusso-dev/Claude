@@ -551,9 +551,32 @@ class ZimmerBlock(Karte):
             b.toggled.connect(lambda an, a=art, t=text: self._mangel(a, t, an))
             fl.addWidget(b)
         self.inhalt.addWidget(feld)
-        details = [f"{mg.NAMEN.get(a, a)}: {m.notiz}" for a, m in offen.items() if m.notiz]
-        if details:                            # z. B. aus der ZKL übernommene Einzelheiten
-            self.inhalt.addWidget(label(" · ".join(details), "klein", umbruch=True))
+        # je offenem Mangel: Einzelheiten (z. B. aus der ZKL) und „macht unbewohnbar“ – nur das sperrt die Zuteilung
+        if any(m.unbewohnbar for m in offen.values()):
+            self.inhalt.addWidget(Hinweis("Zimmer nicht bewohnbar – es wird bei der Zuteilung nicht vorgeschlagen, "
+                                          "bis der Mangel behoben ist.", "warnung"))
+        for a, m in offen.items():
+            zeile = QHBoxLayout()
+            zeile.setSpacing(8)
+            text = label(f"<b>{mg.NAMEN.get(a, a)}</b>" + (f" – {m.notiz}" if m.notiz else "")
+                         + f" · seit {m.seit:%d.%m.%Y}", "klein", umbruch=True)
+            text.setTextFormat(Qt.RichText)
+            zeile.addWidget(text, 1)
+            cb = QCheckBox("macht unbewohnbar")
+            cb.setChecked(m.unbewohnbar)
+            cb.setToolTip("Angehakt: Das Zimmer wird bei der Zuteilung nicht vorgeschlagen (z. B. Schimmel, Matratze "
+                          "fehlt, Heizung aus). Ein kaputtes Rollo o. Ä. ist kein Grund.")
+            cb.toggled.connect(lambda an, art=a: self._unbewohnbar(art, an))
+            zeile.addWidget(cb, 0, Qt.AlignTop)
+            self.inhalt.addLayout(zeile)
+
+    def _unbewohnbar(self, art: str, an: bool) -> None:
+        from .. import maengel as mg
+
+        if mg.sperren_setzen(self.z.id, art, an):
+            self.karte.z.meldung.emit(f"Zimmer {self.z.kurz}: " + ("nicht bewohnbar – wird nicht mehr zugeteilt."
+                                                                   if an else "wieder für die Zuteilung frei."), "ok")
+            self.karte.z.zimmer_geaendert.emit()
 
     def _mangel(self, art: str, text: str, an: bool) -> None:
         from .. import maengel as mg
