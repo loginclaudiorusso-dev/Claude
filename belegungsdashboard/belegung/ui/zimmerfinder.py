@@ -493,7 +493,7 @@ class ZimmerFinder(QWidget):
             if b.art == "gesperrt":
                 text.addWidget(label(escape(b.grund or "gesperrt"), "fett", umbruch=True))
             else:
-                name = b.name if b.name != zp.PIVOT_NAME else "gebucht (Zimmer-Pivot)"
+                name = zp.anzeige_name(b.name) if b.name != zp.PIVOT_NAME else "gebucht (Zimmer-Pivot)"
                 text.addWidget(label(f"<b>{escape(name)}</b>" + (f" ({escape(b.massnahme)})" if b.massnahme else ""),
                                      umbruch=True))
             text.addWidget(label(f"{b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y}" + (" · geplant" if b.art == "geplant" else ""),

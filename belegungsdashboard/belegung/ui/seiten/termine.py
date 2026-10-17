@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QComboBox, QFormLayout, QHBoxLayout, QSpinBox, QVBoxLayout, QWidget,
+    QCheckBox, QDialog, QComboBox, QFormLayout, QHBoxLayout, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from ... import autostart
@@ -14,7 +14,7 @@ from ... import termine as tm
 from .. import theme
 from ..basis import Seite, Zustand, sichtbar
 from ..kalender import KalenderRaster, art_farbe
-from ..widgets import Hinweis, Karte, Leer, Pille, Segment, Tabelle, knopf, label, leeren
+from ..widgets import Hinweis, Karte, KurzLabel, Leer, Pille, Segment, Tabelle, knopf, label, leeren
 
 WOCHENTAGE = tm.WOCHENTAGE
 ZEITRAUM = [("4 Wochen", 28), ("3 Monate", 91), ("12 Monate", 365)]
@@ -45,14 +45,14 @@ class TermineSeite(Seite):
         self.tabs = Segment(["Kalender", "Liste", "Einstellungen"], 0)
         self.tabs.geaendert.connect(self._tab)
         kopf.addWidget(self.tabs)
+        self.kennzahlen = QHBoxLayout()           # Kennzahlen neben den Reitern – spart eine Zeile
+        self.kennzahlen.setSpacing(8)
+        kopf.addLayout(self.kennzahlen)
         kopf.addStretch()
         neu = knopf("Neuer Termin", "primary", "plus", "Eigenen Termin mit Erinnerung anlegen")
         neu.clicked.connect(lambda: self._eigener())
         kopf.addWidget(neu)
-        self.lay.addLayout(kopf)
-        self.kennzahlen = QHBoxLayout()           # Kennzahlen in eigener Zeile – übersichtlicher
-        self.kennzahlen.setSpacing(8)
-        self.lay.addLayout(self.kennzahlen)
+        self.anheften(kopf)                       # Reiter bleiben beim Scrollen stehen
         # „Rückgängig“ nach einem versehentlichen Erledigt
         self._zuletzt: tm.Termin | None = None
         self.rueck = QVBoxLayout()
@@ -60,7 +60,9 @@ class TermineSeite(Seite):
         self._tag_dialog = None
 
         # fällige Erinnerungen – immer oben, solange etwas offen ist
-        self.faellig_karte = Karte("Jetzt erinnern", "Kommt jeden Tag wieder, bis es abgehakt ist")
+        self.faellig_karte = Karte("Erinnerungen", "Nach Dringlichkeit – kommt jeden Tag wieder, bis es abgehakt ist. "
+                                                   "Gleiche Erinnerungen eines Tages sind zusammengefasst (aufklappen).")
+        self._offen_gruppen: set[str] = set()     # aufgeklappte Gruppen (bleiben beim Neuzeichnen offen)
         self.faellig_liste = QVBoxLayout()
         self.faellig_liste.setSpacing(8)
         self.faellig_karte.inhalt.addLayout(self.faellig_liste)
@@ -237,7 +239,6 @@ class TermineSeite(Seite):
             p = Pille(text, stufe)
             p.setToolTip(tip)
             self.kennzahlen.addWidget(p)
-        self.kennzahlen.addStretch()
         self._rueck_zeigen()
         self._faellige_zeigen(faellig)
         self._tabelle_fuellen()
@@ -246,27 +247,50 @@ class TermineSeite(Seite):
         self._tag_zeigen()
 
     def _zeile(self, t: tm.Termin, mit_datum: bool = True) -> QWidget:
+        """Kompakte Zeile: Datum · Art · Titel (eine Zeile) + Beschreibung (eine Zeile, voll im Tooltip) · Aktionen.
+        „Erledigt“ ist ein kleiner Haken-Knopf mit Beschriftung im Tooltip (und für Screenreader)."""
+        heute = date.today()
         w = QWidget()
         h = QHBoxLayout(w)
-        h.setContentsMargins(0, 0, 0, 0)
+        h.setContentsMargins(0, 2, 0, 2)
         h.setSpacing(10)
         if mit_datum:
-            p = Pille(_tag(t.datum), "knapp" if t.datum <= date.today() + timedelta(days=1) else "neutral")
-            h.addWidget(p, 0, Qt.AlignTop)
+            stufe = tm.dringlichkeit(t, heute)
+            d = label(_tag(t.datum).replace(f".{t.datum.year}", "."), "klein")
+            farbe = {"ueberfaellig": theme.T.ueber, "heute": theme.T.knapp}.get(stufe)
+            if farbe:
+                d.setStyleSheet(f"color: {farbe}; font-weight: 600;")
+            d.setFixedWidth(78)
+            d.setToolTip({"ueberfaellig": f"überfällig seit {(heute - t.datum).days} Tag(en)",
+                          "heute": "heute"}.get(stufe, _tag(t.datum)))
+            h.addWidget(d, 0, Qt.AlignTop)
         art = label(tm.ARTEN.get(t.art, t.art), "klein")
-        art.setMinimumWidth(110)
+        art.setFixedWidth(104)
         h.addWidget(art, 0, Qt.AlignTop)
-        text = label(f"<b>{t.titel}</b>" + (f"<br>{t.text.replace(chr(10), '<br>')}" if t.text else ""), umbruch=True)
-        text.setTextFormat(Qt.RichText)
-        h.addWidget(text, 1)
+        texte = QVBoxLayout()
+        texte.setSpacing(0)
+        titel = KurzLabel()
+        titel.setText(t.titel)
+        titel.setProperty("rolle", "fett")
+        texte.addWidget(titel)
+        if t.text:
+            zweit = KurzLabel()
+            zweit.setText(t.text.replace("\n", " · "))
+            zweit.setProperty("rolle", "klein")
+            texte.addWidget(zweit)
+        h.addLayout(texte, 1)
+        w.setToolTip(f"<b>{t.titel}</b>" + (f"<br>{t.text.replace(chr(10), '<br>')}" if t.text else ""))
         if t.art == "eigen" or (t.art in ("notiz", "abreise", "wiedervorlage") and t.person):
             o = knopf("Öffnen", "ghost")
             o.setToolTip("Eigenen Termin bearbeiten bzw. die Person (Notiz, Abreise) öffnen")
             o.clicked.connect(lambda _=False, t=t: self._oeffnen(t))
             h.addWidget(o, 0, Qt.AlignTop)
         if t.erinnern_am is not None:
-            b = knopf("Wieder offen" if t.erledigt else "Erledigt", "ghost" if t.erledigt else "primary",
-                      None if t.erledigt else "haken")
+            if t.erledigt:
+                b = knopf("Wieder offen", "ghost")
+            else:
+                b = knopf("", "icon", "haken", "Erledigt – aus den Erinnerungen nehmen (Rückgängig möglich)")
+                b.setAccessibleName(f"Erledigt: {t.titel}")
             b.clicked.connect(lambda _=False, t=t: self._erledigt(t, not t.erledigt))
             h.addWidget(b, 0, Qt.AlignTop)
         return w
@@ -287,10 +311,38 @@ class TermineSeite(Seite):
         self.z.termine_geaendert.emit()
 
     def _faellige_zeigen(self, faellig: list[tm.Termin]) -> None:
+        """Nach Dringlichkeit (Überfällig · Heute · Demnächst · Später); gleiche Art am selben Tag als Gruppe."""
         leeren(self.faellig_liste)
         self.faellig_karte.setVisible(bool(faellig))
-        for t in faellig:
-            self.faellig_liste.addWidget(self._zeile(t))
+        heute = date.today()
+        namen = dict(tm.DRINGLICHKEIT)
+        for stufe, bloecke in tm.gruppieren(faellig, heute):
+            n = sum(len(liste) for _t, liste in bloecke)
+            kopf = label(f"{namen[stufe]} · {n}", "abschnitt")
+            if stufe == "ueberfaellig":
+                kopf.setStyleSheet(f"color: {theme.T.ueber};")
+            self.faellig_liste.addWidget(kopf)
+            for titel, liste in bloecke:
+                if not titel:
+                    self.faellig_liste.addWidget(self._zeile(liste[0]))
+                    continue
+                schluessel = f"{stufe}|{titel}"
+                offen = schluessel in self._offen_gruppen
+                b = QPushButton(f"{'▾' if offen else '▸'}  {titel}")
+                b.setProperty("variant", "zeile")
+                b.setCursor(Qt.PointingHandCursor)
+                b.setToolTip("Aufklappen – jede Erinnerung einzeln öffnen oder erledigen")
+                b.clicked.connect(lambda _=False, k=schluessel: self._gruppe_umschalten(k))
+                self.faellig_liste.addWidget(b)
+                if offen:
+                    for t in liste:
+                        z = self._zeile(t)
+                        z.setContentsMargins(22, 0, 0, 0)
+                        self.faellig_liste.addWidget(z)
+
+    def _gruppe_umschalten(self, k: str) -> None:
+        self._offen_gruppen ^= {k}
+        self._faellige_zeigen([t for t in self.termine if t.faellig(date.today())])
 
     def _gefiltert(self) -> list[tm.Termin]:
         heute = date.today()

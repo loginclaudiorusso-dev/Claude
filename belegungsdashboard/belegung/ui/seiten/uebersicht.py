@@ -38,6 +38,8 @@ class UebersichtSeite(Seite):
 
         kpis = QGridLayout()
         kpis.setSpacing(16)
+        self.kpi_raster = kpis
+        self._kpi_spalten = 4
         self.kpis: dict[str, KpiKarte] = {}
         for i, s in enumerate([GESAMT] + STANDORTE):
             k = KpiKarte(STANDORT_LABEL[s], farbe_punkt=theme.T.standort[s])
@@ -49,6 +51,7 @@ class UebersichtSeite(Seite):
             kpis.addWidget(k, 0, i)
             kpis.setColumnStretch(i, 1)
         self.lay.addLayout(kpis)
+        self._kpi_anordnen()
 
         self.verlauf_karte = Karte("Verlauf und Prognose", "Ist-Belegung, danach Prognose mit 80 %-Spanne")
         self.fenster = Segment(["6 M", "12 M", "24 M"], 1)
@@ -79,6 +82,23 @@ class UebersichtSeite(Seite):
         self.zeile(self.monate_karte, self.anreisen_karte, stretch=[3, 2])
         self.lay.addStretch()
 
+    def _kpi_anordnen(self) -> None:
+        """Vier KPI-Karten nebeneinander; bei schmalen Fenstern 2 × 2, statt horizontal zu scrollen."""
+        spalten = 4 if self.width() >= 1000 else 2
+        if spalten == self._kpi_spalten and self.kpi_raster.count() == len(self.kpis) and self.width() > 0:
+            return
+        self._kpi_spalten = spalten
+        for i, k in enumerate(self.kpis.values()):
+            self.kpi_raster.removeWidget(k)
+            self.kpi_raster.addWidget(k, i // spalten, i % spalten)
+        for i in range(4):
+            self.kpi_raster.setColumnStretch(i, 1 if i < spalten else 0)
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        if getattr(self, "kpis", None):
+            self._kpi_anordnen()
+
     def theme_aktualisieren(self) -> None:
         for s, k in self.kpis.items():
             k.farbe_punkt(theme.T.standort[s])
@@ -92,23 +112,24 @@ class UebersichtSeite(Seite):
             rolle(k, aktiv=(s == z.standort))
             auf = ds.aufschluesselung(s, tag, z.brutto)
             vor = float(ds.belegung(s, tag - timedelta(days=7), tag - timedelta(days=7), z.brutto).iloc[0])
-            k.wert.setText(zahl(auf.belegt))
-            k.einheit.setText("belegt")
             d = auf.belegt - vor
             pfeil = "▲" if d > 0 else ("▼" if d < 0 else "▶")
-            k.delta.setText(f"{pfeil} {zahl(abs(d))} ggü. Vorwoche")
+            k.delta.setText(f"{pfeil} {zahl(abs(d))} / Woche")
+            k.pille.setVisible(False)                # Ampel steckt im Balken (Farbe + Länge) und im Tooltip
             if auf.kapazitaet:
+                # Hauptzahl = Auslastung; belegt/frei/Kapazität ergänzen sie
                 stufe, text = ampel_stufe(auf.anteil)
-                k.pille.setzen(stufe, prozent(auf.anteil))
-                k.pille.setToolTip(text)
-                k.pille.setVisible(True)
-                k.detail.setText(f"von {zahl(auf.kapazitaet)} Plätzen · {zahl(auf.frei)} frei")
+                k.wert.setText(prozent(auf.anteil))
+                k.einheit.setText("ausgelastet")
+                k.detail.setText(f"{zahl(auf.belegt)} belegt · {zahl(auf.frei)} frei · {zahl(auf.kapazitaet)} Plätze")
                 k.balken.setzen(auf.anteil, {"ok": t.ok, "knapp": t.knapp, "kritisch": t.kritisch, "ueber": t.ueber}[stufe])
                 k.balken.setVisible(True)
+                k.setToolTip(f"{STANDORT_LABEL[s]}: {text} – klicken zum Auswählen")
             else:
-                k.pille.setVisible(False)
+                k.wert.setText(zahl(auf.belegt))
+                k.einheit.setText("belegt")
                 k.balken.setVisible(False)
-                k.detail.setText("Kapazität nicht hinterlegt")
+                k.detail.setText("Kapazität nicht hinterlegt – Auslastung nicht berechenbar")
             reihe = ds.belegung(s, tag - timedelta(days=89), tag, z.brutto)
             k.spark.setzen(list(reihe.to_numpy()), t.standort[s])
 
@@ -120,6 +141,8 @@ class UebersichtSeite(Seite):
     def _hinweise(self) -> None:
         leeren(self.hinweise)
         for text in self.z.ds.hinweise:
+            if text.startswith("Pivot-Stand vom"):
+                continue                       # steht schon im Datenstand links (mit Alter und „Aktualisieren“)
             art = "warnung" if ("fehlgeschlagen" in text or "Keine Kapazität" in text) else "info"
             aktion = "Kapazitäten eintragen" if "Kapazität" in text else None
             h = Hinweis(text, art, aktion)
@@ -128,7 +151,21 @@ class UebersichtSeite(Seite):
             self.hinweise.addWidget(h)
         heute = date.today()
         faellig = self.z.ds.erinnerungen
-        for p in faellig[:5]:
+        if not faellig:
+            return
+        # Sammelzeile statt vieler gleichartiger Hinweise – aufklappbar, jede bleibt einzeln erledigbar
+        knapp = sum(1 for p in faellig if p.abreise <= heute + timedelta(days=1))
+        vorbei = sum(1 for p in faellig if p.abreise < heute)
+        teile = ([f"{vorbei} schon abgereist"] if vorbei else []) + ([f"{knapp - vorbei} heute/morgen"] if knapp - vorbei else [])
+        offen = getattr(self, "_erinnerungen_offen", False)
+        h = Hinweis(f"<b>{len(faellig)} Abreise-Erinnerung{'en' if len(faellig) != 1 else ''} fällig</b>"
+                    + (" · " + " · ".join(teile) if teile else ""), "warnung" if knapp else "info",
+                    "Ausblenden" if offen else "Anzeigen")
+        h.knopf.clicked.connect(self._erinnerungen_umschalten)
+        self.hinweise.addWidget(h)
+        if not offen:
+            return
+        for p in faellig:
             if p.abreise < heute:
                 satz = f"ist am {p.abreise:%d.%m.%Y} abgereist"
             elif p.abreise == heute:
@@ -140,11 +177,12 @@ class UebersichtSeite(Seite):
             h = Hinweis(f"<b>Abreise:</b> {p.name} ({p.massnahme or p.gruppe}) {satz}.",
                         "warnung" if p.abreise <= heute + timedelta(days=1) else "info", "Erledigt")
             h.knopf.clicked.connect(lambda _=False, p=p: self._erledigt(p))
+            h.setContentsMargins(24, 0, 0, 0)
             self.hinweise.addWidget(h)
-        if len(faellig) > 5:
-            h = Hinweis(f"… und {len(faellig) - 5} weitere fällige Abreise-Erinnerungen.", "info", "Anzeigen")
-            h.knopf.clicked.connect(lambda: self.z.navigieren.emit("daten"))
-            self.hinweise.addWidget(h)
+
+    def _erinnerungen_umschalten(self) -> None:
+        self._erinnerungen_offen = not getattr(self, "_erinnerungen_offen", False)
+        self._hinweise()
 
     def _erledigt(self, person) -> None:
         from ... import anreiseliste

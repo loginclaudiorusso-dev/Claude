@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from .. import anreiseliste, inventar
 from .. import zimmerplan as zp
 from .notizen import NotizenWidget
-from .widgets import DatumFeld, FlowLayout, Karte, Pille, Tabelle, knopf, label, leeren
+from .widgets import DatumFeld, FlowLayout, Hinweis, Karte, Pille, Tabelle, knopf, label, leeren
 from .zeitstrahl import Zeitstrahl
 
 STATUS_TEXT = {"frei": "frei", "teilweise": "teilweise frei", "belegt": "belegt", "geplant": "geplant",
@@ -167,7 +167,7 @@ class ZimmerKarte(QDialog):
                      next((i for i, bw in enumerate(self.bewohner) if bw.von <= heute), 0))
         self._mehr = None
         for i, bw in enumerate(self.bewohner):
-            b = knopf(f"{bw.name} · {zeitraum(bw.von, bw.bis)}" + ("" if bw.von <= heute else " (kommt)"), "chip")
+            b = knopf(f"{zp.anzeige_name(bw.name)} · {zeitraum(bw.von, bw.bis)}" + ("" if bw.von <= heute else " (kommt)"), "chip")
             b.setCheckable(True)
             b.setToolTip(f"{bw.massnahme or zp.GRUPPE_LABEL.get(bw.gruppe, '')} · {bw.quelle}")
             self._gruppe.addButton(b, i)
@@ -292,7 +292,10 @@ class PersonBlock(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 4, 0, 0)
         v.setSpacing(10)
-        v.addWidget(label(bw.name, "kartentitel"))
+        v.addWidget(label(zp.anzeige_name(bw.name), "kartentitel"))
+        if zp.name_fehlt(bw.name):              # ehrlich kennzeichnen, Rohwert zeigen – nichts erfinden
+            v.addWidget(Hinweis(f"Im Gebäudeplan steht kein Name („{bw.name or 'leer'}“). Bitte im Belegungssystem "
+                                "prüfen – Zimmer und Zeitraum stimmen, nur der Name fehlt im Export.", "warnung"))
         gruppe = bw.massnahme or zp.GRUPPE_LABEL.get(bw.gruppe, bw.gruppe)
         v.addWidget(label(f"{gruppe} · {bw.von:%d.%m.%Y} – {bw.bis:%d.%m.%Y} · "
                           f"{bw.quelle if bw.zimmer else 'noch kein Zimmer'}",

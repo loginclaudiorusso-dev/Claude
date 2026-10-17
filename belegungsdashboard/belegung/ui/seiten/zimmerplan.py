@@ -18,7 +18,7 @@ from ... import eintragen, gebaeudeplan, speicher, uwt, zimmerexport
 from ... import zimmerplan as zp
 from .. import drucken, theme
 from ..basis import Seite, Zustand, sichtbar
-from ..widgets import FlowLayout, Hinweis, Karte, Leer, Mehrfachauswahl, Pille, Segment, Tabelle, DatumFeld, knopf, label, leeren
+from ..widgets import FlowLayout, Hinweis, Karte, Leer, Pille, Segment, Tabelle, DatumFeld, knopf, label, leeren
 from ..zeitstrahl import Zeitstrahl
 
 GESCHLECHTER = [("", "?"), ("m", "m"), ("w", "w"), ("d", "d")]
@@ -28,6 +28,12 @@ MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August"
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
 # Nach Aufgaben gruppiert: Planen | Erledigen (Tagesgeschäft) | Verwalten (Stammdaten, Importe, Protokoll)
 TABS = ["Zuteilen", "Zeitstrahl", "Zimmer", "Aufgaben", "Abreisen", "Reinigung", "Stammdaten"]
+ZS_ZEITRAEUME = {"wochen": "2 Wochen", "monat": "Monat", "quartal": "3 Monate"}
+ZS_ARTEN = [("belegt", "belegt"), ("geplant", "geplant"), ("pivot", "Pivot"), ("gesperrt", "gesperrt")]
+ZS_ARTEN_TIPP = {"belegt": "belegt laut Gebäudeplan bzw. fest (voll gefüllt)",
+                 "geplant": "geplant im Zimmerplan (gestrichelter Rand)",
+                 "pivot": "gebucht laut Zimmer-Pivot, im Gebäudeplan fehlend (gepunkteter Rand)",
+                 "gesperrt": "gesperrt / Renovierung (schraffiert)"}
 TAB_GRUPPEN = (3, 6)                         # Trennstrich vor „Aufgaben“ und vor „Stammdaten“
 TAB_TIPPS = {
     "Zuteilen": "Planen: Anreisen Zimmer geben – Vorschlag prüfen, anpassen, übernehmen",
@@ -200,68 +206,151 @@ class ZimmerplanSeite(Seite):
         return w
 
     def _zeitstrahl_bauen(self) -> QWidget:
+        """Zwei kompakte Zeilen über der Zeitleiste: (1) Zeitraum und Haus, (2) Suche, Filter, Legende.
+        Gruppe, „wohnt/darf“ und Belegungsart stehen im Menü „Filter“ (mit Zähler und „Zurücksetzen“)."""
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
-        v.setSpacing(12)
-        leiste = QHBoxLayout()
-        leiste.setSpacing(8)
-        zurueck = knopf("", "icon", "links", "Vorheriger Monat")
+        v.setSpacing(8)
+        e = speicher.einstellungen()
+        self._zs_zeitraum = e.get("zs_zeitraum") if e.get("zs_zeitraum") in ZS_ZEITRAEUME else "monat"
+        self._zs_start = date.today()
+        self._zs_gruppen: set[str] = set()
+        self._zs_modus = "wohnt"
+        oben = QWidget()
+        oben.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        fl = FlowLayout(oben, abstand=8)
+        zurueck = knopf("", "icon", "links", "Zurück")
+        zurueck.setAccessibleName("Zeitraum zurück")
         zurueck.clicked.connect(lambda: self._monat_wechseln(-1))
-        vor = knopf("", "icon", "rechts", "Nächster Monat")
+        vor = knopf("", "icon", "rechts", "Weiter")
+        vor.setAccessibleName("Zeitraum weiter")
         vor.clicked.connect(lambda: self._monat_wechseln(1))
-        heute = knopf("Heute", "ghost")
+        heute = knopf("Heute", "ghost", None, "Zum heutigen Tag springen")
         heute.clicked.connect(lambda: self._monat_wechseln(0))
         self.monat_text = label("", "kartentitel")
-        self.monat_text.setMinimumWidth(150)
+        self.monat_text.setMinimumWidth(170)
+        self.monat_text.setAlignment(Qt.AlignCenter)
+        zeitraum = QWidget()
+        zl = QHBoxLayout(zeitraum)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.setSpacing(2)
         for x in (zurueck, self.monat_text, vor, heute):
-            leiste.addWidget(x)
-        leiste.addStretch()
-        self.zs_anzahl = label("", "klein")
-        self.zs_anzahl.setToolTip("Zimmer oder Balken anklicken für Details")
-        leiste.addWidget(self.zs_anzahl)
-        v.addLayout(leiste)
-        # Häuser in eigener Zeile – sonst wird es bei schmalem Fenster rechts abgeschnitten
-        haus_zeile = QHBoxLayout()
-        self.zs_haus = Segment(["Haus 2", "Haus 3.1", "Haus 3.2", "Haus 3.3", "Haus 6", "Alle"], 0)
+            zl.addWidget(x)
+        fl.addWidget(zeitraum)
+        self.zs_zoom = Segment([ZS_ZEITRAEUME[k] for k in ZS_ZEITRAEUME], list(ZS_ZEITRAEUME).index(self._zs_zeitraum),
+                               tipps=["Zwei Wochen – breite Tage, Namen gut lesbar", "Ein Kalendermonat",
+                                      "Drei Monate – für lange Aufenthalte"])
+        self.zs_zoom.geaendert.connect(self._zs_zoom_setzen)
+        fl.addWidget(self.zs_zoom)
+        self.zs_haus = Segment(["2", "3.1", "3.2", "3.3", "6", "Alle"], 0,
+                               tipps=[f"Haus {h}" for h in HAEUSER] + ["Alle Häuser"])
         self.zs_haus.geaendert.connect(lambda _i: self._zeitstrahl_zeigen())
-        haus_zeile.addWidget(self.zs_haus)
-        haus_zeile.addStretch()
-        v.addLayout(haus_zeile)
-        leiste = QHBoxLayout()
+        haus = QWidget()
+        hl = QHBoxLayout(haus)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(6)
+        hl.addWidget(label("Haus", "klein"))
+        hl.addWidget(self.zs_haus)
+        fl.addWidget(haus)
+        v.addWidget(oben)
+        unten = QHBoxLayout()
+        unten.setSpacing(8)
         self.zs_suche = QLineEdit()
         self.zs_suche.setPlaceholderText("Name oder Zimmer suchen …")
         self.zs_suche.setClearButtonEnabled(True)
-        self.zs_suche.setFixedWidth(200)
+        self.zs_suche.setAccessibleName("Zeitstrahl durchsuchen")
+        from .. import icons
+
+        self.zs_suche.addAction(icons.icon("suche", theme.T.text_3, 16), QLineEdit.LeadingPosition)
+        self.zs_suche.setMinimumWidth(180)
+        self.zs_suche.setMaximumWidth(280)
         self.zs_suche.textChanged.connect(lambda _t: self._zeitstrahl_zeigen())
-        leiste.addWidget(self.zs_suche)
-        leiste.addSpacing(12)
-        leiste.addWidget(label("Gruppe", "klein"))
-        self.zs_gruppe = Mehrfachauswahl([(g, zp.GRUPPE_LABEL.get(g, g)) for g in zp.GRUPPEN], "Alle Gruppen")
-        self.zs_gruppe.geaendert.connect(lambda _g: self._zeitstrahl_zeigen())
-        leiste.addWidget(self.zs_gruppe)
-        self.zs_modus = QComboBox()
-        self.zs_modus.addItem("wohnt dort", "wohnt")
-        self.zs_modus.addItem("darf dort wohnen", "darf")
-        self.zs_modus.setToolTip("„wohnt dort“: Zimmer, in denen die Gruppe im Monat wohnt – andere Belegungen blass\n"
-                                 "„darf dort wohnen“: laut Regeln für die Gruppe erlaubte Zimmer")
-        self.zs_modus.currentIndexChanged.connect(lambda _i: self._zeitstrahl_zeigen())
-        leiste.addWidget(self.zs_modus)
-        leiste.addStretch()
-        v.addLayout(leiste)
+        unten.addWidget(self.zs_suche, 1)
+        self.zs_filter = knopf("Filter", "chip", "filter", "Gruppe, „wohnt dort / darf dort wohnen“ und Belegungsart")
+        self.zs_filter_menue = QMenu(self.zs_filter)
+        self.zs_filter_menue.aboutToShow.connect(self._zs_filter_menue)
+        self.zs_filter.setMenu(self.zs_filter_menue)
+        unten.addWidget(self.zs_filter)
+        self.zs_reset = knopf("Zurücksetzen", "ghost", "schliessen", "Suche und alle Filter aufheben")
+        self.zs_reset.clicked.connect(self._zs_zuruecksetzen)
+        unten.addWidget(self.zs_reset)
+        self.zs_aktiv = label("", "klein")
+        unten.addWidget(self.zs_aktiv)
+        unten.addStretch()
         leg = QWidget()
-        leg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self.zs_legende = FlowLayout(leg, abstand=14)
-        v.addWidget(leg)
+        self.zs_legende = QHBoxLayout(leg)
+        self.zs_legende.setContentsMargins(0, 0, 0, 0)
+        self.zs_legende.setSpacing(12)
+        unten.addWidget(leg)
+        self.zs_anzahl = label("", "klein")
+        self.zs_anzahl.setToolTip("Zimmer oder Balken anklicken für Details")
+        unten.addWidget(self.zs_anzahl)
+        v.addLayout(unten)
         karte = Karte(abstand=8)
         self.zeitstrahl = Zeitstrahl()
         self.zeitstrahl.zimmer_geklickt.connect(self._zimmer_details)
         self.zeitstrahl.verschiebbar = True           # Balken in ein anderes Zimmer ziehen (Planung oder Umzug)
         self.zeitstrahl.gezogen.connect(self._zs_gezogen)
         self.zeitstrahl.kontext.connect(self._zs_menue)
+        self.zeitstrahl.scrollbereich = self.scroll   # Datumszeile bleibt beim Scrollen oben stehen
+        self.scroll.verticalScrollBar().valueChanged.connect(
+            lambda _v: self.zeitstrahl.update() if self.zeitstrahl.isVisible() else None)
         karte.inhalt.addWidget(self.zeitstrahl)
         v.addWidget(karte)
         return w
+
+    def _zs_filter_menue(self) -> None:
+        m = self.zs_filter_menue
+        m.clear()
+
+        def schalter(menue, text, an, fn):
+            a = menue.addAction(text, fn)
+            a.setCheckable(True)
+            a.setChecked(an)
+            return a
+
+        gr = m.addMenu("Gruppe")
+        for g in zp.GRUPPEN:
+            schalter(gr, zp.GRUPPE_LABEL.get(g, g), g in self._zs_gruppen,
+                     lambda g=g: (self._zs_gruppen.symmetric_difference_update({g}), self._zeitstrahl_zeigen()))
+        gr.addSeparator()
+        for modus, text in (("wohnt", "… wohnt dort (andere blass)"), ("darf", "… darf dort wohnen (Regeln)")):
+            schalter(gr, text, self._zs_modus == modus,
+                     lambda md=modus: (setattr(self, "_zs_modus", md), self._zeitstrahl_zeigen()))
+        art = m.addMenu("Belegungsart")
+        for a, text in ZS_ARTEN:
+            schalter(art, f"nur Zimmer mit „{text}“", a in self._zs_arten,
+                     lambda a=a: self._zs_art_umschalten(a, a not in self._zs_arten))
+
+    def _zs_zuruecksetzen(self) -> None:
+        self._zs_gruppen.clear()
+        self._zs_arten.clear()
+        self._zs_modus = "wohnt"
+        self.zs_suche.blockSignals(True)
+        self.zs_suche.clear()
+        self.zs_suche.blockSignals(False)
+        self._zeitstrahl_zeigen()
+
+    def _zs_zoom_setzen(self, i: int) -> None:
+        self._zs_zeitraum = list(ZS_ZEITRAEUME)[i]
+        speicher.einstellung_setzen("zs_zeitraum", self._zs_zeitraum)
+        self._zeitstrahl_zeigen()
+
+    def _zs_bereich(self) -> tuple[date, date, str]:
+        """(von, bis, Überschrift) für Zeitraum und Ankertag."""
+        a = self._zs_start
+        if self._zs_zeitraum == "wochen":
+            von = a - timedelta(days=a.weekday())
+            bis = von + timedelta(days=13)
+            return von, bis, f"{von:%d.%m.} – {bis:%d.%m.%Y}"
+        von = a.replace(day=1)
+        monate = 3 if self._zs_zeitraum == "quartal" else 1
+        m = von.month - 1 + monate
+        bis = date(von.year + m // 12, m % 12 + 1, 1) - timedelta(days=1)
+        if monate == 1:
+            return von, bis, f"{MONATE[von.month - 1]} {von.year}"
+        return von, bis, f"{MONATE[von.month - 1][:3]} – {MONATE[bis.month - 1][:3]} {bis.year}"
 
     def _abreisen_bauen(self) -> QWidget:
         w = QWidget()
@@ -618,7 +707,7 @@ class ZimmerplanSeite(Seite):
 
     def ansicht_lesen(self) -> dict:
         a = super().ansicht_lesen()
-        a.update(zs_haus=self.zs_haus.index(), zs_suche=self.zs_suche.text(), monat=self._monat.isoformat(),
+        a.update(zs_haus=self.zs_haus.index(), zs_suche=self.zs_suche.text(), monat=self._zs_start.isoformat(),
                  reiter_name=TABS[a["reiter"]] if 0 <= a.get("reiter", -1) < len(TABS) else "")
         return a
 
@@ -639,7 +728,8 @@ class ZimmerplanSeite(Seite):
             self.zs_suche.setText(ansicht["zs_suche"])
             self.zs_suche.blockSignals(False)
         try:
-            self._monat = date.fromisoformat(ansicht["monat"]).replace(day=1)
+            self._zs_start = date.fromisoformat(ansicht["monat"])
+            self._monat = self._zs_start.replace(day=1)
         except (KeyError, TypeError, ValueError):
             pass
         reiter = ansicht.get("reiter")
@@ -1475,24 +1565,28 @@ class ZimmerplanSeite(Seite):
     # ================================================================== Zeitstrahl
 
     def _monat_wechseln(self, schritt: int) -> None:
+        """Zurück/weiter um den angezeigten Zeitraum (2 Wochen bzw. einen Monat); 0 = heute."""
         if schritt == 0:
-            self._monat = date.today().replace(day=1)
+            self._zs_start = date.today()
+        elif self._zs_zeitraum == "wochen":
+            self._zs_start += timedelta(days=14 * schritt)
         else:
-            m = self._monat.month - 1 + schritt
-            self._monat = date(self._monat.year + m // 12, m % 12 + 1, 1)
+            a = self._zs_start.replace(day=1)
+            m = a.month - 1 + schritt
+            self._zs_start = date(a.year + m // 12, m % 12 + 1, 1)
+        self._monat = self._zs_start.replace(day=1)
         self._zeitstrahl_zeigen()
 
     def _zeitstrahl_zeigen(self) -> None:
         if self.stand is None:
             return
-        von = self._monat
-        naechster = date(von.year + von.month // 12, von.month % 12 + 1, 1)
-        bis = naechster - timedelta(days=1)
-        self.monat_text.setText(f"{MONATE[von.month - 1]} {von.year}")
+        von, bis, titel = self._zs_bereich()
+        self.monat_text.setText(titel)
         i = self.zs_haus.index()
-        zimmer = [z for z in self.stand.zimmer if z.aktiv and (i == 5 or z.haus == HAEUSER[i])]
         suche = self.zs_suche.text().strip().lower()
-        gruppen, modus = self.zs_gruppe.auswahl(), self.zs_modus.currentData()
+        # Suche gilt für alle Häuser – ein Zimmer oder eine Person findet man, ohne erst das Haus zu wählen
+        zimmer = [z for z in self.stand.zimmer if z.aktiv and (i == 5 or bool(suche) or z.haus == HAEUSER[i])]
+        gruppen, modus = set(self._zs_gruppen), self._zs_modus
         if gruppen and modus == "darf":
             zimmer = [z for z in zimmer if any(zp.erlaubt(z, g) for g in gruppen)]
         zeilen = zp.zeitstrahl(self.stand.lage, zimmer, von, bis)
@@ -1506,32 +1600,34 @@ class ZimmerplanSeite(Seite):
         self.zeitstrahl.arten = set(self._zs_arten)
         if suche:
             zeilen = [(z, spuren) for z, spuren in zeilen
-                      if suche in z.id.lower() or suche in z.nr.lower()
+                      if suche in z.id.lower() or suche in z.nr.lower() or suche in z.kurz.lower()
                       or any(suche in bk.text.lower() for spur in spuren for bk in spur)]
         self.zeitstrahl.setzen(zeilen, von, bis)
+        if suche and i != 5:
+            self.zs_haus.setToolTip("Bei einer Suche werden alle Häuser durchsucht")
+        # aktive Filter benennen (nicht nur ein Punkt): was wirkt gerade auf die Zeilen?
+        aktiv = ([f"Gruppe: {', '.join(zp.GRUPPE_LABEL.get(g, g) for g in zp.GRUPPEN if g in gruppen)}"
+                  + (" (darf)" if modus == "darf" else "")] if gruppen else []) + \
+                ([f"nur {', '.join(t for a, t in ZS_ARTEN if a in self._zs_arten)}"] if self._zs_arten else [])
+        n = len(aktiv) + bool(suche)
+        self.zs_filter.setText(f"Filter {len(aktiv)}" if aktiv else "Filter")
+        self.zs_filter.setProperty("aktiv", "true" if aktiv else "false")
+        self.zs_filter.style().unpolish(self.zs_filter)
+        self.zs_filter.style().polish(self.zs_filter)
+        self.zs_reset.setVisible(n > 0)
+        self.zs_aktiv.setText(" · ".join(aktiv))
+        self.zs_aktiv.setVisible(bool(aktiv))
         from ..zeitstrahl import muster
 
-        from PySide6.QtGui import QIcon
-
-        leeren(self.zs_legende)
-        # Legende = Filter: anklicken zeigt nur Zimmer mit dieser Art (mehrere kombinierbar)
-        for art, text in (("belegt", "belegt"), ("geplant", "geplant (Zimmerplan)"),
-                          ("pivot", "belegt laut Zimmer-Pivot"), ("gesperrt", "gesperrt / Renovierung")):
-            b = knopf(text, "chip")
-            b.setCheckable(True)
-            b.setChecked(art in self._zs_arten)
-            b.setIcon(QIcon(muster(art)))
-            b.setIconSize(muster(art).size() / max(muster(art).devicePixelRatio(), 1))
-            b.setToolTip(f"Nur Zimmer mit „{text}“ zeigen – nochmal klicken zum Aufheben")
-            b.clicked.connect(lambda an, a=art: self._zs_art_umschalten(a, an))
-            self.zs_legende.addWidget(b)
-        if self._zs_arten:
-            alle = knopf("Filter aufheben", "ghost")
-            alle.clicked.connect(lambda: self._zs_art_umschalten(None, False))
-            self.zs_legende.addWidget(alle)
-        if self.zeitstrahl.gruppen:
-            namen = ", ".join(zp.GRUPPE_LABEL.get(g, g) for g in zp.GRUPPEN if g in self.zeitstrahl.gruppen)
-            self.zs_legende.addWidget(label(f"blass = andere Gruppen als {namen}", "klein"))
+        leeren(self.zs_legende)              # kleine Legende: Muster + Wort (Form und Farbe, nicht nur Farbe)
+        for art, text in ZS_ARTEN:
+            eintrag = QLabel()
+            eintrag.setPixmap(muster(art, 20, 11))
+            eintrag.setToolTip(ZS_ARTEN_TIPP[art])
+            self.zs_legende.addWidget(eintrag)
+            t = label(text, "klein")
+            t.setToolTip(ZS_ARTEN_TIPP[art])
+            self.zs_legende.addWidget(t)
         self.zs_anzahl.setText(f"{len(zeilen)} Zimmer")
 
     def _zs_art_umschalten(self, art: str | None, an: bool) -> None:

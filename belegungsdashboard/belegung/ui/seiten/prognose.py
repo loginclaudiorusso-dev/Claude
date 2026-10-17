@@ -12,7 +12,7 @@ from ...prognose import BACKTEST_URSPRUENGE
 from .. import theme
 from ..basis import Seite, Zustand
 from ..charts import MonatsChart
-from ..widgets import DEUTSCHE_MONATE, Karte, KpiKarte, Pille, Segment, Tabelle, label, prozent, zahl
+from ..widgets import DEUTSCHE_MONATE, FlowLayout, Karte, KpiKarte, Pille, Segment, Tabelle, label, prozent, zahl
 
 
 def _monat(m: date) -> str:
@@ -37,8 +37,8 @@ class PrognoseSeite(Seite):
         self.lay.addLayout(kpis)
 
         self.chart_karte = Karte("Monatsverlauf", "Ø belegte Plätze je Monat (Reha + Verträge)")
-        steuer = QHBoxLayout()
-        steuer.setSpacing(14)
+        w = QWidget()
+        steuer = FlowLayout(w, abstand=14)          # eigene Zeile, bricht um – der Kartenkopf bleibt schmal (1000 px)
         self.cb95 = QCheckBox("95 %-Spanne")
         self.cb95.setChecked(True)
         self.cb_rueck = QCheckBox("Backtest zeigen")
@@ -49,9 +49,7 @@ class PrognoseSeite(Seite):
         self.horizont = Segment(["12 M", "24 M", "36 M"], 1)
         self.horizont.geaendert.connect(lambda _i: self.anstossen())
         steuer.addWidget(self.horizont)
-        w = QWidget()
-        w.setLayout(steuer)
-        self.chart_karte.aktion(w)
+        self.chart_karte.inhalt.addWidget(w)
         self.chart = MonatsChart(hoehe=3.7)
         self.chart_karte.inhalt.addWidget(self.chart)
         self.lay.addWidget(self.chart_karte)
@@ -122,11 +120,15 @@ class PrognoseSeite(Seite):
         if spitze:
             stufe, text = ampel_stufe(spitze["anteil_hi80"])
             self.k_spitze.wert.setText(prozent(spitze["anteil_hi80"]))
-            self.k_spitze.pille.setzen(stufe, text)
-            self.k_spitze.pille.setVisible(True)
-            self.k_spitze.detail.setText(f"{_monat(spitze['monat'])}, vorsichtig geschätzt")
+            t = theme.T                             # Ampel wie in der Übersicht: Balken (Farbe + Länge) plus Text
+            self.k_spitze.balken.setzen(spitze["anteil_hi80"],
+                                        {"ok": t.ok, "knapp": t.knapp, "kritisch": t.kritisch, "ueber": t.ueber}[stufe])
+            self.k_spitze.balken.setVisible(True)
+            self.k_spitze.pille.setVisible(False)
+            self.k_spitze.detail.setText(f"{_monat(spitze['monat'])}, vorsichtig geschätzt · {text}")
         else:
             self.k_spitze.wert.setText("–")
+            self.k_spitze.balken.setVisible(False)
             self.k_spitze.pille.setVisible(False)
             self.k_spitze.detail.setText("Kapazität nicht hinterlegt")
         m = ds.prognose.modelle.get(z.standort)

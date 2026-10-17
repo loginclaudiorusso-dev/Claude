@@ -97,10 +97,19 @@ class Diagramm(FigureCanvasQTAgg):
             self.ax.set_xlim(x_von, x_bis)
         # Legende sitzt oberhalb der Achse in einem festen Streifen (in Punkt, unabhängig von der
         # Windows-Skalierung) – so wird sie nie oben abgeschnitten
+        self._raender()
+        self.draw_idle()
+
+    def _raender(self) -> None:
         hoehe_pt = self.fig.get_figheight() * 72
         top = 1 - (30 if getattr(self, "_mit_legende", False) else 12) / hoehe_pt
-        self.fig.subplots_adjust(left=0.06, right=0.985, top=top, bottom=0.13)
-        self.draw_idle()
+        # linker Rand mindestens 40 pt, damit dreistellige Achsenzahlen im schmalen Fenster nicht abgeschnitten werden
+        left = max(0.06, 40 / max(1.0, self.fig.get_figwidth() * 72))
+        self.fig.subplots_adjust(left=left, right=0.985, top=top, bottom=0.13)
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._raender()
 
     def _legende(self, anzahl: int) -> None:
         if anzahl >= 2:
@@ -372,8 +381,11 @@ class HeatmapChart(Diagramm):
         self.ax.grid(which="minor", color=t.surface, linewidth=2.5)
         self.ax.tick_params(which="minor", length=0)
         self._zellen, self._anzahl = pivot.to_numpy(), anzahl.to_numpy()
-        self.fig.subplots_adjust(left=0.05, right=0.99, top=0.97, bottom=0.1)
+        self._raender()
         self.draw_idle()
+
+    def _raender(self) -> None:                     # Kalender-Heatmap: eigene, feste Ränder
+        self.fig.subplots_adjust(left=0.05, right=0.99, top=0.97, bottom=0.1)
 
     def _bewegung(self, e):
         if e.inaxes is not self.ax or self._zellen is None or e.xdata is None:

@@ -144,14 +144,14 @@ def _design_farben(t: Theme, name: str) -> Theme:
                            border_strong="#323B52", text="#E8EAF2", text_2="#A7AEC2", text_3="#6B7389",
                            accent="#818CF8", accent_hover="#A5B4FC", accent_text="#0B0D14", accent_soft="#1E2142",
                            fokus="#A5B4FC", raster="#1A1F2D",
-                           sb_bg="#07090F", sb_text="#E8EAF2", sb_text_2="#8C93A8", sb_aktiv_bg="#818CF8",
-                           sb_aktiv_text="#0B0D14")
+                           sb_bg="#07090F", sb_text="#E8EAF2", sb_text_2="#8C93A8", sb_aktiv_bg="#262C52",
+                           sb_aktiv_text="#C7D2FE")
         return replace(t, bg="#F4F5FA", surface="#FFFFFF", surface_2="#F1F2F8", hover="#E9EBF4", border="#E4E7F0",
                        border_strong="#CDD2E1", text="#0F172A", text_2="#475569", text_3="#94A3B8",
                        accent="#4F46E5", accent_hover="#4338CA", accent_text="#FFFFFF", accent_soft="#EEF0FF",
                        fokus="#6366F1", raster="#EEF0F6",
-                       sb_bg="#111827", sb_text="#F3F4F6", sb_text_2="#9CA3AF", sb_aktiv_bg="#4F46E5",
-                       sb_aktiv_text="#FFFFFF")
+                       sb_bg="#111827", sb_text="#F3F4F6", sb_text_2="#9CA3AF", sb_aktiv_bg="#312E81",
+                       sb_aktiv_text="#E0E7FF")
     if name == "kompakt":
         return t                                     # Farben wie Klassisch, nur dichter (siehe _design_qss)
     if name == "warm":
@@ -236,11 +236,47 @@ QTabBar#ansichten::tab {{ border-top-left-radius: 12px; border-top-right-radius:
     return "".join(teile)
 
 
+# ---- Kontrast: Sekundärtexte bleiben lesbar (WCAG AA, 4,5 : 1 auf allen Flächen) ---------------------------
+
+KONTRAST_MIN = 4.5
+
+
+def _leuchtdichte(farbe: str) -> float:
+    c = QColor(farbe)
+
+    def kanal(x: float) -> float:
+        return x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * kanal(c.redF()) + 0.7152 * kanal(c.greenF()) + 0.0722 * kanal(c.blueF())
+
+
+def kontrast(a: str, b: str) -> float:
+    la, lb = _leuchtdichte(a), _leuchtdichte(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def lesbar(farbe: str, ziel: str, flaechen: list[str], minimum: float = KONTRAST_MIN) -> str:
+    """``farbe`` schrittweise Richtung ``ziel`` (z. B. text_2) mischen, bis sie auf allen ``flaechen`` den
+    Mindestkontrast erreicht – Farbton bleibt, nur heller/dunkler."""
+    a, b = QColor(farbe), QColor(ziel)
+    for i in range(21):
+        f = i / 20
+        c = QColor.fromRgbF(a.redF() + (b.redF() - a.redF()) * f, a.greenF() + (b.greenF() - a.greenF()) * f,
+                            a.blueF() + (b.blueF() - a.blueF()) * f)
+        if all(kontrast(c.name(), x) >= minimum for x in flaechen):
+            return c.name()
+    return ziel
+
+
+def _kontraste_sichern(t: Theme) -> Theme:
+    return replace(t, text_3=lesbar(t.text_3, t.text_2, [t.surface, t.bg, t.surface_2]))
+
+
 def setzen(modus: str) -> Theme:
     global T
     T = aufloesen(modus)
     if T.name != "hochkontrast":                      # Hochkontrast bleibt unverändert (Barrierefreiheit)
-        T = _design_farben(T, _design)
+        T = _kontraste_sichern(_design_farben(T, _design))
     app = QApplication.instance()
     if app is not None:
         app.setStyleSheet(stylesheet(T))
@@ -464,4 +500,14 @@ QFrame[blase="nutzer"] {{ background: {t.accent}; border-radius: 14px; }}
 QFrame[blase="nutzer"] QLabel {{ color: {t.accent_text}; }}
 QFrame[blase="assistent"] {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
 QFrame[blase="hinweis"] {{ background: {t.surface_2}; border-radius: 14px; }}
-""" + (_design_qss(t, _design) if t.name != "hochkontrast" else "")
+""" + (_design_qss(t, _design) if t.name != "hochkontrast" else "") + _fokus_qss(t)
+
+
+def _fokus_qss(t: Theme) -> str:
+    """Sichtbarer Tastaturfokus auch für unauffällige Knöpfe (Ghost, Chip, Icon, Zeile) und die Navigation –
+    zuletzt angehängt, damit Varianten mit „border: transparent“ ihn nicht verdecken."""
+    return f"""
+QPushButton[variant="ghost"]:focus, QPushButton[variant="chip"]:focus, QPushButton[variant="icon"]:focus,
+QPushButton[variant="zeile"]:focus, QPushButton[nav="true"]:focus {{ border: 1px solid {t.fokus}; }}
+QTableView:focus, QTableWidget:focus, QListView:focus {{ border: 1px solid {t.fokus}; }}
+"""

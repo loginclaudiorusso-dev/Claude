@@ -14,9 +14,13 @@ from . import theme
 WT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
+ART_TEXT = {"belegt": "belegt (Gebäudeplan bzw. fest)", "geplant": "geplant (Zimmerplan)",
+            "pivot": "gebucht laut Zimmer-Pivot", "gesperrt": "gesperrt / Renovierung"}
+
+
 def stil(art: str) -> tuple[QColor, QColor, QColor, bool, bool]:
-    """(Füllung, Rand, Schrift, gestrichelt, schraffiert) je Balkenart – klar unterscheidbar:
-    belegt türkis (voll), geplant blau (gestrichelt), Pivot lila, gesperrt rot schraffiert."""
+    """(Füllung, Rand, Schrift, gestrichelt, schraffiert) je Balkenart – nicht nur über die Farbe unterscheidbar:
+    belegt voll gefüllt, geplant gestrichelter Rand, Pivot gepunkteter Rand, gesperrt schraffiert."""
     t = theme.T
     if art == "belegt":
         return QColor(t.accent), QColor(t.accent), QColor(t.accent_text), False, False
@@ -28,7 +32,7 @@ def stil(art: str) -> tuple[QColor, QColor, QColor, bool, bool]:
     if art == "pivot":
         lila = QColor(t.kategorie.get("FRAI", "#7a6fd6"))
         weich = QColor(lila)
-        weich.setAlpha(80)
+        weich.setAlpha(45)
         return weich, lila, QColor(t.text), False, False
     rot = QColor(t.ueber)
     weich = QColor(rot)
@@ -43,6 +47,9 @@ def balken_malen(p: QPainter, r: QRectF, art: str) -> QColor:
     pen = QPen(rand, 1.4)
     if gestrichelt:
         pen.setStyle(Qt.DashLine)
+    elif art == "pivot":
+        pen.setStyle(Qt.DotLine)
+        pen.setWidthF(1.8)
     p.setPen(pen)
     p.drawRoundedRect(r, 4, 4)
     if schraffiert:
@@ -78,6 +85,28 @@ def ganz_verschieben(b, heute: date | None = None) -> bool:
     """Geplant und noch nicht angereist: der ganze Aufenthalt wechselt das Zimmer. Sonst (eingezogen,
     Gebäudeplan, schon ein Umzug): Umzug ab einem Tag."""
     return b.art == "geplant" and bool(b.person) and not b.umzug and b.von > (heute or date.today())
+
+
+def kurzformen(text: str) -> list[str]:
+    """Beschriftungen vom längsten zum kürzesten: „Name (Maßnahme)“ → „Name“ → „Nachname“."""
+    erg = [text]
+    name = text.split(" (", 1)[0]
+    if name != text:
+        erg.append(name)
+    if "," in name:
+        erg.append(name.split(",", 1)[0])
+    return erg
+
+
+def beschriftung(fm: QFontMetrics, text: str, platz: int) -> str:
+    """Passende Beschriftung für ``platz`` Pixel – lieber kürzer als abgeschnitten; zu schmal = keine."""
+    if platz < 18:
+        return ""
+    for t in kurzformen(text):
+        if fm.horizontalAdvance(t) <= platz:
+            return t
+    kurz = fm.elidedText(kurzformen(text)[-1], Qt.ElideRight, platz)
+    return kurz if len(kurz.rstrip("…")) >= 2 else ""
 
 
 class Zeitstrahl(QWidget):
@@ -160,43 +189,20 @@ class Zeitstrahl(QWidget):
         for i in range(self._tage):
             d = self._von + timedelta(days=i)
             x = self._x(d)
-            if d.weekday() >= 5:
+            if d.weekday() >= 5 and breite >= 12:          # im 3-Monats-Raster keine Streifen je Wochenende
                 p.fillRect(QRectF(x, self.KOPF, breite, self.height() - self.KOPF), QColor(t.surface_2))
             if d == heute:
                 c = QColor(t.accent)
                 c.setAlpha(28)
                 p.fillRect(QRectF(x, 0, breite, self.height()), c)
-        # Kopf: Tag + Wochentag – bei schmalen Spalten nur Montage und Monatsanfänge beschriften
-        eng = breite < 22
-        monate = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
-        for i in range(self._tage):
-            d = self._von + timedelta(days=i)
-            x = self._x(d)
-            if d == heute:
-                p.fillRect(QRectF(x + 2, self.KOPF - 3, max(breite - 4, 2), 3), QColor(t.accent))
-            if eng:
-                if d.day == 1 or (i == 0 and d.day <= 20):
-                    p.setFont(klein)
-                    p.setPen(QColor(t.text_2))
-                    p.drawText(QRectF(x + 2, 4, 60, 14), Qt.AlignLeft | Qt.AlignVCenter, f"{monate[d.month - 1]} {d.year}")
-                if d.weekday() == 0 or d == heute:
-                    p.setFont(schrift)
-                    p.setPen(QColor(t.accent if d == heute else t.text))
-                    p.drawText(QRectF(x - 8, 20, breite + 16, 18), Qt.AlignCenter, f"{d.day:02d}")
-                continue
-            p.setPen(QColor(t.accent if d == heute else t.text))
-            p.setFont(schrift)
-            p.drawText(QRectF(x, 6, breite, 18), Qt.AlignCenter, f"{d.day:02d}")
-            p.setFont(klein)
-            p.setPen(QColor(t.accent if d == heute else t.text_3))
-            p.drawText(QRectF(x, 24, breite, 14), Qt.AlignCenter, WT[d.weekday()])
         # senkrechte Linien
         p.setPen(QPen(QColor(t.border), 1))
         for i in range(self._tage + 1):
+            d = self._von + timedelta(days=i)
+            if breite < 12 and d.weekday() != 0 and i not in (0, self._tage):
+                continue                                # schmale Spalten: nur Wochenlinien (Montag)
             x = self.LINKS + i * breite
             p.drawLine(int(x), self.KOPF, int(x), self.height())
-        p.drawLine(0, self.KOPF, self.width(), self.KOPF)
-
         fm = QFontMetrics(schrift)
         for art, y, h, obj in self._layout:
             if art == "gruppe":
@@ -231,8 +237,9 @@ class Zeitstrahl(QWidget):
                     p.setOpacity(0.3 if blass else 1.0)
                     schrift_farbe = balken_malen(p, r, bk.art)
                     p.setPen(schrift_farbe)
-                    text = fm.elidedText(bk.text, Qt.ElideRight, int(r.width() - 10))
-                    p.drawText(r.adjusted(6, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft, text)
+                    text = beschriftung(fm, bk.text, int(r.width() - 10))
+                    if text:
+                        p.drawText(r.adjusted(6, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft, text)
                     p.setOpacity(1.0)
                     self._treffer.append((r, (z.id, bk)))
         # Ziehen: Zielzeile hervorheben und den Balken dort als Vorschau zeichnen
@@ -254,11 +261,59 @@ class Zeitstrahl(QWidget):
             p.drawText(r.adjusted(6, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft,
                        fm.elidedText(text, Qt.ElideRight, int(r.width() - 10)))
             p.setOpacity(1.0)
+        self._kopf_malen(p, self._kopf_y(), schrift, klein, breite, heute)
         p.end()
+
+    def _kopf_y(self) -> int:
+        """Oberkante der Datumszeile: bleibt beim Scrollen der Seite am oberen Rand des Sichtbereichs stehen."""
+        sc = getattr(self, "scrollbereich", None)
+        if sc is None or not self.isVisible():
+            return 0
+        y = -self.mapTo(sc.viewport(), QPoint(0, 0)).y()
+        return int(min(max(0, y), max(0, self.height() - self.KOPF - 40)))
+
+    def _kopf_malen(self, p: QPainter, y0: int, schrift: QFont, klein: QFont, breite: float, heute: date) -> None:
+        """Datumszeile (Tag + Wochentag, bei schmalen Spalten Montage/Monate) – deckt darunterliegende Zeilen ab."""
+        t = theme.T
+        p.fillRect(QRectF(0, y0, self.width(), self.KOPF), QColor(t.surface))
+        p.setPen(QColor(t.text_3))
+        p.setFont(klein)
+        p.drawText(QRectF(12, y0, self.LINKS - 16, self.KOPF), Qt.AlignVCenter | Qt.AlignLeft, "Zimmer")
+        p.save()
+        p.translate(0, y0)
+        # Kopf: Tag + Wochentag – bei schmalen Spalten nur Montage und Monatsanfänge beschriften
+        eng = breite < 22
+        monate = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+        for i in range(self._tage):
+            d = self._von + timedelta(days=i)
+            x = self._x(d)
+            if d == heute:
+                p.fillRect(QRectF(x + 2, self.KOPF - 3, max(breite - 4, 2), 3), QColor(t.accent))
+            if eng:
+                if d.day == 1 or (i == 0 and d.day <= 20):
+                    p.setFont(klein)
+                    p.setPen(QColor(t.text_2))
+                    p.drawText(QRectF(x + 2, 4, 60, 14), Qt.AlignLeft | Qt.AlignVCenter, f"{monate[d.month - 1]} {d.year}")
+                if d.weekday() == 0 or d == heute:
+                    p.setFont(schrift)
+                    p.setPen(QColor(t.accent if d == heute else t.text))
+                    p.drawText(QRectF(x - 8, 20, breite + 16, 18), Qt.AlignCenter, f"{d.day:02d}")
+                continue
+            p.setPen(QColor(t.accent if d == heute else t.text))
+            p.setFont(schrift)
+            p.drawText(QRectF(x, 6, breite, 18), Qt.AlignCenter, f"{d.day:02d}")
+            p.setFont(klein)
+            p.setPen(QColor(t.accent if d == heute else t.text_3))
+            p.drawText(QRectF(x, 24, breite, 14), Qt.AlignCenter, WT[d.weekday()])
+        p.setPen(QPen(QColor(t.border_strong if hasattr(t, "border_strong") else t.border), 1))
+        p.drawLine(0, self.KOPF, self.width(), self.KOPF)
+        p.restore()
 
     # ---- Interaktion --------------------------------------------------------------------
 
     def _finde(self, pos) -> object | None:
+        if pos.y() < self._kopf_y() + self.KOPF:          # Datumszeile (auch angeheftet) ist kein Balken
+            return None
         for r, obj in reversed(self._treffer):
             if r.contains(pos):
                 return obj
@@ -292,7 +347,9 @@ class Zeitstrahl(QWidget):
                     else "In ein anderes Zimmer ziehen = Umzug ab dem Tag, an dem du loslässt")
             QToolTip.showText(e.globalPosition().toPoint() + QPoint(12, 12),
                               f"<b>{bk.text}</b><br>{b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y} "
-                              f"({(b.bis - b.von).days + 1} Tage)"
+                              f"({(b.bis - b.von).days + 1} Tage) · {ART_TEXT.get(bk.art, bk.art)}"
+                              + (f"<br>Im Gebäudeplan steht „{b.name}“ – Name im Belegungssystem prüfen"
+                                 if b.name and b.name != zp.PIVOT_NAME and zp.name_fehlt(b.name) else "")
                               + (f"<br><i>{tipp} · Rechtsklick: Menü</i>" if ziehbar else ""), self)
         else:
             QToolTip.hideText()

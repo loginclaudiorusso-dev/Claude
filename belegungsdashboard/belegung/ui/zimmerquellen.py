@@ -181,6 +181,14 @@ class ZimmerQuellen(QWidget):
                                    + ("<br>" + "<br>".join(st.plan.hinweise[:2]) if st.plan.hinweise else "")
                                    + "<br>Aktualisieren: Word-Datei im Ordner „Gebaeudeplan“ speichern (wird automatisch "
                                    "übernommen) – oder im Belegungssystem alles kopieren und „Aus Zwischenablage einfügen“.")
+        if st.plan is not None:                 # Datenqualität: Belegungen ohne Namen im Export
+            ohne = [b for b in st.plan.belegungen if b.art == "belegt" and zp.name_fehlt(b.name) and b.bis >= heute]
+            if ohne:
+                beispiele = ", ".join(sorted({b.zimmer.removeprefix("GS-") for b in ohne})[:6])
+                self.plan_text.setText(self.plan_text.text() + f"<br><b>{len(ohne)} Belegung(en) ohne Namen</b> "
+                                       f"(Platzhalter wie „{ohne[0].name or 'leer'}“) – Zimmer {beispiele}"
+                                       + (" …" if len({b.zimmer for b in ohne}) > 6 else "")
+                                       + ". Angezeigt als „Name nicht verfügbar“; bitte im Belegungssystem prüfen.")
         self._zkl_zeigen()
         zpv = st.zimmer_pivot
         if zpv is None:

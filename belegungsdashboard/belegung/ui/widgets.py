@@ -505,21 +505,26 @@ class KpiKarte(Karte):
         self.pille = Pille()
         self.pille.setVisible(False)
         kopf.addWidget(self.pille)
+        self.delta = KurzLabel()                    # Trend rechts im Kopf: kürzt bei schmalen Karten statt zu verbreitern
+        self.delta.setProperty("rolle", "klein")
+        self.delta.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.delta.setMinimumWidth(1)               # leer (z. B. Seite Belegung) oder sehr schmal: keine Mindestbreite
+        kopf.addWidget(self.delta, 1, Qt.AlignVCenter)
         self.inhalt.addLayout(kopf)
         wert_zeile = QHBoxLayout()
         wert_zeile.setSpacing(6)
         self.wert = label("–", "kpi_wert")
         wert_zeile.addWidget(self.wert, 0, Qt.AlignBottom)
         self.einheit = label("", "klein")
-        wert_zeile.addWidget(self.einheit, 0, Qt.AlignBottom)
+        self.einheit.setWordWrap(True)               # lange Einheiten umbrechen statt die Karte zu verbreitern
+        wert_zeile.addWidget(self.einheit, 1, Qt.AlignBottom)
         wert_zeile.addStretch()
-        self.delta = label("", "klein")
-        wert_zeile.addWidget(self.delta, 0, Qt.AlignBottom)
         self.inhalt.addLayout(wert_zeile)
         self.balken = Balken()
         self.balken.setVisible(False)
         self.inhalt.addWidget(self.balken)
         self.detail = label("", "kpi_detail")
+        self.detail.setWordWrap(True)
         self.inhalt.addWidget(self.detail)
         self.spark = Sparkline() if sparkline else None
         if self.spark:

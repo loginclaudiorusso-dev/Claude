@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QMainWindow, QMenu, QProgressBar, QPushButton,
+    QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QMainWindow, QMenu, QProgressBar, QPushButton, QScrollArea,
     QStackedWidget, QSystemTrayIcon, QTabBar, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -142,6 +142,8 @@ class HauptFenster(QMainWindow):
         self.toast = Toast(wurzel)
         zustand.meldung.connect(self.toast.zeigen)
         zustand.neuigkeit.connect(self._neuigkeit)
+        zustand.zimmer_geaendert.connect(self._stand_anzeigen)     # Gebäudeplan importiert → Datenstand neu
+        self._stand_anzeigen()
         self.leiste.aktualisieren()
         zustand.aenderung_gespeichert.connect(
             lambda text, art: self.toast.zeigen(text, art, aktion=("Rückgängig", lambda: rueckgaengig(self, zustand, False))))
@@ -221,6 +223,11 @@ class HauptFenster(QMainWindow):
 
         self.nav = QButtonGroup(self)
         self.nav_knoepfe: dict[str, QPushButton] = {}
+        # Navigation scrollt bei niedrigen Fenstern (720 px), damit die Datenstand-Karte unten nie überdeckt wird
+        nav_w = QWidget()
+        nl = QVBoxLayout(nav_w)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(2)
         # Nach Aufgaben: täglich Arbeiten · Auswerten · selten Verwalten
         eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Posteingang"),
                      ("termine", "Termine"),
@@ -232,7 +239,7 @@ class HauptFenster(QMainWindow):
                      "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
-                v.addWidget(label(key.upper(), "nav_gruppe"))
+                nl.addWidget(label(key.upper(), "nav_gruppe"))
                 continue
             b = QPushButton(f"  {text}")
             b.setProperty("nav", True)
@@ -246,9 +253,16 @@ class HauptFenster(QMainWindow):
             b.customContextMenuRequested.connect(lambda _p, k=key, b=b: self._nav_menue(k, b))
             self.nav.addButton(b)
             self.nav_knoepfe[key] = b
-            v.addWidget(b)
+            nl.addWidget(b)
         self._nav_icons()
-        v.addStretch()
+        nl.addStretch()
+        nav_scroll = QScrollArea()
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav_scroll.setWidget(nav_w)
+        v.addWidget(nav_scroll, 1)
+        v.addSpacing(8)
 
         karte = Karte(abstand=12)
         karte.inhalt.setSpacing(6)
@@ -259,9 +273,14 @@ class HauptFenster(QMainWindow):
         kopf.addWidget(self.stand_pille)
         karte.inhalt.addLayout(kopf)
         self.stand_datum = label("–", "kpi_wert_klein")
+        self.stand_datum.setToolTip("Stichtag der Pivot-Daten (letzter Tag mit Ist-Werten)")
         karte.inhalt.addWidget(self.stand_datum)
         self.stand_quelle = label("", "klein", umbruch=True)
         karte.inhalt.addWidget(self.stand_quelle)
+        self.stand_plan = label("", "klein", umbruch=True)      # Gebäudeplan-Stand (Zimmerplan) – eine Stelle für beides
+        karte.inhalt.addWidget(self.stand_plan)
+        self._ladefehler_text: str | None = None
+        self._ladefehler_zeit = None
         self.btn_laden = knopf("Aktualisieren", "primary", "aktualisieren")
         menue = QMenu(self.btn_laden)
         menue.addAction("Datei neu einlesen (schnell)\tF5", lambda: self.laden(False))
@@ -310,7 +329,29 @@ class HauptFenster(QMainWindow):
         self.glocke = knopf("", "ghost", "glocke", "Neuigkeiten ein-/ausblenden")
         self.glocke.clicked.connect(self._leiste_umschalten)
         h.addWidget(self.glocke, 0, Qt.AlignVCenter)
+        self._kopf_w = kopf
+        kopf.installEventFilter(self)                 # schmales Fenster: Standort-Umschalter enger/kürzer statt abgeschnitten
         return kopf
+
+    STANDORT_KURZ = {"Bad Pyrmont": "Pyrmont", "Weser-Ems": "Weser"}
+
+    def _kopf_anpassen(self) -> None:
+        """Standort-Umschalter: erst weniger Innenabstand, dann kurze Namen (voller Name im Tooltip) – nie abgeschnitten."""
+        h, seg = self._kopf_h, self.standort_filter
+        if seg.isHidden():
+            return
+        m = h.contentsMargins()
+        andere = [h.itemAt(i).widget() for i in range(h.count())]
+        andere = [w for w in andere if w is not None and w is not seg and not w.isHidden()]
+        platz = (self._kopf_w.width() - m.left() - m.right() - self.titel.sizeHint().width()
+                 - sum(w.sizeHint().width() for w in andere) - h.spacing() * (len(andere) + 1))
+        lang = [STANDORT_LABEL[s] for s in FILTER_STANDORTE]
+        for i, t in enumerate(lang):
+            seg.text_setzen(i, t)
+        seg.eng_wenn_noetig(platz)
+        if seg.sizeHint().width() > platz:
+            for i, t in enumerate(lang):
+                seg.text_setzen(i, self.STANDORT_KURZ.get(t, t))
 
     # ---- Navigation / Filter ------------------------------------------------------------
 
@@ -528,6 +569,7 @@ class HauptFenster(QMainWindow):
         for s in self.seiten.values():
             if (aktion := getattr(s, "kopf_aktion", None)) is not None:
                 aktion.setVisible(s is seite)
+        self._kopf_anpassen()
 
     def name_anzeigen(self) -> None:
         from .. import __version__
@@ -554,6 +596,9 @@ class HauptFenster(QMainWindow):
         m.exec(b.mapToGlobal(b.rect().bottomLeft()))
 
     def eventFilter(self, obj, e) -> bool:
+        if obj is getattr(self, "_kopf_w", None) and e.type() in (QEvent.Resize, QEvent.Show):
+            self._kopf_anpassen()
+            return False
         if obj is getattr(self, "_mitte_w", None) and e.type() == QEvent.Resize:
             self._leiste_platzieren()             # Leiste andocken oder schweben lassen (je nach Breite)
             return False
@@ -607,6 +652,7 @@ class HauptFenster(QMainWindow):
         self._worker.start()
 
     def _geladen(self, ds, refresh: bool) -> None:
+        self._ladefehler_text = self._ladefehler_zeit = None
         self.z.ds = ds
         self.z.daten_geaendert.emit()
         self._stand_anzeigen()
@@ -621,6 +667,9 @@ class HauptFenster(QMainWindow):
                                   f"abreise-erinnerungen:{date.today()}")
 
     def _ladefehler(self, text: str) -> None:
+        from datetime import datetime
+
+        self._ladefehler_text, self._ladefehler_zeit = text, datetime.now()   # Status zeigt „Laden fehlgeschlagen“
         self._stand_anzeigen()
         self.z.meldung.emit(f"Laden fehlgeschlagen: {text}", "fehler")
 
@@ -644,22 +693,23 @@ class HauptFenster(QMainWindow):
         self._neu_worker = w
 
     def _stand_anzeigen(self) -> None:
-        ds = self.z.ds
-        if ds is None:
-            self.stand_datum.setText("–")
-            self.stand_quelle.setText("Keine Daten geladen")
-            return
-        self.stand_datum.setText(ds.stichtag.strftime("%d.%m.%Y"))
-        abruf = ds.pivot.abrufdatum
-        if ds.pivot_aktualisiert is False:
-            self.stand_pille.setzen("knapp", "Server-Abruf fehlgeschlagen")
-        elif abruf and abruf >= date.today():
-            self.stand_pille.setzen("ok", "aktuell")
-        elif abruf:
-            self.stand_pille.setzen("knapp", f"{(date.today() - abruf).days} Tage alt")
-        else:
-            self.stand_pille.setzen("neutral", "gespeichert")
-        self.stand_quelle.setText(f"{ds.quelle.name} · geladen {ds.geladen_am:%H:%M} Uhr" if ds.quelle else "")
+        """Ein Datenstand für alles: Pivot (Alter aus dem Abrufdatum, Ladefehler hat Vorrang) und Gebäudeplan."""
+        from .. import datenstatus, gebaeudeplan
+
+        st = datenstatus.pivot(self.z.ds, self._ladefehler_text, self._ladefehler_zeit)
+        self.stand_pille.setzen(st.stufe, st.pille)
+        self.stand_datum.setText(st.datum)
+        self.stand_quelle.setText(" · ".join(st.zeilen))
+        try:
+            plan, _meta = gebaeudeplan.laden()
+            zeile, stufe = datenstatus.gebaeudeplan(plan)
+        except Exception:                          # noqa: BLE001 – Statusanzeige darf nie stören
+            zeile, stufe = "Gebäudeplan: nicht lesbar", "ueber"
+        self.stand_plan.setText(zeile)
+        self.stand_plan.setStyleSheet(f"color: {theme.T.knapp};" if stufe in ("knapp", "ueber") else "")
+        tipp = st.tipp + ("<br>" if st.tipp else "") + zeile
+        for w in (self.stand_pille, self.stand_datum, self.stand_quelle, self.stand_plan):
+            w.setToolTip(tipp)
 
     # ---- Erinnerungen / Infobereich -------------------------------------------------------
 
