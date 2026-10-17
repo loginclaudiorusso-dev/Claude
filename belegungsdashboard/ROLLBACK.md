@@ -232,9 +232,10 @@ Einstellungen → Datensicherung (Stand vor dem Update) oder Renovierung je Zimm
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (1) | rein | `belegung/neuigkeiten.py`, `belegung/maengel.py`, Mängel-Filter in `zimmerliste`, Vorgang „Mängel“ | – |
-| (2) | UI | Glocke + Leiste (`ui/neuigkeiten_leiste.py`), Hintergrund-Meldungen dorthin, Mängel-Chips in der Zimmerkarte, Finder (Chip, Filter, FM-Liste), Symbole Farbrolle/Werkzeug | (1) |
-| (3) | Doku/Tests | `tests/test_neuigkeiten_maengel.py`, Version 6.16.0 | – |
+| `2f6862f` | rein | `belegung/neuigkeiten.py`, `belegung/maengel.py`, Mängel-Filter in `zimmerliste`, Vorgang „Mängel“ | – |
+| `a095a61` | UI | Glocke + Leiste (`ui/neuigkeiten_leiste.py`), Hintergrund-Meldungen dorthin, Mängel-Chips in der Zimmerkarte, Finder (Chip, Filter, FM-Liste), Symbole Farbrolle/Werkzeug | `2f6862f` |
+| `aaef00e` | Doku/Tests | `tests/test_neuigkeiten_maengel.py`, Version 6.16.0 | – |
+| (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Neu im Datenordner: `zimmer_maengel.json` und `importe/neuigkeiten.json`; in `einstellungen.json`
 `neuigkeiten_offen`. Ältere Versionen ignorieren sie – nach einem Rückweg sind Mängel nicht sichtbar, bleiben aber
