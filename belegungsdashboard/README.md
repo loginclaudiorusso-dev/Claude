@@ -27,6 +27,24 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.16 – Neuigkeiten, Mängel, eigene Symbole
+
+* **Glocke oben rechts + Leiste „Neuigkeiten“:** Was im Hintergrund passiert (Gebäudeplan oder UWT automatisch
+  übernommen, Erinnerung fällig, Reinigung offen vor Anreise, Facility-Check …), steht jetzt nur noch hier – keine
+  Einblendungen mehr zwischendurch. Die Glocke zählt die ungelesenen; Klick blendet die Leiste ein/aus. Ein Klick auf
+  eine Neuigkeit führt hin; ✓ = alle gelesen, ✕ = entfernen. Im breiten Fenster steht die Leiste neben dem Inhalt,
+  im schmalen schwebt sie darüber. Kurze Einblendungen gibt es nur noch als Antwort auf eigene Klicks
+  (gespeichert + Rückgängig, Fehler).
+* **Mängel je Zimmer:** In der Zimmerkarte unter „Zustand“ Vorschläge zum Antippen – Teppich/Boden beschädigt oder
+  verschmutzt, Wand, Schimmel, Fenster, Heizung, Bad, Abfluss, Wasserhahn, Licht/Steckdose, Möbel, Matratze,
+  Tür/Schloss, Rauchmelder, Geruch, Ungeziefer, Grundreinigung, Sonstiges. Antippen = offen seit heute, nochmal
+  antippen = behoben (bleibt mit Datum im Verlauf).
+  * Zimmerplan → Zimmer: Chip **„Mängel“** (bzw. unter „Filter“ → Mangel einzeln); Karten zeigen die Mängel rot,
+    Kacheln ein ⚠.
+  * „Drucken“ → **Mängelliste für das FM** (Drucken, PDF) oder **kopieren für eine Mail**.
+  * Start → Heute: „N Zimmer mit offenen Mängeln“ (zur Info).
+* **Eigene Symbole:** Renoviert = Farbrolle, Mängel = Werkzeug (Optimieren behält den Funken).
+
 ## Neu in 6.15 – Zimmer finden
 
 * **Reiter bleiben stehen:** Im Zimmerplan (und unter Daten & Import) scrollen Reiter und Kennzahlen nicht mehr mit.

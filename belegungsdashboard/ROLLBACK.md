@@ -228,6 +228,18 @@ Datenformate unverändert; neu in `einstellungen.json`: `zimmer_finder` (Ansicht
 „Zimmer“. Die erweiterte `Renovierungen_Import.tsv` (nur im Zip) wird einmal übernommen – Rückweg für die Zimmerdaten:
 Einstellungen → Datensicherung (Stand vor dem Update) oder Renovierung je Zimmer in der Liste über „Bearbeiten“ ändern.
 
+**6.16.0** (seit `1553db3`):
+
+| Commit | Art | Inhalt | hängt ab von |
+|---|---|---|---|
+| (1) | rein | `belegung/neuigkeiten.py`, `belegung/maengel.py`, Mängel-Filter in `zimmerliste`, Vorgang „Mängel“ | – |
+| (2) | UI | Glocke + Leiste (`ui/neuigkeiten_leiste.py`), Hintergrund-Meldungen dorthin, Mängel-Chips in der Zimmerkarte, Finder (Chip, Filter, FM-Liste), Symbole Farbrolle/Werkzeug | (1) |
+| (3) | Doku/Tests | `tests/test_neuigkeiten_maengel.py`, Version 6.16.0 | – |
+
+Neu im Datenordner: `zimmer_maengel.json` und `importe/neuigkeiten.json`; in `einstellungen.json`
+`neuigkeiten_offen`. Ältere Versionen ignorieren sie – nach einem Rückweg sind Mängel nicht sichtbar, bleiben aber
+erhalten.
+
 ## 6. Was sich geändert hat – und was nicht
 
 * **Unverändert:** Abhängigkeiten (`requirements.txt`), Start (`Start.bat`), Datenformate, Planungsregeln,

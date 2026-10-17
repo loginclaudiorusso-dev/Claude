@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.15.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.16.0, 17.10.2026)
 
 ## Als Nächstes
 
@@ -32,7 +32,10 @@
   Vom Nutzer zu entscheiden: „Quellen“ umbenennen/zusammenlegen; Personenkarte als einziger Einstieg für Zimmerwechsel.
 - 6.15: Zimmer finden (Reiter „Zimmer“: Chips, Übersicht/Karten/Liste), Reiter angeheftet, Drucken neben Übernehmen,
   Renovierungsliste +23 (Vinyl vermutet – Nutzer schaut die Zimmer noch an). Nicht im Gebäudeplan: 6-101, 6-204,
-  6-205, 6-208, 3.1-214, 3.1-220. **Idee Nutzer:** „Newsflash“ am rechten Rand – Vorschläge gemacht, nicht gebaut.
+  6-205, 6-208, 3.1-214, 3.1-220.
+- 6.16: Glocke + Leiste „Neuigkeiten“ (Nutzer: A ausblendbar + B; Hintergrund-Meldungen nur noch dort), Mängel je
+  Zimmer (Vorschläge in der Zimmerkarte, Filter, FM-Liste), Symbole Farbrolle/Werkzeug. Mängel-Katalog ggf. mit dem
+  Nutzer/FM abstimmen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
