@@ -280,7 +280,7 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Rückweg für die Daten: Einstellungen → Datensicherung (Stand vor dem Update). Einzelne Mängel lassen sich in der
   Zimmerkarte abhaken.
 
-**6.19.0** (seit `28c61fd`): ein Commit.
+**6.19.0** (seit `28c61fd`): ein Commit (`d1d7d24`).
 * Inhalt:
   * „!“-Filter (Finder, Zeitstrahl, Kennzahl)
   * Mängelbericht (`maengel.bericht/fm_html/fm_excel/fm_erledigte_lesen/erledigte_uebernehmen`)
