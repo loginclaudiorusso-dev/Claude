@@ -219,9 +219,10 @@ oder `git revert` dieses Commits.
 
 | Commit | Art | Inhalt | hängt ab von |
 |---|---|---|---|
-| (1) | rein | `zimmerliste.Filter`: Status am Tag, mehrere Böden, Personengruppen | – |
-| (2) | UI | Reiter „Zimmer“ = `ui/zimmerfinder.py` (Übersicht/Karten/Liste, Chips), „Stammdaten“ eigener Reiter, Reiter angeheftet (`Seite.anheften`), Zuteilen „Drucken“ neben „Übernehmen“, neue Symbole | (1) |
-| (3) | Doku/Tests | `tests/test_zimmerfinder.py`, Version 6.15.0 | – |
+| `5f9e712` | rein | `zimmerliste.Filter`: Status am Tag, mehrere Böden, Personengruppen | – |
+| `d5e9441` | UI | Reiter „Zimmer“ = `ui/zimmerfinder.py` (Übersicht/Karten/Liste, Chips), „Stammdaten“ eigener Reiter, Reiter angeheftet (`Seite.anheften`), Zuteilen „Drucken“ neben „Übernehmen“, neue Symbole | `5f9e712` |
+| `b15dd67` | Doku/Tests | `tests/test_zimmerfinder.py`, Version 6.15.0 | – |
+| (letzter) | Doku | Commit-Nummern in ROLLBACK.md | – |
 
 Datenformate unverändert; neu in `einstellungen.json`: `zimmer_finder` (Ansicht, Haus). Gemerkte Tabs „Häuser“ öffnen
 „Zimmer“. Die erweiterte `Renovierungen_Import.tsv` (nur im Zip) wird einmal übernommen – Rückweg für die Zimmerdaten:
