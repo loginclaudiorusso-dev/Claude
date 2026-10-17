@@ -142,6 +142,8 @@ def auto_import(stand: zp.Planstand) -> tuple[int, list[str]] | None:
 # Filtern
 # ---------------------------------------------------------------------------------------
 
+STATUS_FILTER = {"frei": "frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt"}
+
 MERKMALE = {"tiere": "Tier-Zimmer", "doppel": "Doppelzimmer", "maenner": "Bad über den Flur (nur Männer)",
             "gaeste": "Gästezimmer"}
 
@@ -155,9 +157,21 @@ class Filter:
     nur_internat: bool = True
     heute_frei: bool = False
     text: str = ""
+    status: str = ""                  # "" | frei (auch teilweise) | belegt | geplant | gesperrt – am Stichtag
+    boeden: set[str] = field(default_factory=set)      # mehrere Böden (oder-verknüpft), auch „unbekannt“
+    gruppen: set[str] = field(default_factory=set)     # Personengruppen …
+    gruppen_modus: str = "wohnt"      # … die dort wohnen | die dort wohnen dürfen („darf“)
+
+    @property
+    def aktiv(self) -> bool:
+        """Ist irgendein Filter gesetzt (außer Haus)?"""
+        return (self.renoviert != "alle" or self.boden != "alle" or bool(self.merkmale or self.boeden or self.gruppen)
+                or not self.nur_internat or self.heute_frei or bool(self.text) or bool(self.status))
 
     def beschreibung(self) -> str:
         teile = [f"Haus {self.haus}" if self.haus else "alle Häuser"]
+        if self.status:
+            teile.append(STATUS_FILTER.get(self.status, self.status))
         if self.renoviert == "ja":
             teile.append("renoviert")
         elif self.renoviert == "nein":
@@ -166,7 +180,12 @@ class Filter:
             teile.append(f"renoviert seit {self.renoviert[5:]}")
         if self.boden != "alle":
             teile.append(f"Boden {self.boden}")
+        if self.boeden:
+            teile.append("Boden " + " oder ".join(sorted(self.boeden)))
         teile += [MERKMALE[m] for m in sorted(self.merkmale)]
+        if self.gruppen:
+            teile.append(("wohnt: " if self.gruppen_modus == "wohnt" else "erlaubt für: ")
+                         + ", ".join(zp.GRUPPE_LABEL.get(g, g) for g in sorted(self.gruppen)))
         if self.heute_frei:
             teile.append("heute frei")
         if self.text:
@@ -180,6 +199,8 @@ class Zeile:
     boden: str            # Anzeige (eigener Eintrag, sonst „PVC (ZKL)“)
     heute: str            # frei | Name(n) | gesperrt …
     frei: bool
+    status: str = ""      # frei | teilweise | belegt | geplant | gesperrt (am Stichtag)
+    belegungen: list = field(default_factory=list)     # Belegungen am Stichtag (für die Kartenansicht)
 
 
 def _boden_anzeige(lage: zp.Lage, z: zp.Zimmer) -> str:
@@ -207,6 +228,9 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
         if f.boden == "unbekannt" and boden or f.boden not in ("alle", "unbekannt") and \
                 not boden.lower().startswith(f.boden.lower()):
             continue
+        if f.boeden and not any((b == "unbekannt" and not boden) or (b != "unbekannt" and boden.lower().startswith(b.lower()))
+                                for b in f.boeden):
+            continue
         if "tiere" in f.merkmale and not z.tiere or "doppel" in f.merkmale and z.betten < 2 \
                 or "maenner" in f.merkmale and not z.nur_maenner or "gaeste" in f.merkmale and not z.gaeste:
             continue
@@ -214,6 +238,14 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
         frei = status == "frei"
         if f.heute_frei and not frei:
             continue
+        if f.status and status != f.status and not (f.status == "frei" and status == "teilweise"):
+            continue
+        if f.gruppen:
+            if f.gruppen_modus == "wohnt":
+                if not f.gruppen & zp.gruppen_am(stand.lage, z.id, heute):
+                    continue
+            elif not any(zp.erlaubt(z, g) for g in f.gruppen):
+                continue
         if status == "gesperrt":
             jetzt = "gesperrt" + (f" ({bs[0].grund})" if bs and bs[0].grund else "")
         else:
@@ -221,7 +253,7 @@ def filtern(stand: zp.Planstand, f: Filter, heute: date | None = None) -> list[Z
             jetzt = ", ".join(namen) if namen else ("frei" if frei else "belegt")
         if f.text and f.text.lower() not in f"{z.kurz} {z.notiz} {boden} {jetzt}".lower():
             continue
-        erg.append(Zeile(z, boden, jetzt, frei))
+        erg.append(Zeile(z, boden, jetzt, frei, status, [b for b in bs if b.art != "freigabe"]))
     return erg
 
 
