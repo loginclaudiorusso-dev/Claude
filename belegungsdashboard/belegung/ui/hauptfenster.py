@@ -230,7 +230,7 @@ class HauptFenster(QMainWindow):
         nl.setContentsMargins(0, 0, 0, 0)
         nl.setSpacing(2)
         # Nach Aufgaben: täglich Arbeiten · Auswerten · selten Verwalten
-        eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Posteingang"),
+        eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Assistenz"),
                      ("termine", "Termine"), ("mieter", "Mieter"),
                      ("Auswerten", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
                      ("assistent", "Assistent"),
@@ -843,7 +843,7 @@ class HauptFenster(QMainWindow):
             n_post = mails.offen_anzahl()
         except Exception:                          # noqa: BLE001
             n_post = 0
-        self.nav_knoepfe["posteingang"].setText(f"  Posteingang ({n_post})" if n_post else "  Posteingang")
+        self.nav_knoepfe["posteingang"].setText(f"  Assistenz ({n_post})" if n_post else "  Assistenz")
         if self.tray is not None:
             name = speicher.anzeige_name()[0]
             self.tray.setToolTip(f"{name} – {len(offen)} Erinnerung(en) offen" if offen else name)

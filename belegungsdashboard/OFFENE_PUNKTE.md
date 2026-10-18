@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.21.0, 17.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.22.0, 18.10.2026)
 
 ## Als Nächstes
 
@@ -78,6 +78,11 @@
 - 6.21: Seite „Mieter“ in der Seitenleiste; Mängel in Warnsignalfarben rot / orange / gelb. Zuordnung der Mängelarten zu „dringend“
   (Heizung, Bad, Abfluss, Wasser, Elektrik, Tür, Rauchmelder, Matratze, Geruch) bzw. „leicht“ (Rest) ist ein
   Vorschlag; „nicht bewohnbar“ setzt der Nutzer je Mangel. Bei Bedarf Zuordnung mit dem Nutzer/FM abstimmen.
+- 6.22: „Posteingang“ → „Assistenz“ (Eingabe in normaler Sprache → Kalender, Mängel, Notizen; Mails im zweiten
+  Reiter); Kaution im Mietvertrag optional. Offen/zu entscheiden:
+  * Die Seite „Assistent“ (Auswerten, Fragen zu Zahlen) bleibt getrennt. Zusammenlegen ist möglich, wenn gewünscht.
+  * Stichwörter für Mängel ggf. mit dem Nutzer ergänzen.
+  * Die Erkennung arbeitet mit Regeln. Mit KI-Anbindung (Claude) ließen sich auch freiere Sätze verstehen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

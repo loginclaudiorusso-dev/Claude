@@ -135,3 +135,21 @@ def test_status_und_weitere_mieter(daten):
                                                             "Reha, Rita", "GS ASS XY 2601")]})
     weitere = mt.weitere_mieter(SimpleNamespace(lage=lage), date(2026, 10, 17))
     assert [b.name for b in weitere] == ["Beispiel, Kai"]                      # eigene (mv:) und Reha nicht
+
+
+def test_kaution_optional_und_paragrafen_ruecken_auf():
+    from belegung import mieter as mt
+
+    vorlage = ("==§ 1 Miete\nText\n?kaution ==§ 2 Mietsicherheit\n?kaution Kaution bis {kaution_bis}.\n"
+               "?!kaution Keine Kaution.\n==§ 3 Zustand\nText\n")
+    ohne = mt.vertrag_html(_mv(), vorlage)
+    assert "Mietsicherheit" not in ohne and "Keine Kaution." in ohne and "§ 2 Zustand" in ohne
+    mv = _mv()
+    mv.kaution, mv.kaution_bis = True, date(2026, 8, 15)
+    mit = mt.vertrag_html(mv, vorlage)
+    assert "§ 2 Mietsicherheit" in mit and "Kaution bis 15.08.2026." in mit
+    assert "§ 3 Zustand" in mit and "Keine Kaution." not in mit
+    # Verträge aus 6.20 (mit Kaution-Datum, ohne Merkmal) behalten ihre Kaution
+    d = mv.zu_dict()
+    d.pop("kaution")
+    assert mt.Mietvertrag.aus_dict(d).kaution is True

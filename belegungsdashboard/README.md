@@ -27,6 +27,31 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.22 – Assistenz, Kaution optional
+
+* **„Posteingang“ heißt jetzt „Assistenz“** (Seitenleiste unter Arbeiten) und hat zwei Reiter.
+* **Reiter „Aufgaben & Notizen“:** ganz normal eintippen, eine Zeile je Auftrag, mehrere auf einmal gehen auch.
+  * Beispiel: „6-403 Fliegen beseitigen bis 1.11.26“. Daraus wird:
+    * **Kalender:** Frist am 01.11.2026, Erinnerung 2 Tage vorher.
+    * **Mangel „Ungeziefer“ in 6-403:** Das Zimmer wird bis zur Erledigung nicht zugeteilt.
+    * **Notiz am Zimmer.**
+  * Weitere Beispiele: „3.1-E02 Rollo defekt“ (Mangel, leicht), „morgen Schlüssel 2-204 an FM übergeben“
+    (Termin + Notiz, kein Mangel), „Freitag 10 Uhr Teambesprechung“ (Termin).
+  * „2-115 Heizung erledigt“ markiert den offenen Mangel als behoben und hakt die passende Frist ab.
+  * **Erkannt werden:**
+    * Zimmer: 6-403, 3.1-E02 oder „Zimmer 108“, wenn die Nummer eindeutig ist.
+    * Datum: „bis …“ ist eine Frist. „am 3.11.“, „morgen“, „Freitag“, „in 3 Tagen“, „nächste Woche“ und
+      „Ende des Monats“ sind Termine.
+    * Uhrzeit, Mangelart aus Stichwörtern, „erledigt“.
+  * Vor dem Ausführen steht alles in einer Vorschau zum Abwählen, z. B. „Zimmer nicht zuteilen“.
+  * Unter „Zuletzt erledigt“ nimmt **Rückgängig** einen Auftrag ganz zurück.
+  * Erkannt wird mit festen Regeln, ohne Internet.
+* **Reiter „Mails“:** der bisherige Posteingang, unverändert. Hinweise auf der Startseite führen direkt dorthin.
+* **Mietvertrag:** Die Kaution ist optional, in der Maske „Kaution: vereinbaren“, standardmäßig aus.
+  * Ohne Kaution entfällt der Paragraf „Mietsicherheit“, die folgenden Paragrafen rücken auf (§ 1–15).
+  * Mit Kaution steht das Zahlungsdatum wie bisher im Vertrag.
+  * Verträge aus 6.20 behalten ihre Kaution.
+
 ## Neu in 6.21 – Seite „Mieter“, Mängel in Warnsignalfarben
 
 * **„Mieter“ links in der Seitenleiste** (unter Arbeiten):

@@ -471,7 +471,9 @@ class StartSeite(Seite):
             from ..zimmerkarte import karte_oeffnen
 
             karte_oeffnen(self, self.z, person=wert)
-        elif art in ("posteingang", "termine"):
+        elif art == "posteingang":                     # Mails liegen in der Assistenz im Reiter „Mails“
+            self.z.navigieren.emit("posteingang:Mails")
+        elif art == "termine":
             self.z.navigieren.emit(art)
         elif art == "maengel":
             seite = self._zimmerplan("Zimmer")
@@ -570,8 +572,8 @@ class StartSeite(Seite):
             p = Pille(f"{len(rest)} offen" if rest else x.status, "kritisch" if rest else "knapp")
             p.setToolTip("Noch abzuhaken: " + ", ".join(rest) if rest else "Noch nicht bearbeitet")
             self._zeile(k, f"{mails.ARTEN.get(x.art, x.art)} · {x.name or x.betreff or '–'}", p,
-                        lambda: self.z.navigieren.emit("posteingang"))
-        self._link(k, "Zum Posteingang →", lambda: self.z.navigieren.emit("posteingang"))
+                        lambda: self.z.navigieren.emit("posteingang:Mails"))
+        self._link(k, "Zur Assistenz (Mails) →", lambda: self.z.navigieren.emit("posteingang:Mails"))
 
     def _person_oeffnen(self, t: tm.Termin) -> None:
         from ..zimmerkarte import karte_oeffnen

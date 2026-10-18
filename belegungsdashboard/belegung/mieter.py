@@ -49,6 +49,7 @@ class Mietvertrag:
     flaeche: int = STANDARD_FLAECHE
     schluessel: int = 1
     kaution_bis: date | None = None        # Mietsicherheit spätestens bis (Standard: Mietbeginn)
+    kaution: bool = False                  # Mietsicherheit vereinbart? Ohne: § „Mietsicherheit“ entfällt
     erstellt: str = ""
     verlaengerungen: list[dict] = field(default_factory=list)   # [{"bis_alt", "bis", "am"}]
 
@@ -88,6 +89,7 @@ class Mietvertrag:
         d = dict(d)
         d["von"], d["bis"] = date.fromisoformat(d["von"]), date.fromisoformat(d["bis"])
         d["kaution_bis"] = date.fromisoformat(d["kaution_bis"]) if d.get("kaution_bis") else None
+        d.setdefault("kaution", d["kaution_bis"] is not None)   # Verträge aus 6.20 hatten immer eine Kaution
         felder = Mietvertrag.__dataclass_fields__
         return Mietvertrag(**{k: v for k, v in d.items() if k in felder})
 
@@ -273,10 +275,19 @@ def vertrag_html(mv: Mietvertrag, vorlage: str, logo: Path | None = None) -> str
         teile.append(f"<table width='100%'><tr><td></td><td align='right'><img src='{logo.as_posix()}' height='46'>"
                      "</td></tr></table>")
     bank = False
+    bedingungen = {"kaution": mv.kaution}
+    paragraf = 0
     for zeile in vorlage.splitlines():
         z = zeile.rstrip()
         if z.startswith("#"):
             continue
+        if (m := re.match(r"^\?(!?)(\w+)\s+(.*)$", z)):     # „?kaution …“ nur mit, „?!kaution …“ nur ohne Kaution
+            if bedingungen.get(m.group(2), False) == bool(m.group(1)):
+                continue
+            z = m.group(3)
+        if (m := re.match(r"^==§\s*\d+\s+(.*)$", z)):          # Paragrafen durchzählen (entfällt einer, rücken alle auf)
+            paragraf += 1
+            z = f"==§ {paragraf} {m.group(1)}"
         if bank and not z.startswith("|"):          # Bank-Tabelle endet mit der ersten anderen Zeile
             teile.append("</table>")
             bank = False

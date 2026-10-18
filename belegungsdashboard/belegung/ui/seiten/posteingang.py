@@ -1,5 +1,6 @@
-"""Posteingang: Mails zu Anmeldungen, Gästehaus, Storno, Abbruch und Hinweisen einfügen, erkennen lassen,
-Vorschlag prüfen und umsetzen. Abbrüche bleiben mit Prüfliste offen, bis alles abgehakt ist."""
+"""Assistenz: normale Eingaben („6-403 Fliegen beseitigen bis 1.11.26“) verstehen und umsetzen – Kalender, Mängel,
+Notizen am Zimmer – und der Posteingang für Mails zu Anmeldungen, Gästehaus, Storno, Abbruch und Hinweisen
+(erkennen, Vorschlag prüfen, umsetzen; Abbrüche bleiben mit Prüfliste offen, bis alles abgehakt ist)."""
 
 from __future__ import annotations
 
@@ -43,13 +44,25 @@ class MailFeld(QPlainTextEdit):
 
 
 class PosteingangSeite(Seite):
-    titel = "Posteingang"
-    untertitel = "Mails zu Anmeldungen, Gästehaus, Storno und Abbruch – erkennen, prüfen, umsetzen"
+    titel = "Assistenz"
+    untertitel = "Aufgaben, Termine, Mängel und Mails – einfach eintippen, prüfen, umsetzen"
     zeigt_filter = False
     zeigt_bezug = False
+    reiter_attr = "reiter"
+    REITER = ["Aufgaben && Notizen", "Mails"]          # „&&“ = ein „&“ (sonst Tastenkürzel)
 
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)
+        self.reiter = Segment(self.REITER, 0)
+        self.reiter.geaendert.connect(self._tab)
+        self.anheften(self.reiter)
+        self.w_assistenz = self._assistenz_bauen()
+        self.lay.addWidget(self.w_assistenz)
+        self.w_mail = QWidget()
+        self._mail_lay = QVBoxLayout(self.w_mail)
+        self._mail_lay.setContentsMargins(0, 0, 0, 0)
+        self._mail_lay.setSpacing(16)
+        self.lay.addWidget(self.w_mail)
         self._warteschlange: list[tuple[str, str, str]] = []
         self._erkannt: mails.Erkannt | None = None
         self._treffer: list[mails.Treffer] = []
@@ -99,7 +112,7 @@ class PosteingangSeite(Seite):
         self.b_naechste.setVisible(False)
         zeile.addWidget(self.b_naechste)
         ein.inhalt.addLayout(zeile)
-        self.lay.addWidget(ein)
+        self._mail_lay.addWidget(ein)
 
         # ---- 2. Erkannt und Vorschlag ----------------------------------------------------------
         self.erg = Karte("Erkannt", "Bitte prüfen – alles lässt sich ändern. „Neu prüfen“ übernimmt Änderungen.")
@@ -163,7 +176,7 @@ class PosteingangSeite(Seite):
             knoepfe.addWidget(b)
         knoepfe.addStretch()
         self.erg.inhalt.addLayout(knoepfe)
-        self.lay.addWidget(self.erg)
+        self._mail_lay.addWidget(self.erg)
 
         # ---- 3. Eingänge ---------------------------------------------------------------------
         liste = Karte("Eingänge", "Umgesetzte und abgelegte Mails. Abbrüche bleiben „zu prüfen“, bis die Prüfliste "
@@ -178,8 +191,9 @@ class PosteingangSeite(Seite):
         liste.inhalt.addWidget(self.tab)
         self.leer = label("Noch keine Mails.", "muted")
         liste.inhalt.addWidget(self.leer)
-        self.lay.addWidget(liste)
+        self._mail_lay.addWidget(liste)
         self.lay.addStretch()
+        self._tab(0)
         for s in (zustand.listen_geaendert, zustand.zimmer_geaendert):
             s.connect(self.anstossen)
 
@@ -197,6 +211,144 @@ class PosteingangSeite(Seite):
 
     def aktualisieren(self) -> None:
         self._liste_zeigen()
+        self._verlauf_zeigen()
+
+    def _tab(self, i: int) -> None:
+        self.w_assistenz.setVisible(i == 0)
+        self.w_mail.setVisible(i == 1)
+        if i == 0:
+            self.eingabe.setFocus()
+
+    # ================================================================== Assistenz (Aufgaben & Notizen)
+
+    def _assistenz_bauen(self) -> QWidget:
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(16)
+        k = Karte("Was ist zu tun?", "Ganz normal eintippen – eine Zeile je Auftrag. Zimmer, Datum und Mangel werden "
+                                     "erkannt; vor dem Ausführen sehen Sie alles und können abwählen.")
+        self.eingabe = QPlainTextEdit()
+        self.eingabe.setPlaceholderText("z. B.  6-403 Fliegen beseitigen bis 1.11.26\n"
+                                        "        3.1-E02 Rollo defekt\n"
+                                        "        2-115 Heizung erledigt\n"
+                                        "        Freitag 10 Uhr Teambesprechung")
+        self.eingabe.setFixedHeight(104)
+        self.eingabe.installEventFilter(self)
+        k.inhalt.addWidget(self.eingabe)
+        z = QHBoxLayout()
+        verstehen = knopf("Verstehen", "primary", "funke", "Eingabe auswerten (Strg+Enter)")
+        verstehen.clicked.connect(self._verstehen)
+        z.addWidget(verstehen)
+        z.addWidget(label("Strg+Enter · „bis …“ = Frist, „am …“/„morgen“/„Freitag“ = Termin · „erledigt“ hakt ab",
+                          "klein"))
+        z.addStretch()
+        k.inhalt.addLayout(z)
+        v.addWidget(k)
+
+        self.k_vorschau = Karte("Verstanden", "Häkchen entfernen, was nicht passieren soll – dann „Ausführen“.")
+        self.vorschau_lay = QVBoxLayout()
+        self.vorschau_lay.setSpacing(10)
+        self.k_vorschau.inhalt.addLayout(self.vorschau_lay)
+        kz = QHBoxLayout()
+        self.b_ausfuehren = knopf("Ausführen", "primary", "haken")
+        self.b_ausfuehren.clicked.connect(self._ausfuehren_assistenz)
+        kz.addWidget(self.b_ausfuehren)
+        verwerfen = knopf("Verwerfen", "ghost")
+        verwerfen.clicked.connect(lambda: (self.k_vorschau.setVisible(False), setattr(self, "_verstanden", [])))
+        kz.addWidget(verwerfen)
+        kz.addStretch()
+        self.k_vorschau.inhalt.addLayout(kz)
+        self.k_vorschau.setVisible(False)
+        v.addWidget(self.k_vorschau)
+
+        kv = Karte("Zuletzt erledigt", "Was die Assistenz eingetragen hat – „Rückgängig“ nimmt einen Auftrag ganz zurück.")
+        self.verlauf_tab = Tabelle(["Wann", "Eingabe", "Eingetragen", "Aktion"], ["l", "l", "l", "l"], dehnen=2)
+        kv.inhalt.addWidget(self.verlauf_tab)
+        v.addWidget(kv)
+        self._verstanden: list = []
+        return w
+
+    def eventFilter(self, obj, e) -> bool:
+        from PySide6.QtCore import QEvent
+
+        if obj is getattr(self, "eingabe", None) and e.type() == QEvent.KeyPress and \
+                e.key() in (Qt.Key_Return, Qt.Key_Enter) and e.modifiers() & Qt.ControlModifier:
+            self._verstehen()
+            return True
+        return super().eventFilter(obj, e)
+
+    def _verstehen(self) -> None:
+        from ... import assistenz
+
+        zeilen = [z.strip() for z in self.eingabe.toPlainText().splitlines() if z.strip()]
+        if not zeilen:
+            return
+        bekannt = {z.id for z in zp.laden().zimmer}
+        self._verstanden = [assistenz.verstehen(z, bekannt) for z in zeilen]
+        leeren(self.vorschau_lay)
+        for v in self._verstanden:
+            box = QVBoxLayout()
+            box.setSpacing(4)
+            teile = [f"<b>{v.eingabe}</b>"]
+            if v.zimmer:
+                teile.append("Zimmer " + ", ".join(zid.removeprefix("GS-") for zid in v.zimmer))
+            if v.datum:
+                teile.append(("Frist " if v.frist else "Termin ") + f"{v.datum:%d.%m.%Y}" + (f" {v.uhrzeit} Uhr" if v.uhrzeit else ""))
+            if v.erledigt:
+                teile.append("erledigt")
+            kopf = label(" · ".join(teile), umbruch=True)
+            kopf.setTextFormat(Qt.RichText)
+            box.addWidget(kopf)
+            for h in v.hinweise:
+                box.addWidget(Hinweis(h, "warnung"))
+            for a in v.aktionen:
+                cb = QCheckBox(a.text)
+                cb.setChecked(a.an)
+                cb.toggled.connect(lambda an, a=a: setattr(a, "an", an))
+                box.addWidget(cb)
+            self.vorschau_lay.addLayout(box)
+        self.b_ausfuehren.setEnabled(any(v.aktionen for v in self._verstanden))
+        self.k_vorschau.setVisible(True)
+
+    def _ausfuehren_assistenz(self) -> None:
+        from ... import assistenz
+
+        if not self._verstanden:
+            return
+        e = assistenz.ausfuehren(self._verstanden)
+        self._verstanden = []
+        self.k_vorschau.setVisible(False)
+        self.eingabe.clear()
+        self.z.meldung.emit(f"{len(e['erledigt'])} Schritte eingetragen (Kalender, Mängel, Notizen) – "
+                            "„Rückgängig“ unter „Zuletzt erledigt“.", "ok")
+        self.z.zimmer_geaendert.emit()           # lädt auch diese Seite neu (Verlauf)
+        self.z.termine_geaendert.emit()
+
+    def _verlauf_zeigen(self) -> None:
+        from ... import assistenz
+
+        zeilen = []
+        for e in assistenz.verlauf()[:30]:
+            if e.get("zurueck"):
+                knopf_ = label("zurückgenommen", "klein")
+            else:
+                knopf_ = knopf("Rückgängig", "ghost")
+                knopf_.clicked.connect(lambda _c=False, i=e["id"]: self._rueckgaengig(i))
+            zeilen.append([datetime.fromisoformat(e["zeit"]).strftime("%d.%m. %H:%M"), " / ".join(e["eingaben"]),
+                           " · ".join(e["erledigt"]) or "–", knopf_])
+        self.verlauf_tab.setRowCount(0)          # alte Knöpfe sicher entfernen (sonst liegen zwei übereinander)
+        self.verlauf_tab.fuellen(zeilen)
+        self.verlauf_tab.widgets_einpassen()
+        self.verlauf_tab.hoehe_anpassen(8)
+
+    def _rueckgaengig(self, eintrag_id: str) -> None:
+        from ... import assistenz
+
+        n = assistenz.rueckgaengig(eintrag_id)
+        self.z.meldung.emit(f"Zurückgenommen ({n} Schritte).", "ok")
+        self.z.zimmer_geaendert.emit()
+        self.z.termine_geaendert.emit()
 
     # ---- Eingabe -----------------------------------------------------------------------------
 

@@ -140,8 +140,21 @@ class NeuerMieterDialog(QDialog):
         self.schluessel = QSpinBox()
         self.schluessel.setRange(1, 9)
         feld("Schlüssel", self.schluessel)
+        kz = QHBoxLayout()
+        kz.setSpacing(10)
+        self.mit_kaution = QCheckBox("vereinbaren")
+        self.mit_kaution.setToolTip("Mietsicherheit von einer Monatsmiete (§ Mietsicherheit im Vertrag). "
+                                    "Ohne Häkchen entfällt der Paragraf.")
+        kz.addWidget(self.mit_kaution)
         self.kaution = DatumFeld(self.von.datum())
-        feld("Kaution bis", self.kaution, "eine Monatsmiete")
+        self.kaution.setEnabled(False)
+        self.mit_kaution.toggled.connect(self.kaution.setEnabled)
+        kz.addWidget(label("zahlbar bis", "klein"))
+        kz.addWidget(self.kaution)
+        kz.addStretch()
+        r.addWidget(label("Kaution", "fett"), zeile, 0)
+        r.addLayout(kz, zeile, 1, 1, 2)
+        zeile += 1
         self.nr = QLineEdit(mt.naechste_nummer())
         self.nr.setMaximumWidth(120)
         feld("Vertragsnummer", self.nr, "zählt automatisch weiter")
@@ -205,7 +218,8 @@ class NeuerMieterDialog(QDialog):
         return mt.Mietvertrag(self.nr.text().strip(), ANREDEN[self.anrede.index()], self.vorname.text().strip(),
                               self.nachname.text().strip(), self.zimmer.currentData() or "", self.von.datum(),
                               self.bis.datum(), round(self.miete.value(), 2), self.flaeche.value(),
-                              self.schluessel.value(), self.kaution.datum())
+                              self.schluessel.value(), self.kaution.datum() if self.mit_kaution.isChecked() else None,
+                              kaution=self.mit_kaution.isChecked())
 
     def _erstellen(self) -> None:
         mv = self._vertrag()
