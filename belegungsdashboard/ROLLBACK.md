@@ -314,7 +314,7 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Datenformate unverändert.
 * Gemerkte Tabs mit der Seite „Mieter“ öffnen in 6.20 die Startseite.
 
-**6.22.0** (seit `0ecabb6`): ein Commit.
+**6.22.0** (seit `0ecabb6`): ein Commit (`376e48b`).
 * Inhalt:
   * `belegung/assistenz.py` (Verstehen, Ausführen, Rückgängig)
   * Seite „Assistenz“ (früher Posteingang) mit Reitern „Aufgaben & Notizen“ und „Mails“
