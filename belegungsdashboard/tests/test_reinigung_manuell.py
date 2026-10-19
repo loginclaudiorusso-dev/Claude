@@ -67,3 +67,40 @@ def test_assistenz_setzt_auf_die_reinigungsliste(lage):
         [("GS-2-202", "2026-10-20", "Zwischenreinigung")]
     assistenz.rueckgaengig(e["id"])
     assert zp.manuelle_reinigungen() == []
+
+
+def test_zimmer_eingabe_im_dialog():
+    from belegung.ui.reinigung_dialog import zimmer_lesen
+
+    bekannt = {"GS-2-204", "GS-2-205", "GS-6-403", "GS-2-403", "GS-3.1-E02"}
+    assert zimmer_lesen("2-204, 2-205", bekannt) == (["GS-2-204", "GS-2-205"], [])
+    assert zimmer_lesen("204 E02", bekannt) == (["GS-2-204", "GS-3.1-E02"], [])
+    assert zimmer_lesen("Haus 6 Zimmer 403", bekannt) == (["GS-6-403"], [])
+    ids, hinweise = zimmer_lesen("403", bekannt)
+    assert ids == [] and "mehreren Häusern" in hinweise[0]
+    assert "gibt es im Zimmerplan nicht" in zimmer_lesen("999", bekannt)[1][0]
+
+
+def test_knopf_im_reiter_oeffnet_die_maske(tmp_path, monkeypatch, qapp_klick=None):
+    """Regression 6.24.0: Ein echter Klick übergab False als Zimmer – die Maske ging nicht auf."""
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QPushButton
+
+    app = QApplication.instance() or QApplication([])
+    from belegung.ui import reinigung_dialog as rd
+    from belegung.ui.basis import Zustand
+    from belegung.ui.seiten.zimmerplan import ZimmerplanSeite
+
+    geoeffnet = []
+    monkeypatch.setattr(rd.ReinigungDialog, "exec", lambda self: geoeffnet.append(self.feld.text()) or 0)
+    seite = ZimmerplanSeite(Zustand())
+    seite.show()
+    seite.aktualisieren()
+    app.processEvents()
+    knopf = next(b for b in seite.findChildren(QPushButton) if b.text().strip() == "Zimmer hinzufügen …")
+    QTest.mouseClick(knopf, Qt.LeftButton)
+    assert geoeffnet == [""]
+    seite.close()

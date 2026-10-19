@@ -3,6 +3,7 @@ setzen (Zwischen-, Grund-, Sonderreinigung …). Die Logik steht in ``zimmerplan
 
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from PySide6.QtCore import Qt
@@ -16,8 +17,19 @@ def zimmer_lesen(text: str, bekannt: set[str]) -> tuple[list[str], list[str]]:
     """„2-204, 6-403“ / „Haus 2 Zimmer 408“ / „Zimmer 108“ → Zimmer-IDs und Hinweise (wie in der Assistenz)."""
     from .. import assistenz
 
-    ids, _rest, hinweise = assistenz._zimmer(text, bekannt)
-    return ids, hinweise
+    ids, rest, hinweise = assistenz._zimmer(text, bekannt)
+    # nur die Nummer („204“, „E02“): gilt, wenn es sie in genau einem Haus gibt
+    for m in re.finditer(r"(?<![\w.-])([A-Za-z]?\d{2,4})(?![\w.-])", rest):
+        passend = sorted(z for z in bekannt if z.rsplit("-", 1)[-1].upper() == m.group(1).upper())
+        if len(passend) == 1:
+            ids.append(passend[0])
+        elif passend:
+            hinweise.append(f"„{m.group(1)}“ gibt es in mehreren Häusern ("
+                            + ", ".join(z.removeprefix("GS-") for z in passend) + ") – bitte mit Haus, z. B. "
+                            f"{passend[0].removeprefix('GS-')}.")
+        else:
+            hinweise.append(f"Zimmer „{m.group(1)}“ gibt es im Zimmerplan nicht.")
+    return list(dict.fromkeys(ids)), hinweise
 
 
 class ReinigungDialog(QDialog):
@@ -38,8 +50,8 @@ class ReinigungDialog(QDialog):
         r = QGridLayout()
         r.setHorizontalSpacing(12)
         r.setVerticalSpacing(10)
-        self.feld = QLineEdit(vorgabe.removeprefix("GS-"))
-        self.feld.setPlaceholderText("z. B. 2-204 oder mehrere: 2-204, 2-205, 6-403")
+        self.feld = QLineEdit(vorgabe.removeprefix("GS-") if isinstance(vorgabe, str) else "")
+        self.feld.setPlaceholderText("z. B. 2-204 oder mehrere: 2-204, 2-205, 6-403 (nur „204“ geht, wenn eindeutig)")
         kurz = sorted((z.kurz for z in zimmer if z.aktiv), key=str)
         vervollst = QCompleter(kurz, self.feld)
         vervollst.setCaseSensitivity(Qt.CaseInsensitive)

@@ -502,7 +502,7 @@ class ZimmerplanSeite(Seite):
         hinzu = knopf("Zimmer hinzufügen …", "ghost", "plus",
                       "Zimmer zusätzlich auf die Liste setzen (Zwischen-, Grund-, Sonderreinigung …) – "
                       "von Hand Hinzugefügtes entfernt Rechtsklick auf die Zeile")
-        hinzu.clicked.connect(self._reinigung_hinzufuegen)
+        hinzu.clicked.connect(lambda _c=False: self._reinigung_hinzufuegen())   # clicked liefert sonst False
         leiste.addWidget(hinzu)
         self.rg_anreisetag = QCheckBox("Vorbereiten am Anreisetag")
         self.rg_anreisetag.setToolTip("Nur für leer stehende Zimmer: Aus (Standard) = am letzten Werktag vor der "
