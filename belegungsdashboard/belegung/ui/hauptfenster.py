@@ -24,6 +24,9 @@ from .widgets import DatumFeld, Karte, KurzLabel, Pille, Segment, Toast, icon_se
 log = logging.getLogger(__name__)
 
 FILTER_STANDORTE = [GESAMT] + STANDORTE
+# Seiten, die in einer anderen aufgegangen sind: alter Schlüssel → (Seite, Reiter, Reiter-Nr.) – für Sprünge und
+# gespeicherte Tabs (6.23: „Assistent“ ist jetzt der Reiter „Fragen & Zahlen“ der Assistenz)
+ALTE_SEITEN = {"assistent": ("posteingang", "Fragen & Zahlen", 2)}
 
 
 def uwt_meldung(neu: list[str]) -> str:
@@ -112,7 +115,6 @@ class HauptFenster(QMainWindow):
         except Exception:
             listen_neu = []
 
-        from .seiten.assistent import AssistentSeite
         from .seiten.belegung import BelegungSeite
         from .seiten.daten import DatenSeite
         from .seiten.einstellungen import EinstellungenSeite
@@ -128,7 +130,7 @@ class HauptFenster(QMainWindow):
         self.seiten: dict[str, Seite] = {
             "start": StartSeite(zustand),
             "uebersicht": UebersichtSeite(zustand), "belegung": BelegungSeite(zustand),
-            "prognose": PrognoseSeite(zustand), "assistent": AssistentSeite(zustand),
+            "prognose": PrognoseSeite(zustand),
             "termine": TermineSeite(zustand), "posteingang": PosteingangSeite(zustand),
             "zimmerplan": ZimmerplanSeite(zustand), "mieter": MieterSeite(zustand), "inventar": InventarSeite(zustand), "daten": DatenSeite(zustand), "einstellungen": EinstellungenSeite(zustand),
         }
@@ -233,11 +235,10 @@ class HauptFenster(QMainWindow):
         eintraege = [("start", "Start"), ("Arbeiten", None), ("zimmerplan", "Zimmerplan"), ("posteingang", "Assistenz"),
                      ("termine", "Termine"), ("mieter", "Mieter"),
                      ("Auswerten", None), ("uebersicht", "Übersicht"), ("belegung", "Belegung"), ("prognose", "Prognose"),
-                     ("assistent", "Assistent"),
                      ("Verwalten", None), ("daten", "Daten && Import"), ("inventar", "Inventar"),
                      ("einstellungen", "Einstellungen")]
         icon_name = {"start": "start", "uebersicht": "uebersicht", "belegung": "belegung", "prognose": "prognose",
-                     "assistent": "assistent", "termine": "kalender", "posteingang": "mail", "mieter": "person", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
+                     "termine": "kalender", "posteingang": "mail", "mieter": "person", "zimmerplan": "haus", "inventar": "inventar", "daten": "daten", "einstellungen": "einstellungen"}
         for key, text in eintraege:
             if text is None:
                 nl.addWidget(label(key.upper(), "nav_gruppe"))
@@ -513,7 +514,9 @@ class HauptFenster(QMainWindow):
 
     def _tabs_wiederherstellen(self) -> None:
         roh = speicher.einstellungen().get("ansichten") or {}
-        tabs = [t for t in roh.get("tabs", []) if isinstance(t, dict) and t.get("seite") in self.seiten][:12]
+        tabs = [dict(t, seite=ALTE_SEITEN[t["seite"]][0], ansicht={"reiter": ALTE_SEITEN[t["seite"]][2]})
+                if isinstance(t, dict) and t.get("seite") in ALTE_SEITEN else t for t in roh.get("tabs", [])]
+        tabs = [t for t in tabs if isinstance(t, dict) and t.get("seite") in self.seiten][:12]
         self._tabs_laden = True
         try:
             for t in tabs or [{"seite": "start", "ansicht": {}}]:
@@ -539,6 +542,8 @@ class HauptFenster(QMainWindow):
         """Seite im aktuellen Tab zeigen (Seitenleiste, Sprünge aus anderen Seiten). „seite:Reiter“ wählt dort
         zusätzlich den Reiter mit dieser Beschriftung."""
         key, _, reiter = key.partition(":")
+        if key in ALTE_SEITEN:
+            key, reiter, _nr = ALTE_SEITEN[key]
         if key not in self.seiten:
             return
         if reiter:

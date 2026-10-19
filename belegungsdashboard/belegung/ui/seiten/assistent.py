@@ -1,4 +1,4 @@
-"""Chat mit dem Assistenten."""
+"""Chat mit dem Assistenten – seit 6.23 der Reiter „Fragen & Zahlen“ der Assistenz (Seite „posteingang“)."""
 
 from __future__ import annotations
 
@@ -142,6 +142,7 @@ class AssistentSeite(Seite):
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)
         self.assistent: Assistent | None = None
+        self.befehl = None              # Assistenz: prüft, ob die Eingabe ein Auftrag ist (dann übernimmt sie ihn)
         self.verlauf: list[tuple[str, str]] = []
         self._worker: Worker | None = None
         self._tippen: Tippen | None = None
@@ -194,7 +195,7 @@ class AssistentSeite(Seite):
         self.btn.setMinimumHeight(42)
         eingabe.addWidget(self.btn)
         self.lay.addLayout(eingabe)
-        self.fusszeile = label("", "klein")
+        self.fusszeile = label("", "klein", umbruch=True)
         self.lay.addWidget(self.fusszeile)
         zustand.daten_geaendert.connect(self._daten)
         self._willkommen()
@@ -335,6 +336,9 @@ class AssistentSeite(Seite):
     def senden(self, text: str | None = None) -> None:
         frage = (text if isinstance(text, str) else self.feld.text()).strip()
         if not frage or (self._worker and self._worker.isRunning()):
+            return
+        if self.befehl is not None and self.befehl(frage):      # Auftrag statt Frage → Assistenz übernimmt
+            self.feld.clear()
             return
         if self.z.ds is None or self.assistent is None:
             self.z.meldung.emit("Es sind noch keine Daten geladen.", "warnung")

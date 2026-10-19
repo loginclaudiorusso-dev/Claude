@@ -1,5 +1,6 @@
-"""Assistenz: normale Eingaben („6-403 Fliegen beseitigen bis 1.11.26“) verstehen und umsetzen – Kalender, Mängel,
-Notizen am Zimmer – und der Posteingang für Mails zu Anmeldungen, Gästehaus, Storno, Abbruch und Hinweisen
+"""Assistenz: normale Eingaben („6-403 Fliegen beseitigen bis 1.11.26“, „Nachname, Vorname vom … bis … in 2-408“)
+verstehen und umsetzen – Kalender, Mängel, Notizen am Zimmer, Personen einpflegen –, Fragen zu den Zahlen beantworten
+(Reiter „Fragen & Zahlen“, früher die Seite „Assistent“) und der Posteingang für Mails zu Anmeldungen, Gästehaus, Storno, Abbruch und Hinweisen
 (erkennen, Vorschlag prüfen, umsetzen; Abbrüche bleiben mit Prüfliste offen, bis alles abgehakt ist)."""
 
 from __future__ import annotations
@@ -7,7 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout, QLineEdit, QMessageBox, QPlainTextEdit,
     QVBoxLayout, QWidget,
@@ -45,11 +46,11 @@ class MailFeld(QPlainTextEdit):
 
 class PosteingangSeite(Seite):
     titel = "Assistenz"
-    untertitel = "Aufgaben, Termine, Mängel und Mails – einfach eintippen, prüfen, umsetzen"
+    untertitel = "Aufträge, Personen, Fragen und Mails – einfach eintippen, prüfen, umsetzen"
     zeigt_filter = False
     zeigt_bezug = False
     reiter_attr = "reiter"
-    REITER = ["Aufgaben && Notizen", "Mails"]          # „&&“ = ein „&“ (sonst Tastenkürzel)
+    REITER = ["Aufgaben && Notizen", "Mails", "Fragen && Zahlen"]   # „&&“ = ein „&“ (sonst Tastenkürzel)
 
     def __init__(self, zustand: Zustand):
         super().__init__(zustand)
@@ -63,6 +64,12 @@ class PosteingangSeite(Seite):
         self._mail_lay.setContentsMargins(0, 0, 0, 0)
         self._mail_lay.setSpacing(16)
         self.lay.addWidget(self.w_mail)
+        from .assistent import AssistentSeite
+
+        self.fragen = AssistentSeite(zustand)          # Fragen an die Zahlen (offline, auf Wunsch mit KI)
+        self.fragen.lay.setContentsMargins(0, 0, 0, 0)
+        self.fragen.befehl = self._befehl_aus_fragen
+        self.lay.addWidget(self.fragen)
         self._warteschlange: list[tuple[str, str, str]] = []
         self._erkannt: mails.Erkannt | None = None
         self._treffer: list[mails.Treffer] = []
@@ -216,8 +223,40 @@ class PosteingangSeite(Seite):
     def _tab(self, i: int) -> None:
         self.w_assistenz.setVisible(i == 0)
         self.w_mail.setVisible(i == 1)
+        self.fragen.setVisible(i == 2)
         if i == 0:
             self.eingabe.setFocus()
+        elif i == 2:
+            self._fragen_hoehe()
+            QTimer.singleShot(0, self._fragen_hoehe)       # nach dem Umbau des Layouts noch einmal
+            self.fragen.feld.setFocus()
+
+    def _fragen_hoehe(self) -> None:
+        """Der Chat füllt die sichtbare Höhe (er scrollt selbst) – die Seite darum nicht."""
+        self.fragen.setFixedHeight(max(420, self.scroll.viewport().height() - 36))
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        if self.reiter.index() == 2:
+            self._fragen_hoehe()
+
+    def _befehl_aus_fragen(self, text: str) -> bool:
+        """Im Fragen-Reiter eingetippter Auftrag („6-403 Tür klemmt“) → in „Aufgaben & Notizen“ verstehen."""
+        from ... import assistenz
+
+        if assistenz.ist_frage(text):
+            return False
+        v = assistenz.verstehen(text, {z.id for z in zp.laden().zimmer})
+        if not v.aktionen:
+            return False
+        self.eingabe.setPlainText(text)
+        self.reiter.setzen(0, still=False)
+        self._verstehen()
+        return True
+
+    def _frage_stellen(self, text: str) -> None:
+        self.reiter.setzen(2, still=False)
+        self.fragen.senden(text)
 
     # ================================================================== Assistenz (Aufgaben & Notizen)
 
@@ -226,11 +265,12 @@ class PosteingangSeite(Seite):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(16)
-        k = Karte("Was ist zu tun?", "Ganz normal eintippen – eine Zeile je Auftrag. Zimmer, Datum und Mangel werden "
-                                     "erkannt; vor dem Ausführen sehen Sie alles und können abwählen.")
+        k = Karte("Was ist zu tun?", "Ganz normal eintippen – eine Zeile je Auftrag. Zimmer, Datum, Mangel und Personen "
+                                     "werden erkannt; vor dem Ausführen sehen Sie alles und können abwählen. Fragen "
+                                     "(„Wie viele sind im November frei?“) beantwortet der Reiter „Fragen & Zahlen“.")
         self.eingabe = QPlainTextEdit()
         self.eingabe.setPlaceholderText("z. B.  6-403 Fliegen beseitigen bis 1.11.26\n"
-                                        "        3.1-E02 Rollo defekt\n"
+                                        "        Nachname, Vorname vom 26.06.2025 bis 24.06.2027 in 2-408\n"
                                         "        2-115 Heizung erledigt\n"
                                         "        Freitag 10 Uhr Teambesprechung")
         self.eingabe.setFixedHeight(104)
@@ -240,8 +280,9 @@ class PosteingangSeite(Seite):
         verstehen = knopf("Verstehen", "primary", "funke", "Eingabe auswerten (Strg+Enter)")
         verstehen.clicked.connect(self._verstehen)
         z.addWidget(verstehen)
-        z.addWidget(label("Strg+Enter · „bis …“ = Frist, „am …“/„morgen“/„Freitag“ = Termin · „erledigt“ hakt ab",
-                          "klein"))
+        hilfe = label("Strg+Enter · „bis …“ = Frist, „am …“/„morgen“ = Termin · „erledigt“ hakt ab · "
+                      "„Name, Vorname vom … bis … in 2-408“ pflegt ein", "klein", umbruch=True)
+        z.addWidget(hilfe, 1)
         z.addStretch()
         k.inhalt.addLayout(z)
         v.addWidget(k)
@@ -285,12 +326,28 @@ class PosteingangSeite(Seite):
         if not zeilen:
             return
         bekannt = {z.id for z in zp.laden().zimmer}
-        self._verstanden = [assistenz.verstehen(z, bekannt) for z in zeilen]
+        verstanden = [assistenz.verstehen(z, bekannt) for z in zeilen]
+        # Fragen an die Zahlen gehen an „Fragen & Zahlen“, Aufträge bleiben hier
+        fragen = [v.eingabe for v in verstanden if assistenz.ist_frage(v.eingabe) and not v.name]
+        self._verstanden = [v for v in verstanden if v.eingabe not in fragen]
+        if fragen:
+            self.eingabe.setPlainText("\n".join(v.eingabe for v in self._verstanden))
+        if not self._verstanden:
+            self.k_vorschau.setVisible(False)
+            for f in fragen:
+                self._frage_stellen(f)
+            return
+        if fragen:
+            self.z.meldung.emit(f"{len(fragen)} Frage(n) unter „Fragen & Zahlen“ beantwortet.", "info")
+            for f in fragen:
+                self.fragen.senden(f)
         leeren(self.vorschau_lay)
         for v in self._verstanden:
             box = QVBoxLayout()
             box.setSpacing(4)
             teile = [f"<b>{v.eingabe}</b>"]
+            if v.name:
+                teile.append(f"Person {v.name}")
             if v.zimmer:
                 teile.append("Zimmer " + ", ".join(zid.removeprefix("GS-") for zid in v.zimmer))
             if v.datum:
@@ -320,7 +377,7 @@ class PosteingangSeite(Seite):
         self._verstanden = []
         self.k_vorschau.setVisible(False)
         self.eingabe.clear()
-        self.z.meldung.emit(f"{len(e['erledigt'])} Schritte eingetragen (Kalender, Mängel, Notizen) – "
+        self.z.meldung.emit(f"{len(e['erledigt'])} Schritte eingetragen (Kalender, Mängel, Notizen, Zimmerplan) – "
                             "„Rückgängig“ unter „Zuletzt erledigt“.", "ok")
         self.z.zimmer_geaendert.emit()           # lädt auch diese Seite neu (Verlauf)
         self.z.termine_geaendert.emit()
