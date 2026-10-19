@@ -27,6 +27,19 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.24 – Zimmer von Hand zur Reinigung hinzufügen
+
+* **Zimmerplan → Reinigung → „Zimmer hinzufügen …“:** Zimmer zusätzlich auf die Reinigungsliste setzen,
+  z. B. für eine Zwischen-, Grund- oder Sonderreinigung oder nach Handwerkern.
+  * Ein oder mehrere Zimmer auf einmal („2-204, 2-205, 6-403“), dazu Tag und Art/Grund (Auswahl oder freier Text).
+  * Das Zimmer steht an dem Tag auf der Liste, im Wochenblatt, im Druck/PDF (Spalte „Notiz“) und in Excel. Es lässt
+    sich abhaken wie jede andere Reinigung.
+  * Fällt der Tag auf einen Auszug im selben Zimmer, bleibt es eine Zeile, der Grund steht dabei.
+  * **Entfernen:** Rechtsklick auf die Zeile → „… entfernen“.
+* **Zimmerkarte:** Knopf „Zur Reinigung …“ (Zimmer ist schon eingetragen).
+* **Assistenz:** „2-204 Zwischenreinigung morgen“ setzt das Zimmer auf die Reinigungsliste. Ein Mangel wird dabei
+  nur angelegt, wenn man ihn anhakt. „Rückgängig“ nimmt es wieder heraus.
+
 ## Neu in 6.23 – Personen einpflegen, Assistent und Assistenz zusammengelegt
 
 * **Personen einpflegen per Eingabe:** „Nachname, Vorname vom 26.06.2025 bis 24.06.2027 in 2-408“ trägt die Person

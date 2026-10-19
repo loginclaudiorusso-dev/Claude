@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.23.0, 19.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.24.0, 19.10.2026)
 
 ## Als Nächstes
 
@@ -90,6 +90,10 @@
     darauf hin. Soll das Zimmer in der Freigabe frei bleiben, zwei Zeilen eingeben (vor und nach der Freigabe).
     Beim Nutzer nachfragen, was die Freigabe bei dieser Person bedeutet.
   * Namen werden nur in der Form „Nachname, Vorname“ erkannt (wie in allen Listen).
+- 6.24: Zimmer von Hand zur Reinigung hinzufügen (Reiter „Reinigung“, Zimmerkarte, Assistenz).
+  * Offen/zu entscheiden: Auswahl der Gründe (Zwischen-, Grund-, Sonderreinigung, nach Reparatur, vorbereiten, nach
+    Ungeziefer/Schimmel) ggf. mit dem Nutzer bzw. der Reinigung abstimmen.
+  * Wiederkehrende Reinigungen (z. B. jede Woche) gibt es noch nicht. Nachfragen, ob das gebraucht wird.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
