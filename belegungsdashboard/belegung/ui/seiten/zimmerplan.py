@@ -499,6 +499,11 @@ class ZimmerplanSeite(Seite):
         v.addWidget(oben)
         leiste = QHBoxLayout()
         leiste.setSpacing(16)
+        hinzu = knopf("Zimmer hinzufügen …", "ghost", "plus",
+                      "Zimmer zusätzlich auf die Liste setzen (Zwischen-, Grund-, Sonderreinigung …) – "
+                      "von Hand Hinzugefügtes entfernt Rechtsklick auf die Zeile")
+        hinzu.clicked.connect(self._reinigung_hinzufuegen)
+        leiste.addWidget(hinzu)
         self.rg_anreisetag = QCheckBox("Vorbereiten am Anreisetag")
         self.rg_anreisetag.setToolTip("Nur für leer stehende Zimmer: Aus (Standard) = am letzten Werktag vor der "
                                       "Anreise (Sonntag/Montag-Anreisen also am Freitag). An = am Anreisetag selbst.")
@@ -1795,6 +1800,35 @@ class ZimmerplanSeite(Seite):
         self.z.termine_geaendert.emit()            # Hinweise/Zähler in der Seitenleiste aktualisieren
         QTimer.singleShot(0, self._reinigung_zeigen)
 
+    def _reinigung_hinzufuegen(self, zimmer: str = "") -> None:
+        from ..reinigung_dialog import ReinigungDialog
+
+        if self.stand is None:
+            return
+        von, bis = self._reinigung_daten()[1:3]
+        tag = date.today() if von <= date.today() <= bis else von        # gewählte Woche
+        ReinigungDialog(self.z, self.stand.zimmer, self, zimmer, tag).exec()
+
+    def _reinigung_menue(self, tab, liste, pos) -> None:
+        """Rechtsklick: von Hand hinzugefügte Reinigung entfernen."""
+        zeile = tab.rowAt(pos.y())
+        if not 0 <= zeile < len(liste):
+            return
+        r = liste[zeile]
+        m = QMenu(tab)
+        if r.manuell_id:
+            m.addAction(f"„{r.manuell}“ in {r.zimmer.kurz} am {r.tag:%d.%m.} entfernen",
+                        lambda: self._reinigung_entfernen(r))
+        m.addAction("Weiteres Zimmer hinzufügen …", lambda: self._reinigung_hinzufuegen())
+        m.addAction(f"Zimmerkarte {r.zimmer.kurz} öffnen", lambda: self._zimmer_details(r.zimmer.id))
+        m.exec(tab.viewport().mapToGlobal(pos))
+
+    def _reinigung_entfernen(self, r) -> None:
+        zp.reinigung_entfernen(r.manuell_id)
+        self.z.meldung.emit(f"Zimmer {r.zimmer.kurz}: „{r.manuell}“ am {r.tag:%d.%m.} entfernt.", "ok")
+        self.z.termine_geaendert.emit()
+        self._reinigung_zeigen()
+
     def _reinigung_zeigen(self) -> None:
         if self.stand is None:
             return
@@ -1827,9 +1861,10 @@ class ZimmerplanSeite(Seite):
             for i, r in enumerate(offen):
                 p = rl.prioritaet(r, heute, fertig)
                 zeilen.append([self._haken(r, False), r.zimmer.kurz, rl.auszug_datum(r), rl.frist_text(r),
-                               rl.prio_text(r, heute, fertig)])
+                               (f"{r.manuell} · " if r.manuell else "") + rl.prio_text(r, heute, fertig)])
                 farben[(i, 4)] = self._prio_farbe(p)
             tab.fuellen(zeilen, farben)
+            self._reinigung_menue_an(tab, offen)
             self._reinigung_tooltips(tab, offen)
             self._reinigung_tabelle_einpassen(tab, (3,))
             tab.hoehe_anpassen(10)
@@ -1845,7 +1880,8 @@ class ZimmerplanSeite(Seite):
             self.rg_tage.addWidget(h)
         n_fertig = sum(1 for r in rs if rl.prioritaet(r, heute, fertig) == 9)
         self.rg_info.setText((rl.zaehlung(rs) + f" · {n_fertig} erledigt") if rs else
-                             "In dieser Woche zieht niemand aus und kein leeres Zimmer muss vorbereitet werden.")
+                             "In dieser Woche zieht niemand aus und kein leeres Zimmer muss vorbereitet werden. "
+                             "Weitere Zimmer: „Zimmer hinzufügen …“.")
         ausblenden = self.rg_ausblenden.isChecked()
         t = theme.T
         liste = rl.sortiert(rs, heute, fertig)
@@ -1864,7 +1900,8 @@ class ZimmerplanSeite(Seite):
             for i, r in enumerate(liste):
                 p = rl.prioritaet(r, heute, fertig)
                 zeilen.append([self._haken(r, p == 9), r.zimmer.kurz, rl.auszug_datum(r), rl.frist_text(r),
-                               ("Facility-Check · " if rl.facility(r) else "") + rl.prio_text(r, heute, fertig)])
+                               (f"{r.manuell} · " if r.manuell else "") + ("Facility-Check · " if rl.facility(r) else "")
+                               + rl.prio_text(r, heute, fertig)])
                 farben[(i, 4)] = self._prio_farbe(p)
                 if p == 9:
                     for c in range(1, 4):
@@ -1872,11 +1909,16 @@ class ZimmerplanSeite(Seite):
                 elif r.knapp:
                     farben[(i, 3)] = t.ueber            # gleich nach Auszug, am Anreisetag oder Wochenende
             tab.fuellen(zeilen, farben)
+            self._reinigung_menue_an(tab, liste)
             self._reinigung_tooltips(tab, liste)
             self._reinigung_tabelle_einpassen(tab, (3,))
             tab.hoehe_anpassen(len(liste))
             karte.inhalt.addWidget(tab)
         self.rg_tage.addWidget(karte)
+
+    def _reinigung_menue_an(self, tab, liste) -> None:
+        tab.setContextMenuPolicy(Qt.CustomContextMenu)
+        tab.customContextMenuRequested.connect(lambda pos, t=tab, l=list(liste): self._reinigung_menue(t, l, pos))
 
     def _reinigung_tooltips(self, tab, liste) -> None:
         from ... import reinigungsliste as rl

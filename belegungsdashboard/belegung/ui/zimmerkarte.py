@@ -536,9 +536,21 @@ class ZimmerBlock(Karte):
         ausstattung = inventar.laden().kurztext(z.id)
         self.inhalt.addWidget(label(f"<b>Ausstattung:</b> {ausstattung}" if ausstattung
                                     else "Ausstattung: noch nichts erfasst", "klein", umbruch=True))
+        zeile = QHBoxLayout()
         inv = knopf("Inventar öffnen", "ghost")
         inv.clicked.connect(lambda: karte.z.navigieren.emit("inventar"))
-        self.inhalt.addWidget(inv, 0, Qt.AlignLeft)
+        zeile.addWidget(inv)
+        rein = knopf("Zur Reinigung …", "ghost", "plus", "Zimmer zusätzlich auf die Reinigungsliste setzen "
+                                                        "(Zwischen-, Grund-, Sonderreinigung …)")
+        rein.clicked.connect(self._reinigung)
+        zeile.addWidget(rein)
+        zeile.addStretch()
+        self.inhalt.addLayout(zeile)
+
+    def _reinigung(self) -> None:
+        from .reinigung_dialog import ReinigungDialog
+
+        ReinigungDialog(self.karte.z, self.karte.stand.zimmer, self, self.z.id).exec()
 
     def _maengel_bauen(self) -> None:
         """Mängel als Vorschläge: antippen = offen (seit heute), noch einmal = behoben. Filterbar unter Zimmerplan →
