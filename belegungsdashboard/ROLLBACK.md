@@ -1,4 +1,4 @@
-# Rückweg: von 6.22.0 zurück zu 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.23.0 zurück zu 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -31,7 +31,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.19.0** | `backup/v6.19.0` | `d284505` | `INNternat_v6.19.0_Sicherung.zip` |
 | **6.20.0** | `backup/v6.20.0` | `744319a` | `INNternat_v6.20.0_Sicherung.zip` |
 | **6.21.0** | `backup/v6.21.0` | `0ecabb6` | `INNternat_v6.21.0_Sicherung.zip` |
-| **6.22.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.22.0** | `backup/v6.22.0` | `4d178c7` | `INNternat_v6.22.0_Sicherung.zip` |
+| **6.23.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -329,6 +330,18 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Ältere Versionen:
   * Sie zeigen alle Einträge normal an, nur den Verlauf der Assistenz nicht.
   * Unter 6.21 enthält ein neu erzeugter Vertrag immer § 4 Mietsicherheit. Die alte Vorlage kennt keine Bedingung.
+
+**6.23.0** (seit `4d178c7`): Commits siehe `git log backup/v6.22.0..claude/ui-overhaul-v6`.
+* Inhalt:
+  * Assistenz pflegt Personen ein (`assistenz.py`: Aktion „einpflegen“, `ist_frage`)
+  * Seite „Assistent“ als Reiter „Fragen & Zahlen“ in der Assistenz; `ALTE_SEITEN` leitet alte Tabs/Sprünge um
+  * Tests (`tests/test_assistenz_einpflegen.py`), Version 6.23.0
+* Daten: keine neuen Dateien. Eingepflegte Personen stehen wie von Hand angelegte in `importe/anreisen_goslar.json`
+  (Liste „manuell“, Bemerkung „über die Assistenz eingepflegt“) und in den Zuweisungen.
+* Ältere Versionen:
+  * Sie zeigen eingepflegte Personen normal an.
+  * Den Verlaufseintrag „einpflegen“ kann 6.22 nicht zurücknehmen. Das geht nur unter 6.23.
+  * Gemerkte Tabs „Assistenz · Fragen & Zahlen“ öffnen in 6.22 die Assistenz ohne den dritten Reiter.
 
 ## 6. Was sich geändert hat – und was nicht
 

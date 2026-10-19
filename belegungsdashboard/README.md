@@ -27,6 +27,25 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.23 – Personen einpflegen, Assistent und Assistenz zusammengelegt
+
+* **Personen einpflegen per Eingabe:** „Nachname, Vorname vom 26.06.2025 bis 24.06.2027 in 2-408“ trägt die Person
+  wirklich in den Zimmerplan ein (vorher wurde daraus nur eine Erinnerung).
+  * Läuft der Zeitraum schon, wird sie gleich als **belegt** eingetragen, sonst als **geplant**.
+  * Zimmer auch als „Haus 2 Zimmer 408“. Ohne Ende („ab 1.12.26 … einpflegen“) gilt das übliche angenommene Ende.
+  * „Miete/Mieterin“, „Gast“, „EMR“ oder ein Kurs wie „GS VW 2611“ legen die Gruppe fest, sonst Reha. „Frau/Herr“
+    legt das Geschlecht fest.
+  * Steht die Person schon im Gebäudeplan im selben Zimmer (z. B. nur bis 30.09.2026), wird der Zeitraum
+    übernommen, also verlängert. Steht sie in einem anderen Zimmer oder ist das Zimmer belegt, kommt ein Hinweis und
+    der Haken ist aus.
+  * Steht sie schon in der Personenliste, werden TN-Nr. und Maßnahme behalten.
+  * „Rückgängig“ nimmt alles zurück, auch die Änderung an einer vorhandenen Person.
+* **Assistent und Assistenz sind eine Seite:** Die Seite „Assistent“ ist jetzt der Reiter **„Fragen & Zahlen“** der
+  Assistenz.
+  * Fragen („Wie viele Plätze sind im November frei?“) im Feld „Was ist zu tun?“ werden dort beantwortet.
+  * Ein Auftrag, der unter „Fragen & Zahlen“ eingetippt wird, landet in „Aufgaben & Notizen“.
+  * Gemerkte Tabs und Sprünge zur alten Seite öffnen den neuen Reiter.
+
 ## Neu in 6.22 – Assistenz, Kaution optional
 
 * **„Posteingang“ heißt jetzt „Assistenz“** (Seitenleiste unter Arbeiten) und hat zwei Reiter.

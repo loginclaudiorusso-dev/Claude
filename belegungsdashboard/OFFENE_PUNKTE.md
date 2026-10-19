@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.22.0, 18.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.23.0, 19.10.2026)
 
 ## Als Nächstes
 
@@ -80,9 +80,16 @@
   Vorschlag; „nicht bewohnbar“ setzt der Nutzer je Mangel. Bei Bedarf Zuordnung mit dem Nutzer/FM abstimmen.
 - 6.22: „Posteingang“ → „Assistenz“ (Eingabe in normaler Sprache → Kalender, Mängel, Notizen; Mails im zweiten
   Reiter); Kaution im Mietvertrag optional. Offen/zu entscheiden:
-  * Die Seite „Assistent“ (Auswerten, Fragen zu Zahlen) bleibt getrennt. Zusammenlegen ist möglich, wenn gewünscht.
+  * Erledigt in 6.23: Assistent und Assistenz zusammengelegt (Reiter „Fragen & Zahlen“).
   * Stichwörter für Mängel ggf. mit dem Nutzer ergänzen.
   * Die Erkennung arbeitet mit Regeln. Mit KI-Anbindung (Claude) ließen sich auch freiere Sätze verstehen.
+- 6.23: Assistenz pflegt Personen ein („Nachname, Vorname vom … bis … in 2-408“ → Zimmerplan, belegt/geplant).
+  Beispiel des Nutzers geprüft mit Datenkopie: Die Person stand im Gebäudeplan in 2-408 nur bis 30.09.2026 (danach
+  Zimmerfreigabe 01.10.2026–31.03.2027). Der Befehl verlängert auf 24.06.2027.
+  * Offen/zu entscheiden: Eingepflegt wird durchgehend, auch über eine Zimmerfreigabe hinweg; die Assistenz weist
+    darauf hin. Soll das Zimmer in der Freigabe frei bleiben, zwei Zeilen eingeben (vor und nach der Freigabe).
+    Beim Nutzer nachfragen, was die Freigabe bei dieser Person bedeutet.
+  * Namen werden nur in der Form „Nachname, Vorname“ erkannt (wie in allen Listen).
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
