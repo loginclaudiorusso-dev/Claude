@@ -1,6 +1,6 @@
 """Reinigungsliste je Woche: je Zimmer das Auszugsdatum und „sauber bis spätestens“ (ein Tag vor der nächsten
 Anreise), sortiert nach dieser Frist – zum Drucken (HTML/PDF) oder als Excel. „Vorbereiten“ nur für Zimmer,
-die vorher leer standen. Rein, ohne Qt; die Daten kommen aus ``zimmerplan.reinigungen``."""
+die vorher leer standen; dazu von Hand hinzugefügte Zimmer (``zimmerplan.reinigung_hinzufuegen``). Rein, ohne Qt; die Daten kommen aus ``zimmerplan.reinigungen``."""
 
 from __future__ import annotations
 
@@ -47,6 +47,8 @@ def wer_text(belegungen: list, namen: bool) -> str:
 def auszug_text(r: zp.Reinigung, namen: bool) -> str:
     if r.auszug:
         return wer_text(r.auszug, namen)
+    if r.manuell and not r.vorbereiten:
+        return f"– {r.manuell} (von Hand)"
     return f"– leer seit {r.leer_seit:%d.%m.}" if r.leer_seit else "– stand leer"
 
 
@@ -70,6 +72,8 @@ def auszug_datum(r: zp.Reinigung) -> str:
     """„Mi 21.10.“ (Doppelzimmer: „Mi 21.10. (1 Bett)“) – ohne Auszug: seit wann das Zimmer leer ist."""
     if r.auszug:
         return _tag_kurz(r.tag) + (" (1 Bett)" if r.bleibt else "")
+    if r.manuell and not r.vorbereiten:
+        return f"{_tag_kurz(r.tag)} · von Hand"
     return f"– leer seit {r.leer_seit:%d.%m.}" if r.leer_seit else "– stand leer"
 
 
@@ -105,9 +109,19 @@ def details(r: zp.Reinigung, namen: bool = True) -> str:
     teile = []
     if r.auszug:
         teile.append(f"Auszug {_tag_kurz(r.tag)}: {wer_text(r.auszug, namen)}" + (" – Mitbewohner bleibt" if r.bleibt else ""))
+    if r.manuell:
+        teile.append(f"Von Hand hinzugefügt für {_tag_kurz(r.tag)}: {r.manuell}")
     if r.einzug:
         teile.append(f"Nächste Anreise {_tag_kurz(r.anreise)}: {wer_text(r.einzug, namen)}")
     return "\n".join(teile) or "danach frei"
+
+
+def notiz(r: zp.Reinigung) -> str:
+    """Notiz-Spalte (Druck/Excel): Grund einer von Hand hinzugefügten Reinigung, Facility-Check."""
+    teile = [r.manuell] if r.manuell else []
+    if facility(r):
+        teile.append("Facility: Elektrik, Fenster")
+    return " · ".join(teile)
 
 
 def zeilen(rs: list[zp.Reinigung], namen: bool = False) -> list[list[str]]:
@@ -117,10 +131,13 @@ def zeilen(rs: list[zp.Reinigung], namen: bool = False) -> list[list[str]]:
 
 def zaehlung(rs: list[zp.Reinigung]) -> str:
     mit = sum(1 for r in rs if r.frist is not None)
-    vor = sum(1 for r in rs if not r.auszug)
+    vor = sum(1 for r in rs if r.vorbereiten and not r.auszug)
+    hand = sum(1 for r in rs if r.manuell)
     teile = [f"{len(rs)} Zimmer", f"{mit} mit Frist (Anreise danach)"]
     if vor:
         teile.append(f"{vor} davon standen leer")
+    if hand:
+        teile.append(f"{hand} von Hand hinzugefügt")
     return " · ".join(teile)
 
 
@@ -281,9 +298,8 @@ def html_text(rs: list[zp.Reinigung], von: date, bis: date, namen: bool = False,
             klasse = " class='eilig'" if p <= 1 or r.knapp else \
                 " style='color: #888;'" if p == 9 else ""
             haken = "☑" if p == 9 else "☐"
-            notiz = "Facility: Elektrik, Fenster" if facility(r) else ""
             teile.append(f"<tr{klasse}><td align='center' style='font-size: 12pt;'>{haken}</td>"
-                         + "".join(f"<td>{e(x)}</td>" for x in z) + f"<td>{e(notiz)}</td></tr>")
+                         + "".join(f"<td>{e(x)}</td>" for x in z) + f"<td>{e(notiz(r))}</td></tr>")
         teile.append("</table>")
     teile.append("</body></html>")
     return "\n".join(teile)
@@ -306,7 +322,7 @@ def excel_speichern(pfad: Path, rs: list[zp.Reinigung], von: date, bis: date, na
         c.fill = PatternFill("solid", fgColor="E6EAF0")
     rs = sortiert(rs, date.today(), {})
     for r, z in zip(rs, zeilen(rs)):
-        ws.append(["☐"] + z[:2] + [int(z[2])] + z[3:] + [""])
+        ws.append(["☐"] + z[:2] + [int(z[2])] + z[3:] + [notiz(r)])
         if r.knapp:
             for c in ws[ws.max_row]:
                 c.font = Font(bold=True)

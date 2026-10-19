@@ -8,6 +8,7 @@ Beispiele (eine Zeile = ein Auftrag, mehrere Zeilen auf einmal gehen auch)::
     2-115 Heizung erledigt                    → offenen Mangel „Heizung“ als behoben markieren, Frist erledigt
     Freitag 10 Uhr Teambesprechung            → Termin im Kalender
     morgen Schlüssel 2-204 an FM übergeben    → Termin im Kalender + Notiz am Zimmer
+    2-204 Zwischenreinigung morgen           → Zimmer auf die Reinigungsliste (+ Termin, Notiz)
     Beispiel, Kai vom 1.7.25 bis 30.6.27 in 2-408 → Person einpflegen: im Zimmerplan in 2-408 eintragen
                                                 (läuft der Zeitraum schon, gleich als belegt)
 
@@ -63,6 +64,8 @@ SCHADEN = re.compile(r"\b(defekt|kaputt|beschädigt|fehlt|fehlen|tropft|verstopf
                      r"erneuer|tausch|austausch|wechseln|streichen|prüfen|reinig|säuber|geht nicht|funktioniert nicht|"
                      r"kalt|nass|schimmel|loch|löcher)", re.I)
 MANGEL_VON_SICH_AUS = {"ungeziefer", "schimmel", "grundreinigung", "renovierung", "abfluss", "geruch"}
+REINIGUNG = re.compile(r"\b(zwischenreinigung|grundreinigung|sonderreinigung|endreinigung|reinigung|reinigen|putzen|"
+                       r"säubern|sauber machen)\b", re.I)
 ERLEDIGT = re.compile(r"\b(erledigt|behoben|beseitigt|repariert|fertig|gemacht|getauscht|ausgetauscht|ok)\b", re.I)
 _ZIMMER = re.compile(r"(?<![\w.])(?:GS-)?(2|3\.1|3\.2|3\.3|6)\s*-\s*([A-Za-z]?\d{2,4})(?![\w])")
 _DATUM = re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?(?![\d])")
@@ -78,7 +81,7 @@ _UHR = re.compile(r"\b(?:um\s+)?(\d{1,2})(?::(\d{2}))?\s*uhr\b|\b(\d{1,2}):(\d{2
 
 @dataclass
 class Aktion:
-    art: str                    # termin | notiz | mangel | sperren | behoben | termin_erledigt | einpflegen
+    art: str                    # termin | notiz | mangel | sperren | behoben | termin_erledigt | einpflegen | reinigung
     text: str                   # Anzeige in der Vorschau
     an: bool = True
     daten: dict = field(default_factory=dict)
@@ -267,7 +270,7 @@ def verstehen(eingabe: str, bekannt: set[str], heute: date | None = None) -> Ver
         v.mangel = ""                                      # z. B. „Schlüssel an FM übergeben“: Aufgabe, kein Mangel
     if v.datum is not None and v.datum < heute and not v.erledigt:
         v.hinweise.append(f"Das Datum {v.datum:%d.%m.%Y} liegt in der Vergangenheit.")
-    v.aktionen = _aktionen(v)
+    v.aktionen = _aktionen(v, heute)
     if not v.aktionen:
         v.hinweise.append("Nichts erkannt, was sich eintragen lässt – bitte Zimmer (z. B. 6-403) und/oder ein Datum "
                           "(z. B. „bis 1.11.“, „morgen“) angeben.")
@@ -278,7 +281,7 @@ def _kurz(zid: str) -> str:
     return zid.removeprefix("GS-")
 
 
-def _aktionen(v: Verstanden) -> list[Aktion]:
+def _aktionen(v: Verstanden, heute: date) -> list[Aktion]:
     akt: list[Aktion] = []
     zimmer_text = ", ".join(_kurz(z) for z in v.zimmer)
     titel = f"{zimmer_text}: {v.aufgabe}" if v.zimmer else v.aufgabe
@@ -314,6 +317,17 @@ def _aktionen(v: Verstanden) -> list[Aktion]:
             gesperrt = v.mangel in maengel.UNBEWOHNBAR_STANDARD
             akt.append(Aktion("sperren", f"{_kurz(z)} bis zur Erledigung nicht zuteilen (macht unbewohnbar)",
                               an=gesperrt, daten={"zimmer": z, "art": v.mangel}))
+    if v.zimmer and (m := REINIGUNG.search(v.aufgabe)):
+        wort = m.group(1).lower()
+        grund = ("Grundreinigung" if wort.startswith("grund") else "Sonderreinigung" if wort.startswith("sonder")
+                 else "Zwischenreinigung")
+        tag = v.datum or heute
+        for z in v.zimmer:
+            akt.append(Aktion("reinigung", f"Reinigungsliste: {_kurz(z)} am {tag:%d.%m.%Y} – {grund}",
+                              daten={"zimmer": z, "tag": tag.isoformat(), "grund": grund}))
+        for a in akt:                                      # Reinigung ist kein Mangel – nur, wenn angehakt
+            if a.art in ("mangel", "sperren"):
+                a.an = False
     if v.zimmer:
         notiz = v.aufgabe + (f" – {'bis' if v.frist else 'am'} {v.datum:%d.%m.%Y}" if v.datum else "")
         akt.append(Aktion("notiz", f"Notiz am Zimmer {zimmer_text}: „{notiz}“",
@@ -480,6 +494,11 @@ def ausfuehren(liste: list[Verstanden], heute: date | None = None) -> dict:
                     eintrag["rueck"].append({"art": "termin_erledigt", "id": t.id})
             elif a.art == "einpflegen":
                 eintrag["rueck"].append(_einpflegen(d))
+            elif a.art == "reinigung":
+                schon = {r["id"] for r in zp.manuelle_reinigungen()}
+                r = zp.reinigung_hinzufuegen(d["zimmer"], date.fromisoformat(d["tag"]), d["grund"])
+                if r["id"] not in schon:
+                    eintrag["rueck"].append({"art": "reinigung", "id": r["id"]})
             elif a.art == "notiz":
                 for z in d["zimmer"]:
                     n = termine.notiz_speichern(termine.Notiz(zp.zimmer_schluessel(z), f"Zimmer {_kurz(z)}",
@@ -519,6 +538,8 @@ def rueckgaengig(eintrag_id: str) -> int:
                 termine.erledigt_setzen(t, False)
         elif r["art"] == "einpflegen":
             _einpflegen_zuruecknehmen(r)
+        elif r["art"] == "reinigung":
+            zp.reinigung_entfernen(r["id"])
         n += 1
     e["zurueck"] = datetime.now().isoformat(timespec="seconds")
     speicher.schreiben(DATEI, {"eintraege": alle})

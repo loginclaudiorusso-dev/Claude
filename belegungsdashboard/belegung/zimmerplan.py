@@ -1431,6 +1431,36 @@ def laden(puffer: int | None = None, ohne_umzug: str | None = None) -> Planstand
 # ---------------------------------------------------------------------------------------
 
 LEERSTAND_TAGE = 28        # länger leer → vor der nächsten Anreise noch einmal vorbereiten
+REINIGUNG_MANUELL = f"{speicher.IMPORT_ORDNER}/reinigung_manuell.json"
+REINIGUNG_GRUENDE = ["Zwischenreinigung", "Grundreinigung", "Sonderreinigung", "Nach Reparatur / Handwerker",
+                     "Zimmer vorbereiten", "Nach Ungeziefer / Schimmel"]
+
+
+def manuelle_reinigungen() -> list[dict]:
+    """Von Hand hinzugefügte Reinigungen: {id, zimmer, tag, grund, angelegt}."""
+    return list(speicher.lesen(REINIGUNG_MANUELL, {}).get("reinigungen", []))
+
+
+def reinigung_hinzufuegen(zimmer: str, tag: date, grund: str = "") -> dict:
+    """Zimmer für einen Tag zusätzlich auf die Reinigungsliste setzen (gleiches Zimmer und Tag: nur Grund ändern)."""
+    import uuid
+
+    alle = manuelle_reinigungen()
+    eintrag = next((r for r in alle if r["zimmer"] == zimmer and r["tag"] == tag.isoformat()), None)
+    if eintrag is None:
+        eintrag = {"id": uuid.uuid4().hex[:10], "zimmer": zimmer, "tag": tag.isoformat(),
+                   "angelegt": datetime.now().isoformat(timespec="seconds")}
+        alle.append(eintrag)
+    eintrag["grund"] = (grund or "").strip() or "Zwischenreinigung"
+    speicher.schreiben(REINIGUNG_MANUELL, {"reinigungen": alle})
+    return eintrag
+
+
+def reinigung_entfernen(eintrag_id: str) -> bool:
+    alle = manuelle_reinigungen()
+    rest = [r for r in alle if r["id"] != eintrag_id]
+    speicher.schreiben(REINIGUNG_MANUELL, {"reinigungen": rest})
+    return len(rest) < len(alle)
 
 
 @dataclass
@@ -1445,6 +1475,9 @@ class Reinigung:
     bleibt: int = 0                             # Personen, die im Zimmer bleiben (Doppelzimmer)
     naechste_anreise: date | None = None        # nächste Anreise ins Zimmer (ab dem Reinigungstag) = Frist
     leer_seit: date | None = None               # Vorbereiten: letzter Auszug (None = keiner bekannt)
+    manuell: str = ""                           # von Hand hinzugefügt: Grund (z. B. „Zwischenreinigung“)
+    manuell_id: str = ""
+    vorbereiten: bool = False                   # leeres Zimmer vor einer Anreise vorbereiten
 
     @property
     def anreise(self) -> date | None:
@@ -1454,6 +1487,8 @@ class Reinigung:
     def art(self) -> str:
         if self.auszug:
             return "Auszug" if self.bleibt == 0 else "Auszug (1 Bett, Mitbewohner bleibt)"
+        if self.manuell and not self.vorbereiten:
+            return self.manuell
         return "Vorbereiten"
 
     @property
@@ -1504,14 +1539,23 @@ def einzug_tag(anreise: date, letzter_auszug: date | None = None, am_anreisetag:
 
 
 def reinigungen(lage: Lage, von: date, bis: date, pivot_ende: date | None = None, pivot_start: date | None = None,
-                am_anreisetag: bool = False) -> list[Reinigung]:
+                am_anreisetag: bool = False, manuell: list[dict] | None = None) -> list[Reinigung]:
     """Reinigungen zwischen von und bis – je Zimmer und Tag eine Zeile, sortiert nach Tag und Lage.
 
     * Auszug: am Auszugstag; macht das Zimmer zugleich für die nächste Anreise fertig (keine zweite Zeile).
     * Vorbereiten: nur, wenn vor einer Anreise kein Auszug bekannt ist oder das Zimmer länger als
       ``LEERSTAND_TAGE`` leer stand – am letzten Werktag vor der Anreise (bzw. am Anreisetag).
+    * Manuell: von Hand hinzugefügte Zimmer (``reinigung_hinzufuegen``) – am gewählten Tag; fällt der Tag mit einer
+      Auszugs- oder Vorbereiten-Reinigung zusammen, bleibt es eine Zeile (mit Grund).
     Pivot-Ergänzungen am Rand des Pivot-Zeitraums sind keine echten An-/Auszüge."""
     ergebnis = []
+    von_hand: dict[str, list[dict]] = {}
+    for m in (manuelle_reinigungen() if manuell is None else manuell):
+        try:
+            if von <= date.fromisoformat(m["tag"]) <= bis:
+                von_hand.setdefault(m["zimmer"], []).append(m)
+        except (KeyError, ValueError):
+            continue
     for zid, belegungen in lage.belegungen.items():
         z = lage.zimmer.get(zid)
         if z is None or not z.aktiv:
@@ -1543,6 +1587,10 @@ def reinigungen(lage: Lage, von: date, bis: date, pivot_ende: date | None = None
             if von <= tag <= bis:
                 r = tage.setdefault(tag, Reinigung(tag, z))
                 r.leer_seit = letzter
+                r.vorbereiten = True
+        for m in von_hand.get(zid, []):
+            r = tage.setdefault(date.fromisoformat(m["tag"]), Reinigung(date.fromisoformat(m["tag"]), z))
+            r.manuell, r.manuell_id = m.get("grund") or "Zwischenreinigung", m["id"]
         for tag, r in tage.items():
             r.bleibt = sum(1 for b in personen if b not in r.auszug and b.von <= tag < b.bis)
             danach = [b for b in personen if b not in r.auszug and b.von >= tag]
