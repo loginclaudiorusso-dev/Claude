@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.24.0, 19.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.24.1, 19.10.2026)
 
 ## Als Nächstes
 
@@ -93,7 +93,9 @@
 - 6.24: Zimmer von Hand zur Reinigung hinzufügen (Reiter „Reinigung“, Zimmerkarte, Assistenz).
   * Offen/zu entscheiden: Auswahl der Gründe (Zwischen-, Grund-, Sonderreinigung, nach Reparatur, vorbereiten, nach
     Ungeziefer/Schimmel) ggf. mit dem Nutzer bzw. der Reinigung abstimmen.
-  * Wiederkehrende Reinigungen (z. B. jede Woche) gibt es noch nicht. Nachfragen, ob das gebraucht wird.
+  * Wiederkehrende Reinigungen: vom Nutzer nicht gewünscht (19.10.).
+- 6.24.1: „Zimmer hinzufügen …“ ging nicht (Nutzer-Meldung). Ursache: `clicked(bool)` landete im Parameter
+  `zimmer`. Lehre: Knöpfe in Prüfskripten immer echt anklicken (QTest.mouseClick), nicht die Methode aufrufen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

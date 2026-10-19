@@ -27,6 +27,12 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.24.1 – Korrektur
+
+* **„Zimmer hinzufügen …“ im Reiter Reinigung öffnet jetzt die Maske.** In 6.24.0 passierte beim Klick nichts.
+* Im Feld „Zimmer“ geht auch nur die Nummer („204“, „E02“), wenn es sie in genau einem Haus gibt. Sonst sagt die
+  Maske, in welchen Häusern es sie gibt.
+
 ## Neu in 6.24 – Zimmer von Hand zur Reinigung hinzufügen
 
 * **Zimmerplan → Reinigung → „Zimmer hinzufügen …“:** Zimmer zusätzlich auf die Reinigungsliste setzen,

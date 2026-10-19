@@ -1,4 +1,4 @@
-# Rückweg: von 6.24.0 zurück zu 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.24.1 zurück zu 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -33,7 +33,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.21.0** | `backup/v6.21.0` | `0ecabb6` | `INNternat_v6.21.0_Sicherung.zip` |
 | **6.22.0** | `backup/v6.22.0` | `4d178c7` | `INNternat_v6.22.0_Sicherung.zip` |
 | **6.23.0** | `backup/v6.23.0` | `ef21463` | `INNternat_v6.23.0_Sicherung.zip` |
-| **6.24.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.24.0** | `backup/v6.24.0` | `8319408` | `INNternat_v6.24.0_Sicherung.zip` |
+| **6.24.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -353,6 +354,13 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 * Ältere Versionen:
   * Sie ignorieren `reinigung_manuell.json`. Die von Hand hinzugefügten Zimmer fehlen dort auf der Liste.
   * Nach erneutem Update sind sie wieder da.
+
+**6.24.1** (seit `8319408`): Korrektur.
+* Inhalt:
+  * Knopf „Zimmer hinzufügen …“ im Reiter Reinigung: Der Klick übergab `False` als Zimmer, die Maske brach ab.
+  * Maske: nur die Nummer („204“) geht, wenn eindeutig.
+  * Test mit echtem Klick, Version 6.24.1
+* Datenformate unverändert.
 
 ## 6. Was sich geändert hat – und was nicht
 
