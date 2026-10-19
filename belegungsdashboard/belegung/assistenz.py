@@ -8,6 +8,8 @@ Beispiele (eine Zeile = ein Auftrag, mehrere Zeilen auf einmal gehen auch)::
     2-115 Heizung erledigt                    → offenen Mangel „Heizung“ als behoben markieren, Frist erledigt
     Freitag 10 Uhr Teambesprechung            → Termin im Kalender
     morgen Schlüssel 2-204 an FM übergeben    → Termin im Kalender + Notiz am Zimmer
+    Beispiel, Kai vom 1.7.25 bis 30.6.27 in 2-408 → Person einpflegen: im Zimmerplan in 2-408 eintragen
+                                                (läuft der Zeitraum schon, gleich als belegt)
 
 Erkannt wird mit festen Regeln (ohne Internet): Zimmer (wie im Zimmerplan, z. B. 6-403, 3.1-E02), Datum
 („bis 1.11.26“ = Frist, „am 3.11.“ / „morgen“ / „Freitag“ / „in 3 Tagen“ / „nächste Woche“ = Termin), Uhrzeit
@@ -19,10 +21,10 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 
-from . import maengel, speicher, termine
+from . import anreiseliste, maengel, speicher, termine
 from . import zimmerplan as zp
 
 DATEI = f"{speicher.IMPORT_ORDNER}/assistenz.json"
@@ -64,12 +66,19 @@ MANGEL_VON_SICH_AUS = {"ungeziefer", "schimmel", "grundreinigung", "renovierung"
 ERLEDIGT = re.compile(r"\b(erledigt|behoben|beseitigt|repariert|fertig|gemacht|getauscht|ausgetauscht|ok)\b", re.I)
 _ZIMMER = re.compile(r"(?<![\w.])(?:GS-)?(2|3\.1|3\.2|3\.3|6)\s*-\s*([A-Za-z]?\d{2,4})(?![\w])")
 _DATUM = re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?(?![\d])")
+# „Haus 2 Zimmer 408“ / „Haus 6, 403“ → 2-408
+_HAUS_ZIMMER = re.compile(r"\bhaus\s+(2|3\.1|3\.2|3\.3|6)\s*,?\s*(?:zimmer|zi\.?|nr\.?)?\s*([A-Za-z]?\d{2,4})\b", re.I)
+# „Nachname, Vorname(n)“ – beide groß geschrieben (so stehen Namen in allen Listen)
+_W = r"[A-ZÄÖÜ][\wäöüßÄÖÜ'’-]+"
+_NAME = re.compile(rf"(?<![\w-])({_W}(?:\s+(?:von|van|de|der|den|zu|{_W}))*)\s*,\s*({_W}(?:[ -]{_W})*)")
+EINPFLEGEN = re.compile(r"\b(einpflegen|eintragen|einbuchen|buchen|einziehen|zieht|wohnt|wohnen|belegt|anlegen|"
+                        r"einquartier|ab)\b", re.I)
 _UHR = re.compile(r"\b(?:um\s+)?(\d{1,2})(?::(\d{2}))?\s*uhr\b|\b(\d{1,2}):(\d{2})\b", re.I)
 
 
 @dataclass
 class Aktion:
-    art: str                    # termin | notiz | mangel | sperren | behoben
+    art: str                    # termin | notiz | mangel | sperren | behoben | termin_erledigt | einpflegen
     text: str                   # Anzeige in der Vorschau
     an: bool = True
     daten: dict = field(default_factory=dict)
@@ -85,6 +94,9 @@ class Verstanden:
     aufgabe: str = ""                                      # Text ohne Zimmer und Datum
     mangel: str = ""                                       # Mängel-Art aus Stichwörtern
     erledigt: bool = False
+    name: str = ""                                         # einzupflegende Person („Nachname, Vorname“)
+    von: date | None = None
+    bis: date | None = None
     hinweise: list[str] = field(default_factory=list)
     aktionen: list[Aktion] = field(default_factory=list)
 
@@ -157,6 +169,8 @@ def _zimmer(text: str, bekannt: set[str]) -> tuple[list[str], str, list[str]]:
     from .zkl import zimmer_id
 
     ids, hinweise = [], []
+    text = _HAUS_ZIMMER.sub(lambda m: f"{m.group(1)}-{m.group(2)}", text)
+    text = re.sub(r"\b(?:in\s+)?haus\s+(?=(?:2|3\.1|3\.2|3\.3|6)\s*-)", "", text, flags=re.I)
     t = text
     for m in list(_ZIMMER.finditer(text)):
         zid = zimmer_id(f"{m.group(1)}-{m.group(2)}", bekannt)
@@ -184,10 +198,61 @@ def mangel_art(text: str) -> str:
     return ""
 
 
+def _alle_daten(text: str, heute: date) -> list[date]:
+    erg = []
+    for m in _DATUM.finditer(text):
+        tag, monat, jahr = int(m.group(1)), int(m.group(2)), m.group(3)
+        try:
+            erg.append(date(int(jahr) + (2000 if len(jahr) == 2 else 0) if jahr else heute.year, monat, tag))
+        except ValueError:
+            pass
+    return erg
+
+
+def _person(text: str, heute: date) -> tuple[str, date | None, date | None, str]:
+    """(„Nachname, Vorname“, von, bis, Text ohne Name) – nur, wenn die Eingabe wirklich eine Person einpflegen will:
+    Name plus Zeitraum („vom … bis …“) oder Name plus Datum und ein Wort wie „einpflegen“, „ab“, „wohnt“."""
+    for m in _NAME.finditer(text):
+        name = f"{m.group(1).strip()}, {m.group(2).strip()}"
+        if mangel_art(name) or SCHADEN.search(name):       # „Fliegen, Tür klemmt“ ist kein Name
+            continue
+        daten = _alle_daten(text, heute)
+        if len(daten) >= 2 or (daten and EINPFLEGEN.search(text)):
+            von = daten[0]
+            bis = daten[1] if len(daten) >= 2 else None
+            return name, von, bis, (text[:m.start()] + " " + text[m.end():]).strip()
+    return "", None, None, text
+
+
+def _massnahme(text: str) -> str:
+    if (m := re.search(r"\b(GS\s+[A-Z]{2,5}\s+\d{4})\b", text)):
+        return m.group(1)
+    if re.search(r"\bmiet", text, re.I):
+        return "Miete Goslar"
+    if re.search(r"\bgast\b|\bgäste\b", text, re.I):
+        return "Gast"
+    if re.search(r"\bemr\b", text, re.I):
+        return "EMR"
+    return ""
+
+
+_FRAGEWORT = re.compile(r"^\s*(wie|wieviele?|was|wann|wer|wen|wem|welche[rsmn]?|wo|wohin|warum|weshalb|gibt es|gib|zeig|"
+                       r"zeige|liste|nenne|vergleich|prognose|auslastung|belegung|kapazität|freie?|anreisen)\b", re.I)
+
+
+def ist_frage(text: str) -> bool:
+    """Frage an die Zahlen („Wie viele Plätze sind im November frei?“) statt eines Auftrags."""
+    t = text.strip()
+    return t.endswith("?") or bool(_FRAGEWORT.match(t))
+
+
 def verstehen(eingabe: str, bekannt: set[str], heute: date | None = None) -> Verstanden:
     heute = heute or date.today()
     v = Verstanden(eingabe.strip())
     v.zimmer, rest, v.hinweise = _zimmer(v.eingabe, bekannt)
+    v.name, v.von, v.bis, ohne_name = _person(rest, heute)
+    if v.name:
+        return _einpflegen_verstehen(v, ohne_name, heute)
     v.datum, v.frist, rest = _datum(rest, heute)
     if (m := _UHR.search(rest)):
         std, minute = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
@@ -256,6 +321,121 @@ def _aktionen(v: Verstanden) -> list[Aktion]:
     return akt
 
 
+def _einpflegen_verstehen(v: Verstanden, rest: str, heute: date) -> Verstanden:
+    """Person mit Zeitraum in ein Zimmer eintragen – wie von Hand in der Zimmerkarte, nur ohne Klicken."""
+    if len(v.zimmer) != 1:
+        v.hinweise.append(f"Für {v.name} bitte genau ein Zimmer angeben, z. B. „in 2-408“." if not v.zimmer
+                          else "Bitte nur ein Zimmer angeben – eine Person wohnt in einem Zimmer.")
+        return v
+    if v.bis is not None and v.bis < v.von:
+        v.hinweise.append(f"Das Ende ({v.bis:%d.%m.%Y}) liegt vor dem Beginn ({v.von:%d.%m.%Y}).")
+        return v
+    zid = v.zimmer[0]
+    massnahme = _massnahme(rest)
+    geschlecht = "w" if re.search(r"\bfrau\b", rest, re.I) else "m" if re.search(r"\bherr\b", rest, re.I) else ""
+    gruppe = zp.gruppe_von(massnahme)
+    von, bis = zp.zeitraum(gruppe, v.von, v.bis)
+    belegt = von <= heute
+    zeit = f"{von:%d.%m.%Y} – {bis:%d.%m.%Y}" + ("" if v.bis else " (Ende angenommen)")
+    an = True
+    try:
+        st = zp.laden()
+    except Exception:                                          # noqa: BLE001 – Prüfung ist nur ein Zusatz
+        st = None
+    alt = _vorhandene_person(v.name, v.von, v.bis)
+    if alt is not None:
+        v.hinweise.append(f"{v.name} steht schon in der Personenliste (Anreise {alt.anreise:%d.%m.%Y}) – "
+                          "Zeitraum und Zimmer werden dort übernommen.")
+    if st is not None and zid in st.lage.zimmer:
+        b = zp.Bedarf("assistenz:pruefung", v.name, massnahme or gruppe, gruppe, von, bis,
+                      geschlecht or zp.geschlecht_raten(v.name))
+        ohne = {alt.schluessel} if alt is not None else set()
+        woerter = zp._namenswoerter(v.name)
+
+        def selbst(x) -> bool:                             # dieselbe Person (Gebäudeplan oder eigene Planung)
+            return bool(x.name and woerter and woerter <= zp._namenswoerter(x.name)) and x.art in ("belegt", "geplant")
+
+        schon = [x for bs in st.lage.belegungen.values() for x in bs if selbst(x) and x.von <= bis and von <= x.bis]
+        hier = [x for x in schon if x.zimmer == zid]
+        anders = [x for x in schon if x.zimmer != zid]
+        if hier:
+            x = hier[0]
+            v.hinweise.append(f"{v.name} steht schon in {_kurz(zid)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – der Zeitraum "
+                              f"wird auf {von:%d.%m.%Y} – {bis:%d.%m.%Y} gesetzt.")
+        if anders:
+            x = anders[0]
+            eigen = x.person in ohne
+            v.hinweise.append(f"{v.name} steht bisher in {_kurz(x.zimmer)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – wird nach "
+                              f"{_kurz(zid)} umgetragen." + ("" if eigen else " Bitte prüfen und zum Eintragen den Haken setzen."))
+            an = an and eigen
+        # Belegung durch die Person selbst zählt nicht als Konflikt
+        lage = replace(st.lage, belegungen={k: [x for x in bs if not selbst(x)] for k, bs in st.lage.belegungen.items()})
+        grund = zp.passt(lage, lage.zimmer[zid], b, ohne)
+        if grund:
+            v.hinweise.append(f"Achtung, {_kurz(zid)}: {grund}. Zum Eintragen trotzdem den Haken setzen.")
+            an = False
+        frei = [x for x in st.lage.belegungen.get(zid, []) if x.art == "freigabe" and x.von <= bis and von <= x.bis]
+        for x in frei:
+            v.hinweise.append(f"Laut Gebäudeplan ist {_kurz(zid)} vom {x.von:%d.%m.%Y} bis {x.bis:%d.%m.%Y} freigegeben "
+                              "(Zimmerfreigabe). Eingetragen wird durchgehend – soll das Zimmer in der Zeit frei bleiben, "
+                              f"bitte nur bis {x.von - timedelta(days=1):%d.%m.%Y} eintragen und die Rückkehr als eigene Zeile.")
+    text = (f"Einpflegen: {v.name} in {_kurz(zid)}, {zeit}, {zp.GRUPPE_LABEL.get(gruppe, gruppe)}"
+            + (" – gleich als belegt (wohnt schon dort)" if belegt else " – geplant"))
+    v.aktionen = [Aktion("einpflegen", text, an=an, daten={
+        "name": v.name, "massnahme": massnahme, "gruppe": "EMR" if gruppe == "EMR" else "Reha",
+        "anreise": v.von.isoformat(), "abreise": v.bis.isoformat() if v.bis else None, "zimmer": zid,
+        "geschlecht": geschlecht, "belegt": belegt})]
+    return v
+
+
+def _vorhandene_person(name: str, von: date, bis: date | None) -> anreiseliste.Person | None:
+    """Dieselbe Person mit überschneidendem Zeitraum (ein zweiter, getrennter Aufenthalt wird eine eigene Zeile)."""
+    personen, _ = anreiseliste.laden()
+    ende = bis or von + timedelta(days=364)
+    for p in reversed(personen):
+        p_ende = p.abreise or p.anreise + timedelta(days=364)
+        if p.name.strip().lower() == name.lower() and p.anreise <= ende and von <= p_ende:
+            return p
+    return None
+
+
+def _einpflegen(d: dict) -> dict:
+    """Person anlegen (oder die vorhandene übernehmen) und ins Zimmer eintragen. Gibt den Rückgängig-Eintrag zurück."""
+    alt = _vorhandene_person(d["name"], date.fromisoformat(d["anreise"]),
+                             date.fromisoformat(d["abreise"]) if d["abreise"] else None)
+    p = anreiseliste.Person(d["name"], d["massnahme"], date.fromisoformat(d["anreise"]), True, d["gruppe"],
+                            abreise=date.fromisoformat(d["abreise"]) if d["abreise"] else None,
+                            geschlecht=d["geschlecht"], bemerkung="über die Assistenz eingepflegt",
+                            abreise_quelle="hand" if d["abreise"] else "")
+    if alt is not None:                                    # TN-ID, Erinnerung usw. bleiben erhalten
+        p.tn_id, p.liste, p.tier = alt.tn_id, alt.liste, alt.tier
+        p.massnahme = p.massnahme or alt.massnahme
+        p.geschlecht = p.geschlecht or alt.geschlecht
+        p.bemerkung = alt.bemerkung or p.bemerkung
+        p.erinnerung_tage, p.erinnerung_kanal, p.erinnerung_id = alt.erinnerung_tage, alt.erinnerung_kanal, alt.erinnerung_id
+    zuw_alt = [z for z in zp.zuweisungen_laden() if alt is not None and z["person"] == alt.schluessel]
+    anreiseliste.person_speichern(p, alt.schluessel if alt is not None else None)
+    if alt is not None and alt.schluessel != p.schluessel:
+        zp.zuweisungen_entfernen({alt.schluessel}, "Assistenz")
+    b = next(b for b in zp.bedarf_aus_personen([p]))
+    zimmer = zp.laden().lage.zimmer[d["zimmer"]]
+    zp.zuweisungen_speichern([zp.Zuteilung(b, zimmer, "Assistenz")], "Assistenz")
+    if d["belegt"]:
+        zp.status_setzen(p.schluessel, True, "Assistenz")
+    return {"art": "einpflegen", "person": p.schluessel, "alt_person": alt.zu_dict() if alt is not None else None,
+            "alt_zuweisungen": zuw_alt}
+
+
+def _einpflegen_zuruecknehmen(r: dict) -> None:
+    zp.zuweisungen_entfernen({r["person"]}, "Assistenz rückgängig")
+    anreiseliste.person_loeschen(r["person"])
+    if r.get("alt_person"):
+        anreiseliste.person_speichern(anreiseliste.Person.aus_dict(r["alt_person"]))
+    if r.get("alt_zuweisungen"):
+        rest = [z for z in zp.zuweisungen_laden() if z["person"] not in {a["person"] for a in r["alt_zuweisungen"]}]
+        speicher.schreiben(zp.ZUWEISUNGEN, {"zuweisungen": rest + r["alt_zuweisungen"]})
+
+
 def _offene_fristen(zimmer: list[str], art: str) -> list[termine.Termin]:
     """Offene eigene Termine zu diesen Zimmern (Titel enthält die Zimmernummer) – passend zur Mängel-Art."""
     erg = []
@@ -298,6 +478,8 @@ def ausfuehren(liste: list[Verstanden], heute: date | None = None) -> dict:
                 if t is not None:
                     termine.erledigt_setzen(t, True)
                     eintrag["rueck"].append({"art": "termin_erledigt", "id": t.id})
+            elif a.art == "einpflegen":
+                eintrag["rueck"].append(_einpflegen(d))
             elif a.art == "notiz":
                 for z in d["zimmer"]:
                     n = termine.notiz_speichern(termine.Notiz(zp.zimmer_schluessel(z), f"Zimmer {_kurz(z)}",
@@ -335,6 +517,8 @@ def rueckgaengig(eintrag_id: str) -> int:
             t = next((t for t in termine.eigene() if t.id == r["id"]), None)
             if t is not None:
                 termine.erledigt_setzen(t, False)
+        elif r["art"] == "einpflegen":
+            _einpflegen_zuruecknehmen(r)
         n += 1
     e["zurueck"] = datetime.now().isoformat(timespec="seconds")
     speicher.schreiben(DATEI, {"eintraege": alle})
