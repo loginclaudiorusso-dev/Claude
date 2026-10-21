@@ -10,7 +10,10 @@ Beispiele (eine Zeile = ein Auftrag, mehrere Zeilen auf einmal gehen auch)::
     morgen Schlüssel 2-204 an FM übergeben    → Termin im Kalender + Notiz am Zimmer
     2-204 Zwischenreinigung morgen           → Zimmer auf die Reinigungsliste (+ Termin, Notiz)
     Beispiel, Kai vom 1.7.25 bis 30.6.27 in 2-408 → Person einpflegen: im Zimmerplan in 2-408 eintragen
-                                                (läuft der Zeitraum schon, gleich als belegt)
+                                                (läuft der Zeitraum schon, gleich als belegt); auch „Kai Beispiel …“
+    2-601, 2-603 Tagung Gast reserviert 25.-30.01.2027 → je Zimmer reservieren (Gast)
+    Kopfzeile „25.01.2027 – 30.01.2027 Tagung“ und darunter „2-601 Gast reserviert“, „Kai Beispiel 2-606“
+                                              → der Zeitraum der Kopfzeile gilt für die Zeilen darunter
 
 Erkannt wird mit festen Regeln (ohne Internet): Zimmer (wie im Zimmerplan, z. B. 6-403, 3.1-E02), Datum
 („bis 1.11.26“ = Frist, „am 3.11.“ / „morgen“ / „Freitag“ / „in 3 Tagen“ / „nächste Woche“ = Termin), Uhrzeit
@@ -98,6 +101,8 @@ class Verstanden:
     mangel: str = ""                                       # Mängel-Art aus Stichwörtern
     erledigt: bool = False
     name: str = ""                                         # einzupflegende Person („Nachname, Vorname“)
+    reservierung: str = ""                                 # Zimmer reservieren: Bezeichnung (z. B. Tagung)
+    kopf: bool = False                                     # Kopfzeile: Zeitraum für die Zeilen darunter
     von: date | None = None
     bis: date | None = None
     hinweise: list[str] = field(default_factory=list)
@@ -201,30 +206,110 @@ def mangel_art(text: str) -> str:
     return ""
 
 
+_SPANNE_TAG = re.compile(r"(?<![\d.])(\d{1,2})\.\s*[-–]\s*(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?(?![\d])")
+
+
 def _alle_daten(text: str, heute: date) -> list[date]:
-    erg = []
+    """Alle Datumsangaben in Reihenfolge. „25.-30.01.2027“ = zwei Daten; ohne Jahr gilt das Jahr eines späteren
+    Datums derselben Zeile („25.01. – 30.01.2027“), sonst das laufende (bzw. nächste, wenn lange vorbei)."""
+    text = _SPANNE_TAG.sub(lambda m: f"{m.group(1)}.{m.group(3)}.{m.group(4) or ''} - {m.group(2)}.{m.group(3)}."
+                                     f"{m.group(4) or ''}", text)
+    roh = []
     for m in _DATUM.finditer(text):
-        tag, monat, jahr = int(m.group(1)), int(m.group(2)), m.group(3)
+        jahr = m.group(3)
+        roh.append((int(m.group(1)), int(m.group(2)),
+                    int(jahr) + (2000 if len(jahr) == 2 else 0) if jahr else None))
+    erg = []
+    for i, (tag, monat, jahr) in enumerate(roh):
         try:
-            erg.append(date(int(jahr) + (2000 if len(jahr) == 2 else 0) if jahr else heute.year, monat, tag))
+            if jahr is None:
+                spaeter = next((j for _t, _m, j in roh[i + 1:] if j is not None), None)
+                if spaeter is not None:
+                    d = date(spaeter, monat, tag)
+                    ende = next(date(j, mo, t) for t, mo, j in roh[i + 1:] if j is not None)
+                    if d > ende:
+                        d = d.replace(year=spaeter - 1)
+                else:
+                    d = date(heute.year, monat, tag)
+                    if d < heute - timedelta(days=30):
+                        d = d.replace(year=heute.year + 1)
+            else:
+                d = date(jahr, monat, tag)
+            erg.append(d)
         except ValueError:
             pass
     return erg
 
 
-def _person(text: str, heute: date) -> tuple[str, date | None, date | None, str]:
-    """(„Nachname, Vorname“, von, bis, Text ohne Name) – nur, wenn die Eingabe wirklich eine Person einpflegen will:
-    Name plus Zeitraum („vom … bis …“) oder Name plus Datum und ein Wort wie „einpflegen“, „ab“, „wohnt“."""
-    for m in _NAME.finditer(text):
+RESERVIERUNG = re.compile(r"\b(reserv\w*|blocken|geblockt|blockier\w*|freihalten|gast|gäste\w*)\b", re.I)
+# Wörter, die kein Personenname sind (auch wenn sie groß geschrieben werden)
+_KEIN_NAME = {
+    "gast", "gäste", "gästehaus", "reserviert", "reservierung", "reservieren", "zimmer", "haus", "mieter", "mieterin",
+    "frau", "herr", "vom", "bis", "ab", "am", "von", "einpflegen", "eintragen", "buchen", "belegt", "emr", "uwt", "reha",
+    "termin", "frist", "notiz", "heute", "morgen", "übermorgen", "anreise", "abreise", "einzug", "auszug", "für",
+    "januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november",
+    "dezember", *WOCHENTAGE,
+}
+_GROSS = re.compile(r"[A-ZÄÖÜ][a-zäöüß'’-]+")
+
+
+def _woerter_ohne_daten(text: str) -> str:
+    text = _SPANNE_TAG.sub(" ", text)
+    return _DATUM.sub(" ", text)
+
+
+def _bezeichnung(text: str) -> list[str]:
+    """Groß geschriebene Wörter, die weder Stichwort noch Mangel sind – in Reihenfolge, Lücken als None."""
+    erg: list[str | None] = []
+    for wort in re.split(r"[\s,;:/()]+", _woerter_ohne_daten(text)):
+        gut = bool(_GROSS.fullmatch(wort)) and wort.lower() not in _KEIN_NAME and not mangel_art(wort) \
+            and not SCHADEN.search(wort)
+        erg.append(wort if gut else None)
+    return erg
+
+
+def _klarname(text: str) -> str:
+    """„Kai Beispiel“ / „Kai Leon Beispiel“ → „Beispiel, Kai“ / „Beispiel, Kai Leon“: zwei bis drei groß geschriebene Wörter
+    direkt hintereinander (keine Stichwörter, keine Mängel)."""
+    laeufe, lauf = [], []
+    for w in _bezeichnung(text) + [None]:
+        if w:
+            lauf.append(w)
+        else:
+            if lauf:
+                laeufe.append(lauf)
+            lauf = []
+    laeufe = [x for x in laeufe if 2 <= len(x) <= 3]
+    if len(laeufe) != 1:
+        return ""
+    *vor, nach = laeufe[0]
+    return f"{nach}, {' '.join(vor)}"
+
+
+def _person(text: str, heute: date, kontext: str = "") -> tuple[str, date | None, date | None, str, str]:
+    """(Name, von, bis, Text ohne Name, Bezeichnung einer Reservierung) – nur, wenn die Eingabe wirklich jemanden
+    einpflegen bzw. ein Zimmer reservieren will: Name oder „reserviert/Gast“ plus Zeitraum („vom … bis …“,
+    „25.-30.01.2027“) oder plus Datum und ein Wort wie „einpflegen“, „ab“. Fehlt der Zeitraum in der Zeile, gilt der
+    aus ``kontext`` (Kopfzeile darüber)."""
+    daten = _alle_daten(text, heute) or _alle_daten(kontext, heute)
+    if not daten:
+        return "", None, None, text, ""
+    if not (len(daten) >= 2 or EINPFLEGEN.search(text + " " + kontext) or RESERVIERUNG.search(text + " " + kontext)):
+        return "", None, None, text, ""
+    von, bis = daten[0], (daten[1] if len(daten) >= 2 else None)
+    for m in _NAME.finditer(text):                         # „Nachname, Vorname“
         name = f"{m.group(1).strip()}, {m.group(2).strip()}"
         if mangel_art(name) or SCHADEN.search(name):       # „Fliegen, Tür klemmt“ ist kein Name
             continue
-        daten = _alle_daten(text, heute)
-        if len(daten) >= 2 or (daten and EINPFLEGEN.search(text)):
-            von = daten[0]
-            bis = daten[1] if len(daten) >= 2 else None
-            return name, von, bis, (text[:m.start()] + " " + text[m.end():]).strip()
-    return "", None, None, text
+        return name, von, bis, (text[:m.start()] + " " + text[m.end():]).strip(), ""
+    if RESERVIERUNG.search(text):                          # „2-601 Verkehrsgerichtstag Gast reserviert“
+        return "", von, bis, text, (" ".join(w for w in _bezeichnung(text) if w)
+                                    or " ".join(w for w in _bezeichnung(kontext) if w) or "Reservierung")
+    if (name := _klarname(text)):                          # „Kai Beispiel 2-606“
+        return name, von, bis, text, ""
+    if RESERVIERUNG.search(kontext) and not [w for w in _bezeichnung(text) if w]:
+        return "", von, bis, text, " ".join(w for w in _bezeichnung(kontext) if w) or "Reservierung"
+    return "", None, None, text, ""
 
 
 def _massnahme(text: str) -> str:
@@ -249,13 +334,16 @@ def ist_frage(text: str) -> bool:
     return t.endswith("?") or bool(_FRAGEWORT.match(t))
 
 
-def verstehen(eingabe: str, bekannt: set[str], heute: date | None = None) -> Verstanden:
+def verstehen(eingabe: str, bekannt: set[str], heute: date | None = None, kontext: str = "") -> Verstanden:
+    """Eine Zeile verstehen. ``kontext``: Kopfzeile darüber (Zeitraum, „Gast“ …), gilt, wenn die Zeile selbst keinen
+    Zeitraum hat."""
     heute = heute or date.today()
     v = Verstanden(eingabe.strip())
     v.zimmer, rest, v.hinweise = _zimmer(v.eingabe, bekannt)
-    v.name, v.von, v.bis, ohne_name = _person(rest, heute)
-    if v.name:
-        return _einpflegen_verstehen(v, ohne_name, heute)
+    if v.zimmer or _NAME.search(rest):
+        v.name, v.von, v.bis, ohne_name, v.reservierung = _person(rest, heute, kontext)
+        if v.name or v.reservierung:
+            return _einpflegen_verstehen(v, ohne_name + " " + kontext, heute)
     v.datum, v.frist, rest = _datum(rest, heute)
     if (m := _UHR.search(rest)):
         std, minute = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
@@ -275,6 +363,48 @@ def verstehen(eingabe: str, bekannt: set[str], heute: date | None = None) -> Ver
         v.hinweise.append("Nichts erkannt, was sich eintragen lässt – bitte Zimmer (z. B. 6-403) und/oder ein Datum "
                           "(z. B. „bis 1.11.“, „morgen“) angeben.")
     return v
+
+
+def verstehen_alle(text: str, bekannt: set[str], heute: date | None = None) -> list[Verstanden]:
+    """Mehrere Zeilen. Eine Zeile mit Zeitraum, aber ohne Zimmer, gilt als Kopfzeile für die Zeilen darunter
+    (bis zur nächsten Kopfzeile), z. B.::
+
+        25.01.2027 – 30.01.2027 Verkehrsgerichtstag
+        2-601 Gast reserviert
+        Kai Beispiel 2-606
+
+    „ / “ trennt mehrere Aufträge in einer Zeile, wenn jeder Teil ein Zimmer hat."""
+    heute = heute or date.today()
+    zeilen: list[str] = []
+    for z in (z.strip() for z in text.splitlines()):
+        teile = [t.strip() for t in re.split(r"\s+/\s+", z) if t.strip()]
+        if len(teile) > 1 and all(_zimmer(t, bekannt)[0] for t in teile):
+            zeilen += teile
+        elif z:
+            zeilen.append(z)
+    hat_zimmer = [bool(_zimmer(z, bekannt)[0]) for z in zeilen]
+    hat_datum = [bool(_alle_daten(z, heute)) for z in zeilen]
+    erg, kontext = [], ""
+    for i, z in enumerate(zeilen):
+        if not hat_zimmer[i] and hat_datum[i] and not _NAME.search(z):
+            folgen = [j for j in range(i + 1, len(zeilen)) if hat_zimmer[j] or hat_datum[j]]
+            bis_kopf = []                                  # Zimmer-Zeilen bis zur nächsten Kopfzeile
+            for j in folgen:
+                if not hat_zimmer[j]:
+                    break
+                bis_kopf.append(j)
+            if folgen and hat_zimmer[folgen[0]] and not hat_datum[folgen[0]]:
+                kontext = z
+                v = Verstanden(z, kopf=True)
+                d = _alle_daten(z, heute)
+                zeit = f"{d[0]:%d.%m.%Y}" + (f" – {d[1]:%d.%m.%Y}" if len(d) > 1 else "")
+                v.hinweise.append(f"Kopfzeile: {zeit} gilt für die {len([j for j in bis_kopf if not hat_datum[j]])} "
+                                  "Zeile(n) darunter.")
+                erg.append(v)
+                continue
+            kontext = ""
+        erg.append(verstehen(z, bekannt, heute, kontext if hat_zimmer[i] and not hat_datum[i] else ""))
+    return erg
 
 
 def _kurz(zid: str) -> str:
@@ -336,35 +466,53 @@ def _aktionen(v: Verstanden, heute: date) -> list[Aktion]:
 
 
 def _einpflegen_verstehen(v: Verstanden, rest: str, heute: date) -> Verstanden:
-    """Person mit Zeitraum in ein Zimmer eintragen – wie von Hand in der Zimmerkarte, nur ohne Klicken."""
-    if len(v.zimmer) != 1:
-        v.hinweise.append(f"Für {v.name} bitte genau ein Zimmer angeben, z. B. „in 2-408“." if not v.zimmer
+    """Person (oder Reservierung) mit Zeitraum in Zimmer eintragen – wie von Hand in der Zimmerkarte, nur ohne Klicken.
+    Eine Person: genau ein Zimmer. Reservierung: je Zimmer ein Eintrag „Bezeichnung (Zimmer)“."""
+    wer = v.name or v.reservierung
+    if not v.zimmer or (v.name and len(v.zimmer) != 1):
+        v.hinweise.append(f"Für {wer} bitte ein Zimmer angeben, z. B. „in 2-408“." if not v.zimmer
                           else "Bitte nur ein Zimmer angeben – eine Person wohnt in einem Zimmer.")
         return v
     if v.bis is not None and v.bis < v.von:
         v.hinweise.append(f"Das Ende ({v.bis:%d.%m.%Y}) liegt vor dem Beginn ({v.von:%d.%m.%Y}).")
         return v
-    zid = v.zimmer[0]
     massnahme = _massnahme(rest)
+    if v.reservierung and not massnahme:
+        massnahme = "Gast"
+    if v.reservierung and "reserv" not in massnahme.lower():
+        massnahme += " reserviert"
     geschlecht = "w" if re.search(r"\bfrau\b", rest, re.I) else "m" if re.search(r"\bherr\b", rest, re.I) else ""
+    try:
+        st = zp.laden()
+    except Exception:                                          # noqa: BLE001 – Prüfung ist nur ein Zusatz
+        st = None
+    if not massnahme and st is not None and all(
+            zid in st.lage.zimmer and not zp.erlaubt(st.lage.zimmer[zid], "Reha") and zp.erlaubt(st.lage.zimmer[zid], "Gast")
+            for zid in v.zimmer):
+        massnahme = "Gast"                                     # Gästezimmer: ohne Angabe als Gast
+        v.hinweise.append("Gästezimmer – ohne andere Angabe als Gast eingetragen.")
+    for zid in v.zimmer:
+        name = v.name or f"{v.reservierung} ({_kurz(zid)})"
+        v.aktionen.append(_einpflegen_aktion(v, zid, name, massnahme, geschlecht, heute, st))
+    return v
+
+
+def _einpflegen_aktion(v: Verstanden, zid: str, name: str, massnahme: str, geschlecht: str, heute: date,
+                       st) -> Aktion:
     gruppe = zp.gruppe_von(massnahme)
     von, bis = zp.zeitraum(gruppe, v.von, v.bis)
     belegt = von <= heute
     zeit = f"{von:%d.%m.%Y} – {bis:%d.%m.%Y}" + ("" if v.bis else " (Ende angenommen)")
     an = True
-    try:
-        st = zp.laden()
-    except Exception:                                          # noqa: BLE001 – Prüfung ist nur ein Zusatz
-        st = None
-    alt = _vorhandene_person(v.name, v.von, v.bis)
+    alt = _vorhandene_person(name, v.von, v.bis)
     if alt is not None:
-        v.hinweise.append(f"{v.name} steht schon in der Personenliste (Anreise {alt.anreise:%d.%m.%Y}) – "
+        v.hinweise.append(f"{name} steht schon in der Personenliste (Anreise {alt.anreise:%d.%m.%Y}) – "
                           "Zeitraum und Zimmer werden dort übernommen.")
     if st is not None and zid in st.lage.zimmer:
-        b = zp.Bedarf("assistenz:pruefung", v.name, massnahme or gruppe, gruppe, von, bis,
-                      geschlecht or zp.geschlecht_raten(v.name))
+        b = zp.Bedarf("assistenz:pruefung", name, massnahme or gruppe, gruppe, von, bis,
+                      geschlecht or ("" if v.reservierung else zp.geschlecht_raten(name)))
         ohne = {alt.schluessel} if alt is not None else set()
-        woerter = zp._namenswoerter(v.name)
+        woerter = zp._namenswoerter(name)
 
         def selbst(x) -> bool:                             # dieselbe Person (Gebäudeplan oder eigene Planung)
             return bool(x.name and woerter and woerter <= zp._namenswoerter(x.name)) and x.art in ("belegt", "geplant")
@@ -374,12 +522,12 @@ def _einpflegen_verstehen(v: Verstanden, rest: str, heute: date) -> Verstanden:
         anders = [x for x in schon if x.zimmer != zid]
         if hier:
             x = hier[0]
-            v.hinweise.append(f"{v.name} steht schon in {_kurz(zid)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – der Zeitraum "
+            v.hinweise.append(f"{name} steht schon in {_kurz(zid)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – der Zeitraum "
                               f"wird auf {von:%d.%m.%Y} – {bis:%d.%m.%Y} gesetzt.")
         if anders:
             x = anders[0]
             eigen = x.person in ohne
-            v.hinweise.append(f"{v.name} steht bisher in {_kurz(x.zimmer)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – wird nach "
+            v.hinweise.append(f"{name} steht bisher in {_kurz(x.zimmer)} ({x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}) – wird nach "
                               f"{_kurz(zid)} umgetragen." + ("" if eigen else " Bitte prüfen und zum Eintragen den Haken setzen."))
             an = an and eigen
         # Belegung durch die Person selbst zählt nicht als Konflikt
@@ -393,13 +541,13 @@ def _einpflegen_verstehen(v: Verstanden, rest: str, heute: date) -> Verstanden:
             v.hinweise.append(f"Laut Gebäudeplan ist {_kurz(zid)} vom {x.von:%d.%m.%Y} bis {x.bis:%d.%m.%Y} freigegeben "
                               "(Zimmerfreigabe). Eingetragen wird durchgehend – soll das Zimmer in der Zeit frei bleiben, "
                               f"bitte nur bis {x.von - timedelta(days=1):%d.%m.%Y} eintragen und die Rückkehr als eigene Zeile.")
-    text = (f"Einpflegen: {v.name} in {_kurz(zid)}, {zeit}, {zp.GRUPPE_LABEL.get(gruppe, gruppe)}"
+    was = "Reservieren" if v.reservierung else "Einpflegen"
+    text = (f"{was}: {name} in {_kurz(zid)}, {zeit}, {zp.GRUPPE_LABEL.get(gruppe, gruppe)}"
             + (" – gleich als belegt (wohnt schon dort)" if belegt else " – geplant"))
-    v.aktionen = [Aktion("einpflegen", text, an=an, daten={
-        "name": v.name, "massnahme": massnahme, "gruppe": "EMR" if gruppe == "EMR" else "Reha",
+    return Aktion("einpflegen", text, an=an, daten={
+        "name": name, "massnahme": massnahme, "gruppe": "EMR" if gruppe == "EMR" else "Reha",
         "anreise": v.von.isoformat(), "abreise": v.bis.isoformat() if v.bis else None, "zimmer": zid,
-        "geschlecht": geschlecht, "belegt": belegt})]
-    return v
+        "geschlecht": geschlecht, "belegt": belegt})
 
 
 def _vorhandene_person(name: str, von: date, bis: date | None) -> anreiseliste.Person | None:
