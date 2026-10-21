@@ -27,6 +27,25 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.25 – Assistenz bucht Reservierungen und Gäste
+
+* **Vorher wurde aus solchen Eingaben nur ein Termin oder eine Notiz.** Jetzt kommen sie in den Zimmerplan:
+  * **Kopfzeile mit Zeitraum:** Eine Zeile nur mit Zeitraum (ohne Zimmer) gilt für die Zeilen darunter, bis zur
+    nächsten Kopfzeile. Beispiel:
+    ```
+    25.01.2027 – 30.01.2027 Verkehrsgerichtstag
+    2-601 Gast reserviert
+    2-603 Gast reserviert
+    ```
+  * **Reservieren:** „2-601 Tagung Gast reserviert 25.-30.01.2027“ trägt das Zimmer als Gast ein, Name
+    „Tagung (2-601)“. Mehrere Zimmer in einer Zeile gehen auch („2-601, 2-603 …“).
+  * **Namen auch als „Vorname Nachname“:** „Kai Beispiel 2-606“ wird „Beispiel, Kai“. Mehrere Personen in einer
+    Zeile trennt „ / “.
+  * **Zeiträume:** auch „25.-30.01.2027“ und „25.01. – 30.01.2027“. Das Jahr kommt vom zweiten Datum.
+  * **Gästezimmer:** Ohne andere Angabe wird dort als Gast eingetragen, nicht als Reha.
+* Was schon falsch als Termin oder Notiz eingetragen wurde, lässt sich unter „Zuletzt erledigt“ mit „Rückgängig“
+  entfernen. Danach die Zeilen noch einmal eingeben.
+
 ## Neu in 6.24.1 – Korrektur
 
 * **„Zimmer hinzufügen …“ im Reiter Reinigung öffnet jetzt die Maske.** In 6.24.0 passierte beim Klick nichts.

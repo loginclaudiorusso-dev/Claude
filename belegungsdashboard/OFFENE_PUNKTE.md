@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.24.1, 19.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.25.0, 21.10.2026)
 
 ## Als Nächstes
 
@@ -96,6 +96,13 @@
   * Wiederkehrende Reinigungen: vom Nutzer nicht gewünscht (19.10.).
 - 6.24.1: „Zimmer hinzufügen …“ ging nicht (Nutzer-Meldung). Ursache: `clicked(bool)` landete im Parameter
   `zimmer`. Lehre: Knöpfe in Prüfskripten immer echt anklicken (QTest.mouseClick), nicht die Methode aufrufen.
+- 6.25: Nutzer-Meldung 21.10.: Gäste und Reservierungen über die Assistenz wurden nur Termine/Notizen. Ursachen:
+  Kopfzeile mit Zeitraum galt nicht für die Zeilen darunter, „Vorname Nachname“ und „Gast reserviert“ ohne Namen
+  wurden nicht erkannt, „25.01. – 30.01.2027“ wurde als ein Datum gelesen. Behoben.
+  * Offen: Die bisher falsch angelegten Termine/Notizen muss der Nutzer per „Rückgängig“ entfernen und die Zeilen
+    neu eingeben.
+  * Offen/zu entscheiden: Reservierungen heißen „Bezeichnung (Zimmer)“, weil sonst alle Zimmer einer Tagung dieselbe
+    Person wären. Andere Benennung gewünscht?
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
