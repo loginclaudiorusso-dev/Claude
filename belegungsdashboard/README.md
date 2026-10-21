@@ -27,6 +27,15 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.25.1 – Assistenz: auch nur Zimmernummern und kleine Namen
+
+* **Nur die Zimmernummer unter einer Kopfzeile** („2-603“) bucht das Zimmer für den Zeitraum der Kopfzeile, mit
+  deren Bezeichnung („Verkehrsgerichtstag (2-603)“).
+* **Namen auch klein geschrieben:** „kai beispiel 2-606“ wird „Beispiel, Kai“. Zusätze wie „und co“ stören nicht.
+  Zeilen mit einer Aufgabe („schlüssel an fm übergeben“) bleiben Aufgaben.
+* **„ / “ mit Zeitraum am Ende:** „Kai Beispiel 2-606 / Lena Probe 2-607 19.12.-02.01.2027“ gilt für beide.
+  „Tagung 25.-30.01.: 2-601 / 2-603“ bleibt eine Zeile mit zwei Zimmern.
+
 ## Neu in 6.25 – Assistenz bucht Reservierungen und Gäste
 
 * **Vorher wurde aus solchen Eingaben nur ein Termin oder eine Notiz.** Jetzt kommen sie in den Zimmerplan:

@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.25.0, 21.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.25.1, 21.10.2026)
 
 ## Als Nächstes
 
@@ -101,8 +101,11 @@
   wurden nicht erkannt, „25.01. – 30.01.2027“ wurde als ein Datum gelesen. Behoben.
   * Offen: Die bisher falsch angelegten Termine/Notizen muss der Nutzer per „Rückgängig“ entfernen und die Zeilen
     neu eingeben.
-  * Offen/zu entscheiden: Reservierungen heißen „Bezeichnung (Zimmer)“, weil sonst alle Zimmer einer Tagung dieselbe
-    Person wären. Andere Benennung gewünscht?
+  * Reservierungen heißen „Bezeichnung (Zimmer)“. Die Bezeichnung ist beim Nutzer nur ein Platzhalter für Reservierungen
+    über das Kundenmanagement – passt so (21.10.).
+- 6.25.1: Nutzer-Meldung 21.10.: noch immer nicht im Zeitstrahl. Ursachen: Zeilen nur mit Zimmernummer unter der
+  Kopfzeile und klein geschriebene Namen wurden nicht gebucht. Behoben; im Zeitstrahl Januar 2027 mit echten Klicks
+  geprüft. Falls es beim Nutzer weiter hakt: genaue Eingabe (Text aus „Zuletzt erledigt“) erfragen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
