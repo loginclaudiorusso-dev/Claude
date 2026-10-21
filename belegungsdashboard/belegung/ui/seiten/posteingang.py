@@ -281,7 +281,8 @@ class PosteingangSeite(Seite):
         verstehen.clicked.connect(self._verstehen)
         z.addWidget(verstehen)
         hilfe = label("Strg+Enter · „bis …“ = Frist, „am …“/„morgen“ = Termin · „erledigt“ hakt ab · "
-                      "„Name, Vorname vom … bis … in 2-408“ pflegt ein", "klein", umbruch=True)
+                      "„Name, Vorname vom … bis … in 2-408“ pflegt ein · „2-601 Gast reserviert 25.-30.01.2027“ "
+                      "reserviert · eine Zeile nur mit Zeitraum gilt für die Zeilen darunter", "klein", umbruch=True)
         z.addWidget(hilfe, 1)
         z.addStretch()
         k.inhalt.addLayout(z)
@@ -326,9 +327,9 @@ class PosteingangSeite(Seite):
         if not zeilen:
             return
         bekannt = {z.id for z in zp.laden().zimmer}
-        verstanden = [assistenz.verstehen(z, bekannt) for z in zeilen]
+        verstanden = assistenz.verstehen_alle("\n".join(zeilen), bekannt)
         # Fragen an die Zahlen gehen an „Fragen & Zahlen“, Aufträge bleiben hier
-        fragen = [v.eingabe for v in verstanden if assistenz.ist_frage(v.eingabe) and not v.name]
+        fragen = [v.eingabe for v in verstanden if assistenz.ist_frage(v.eingabe) and not (v.name or v.reservierung or v.kopf)]
         self._verstanden = [v for v in verstanden if v.eingabe not in fragen]
         if fragen:
             self.eingabe.setPlainText("\n".join(v.eingabe for v in self._verstanden))
@@ -348,6 +349,8 @@ class PosteingangSeite(Seite):
             teile = [f"<b>{v.eingabe}</b>"]
             if v.name:
                 teile.append(f"Person {v.name}")
+            elif v.reservierung:
+                teile.append(f"Reservierung {v.reservierung}")
             if v.zimmer:
                 teile.append("Zimmer " + ", ".join(zid.removeprefix("GS-") for zid in v.zimmer))
             if v.datum:
@@ -358,7 +361,7 @@ class PosteingangSeite(Seite):
             kopf.setTextFormat(Qt.RichText)
             box.addWidget(kopf)
             for h in v.hinweise:
-                box.addWidget(Hinweis(h, "warnung"))
+                box.addWidget(label(h, "klein", umbruch=True) if v.kopf else Hinweis(h, "warnung"))
             for a in v.aktionen:
                 cb = QCheckBox(a.text)
                 cb.setChecked(a.an)
