@@ -249,8 +249,13 @@ _KEIN_NAME = {
     "termin", "frist", "notiz", "heute", "morgen", "übermorgen", "anreise", "abreise", "einzug", "auszug", "für",
     "januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november",
     "dezember", *WOCHENTAGE,
+    "und", "co", "mit", "ohne", "der", "die", "das", "den", "dem", "ein", "eine", "einen", "im", "in", "zu", "zum", "zur",
+    "auf", "noch", "auch", "wird", "werden", "kommt", "kommen", "ist", "sind", "bitte", "nur", "alle", "plus", "sowie",
+    "einzel", "doppel", "einzelzimmer", "doppelzimmer", "nacht", "nächte", "tag", "tage", "woche", "wochen",
+    "an", "bei", "nach", "vor", "über", "fm", "hausmeister", "besprechung", "treffen", "info", "infos",
 }
 _GROSS = re.compile(r"[A-ZÄÖÜ][a-zäöüß'’-]+")
+_WORT = re.compile(r"[A-Za-zÄÖÜäöüß][a-zäöüß'’-]+|[A-ZÄÖÜ][A-ZÄÖÜa-zäöüß'’-]+")
 
 
 def _woerter_ohne_daten(text: str) -> str:
@@ -258,32 +263,43 @@ def _woerter_ohne_daten(text: str) -> str:
     return _DATUM.sub(" ", text)
 
 
-def _bezeichnung(text: str) -> list[str]:
-    """Groß geschriebene Wörter, die weder Stichwort noch Mangel sind – in Reihenfolge, Lücken als None."""
+def _bezeichnung(text: str, gross: bool = True) -> list[str | None]:
+    """Wörter, die weder Stichwort noch Mangel/Aufgabe sind – in Reihenfolge, Lücken als None.
+    ``gross``: nur groß geschriebene (sonst auch „kai beispiel“)."""
     erg: list[str | None] = []
     for wort in re.split(r"[\s,;:/()]+", _woerter_ohne_daten(text)):
-        gut = bool(_GROSS.fullmatch(wort)) and wort.lower() not in _KEIN_NAME and not mangel_art(wort) \
-            and not SCHADEN.search(wort)
+        form = _GROSS if gross else _WORT
+        gut = bool(form.fullmatch(wort)) and wort.lower() not in _KEIN_NAME and not mangel_art(wort) \
+            and not SCHADEN.search(wort) and not REINIGUNG.search(wort) and not ERLEDIGT.search(wort)
         erg.append(wort if gut else None)
     return erg
 
 
-def _klarname(text: str) -> str:
-    """„Kai Beispiel“ / „Kai Leon Beispiel“ → „Beispiel, Kai“ / „Beispiel, Kai Leon“: zwei bis drei groß geschriebene Wörter
-    direkt hintereinander (keine Stichwörter, keine Mängel)."""
-    laeufe, lauf = [], []
-    for w in _bezeichnung(text) + [None]:
-        if w:
-            lauf.append(w)
-        else:
-            if lauf:
-                laeufe.append(lauf)
-            lauf = []
-    laeufe = [x for x in laeufe if 2 <= len(x) <= 3]
-    if len(laeufe) != 1:
-        return ""
-    *vor, nach = laeufe[0]
-    return f"{nach}, {' '.join(vor)}"
+def _gross(wort: str) -> str:
+    return wort[:1].upper() + wort[1:] if wort.islower() else wort
+
+
+def _klarname(text: str, nur_gross: bool = False) -> str:
+    """„Kai Beispiel“ / „kai beispiel“ / „Kai Leon Beispiel“ → „Beispiel, Kai“ / „Beispiel, Kai Leon“: zwei bis drei
+    Wörter direkt hintereinander (keine Stichwörter, keine Mängel/Aufgaben). Kleinschreibung wird angepasst."""
+    for gross in ((True,) if nur_gross else (True, False)):
+        laeufe, lauf = [], []
+        for w in _bezeichnung(text, gross) + [None]:
+            if w:
+                lauf.append(_gross(w))
+            else:
+                if lauf:
+                    laeufe.append(lauf)
+                lauf = []
+        laeufe = [x for x in laeufe if 2 <= len(x) <= 3]
+        if len(laeufe) == 1:
+            *vor, nach = laeufe[0]
+            return f"{nach}, {' '.join(vor)}"
+    return ""
+
+
+def _label(text: str) -> str:
+    return " ".join(_gross(w) if w.islower() else w for w in _bezeichnung(text, gross=False) if w)
 
 
 def _person(text: str, heute: date, kontext: str = "") -> tuple[str, date | None, date | None, str, str]:
@@ -303,12 +319,14 @@ def _person(text: str, heute: date, kontext: str = "") -> tuple[str, date | None
             continue
         return name, von, bis, (text[:m.start()] + " " + text[m.end():]).strip(), ""
     if RESERVIERUNG.search(text):                          # „2-601 Verkehrsgerichtstag Gast reserviert“
-        return "", von, bis, text, (" ".join(w for w in _bezeichnung(text) if w)
-                                    or " ".join(w for w in _bezeichnung(kontext) if w) or "Reservierung")
-    if (name := _klarname(text)):                          # „Kai Beispiel 2-606“
+        return "", von, bis, text, _label(text) or _label(kontext) or "Reservierung"
+    aufgabe = bool(mangel_art(text) or SCHADEN.search(text) or REINIGUNG.search(text) or ERLEDIGT.search(text)
+                   or _UHR.search(text))
+    if (name := _klarname(text, nur_gross=aufgabe)):       # „Kai Beispiel 2-606“, ohne Aufgabe auch „kai beispiel“
         return name, von, bis, text, ""
-    if RESERVIERUNG.search(kontext) and not [w for w in _bezeichnung(text) if w]:
-        return "", von, bis, text, " ".join(w for w in _bezeichnung(kontext) if w) or "Reservierung"
+    # Zimmer mit Zeitraum, aber ohne Aufgabe/Mangel („2-603“ unter einer Kopfzeile): Zimmer für die Kopfzeile buchen
+    if not aufgabe and (len(daten) >= 2 or RESERVIERUNG.search(kontext)):
+        return "", von, bis, text, _label(text) or _label(kontext) or "Reservierung"
     return "", None, None, text, ""
 
 
@@ -376,12 +394,17 @@ def verstehen_alle(text: str, bekannt: set[str], heute: date | None = None) -> l
     „ / “ trennt mehrere Aufträge in einer Zeile, wenn jeder Teil ein Zimmer hat."""
     heute = heute or date.today()
     zeilen: list[str] = []
+    zeile_kontext: list[str] = []                          # ganze Zeile, wenn sie an „ / “ getrennt wurde
     for z in (z.strip() for z in text.splitlines()):
         teile = [t.strip() for t in re.split(r"\s+/\s+", z) if t.strip()]
-        if len(teile) > 1 and all(_zimmer(t, bekannt)[0] for t in teile):
+        # nur trennen, wenn jeder Teil ein Zimmer und mehr als das hat („Kai Beispiel 2-606 / Lena Probe 2-607“);
+        # „Tagung 25.-30.01.: 2-601 / 2-603“ bleibt eine Zeile mit mehreren Zimmern
+        if len(teile) > 1 and all(_zimmer(t, bekannt)[0] and _zimmer(t, bekannt)[1].strip(" ,;:-") for t in teile):
             zeilen += teile
+            zeile_kontext += [z] * len(teile)              # Zeitraum am Zeilenende gilt für alle Teile
         elif z:
             zeilen.append(z)
+            zeile_kontext.append("")
     hat_zimmer = [bool(_zimmer(z, bekannt)[0]) for z in zeilen]
     hat_datum = [bool(_alle_daten(z, heute)) for z in zeilen]
     erg, kontext = [], ""
@@ -403,7 +426,9 @@ def verstehen_alle(text: str, bekannt: set[str], heute: date | None = None) -> l
                 erg.append(v)
                 continue
             kontext = ""
-        erg.append(verstehen(z, bekannt, heute, kontext if hat_zimmer[i] and not hat_datum[i] else ""))
+        k = zeile_kontext[i] if zeile_kontext[i] and not hat_datum[i] and _alle_daten(zeile_kontext[i], heute) else \
+            (kontext if hat_zimmer[i] and not hat_datum[i] else "")
+        erg.append(verstehen(z, bekannt, heute, k))
     return erg
 
 

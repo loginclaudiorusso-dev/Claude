@@ -171,3 +171,25 @@ def test_keine_falschen_namen(stand):
         assert not v.name and not v.reservierung, text
     assert not assistenz._klarname("Verkehrsgerichtstag Gast reserviert")
     assert assistenz._klarname("Lena Marie Testfall") == "Testfall, Lena Marie"
+
+
+def test_nur_zimmer_kleinschreibung_und_zeitraum_am_ende(stand):
+    """6.25.1: „2-603“ allein unter einer Kopfzeile, „kai beispiel“ klein geschrieben, „… / … 19.12.-02.01.2027“."""
+    from belegung import assistenz
+
+    bekannt, frei = stand
+    a, b = (z.id.removeprefix("GS-") for z in frei[:2])
+    vs = assistenz.verstehen_alle(f"25.01.2027 - 30.01.2027 Tagung\n{a}\n{b}", bekannt, HEUTE)
+    assert [v.reservierung for v in vs[1:]] == ["Tagung", "Tagung"]
+    assert [v.aktionen[0].daten["name"] for v in vs[1:]] == [f"Tagung ({a})", f"Tagung ({b})"]
+    vs = assistenz.verstehen_alle(f"19.12.2026 bis 02.01.2027\nkai beispiel und co {a}\nlena probe {b}", bekannt, HEUTE)
+    assert [v.name for v in vs[1:]] == ["Beispiel, Kai", "Probe, Lena"]
+    vs = assistenz.verstehen_alle(f"kai beispiel {a} / lena probe {b} 19.12.-02.01.2027", bekannt, HEUTE)
+    assert [(v.name, v.von, v.bis) for v in vs] == [("Beispiel, Kai", date(2026, 12, 19), date(2027, 1, 2)),
+                                                    ("Probe, Lena", date(2026, 12, 19), date(2027, 1, 2))]
+    v = assistenz.verstehen_alle(f"Tagung 25.-30.01.2027: {a} / {b}", bekannt, HEUTE)
+    assert len(v) == 1 and len(v[0].aktionen) == 2                                # eine Zeile, zwei Zimmer
+    # Aufgaben bleiben Aufgaben, auch klein geschrieben und mit Zeitraum
+    for text in (f"{a} schlüssel an fm übergeben 1.-3.11.", f"{a} fliegen beseitigen bis 1.11.26"):
+        v = assistenz.verstehen(text, bekannt, HEUTE)
+        assert not v.name and not v.reservierung, text
