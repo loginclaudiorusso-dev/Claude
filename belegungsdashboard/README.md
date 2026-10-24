@@ -27,6 +27,15 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.27.2 – Korrektur: Umzüge im Gebäudeplan-Abgleich
+
+* **Keine falsche „Doppelbelegung“ mehr nach einem Umzug im Programm.** Beispiel: Im Programm ist jemand von 3.1-E24
+  nach 3.1-211 umgezogen, der neue Gebäudeplan zeigt ihn aber noch in E24, weil der Umzug im Belegungssystem noch
+  nicht nachgetragen ist. Dann galt E24 fälschlich als belegt, und wer danach dort eingeplant war, stand als
+  „Doppelbelegung“ da.
+* Solche Umzüge erscheinen jetzt als „anderes Zimmer … (Umzug im Programm)“ mit dem Hinweis „Umzug im Programm
+  bleibt – im Belegungssystem nachtragen“. Vorher stand dort fälschlich „bisheriger Gebäudeplan“.
+
 ## Neu in 6.27.1 – Gebäudeplan-Prüfung: eindeutige Begriffe
 
 * Die Maske erklärt oben genau, was verglichen wird – mit Dateiname und Stand:

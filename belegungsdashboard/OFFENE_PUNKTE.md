@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.27.1, 24.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.27.2, 24.10.2026)
 
 ## Als Nächstes
 
@@ -125,6 +125,10 @@
   „Neuer Gebäudeplan“ (Datei, Stand) vs. „Zimmerplan jetzt“ (bisheriger Gebäudeplan + eigene Einträge), beides mit
   Dateiname/Stand erklärt. Blockschulplan 2026/27 (Nutzer-Upload 24.10.) war schon importiert und geprüft – alle Blöcke
   stimmen; keine Änderung nötig.
+- 6.27.2: Nutzer-Meldung: Doppelbelegung gemeldet, obwohl die Person aus dem Gebäudeplan laut Zimmerplan in ein
+  anderes Zimmer gezogen ist. Ursache: Die Doppelbelegungs-Prüfung sah nur den neuen Gebäudeplan, nicht die Umzüge im
+  Programm. Mit Datenkopie nachgestellt (Umzug + Plan vom 03.10.) und behoben. Falls es beim Nutzer anders lag
+  (z. B. neuerer Plan zeigt die Person wirklich im alten Zimmer): Gebäudeplan-Datei erfragen.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
