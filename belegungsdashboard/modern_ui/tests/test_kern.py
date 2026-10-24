@@ -103,3 +103,15 @@ def test_karten_spaeter_und_automatisch_oeffnen(leute):
     assert anr.id in {k.id for k in kern.karten(zp.laden(), leute + timedelta(days=1))}
     kern.ausfuehren(anr.aktion.schluessel, leute)
     assert not any(k.id.startswith("anreise:") for k in kern.karten(zp.laden(), leute + timedelta(days=1)))
+
+
+def test_symbol_je_aufgabentyp_und_willkommen():
+    from modern import kern
+
+    assert kern.symbol("anreise:2026-10-26") == "flight_land"
+    assert kern.symbol("reinigung_dringend") == "cleaning_services"
+    assert kern.symbol("engpass_emr") == "trending_down"
+    assert kern.symbol("unbekannt") == "task_alt"
+    assert kern.willkommen_zeigen()
+    kern.willkommen_weg()
+    assert not kern.willkommen_zeigen()

@@ -429,3 +429,25 @@ def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 1
     t = np_.tiefst
     return NachPlanung(zeilen, (t.text, t.gesamt, t.stufe("gesamt")) if t else None, np_.offen, np_.ohne_platz)
 
+
+SYMBOL = {"anreise": "flight_land", "konflikte": "warning", "unbewohnbar": "report", "eintragen": "edit_note",
+          "reinigung": "cleaning_services", "abreisen": "flight_takeoff", "facility": "electrical_services",
+          "maengel": "build", "engpass": "trending_down", "termin": "event", "mail": "mail", "posteingang": "mail",
+          "mieterende": "key", "gebaeudeplan": "description", "umzug": "swap_horiz", "n": "campaign"}
+
+
+def symbol(kid: str) -> str:
+    """Kleines Symbol je Aufgabentyp (aus der Kennung, z. B. „anreise:2026-10-26“, „reinigung_dringend“)."""
+    art = kid.split(":")[0].split("_")[0]
+    return SYMBOL.get(art, "task_alt")
+
+
+def willkommen_zeigen() -> bool:
+    return not speicher.lesen(ZUSTAND, {}).get("willkommen_gesehen")
+
+
+def willkommen_weg() -> None:
+    roh = speicher.lesen(ZUSTAND, {})
+    roh["willkommen_gesehen"] = True
+    speicher.schreiben(ZUSTAND, roh)
+

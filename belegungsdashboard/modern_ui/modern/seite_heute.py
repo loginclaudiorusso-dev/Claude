@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from nicegui import ui
+from nicegui import run, ui
 
 from .kern import WT, kurz
 from .ui_bausteine import attr, kennzahlen, knopf, leer
@@ -20,6 +20,7 @@ class Tag:
     reinigung: tuple = (0, 0)                            # (eilig, offen heute)
     neuigkeiten: list = field(default_factory=list)     # (Zeit-Text, Text, Art)
     np: object = None                                    # kern.NachPlanung
+    willkommen: bool = False                             # „Erste Schritte“ zeigen (bis „Verstanden“)
 
 
 def tag_daten(stand, heute: date) -> Tag:
@@ -47,6 +48,9 @@ def daten(a) -> None:
     from .kern import nach_planung
 
     a.daten = tag_daten(a.stand, a.heute)
+    from .kern import willkommen_zeigen
+
+    a.daten.willkommen = willkommen_zeigen()
     try:
         a.daten.np = nach_planung(a.stand, a.heute, 12)
     except Exception:                          # noqa: BLE001 – Anzeige darf Heute nie blockieren
@@ -83,6 +87,8 @@ def zeichnen(a) -> None:
                                          "belegt": "Klick: Zimmer-Übersicht", "gesperrt": "Klick: Zimmer-Übersicht"})
         ui.label(f"{wt}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
     with a.inhalt:
+        if t.willkommen:
+            _willkommen(a)
         with ui.element("div").classes("m-heute"):
             with ui.element("section").classes("m-heute-links"):
                 ui.label("Zu tun").classes("m-btitel")
@@ -160,3 +166,39 @@ def _defekte(a):
 
     aktiv = {z.id for z in a.stand.zimmer if z.aktiv}
     return [zid for zid in mg.offen_je_zimmer() if zid in aktiv]
+
+
+SCHRITTE = [
+    ("today", "Hier beginnt der Tag", "Links stehen die Aufgaben – der farbige Knopf löst sie mit einem Klick, „Später“ verschiebt "
+                                      "auf morgen. Rot umrandet = dringend."),
+    ("ads_click", "Zahlen sind Knöpfe", "Die Kacheln oben (frei, belegt, ohne Zimmer …) führen direkt zu den Zimmern oder filtern."),
+    ("meeting_room", "Zimmer zuteilen", "Unter „Anreisen“ das Zimmer in der Zeile wählen – grün ist der passende Vorschlag. "
+                                        "Gespeichert wird sofort."),
+    ("undo", "Nichts kann schiefgehen", "Jede Änderung lässt sich mit „Rückgängig“ (unten im Hinweis) oder Strg+Z zurücknehmen."),
+    ("search", "Alles finden", "Strg+K sucht Personen, Zimmer und Seiten."),
+]
+
+
+def _willkommen(a) -> None:
+    from .kern import willkommen_weg
+
+    box = ui.element("section").classes("m-willkommen")
+    with box:
+        with ui.element("div").classes("m-w-kopf"):
+            ui.icon("waving_hand").classes("m-w-gruss")
+            with ui.element("div"):
+                ui.label("Willkommen – so funktioniert die neue Oberfläche").classes("m-btitel")
+                ui.label("Fünf Dinge, dann kennen Sie alles Wichtige.").classes("m-ptext")
+
+            async def weg():
+                await run.io_bound(willkommen_weg)
+                box.delete()
+
+            knopf("Verstanden", weg, "primaer", "check").style("margin-left:auto")
+        with ui.element("div").classes("m-w-schritte"):
+            for i, (icon, titel, text) in enumerate(SCHRITTE, 1):
+                with ui.element("div").classes("m-w-schritt"):
+                    with ui.element("span").classes("m-w-nr"):
+                        ui.icon(icon)
+                    ui.label(f"{i}. {titel}").classes("m-name")
+                    ui.label(text).classes("m-ptext")
