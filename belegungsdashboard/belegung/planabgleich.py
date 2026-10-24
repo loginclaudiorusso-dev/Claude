@@ -12,10 +12,13 @@ Unterschiede (je Person und Zimmer):
   Belegungssystem meist noch nicht)
 * **neu**      – im neuen Gebäudeplan, im System noch nicht
 * **konflikt** – unsere Planung hat jemanden in einem Zimmer, das laut neuem Gebäudeplan voll (oder gesperrt) ist
+* **sperre** / **freigabe** – Sperrung bzw. Zimmerfreigabe ist neu, entfällt oder hat einen anderen Zeitraum
+  (verglichen mit dem bisherigen Gebäudeplan; nur zur Information, der neue Plan gilt)
 
-Bei Unterschieden zur eigenen Planung entscheidet man, wer Vorrang hat (``WAHL``). ``anwenden`` setzt die
-Entscheidungen um: ``vorrang`` an der Zuweisung („planung“ = unsere Planung gilt, auch gegen den Gebäudeplan;
-„plan“ = der Gebäudeplan gilt) oder Planung entfernen. Rein, ohne Qt.
+„Eigener Eintrag“ heißt: im Programm geplant (Zuteilen, Assistenz, Mieter) – nicht aus dem Gebäudeplan. Bei
+Unterschieden zu eigenen Einträgen entscheidet man, was gelten soll (``optionen_fuer``). ``anwenden`` setzt das um:
+``vorrang`` an der Zuweisung („planung“ = eigener Eintrag gilt, auch gegen den Gebäudeplan; „plan“ = der Gebäudeplan
+gilt) oder den eigenen Eintrag löschen. Rein, ohne Qt.
 """
 
 from __future__ import annotations
@@ -30,14 +33,38 @@ from .gebaeudeplan import Belegung
 TOLERANZ = timedelta(days=3)        # An-/Abreise im Gebäudeplan weicht oft ein paar Tage ab
 
 ART_TEXT = {"zimmer": "anderes Zimmer", "zeitraum": "anderer Zeitraum", "fehlt": "fehlt im neuen Plan",
-            "neu": "neu im Plan", "konflikt": "Doppelbelegung"}
+            "neu": "neu im Plan", "konflikt": "Doppelbelegung", "sperre": "Sperrung", "freigabe": "Zimmerfreigabe"}
 # Auswahl je Unterschied: Schlüssel → Text. Der erste Eintrag ist die Voreinstellung.
-WAHL = {
-    "zimmer": {"plan": "Gebäudeplan gilt", "planung": "Planung behalten"},
-    "zeitraum": {"plan": "Gebäudeplan gilt", "planung": "Planung behalten"},
-    "fehlt": {"planung": "in der Planung behalten", "entfernen": "Planung entfernen"},
-    "konflikt": {"planung": "Planung behalten (prüfen)", "entfernen": "Planung entfernen (neu zuteilen)"},
+WAHL = {   # Schlüssel je Art (Texte mit Zimmer/Zeitraum: ``optionen_fuer``)
+    "zimmer": ("plan", "planung"),
+    "zeitraum": ("plan", "planung"),
+    "fehlt": ("planung", "entfernen"),
+    "konflikt": ("planung", "entfernen"),
 }
+EIGEN = "eigener Eintrag"
+
+
+def _teile(text: str) -> tuple[str, str]:
+    """„2-408 · 26.06.2025 – 30.09.2026 (eigener Eintrag)“ → („2-408“, „26.06.2025 – 30.09.2026“)."""
+    zimmer, _, rest = text.partition(" · ")
+    return zimmer, rest.split(" (")[0]
+
+
+def optionen_fuer(u: "Unterschied") -> dict[str, str]:
+    """Was nach der Wahl konkret gilt – mit Zimmer und Zeitraum, damit nichts missverständlich ist."""
+    s_zi, s_zeit = _teile(u.system)
+    p_zi, p_zeit = _teile(u.plan)
+    if u.art == "zimmer":
+        return {"plan": f"Zimmer {p_zi} aus dem Gebäudeplan übernehmen",
+                "planung": f"in Zimmer {s_zi} lassen (eigener Eintrag gilt)"}
+    if u.art == "zeitraum":
+        return {"plan": f"Zeitraum aus dem Gebäudeplan übernehmen ({p_zeit})",
+                "planung": f"eigenen Zeitraum behalten ({s_zeit})"}
+    if u.art == "fehlt":
+        return {"planung": f"Eintrag in {s_zi} behalten (Belegungssystem nachtragen)",
+                "entfernen": f"Eintrag in {s_zi} löschen (wohnt nicht dort)"}
+    return {"planung": f"Eintrag in {s_zi} behalten – Doppelbelegung selbst klären",
+            "entfernen": f"Eintrag in {s_zi} löschen – Person neu zuteilen"}
 
 
 @dataclass
@@ -45,19 +72,24 @@ class Unterschied:
     art: str
     name: str
     person: str = ""                 # Schlüssel der eigenen Zuweisung ("" = nur Gebäudeplan)
-    system: str = ""                 # „2-408 · 26.06.2025 – 30.09.2026 (Planung)“
+    system: str = ""                 # „2-408 · 26.06.2025 – 30.09.2026 (eigener Eintrag)“
     plan: str = ""                   # wie oben, laut neuem Gebäudeplan
     von: date | None = None
     wahl: str = ""                   # gewählte Option ("" = nur Information)
     optionen: dict = field(default_factory=dict)
+    zusatz: str = ""                 # Sperrung/Freigabe: „neu“ | „entfällt“ | „geändert“
 
     @property
     def entscheidbar(self) -> bool:
         return bool(self.optionen)
 
     @property
+    def art_text(self) -> str:
+        return ART_TEXT[self.art] + (f" {self.zusatz}" if self.zusatz else "")
+
+    @property
     def text(self) -> str:
-        teile = [f"{self.name}: {ART_TEXT[self.art]}"]
+        teile = [f"{self.name}: {self.art_text}"]
         if self.system:
             teile.append(f"im System {self.system}")
         if self.plan:
@@ -112,7 +144,7 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
 
     for (_k, zid), (von, bis, b) in sorted(system.items(), key=lambda x: (x[1][0], x[1][2].name)):
         eigen = b.person in zuweisung
-        quelle = "Planung" if eigen else "Gebäudeplan bisher"
+        quelle = EIGEN if eigen else "Gebäudeplan bisher"
         sys_text = f"{_kurz(zid)} · {_zeit(von, bis)} ({quelle})"
         treffer = [(k, v) for k, v in plan.items() if _gleich(b.name, v[2].name)]
         passend = [(k, v) for k, v in treffer if _ueberschneidet(von, bis, v[0], v[1])]
@@ -156,20 +188,59 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
             wer = ", ".join(sorted({(f"gesperrt ({b.grund})" if b.grund else "gesperrt") if b.art == "gesperrt"
                                     else b.name for b in andere}))
             erg.append(Unterschied("konflikt", z["name"], z["person"], f"{_kurz(z['zimmer'])} · {_zeit(von, bis)} "
-                                   "(Planung)", f"{_kurz(z['zimmer'])} belegt: {wer}", von))
+                                   f"({EIGEN})", f"{_kurz(z['zimmer'])} belegt: {wer}", von))
+
+    alt = stand.plan.belegungen if stand.plan else []
+    for art in ("gesperrt", "freigabe"):
+        erg += _zeitraeume_vergleichen(art, alt, neu.belegungen, heute)
 
     for u in erg:                       # nur Unterschiede zur eigenen Planung lassen sich entscheiden
         if u.person and u.art in WAHL:
-            u.optionen = dict(WAHL[u.art])
+            u.optionen = optionen_fuer(u)
             frueher = zuweisung.get(u.person, {}).get("vorrang")   # beim letzten Abgleich so entschieden
             u.wahl = frueher if frueher in u.optionen else next(iter(u.optionen))
-    reihenfolge = {"konflikt": 0, "zimmer": 1, "zeitraum": 2, "fehlt": 3, "neu": 4}
+    reihenfolge = {"konflikt": 0, "zimmer": 1, "zeitraum": 2, "fehlt": 3, "sperre": 4, "freigabe": 5, "neu": 6}
     return sorted(erg, key=lambda u: (reihenfolge[u.art], not u.entscheidbar, u.von or heute, u.name))
+
+
+def _zeitraeume_vergleichen(art: str, alt: list[Belegung], neu: list[Belegung], heute: date) -> list[Unterschied]:
+    """Sperrungen bzw. Zimmerfreigaben je Zimmer: neu, entfällt oder anderer Zeitraum (über ``TOLERANZ``)."""
+    def je_zimmer(bel: list[Belegung]) -> dict[str, list[Belegung]]:
+        erg: dict[str, list[Belegung]] = {}
+        for b in bel:
+            if b.art == art and b.bis >= heute:
+                erg.setdefault(b.zimmer, []).append(b)
+        return erg
+
+    a, n = je_zimmer(alt), je_zimmer(neu)
+    typ = "sperre" if art == "gesperrt" else "freigabe"
+    erg: list[Unterschied] = []
+
+    def text(b: Belegung) -> str:
+        return f"{_kurz(b.zimmer)} · {_zeit(b.von, b.bis)}" + (f" ({b.grund})" if b.grund and art == "gesperrt" else "")
+
+    for zid in sorted(set(a) | set(n)):
+        offen_alt = list(a.get(zid, []))
+        for b in sorted(n.get(zid, []), key=lambda x: x.von):
+            gleich = next((x for x in offen_alt if abs((x.von - b.von).days) <= TOLERANZ.days
+                           and abs((x.bis - b.bis).days) <= TOLERANZ.days), None)
+            if gleich is not None:
+                offen_alt.remove(gleich)
+                continue
+            ueber = next((x for x in offen_alt if x.von <= b.bis and b.von <= x.bis), None)
+            if ueber is not None:
+                offen_alt.remove(ueber)
+                erg.append(Unterschied(typ, f"Zimmer {_kurz(zid)}", "", text(ueber), text(b), b.von, zusatz="geändert"))
+            else:
+                erg.append(Unterschied(typ, f"Zimmer {_kurz(zid)}", "", "–", text(b), b.von, zusatz="neu"))
+        for x in offen_alt:
+            erg.append(Unterschied(typ, f"Zimmer {_kurz(zid)}", "", text(x), "aufgehoben", x.von, zusatz="entfällt"))
+    return erg
 
 
 def zusammenfassung(unterschiede: list[Unterschied]) -> str:
     if not unterschiede:
-        return "Keine Unterschiede – der neue Gebäudeplan passt zur Belegung und Planung im System."
+        return "Keine Unterschiede – der neue Gebäudeplan passt zu Belegung und eigenen Einträgen im System."
     zahl: dict[str, int] = {}
     for u in unterschiede:
         zahl[u.art] = zahl.get(u.art, 0) + 1
@@ -191,7 +262,7 @@ def anwenden(neu: gebaeudeplan.Gebaeudeplan, unterschiede: list[Unterschied], qu
         elif u.art in ("zimmer", "zeitraum") and u.wahl in ("plan", "planung") and z.get("vorrang") != u.wahl:
             z["vorrang"] = u.wahl
             n += 1
-            log.append({"aktion": "Vorrang " + ("Planung" if u.wahl == "planung" else "Gebäudeplan"), "name": z["name"],
+            log.append({"aktion": "gilt: " + (EIGEN if u.wahl == "planung" else "Gebäudeplan"), "name": z["name"],
                         "person": u.person, "alt": z["zimmer"], "neu": z["zimmer"], "von": z["von"],
                         "quelle": "Gebäudeplan-Abgleich"})
     log += [{"aktion": "entfernt", "name": nach_person[p]["name"], "person": p, "alt": nach_person[p]["zimmer"],

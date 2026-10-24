@@ -120,3 +120,27 @@ def test_neuer_plan_im_ordner_wird_nicht_still_gespeichert(welt, tmp_path, monke
     assert gp.laden()[0].datei == "alt.docx"                 # nichts gespeichert
     gp.speichern(plan, kennung)
     assert gp.neuer_plan(ordner) is None                      # schon übernommen
+
+
+def test_sperrungen_und_freigaben(welt):
+    """6.27: Sperrungen und Zimmerfreigaben – neu, entfällt, anderer Zeitraum – werden gemeldet (nur Information)."""
+    from belegung import gebaeudeplan as gp
+    from belegung import planabgleich as pa
+    from belegung import zimmerplan as zp
+
+    alt, frei, _ = welt
+    sperre = gp.Belegung(frei[4], date(2026, 11, 1), date(2026, 12, 31), "gesperrt", grund="Reno offen")
+    freigabe = gp.Belegung(frei[5], date(2026, 12, 1), date(2027, 1, 31), "freigabe", grund="Zimmerfreigabe")
+    gp.speichern(dataclasses.replace(alt, belegungen=alt.belegungen + [sperre, freigabe]))
+    st = zp.laden()
+    gleich = _neu(alt, alt.belegungen + [sperre, freigabe])
+    assert [u for u in pa.vergleichen(gleich, st, HEUTE) if u.art in ("sperre", "freigabe")] == []
+    neu = _neu(alt, alt.belegungen + [dataclasses.replace(sperre, bis=date(2027, 3, 31)),
+                                      gp.Belegung(frei[0], date(2027, 3, 1), date(2027, 3, 31), "gesperrt",
+                                                  grund="Renovierung")])
+    us = [u for u in pa.vergleichen(neu, st, HEUTE) if u.art in ("sperre", "freigabe")]
+    assert sorted((u.art_text, u.name.split()[-1]) for u in us) == sorted([
+        ("Sperrung geändert", frei[4].removeprefix("GS-")), ("Sperrung neu", frei[0].removeprefix("GS-")),
+        ("Zimmerfreigabe entfällt", frei[5].removeprefix("GS-"))])
+    assert all(not u.entscheidbar for u in us)
+    assert "Sperrung" in pa.zusammenfassung(us) and "Zimmerfreigabe" in pa.zusammenfassung(us)

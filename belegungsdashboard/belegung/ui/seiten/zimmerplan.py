@@ -703,7 +703,7 @@ class ZimmerplanSeite(Seite):
         aenderungen.merken("Gebäudeplan übernommen", vorher)
         belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
         self.z.neuigkeit.emit(f"Gebäudeplan {plan.datei}{stand} automatisch übernommen: {belegt} Belegungen – keine "
-                              "Unterschiede zu Belegung und Planung.", "ok", "daten:Gebäudeplan & ZKL", "")
+                              "Unterschiede zu Belegung und eigenen Einträgen.", "ok", "daten:Gebäudeplan & ZKL", "")
         return plan
 
     def _plan_wartet_pruefen(self) -> None:
@@ -939,7 +939,7 @@ class ZimmerplanSeite(Seite):
             plan, _k, unterschiede = wartet
             stand = f" (Stand {plan.stand:%d.%m.%Y})" if plan.stand else ""
             h = Hinweis(f"<b>Neuer Gebäudeplan {plan.datei}{stand} liegt im Ordner und ist noch nicht übernommen.</b> "
-                        f"Unterschiede zu Belegung und Planung: {pa.zusammenfassung(unterschiede)}. Bis zur Prüfung "
+                        f"Unterschiede zu Belegung und eigenen Einträgen: {pa.zusammenfassung(unterschiede)}. Bis zur Prüfung "
                         "gilt der bisherige Plan. Soll er gar nicht gelten: die Datei aus dem Ordner „Gebaeudeplan“ "
                         "löschen.", "warnung", "Prüfen und übernehmen …")
             h.knopf.clicked.connect(self._plan_wartet_pruefen)
