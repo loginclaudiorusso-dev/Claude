@@ -221,3 +221,109 @@ def umzug_entfernen(uid: str) -> str:
 def umzug_fest(uid: str, fest: bool) -> str:
     _schritt("Umzug fest" if fest else "Umzug geplant", lambda: um.status_setzen(uid, fest, "Neue Oberfläche"))
     return "Umzug steht fest" if fest else "Umzug wieder geplant"
+
+
+# ---------------------------------------------------------------------------------------
+# Defekte Zimmer (Mängel) und FM
+# ---------------------------------------------------------------------------------------
+
+STUFEN = {3: "Nicht bewohnbar", 2: "Dringend", 1: "Leicht"}
+
+
+@dataclass
+class MZeile:
+    zimmer: str
+    kurz: str
+    lage: str
+    stufe: int                    # höchste Stufe der offenen Mängel
+    maengel: list                 # (art, Name, Stufe, unbewohnbar, seit, notiz)
+    heute: str                    # frei | belegt | …
+    naechste: date | None         # nächste Anreise ins Zimmer (ab heute)
+
+
+def _status_heute(stand: zp.Planstand, heute: date) -> dict[str, str]:
+    return {z.id: stand.lage.status_am(z.id, heute)[0] for z in stand.zimmer if z.aktiv}
+
+
+def maengel_liste(stand: zp.Planstand, heute: date) -> list[MZeile]:
+    status = _status_heute(stand, heute)
+    erg = []
+    for zid, ms in mg.offen_je_zimmer().items():
+        z = stand.lage.zimmer.get(zid)
+        if z is None or not z.aktiv:
+            continue
+        naechste = min((b.von for b in stand.lage.belegungen.get(zid, []) if b.art in ("belegt", "geplant") and b.von >= heute),
+                       default=None)
+        erg.append(MZeile(zid, z.kurz, zp.flur_text(z), mg.stufe(ms),
+                          [(m.art, mg.NAMEN.get(m.art, m.art), m.stufe, m.unbewohnbar, m.seit, m.notiz)
+                           for m in sorted(ms, key=lambda m: -m.stufe)],
+                          mg.ZIMMER_HEUTE.get(status.get(zid, ""), status.get(zid, "")), naechste))
+    return sorted(erg, key=lambda r: (-r.stufe, r.naechste or date.max, zp._haus_sort(r.kurz.split("-")[0]), r.kurz))
+
+
+def _kurz_map(stand: zp.Planstand) -> dict[str, str]:
+    return {z.id: z.kurz for z in stand.zimmer}
+
+
+def fm_bericht_html(stand: zp.Planstand, heute: date) -> str:
+    k = _kurz_map(stand)
+    return mg.fm_html(mg.offen(), lambda zid: k.get(zid, kurz(zid)), _status_heute(stand, heute), heute)
+
+
+def fm_mailtext(stand: zp.Planstand) -> str:
+    k = _kurz_map(stand)
+    return mg.fm_text(mg.offen(), lambda zid: k.get(zid, kurz(zid)))
+
+
+def fm_excel(stand: zp.Planstand, heute: date):
+    from pathlib import Path
+
+    from belegung import speicher
+
+    k = _kurz_map(stand)
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("FM"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / f"Maengel_FM_{heute:%Y-%m-%d}.xlsx"
+    n = mg.fm_excel(pfad, mg.offen(), lambda zid: k.get(zid, kurz(zid)), _status_heute(stand, heute), heute)
+    return f"FM-Liste mit {n} Mängeln gespeichert", pfad
+
+
+def fm_erledigte_lesen(pfad):
+    eintraege, fehler = mg.fm_erledigte_lesen(pfad)
+    offen = {(m.zimmer, m.art) for m in mg.offen()}
+    return [e for e in eintraege if (e[0], e[1]) in offen], fehler
+
+
+def fm_erledigte_uebernehmen(eintraege: list) -> str:
+    n = _schritt("FM-Liste übernommen", lambda: mg.erledigte_uebernehmen(eintraege), [mg.DATEI])
+    return f"{n} Mängel als behoben übernommen"
+
+
+# ---------------------------------------------------------------------------------------
+# Übersicht: alle Zimmer als Kacheln je Haus und Etage
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class Kachel:
+    zimmer: str
+    kurz: str
+    nr: str
+    status: str                   # frei | teilweise | belegt | geplant | gesperrt
+    stufe: int                    # Mängelstufe (0 = keine)
+    unbewohnbar: bool
+    titel: str
+
+
+def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kachel]]]:
+    """Haus → Etage-Text → Kacheln (am Tag ``tag``)."""
+    offen = mg.offen_je_zimmer()
+    erg: dict[str, dict[str, list[Kachel]]] = {}
+    for z in sorted((z for z in stand.zimmer if z.aktiv), key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
+        status, bs = stand.lage.status_am(z.id, tag)
+        ms = offen.get(z.id, [])
+        namen = ", ".join(zp.anzeige_name(b.name) for b in bs if b.art in ("belegt", "geplant") and b.name != zp.PIVOT_NAME)
+        titel = f"{z.kurz} · {status}" + (f" · {namen}" if namen else "") + \
+            ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "")
+        erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
+            Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel))
+    return erg

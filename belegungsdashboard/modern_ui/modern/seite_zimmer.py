@@ -10,11 +10,17 @@ from nicegui import run, ui
 from . import seiten, zimmer_kern as zk
 from .ui_bausteine import attr, knopf, leer, segmente
 
-ANSICHTEN = {"zeitstrahl": "Zeitstrahl", "liste": "Liste"}
+ANSICHTEN = {"uebersicht": "Übersicht", "zeitstrahl": "Zeitstrahl", "liste": "Liste", "maengel": "Defekte Zimmer"}
 
 
 def daten(a) -> None:
-    ansicht = a.ansicht_von("zimmer", "zeitstrahl")
+    ansicht = a.ansicht_von("zimmer", "uebersicht")
+    if ansicht == "uebersicht":
+        a.daten = {"haeuser": zk.uebersicht(a.stand, a.zu_tag), "np": None}
+        return
+    if ansicht == "maengel":
+        a.daten = zk.maengel_liste(a.stand, a.heute)
+        return
     if ansicht == "zeitstrahl":
         seiten.zs_daten(a)
     else:
@@ -23,10 +29,14 @@ def daten(a) -> None:
 
 
 def zeichnen(a) -> None:
-    ansicht = a.ansicht_von("zimmer", "zeitstrahl")
+    ansicht = a.ansicht_von("zimmer", "uebersicht")
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v))
-    if ansicht == "zeitstrahl":
+    if ansicht == "uebersicht":
+        _uebersicht(a)
+    elif ansicht == "maengel":
+        _maengel(a)
+    elif ansicht == "zeitstrahl":
         seiten.zs_zeichnen(a)
         _klickbar(a)
     else:
@@ -271,3 +281,143 @@ def _reinigung(a, k: zk.Karte) -> None:
             knopf("Zurück", lambda: karte_oeffnen(a, k.zimmer), "leise")
 
     a.panel(f"Reinigung · Zimmer {k.kurz}", bauen)
+
+
+# =======================================================================================
+# Übersicht (Kacheln) und defekte Zimmer
+# =======================================================================================
+
+def _uebersicht(a) -> None:
+    from datetime import timedelta
+
+    haeuser = a.daten["haeuser"]
+    alle = [k for et in haeuser.values() for ks in et.values() for k in ks]
+    n = {s: sum(1 for k in alle if k.status == s) for s in ("frei", "teilweise", "belegt", "geplant", "gesperrt")}
+    defekt = sum(1 for k in alle if k.stufe)
+    with a.leiste:
+        ui.html(f'<span class="m-kpi">am <b>{a.zu_tag:%d.%m.%Y}</b><span class="m-punktt">·</span><b>{n["frei"] + n["teilweise"]}</b> frei'
+                f'<span class="m-punktt">·</span><b>{n["belegt"]}</b> belegt<span class="m-punktt">·</span><b>{n["geplant"]}</b> geplant'
+                f'<span class="m-punktt">·</span><b>{n["gesperrt"]}</b> gesperrt<span class="m-punktt">·</span>'
+                f'<b style="color:var(--orange)">{defekt}</b> mit Mängeln</span>', sanitize=False)
+        knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
+        knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
+        knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
+        tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
+        tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+        ui.html('<span class="m-legende"><i class="frei"></i>frei<i class="teilweise"></i>1 Bett frei<i class="belegt"></i>belegt'
+                '<i class="geplant"></i>geplant<i class="gesperrt"></i>gesperrt · <b style="color:var(--orange)">!</b> Mangel'
+                ' · rot umrandet: unbewohnbar</span>', sanitize=False).style("margin-left:auto")
+    with a.inhalt:
+        with ui.element("div").classes("m-haeuser"):
+            for haus, etagen in haeuser.items():
+                with ui.element("section").classes("m-block m-haus"):
+                    ui.label(f"Haus {haus}").classes("m-btitel")
+                    for etage, ks in etagen.items():
+                        with ui.element("div").classes("m-etage"):
+                            ui.label(etage).classes("m-zweite m-etage-titel")
+                            with ui.element("div").classes("m-kacheln"):
+                                for k in ks:
+                                    kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "")
+                                    b = ui.element("button").classes(kl)
+                                    attr(b, title=k.titel)
+                                    with b:
+                                        ui.label(k.nr)
+                                        if k.stufe:
+                                            ui.label("!" * k.stufe).classes("m-kachel-m")
+                                    b.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
+
+
+def _maengel(a) -> None:
+    zs: list[zk.MZeile] = a.daten
+    with a.leiste:
+        n = {st: sum(1 for z in zs if z.stufe == st) for st in (3, 2, 1)}
+        ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{n[3]}</b> nicht bewohnbar<span class="m-punktt">·</span>'
+                f'<b style="color:var(--orange)">{n[2]}</b> dringend<span class="m-punktt">·</span><b>{n[1]}</b> leicht'
+                f'<span class="m-punktt">·</span>{sum(len(z.maengel) for z in zs)} offene Mängel</span>', sanitize=False)
+        knopf("FM-Bericht drucken", lambda: _fm(a, "druck"), "", "print").style("margin-left:auto")
+        knopf("FM-Liste (Excel)", lambda: _fm(a, "excel"), "", "table_view")
+        knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "leise", "content_copy")
+        from .seite_daten import _hochladen
+
+        _hochladen(a, "Erledigte aus FM-Liste", ".xlsx", lambda f: _fm_zurueck(a, f), art="leise")
+    sp = "28px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
+    with a.inhalt:
+        if not zs:
+            leer("Keine offenen Mängel – alle Zimmer in Ordnung.")
+            return
+        for st, titel in zk.STUFEN.items():
+            gruppe = [z for z in zs if z.stufe == st]
+            if not gruppe:
+                continue
+            ui.label(f"{titel} ({len(gruppe)})").classes("m-abschnitt")
+            with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+                for t in ("", "Zimmer", "Lage", "Mängel", "Heute", "Nächste Anreise", ""):
+                    ui.label(t)
+            for z in gruppe:
+                with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                    with ui.element("div"):
+                        ui.element("div").classes("m-ampel " + {3: "krit", 2: "warn", 1: "neutral"}[z.stufe])
+                    n_ = ui.label(z.kurz).classes("m-name m-link")
+                    n_.on("click", lambda z=z: karte_oeffnen(a, z.zimmer))
+                    ui.label(z.lage).classes("m-zweite")
+                    with ui.element("div").classes("m-mliste"):
+                        for art, name, stufe, unbew, seit, notiz in z.maengel:
+                            with ui.element("div").classes("m-mzeile"):
+                                attr(ui.label(f"{'!' * stufe} {name}").classes("m-ptext " + ("m-krit" if unbew else "m-warn" if stufe == 2 else "")),
+                                     title=notiz or name)
+                                ui.label(f"seit {seit:%d.%m.}").classes("m-zweite")
+                                knopf("", lambda z=z, art=art: a.aendern(zk.mangel_setzen, z.zimmer, art, False), "leise", "check",
+                                      "Behoben")
+                    ui.label(z.heute).classes("m-zweite")
+                    ui.label(f"{z.naechste:%d.%m.%Y}" if z.naechste else "–").classes("m-mono" + (" m-warn" if z.naechste and
+                                                                                                  (z.naechste - a.heute).days <= 7 else ""))
+                    knopf("", lambda z=z: karte_oeffnen(a, z.zimmer), "leise", "open_in_new", "Zimmerkarte")
+
+
+async def _fm(a, art: str) -> None:
+    import json
+
+    if art == "druck":
+        seiten.html_drucken(a, await run.io_bound(zk.fm_bericht_html, a.stand, a.heute), "Maengelbericht_FM")
+    elif art == "mail":
+        text = await run.io_bound(zk.fm_mailtext, a.stand)
+        ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(text)})")
+        a.toast("Mängelliste für die Mail kopiert", rueck=False)
+    else:
+        try:
+            text, pfad = await run.io_bound(zk.fm_excel, a.stand, a.heute)
+        except Exception as exc:             # noqa: BLE001
+            a.toast(f"Nicht gespeichert: {exc}", fehler=True)
+            return
+        if not seiten._datei_oeffnen(str(pfad)):
+            a.toast(f"{text}: {pfad}", rueck=False)
+        else:
+            a.toast(text, rueck=False)
+
+
+async def _fm_zurueck(a, dateien) -> None:
+    eintraege, fehler = await run.io_bound(zk.fm_erledigte_lesen, dateien[0][0])
+
+    def bauen():
+        if fehler:
+            for f in fehler[:10]:
+                ui.label(f).classes("m-zweite").style("color:var(--orange)")
+        if not eintraege:
+            ui.label("In der Liste ist nichts als erledigt eingetragen (Spalte „erledigt am“).").classes("m-ptext")
+            return
+        ui.label(f"{len(eintraege)} offene Mängel sind laut FM erledigt:").classes("m-ptext")
+        for zid, art, tag, bem in eintraege[:60]:
+            from belegung import maengel as mg
+
+            ui.label(f"{zid.removeprefix('GS-')}: {mg.NAMEN.get(art, art)} – erledigt {tag:%d.%m.%Y}" + (f" ({bem})" if bem else "")
+                     ).classes("m-zweite")
+
+        async def los():
+            if await a.aendern(zk.fm_erledigte_uebernehmen, eintraege):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Als behoben übernehmen", los, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Erledigte aus der FM-Liste", bauen)
