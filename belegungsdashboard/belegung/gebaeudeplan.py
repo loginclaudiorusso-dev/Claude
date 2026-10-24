@@ -303,11 +303,12 @@ def neuer_plan_da(ordner: Path | None = None) -> bool:
     return meta.get("quelle") != {"pfad": neueste.name, "geaendert": int(neueste.stat().st_mtime)}
 
 
-def automatisch_importieren(ordner: Path | None = None) -> Gebaeudeplan | None:
-    """Übernimmt den neuesten Gebäudeplan aus dem Eingangsordner, wenn er neu oder geändert ist.
+_GELESEN: dict = {}            # Kennung → Plan (Word-Datei nicht bei jedem Neuladen wieder einlesen)
 
-    Ein älterer Plan (Stand vor dem bereits importierten) ersetzt einen neueren nicht.
-    Gibt den übernommenen Plan zurück, sonst None."""
+
+def neuer_plan(ordner: Path | None = None) -> tuple[Gebaeudeplan, dict] | None:
+    """Neuester Gebäudeplan aus dem Eingangsordner, wenn er neu oder geändert ist – (Plan, Kennung), ohne ihn zu
+    speichern. Ein älterer Plan (Stand vor dem bereits importierten) zählt nicht."""
     ordner = ordner or eingangsordner()
     if not ordner.is_dir():
         return None
@@ -319,11 +320,24 @@ def automatisch_importieren(ordner: Path | None = None) -> Gebaeudeplan | None:
     bisher, meta = laden()
     if bisher is not None and meta.get("quelle") == kennung:
         return None
-    try:
-        plan = lesen(neueste)
-    except Exception:
-        return None
+    schluessel = (str(neueste), kennung["geaendert"])
+    if schluessel not in _GELESEN:
+        try:
+            _GELESEN.clear()
+            _GELESEN[schluessel] = lesen(neueste)
+        except Exception:
+            return None
+    plan = _GELESEN[schluessel]
     if bisher is not None and bisher.stand and plan.stand and plan.stand < bisher.stand:
         return None
-    speichern(plan, kennung)
-    return plan
+    return plan, kennung
+
+
+def automatisch_importieren(ordner: Path | None = None) -> Gebaeudeplan | None:
+    """Übernimmt den neuesten Gebäudeplan aus dem Eingangsordner ohne Prüfung. Seit 6.26 prüft der Zimmerplan vorher
+    (``neuer_plan`` + ``planabgleich``); diese Funktion bleibt für Skripte. Gibt den übernommenen Plan zurück."""
+    neu = neuer_plan(ordner)
+    if neu is None:
+        return None
+    speichern(*neu)
+    return neu[0]

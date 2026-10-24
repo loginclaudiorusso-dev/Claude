@@ -454,8 +454,11 @@ def lage_bauen(zimmer: list[Zimmer], plan: gebaeudeplan.Gebaeudeplan | None, zuw
         treffer = [b for w, b in gebucht if woerter and woerter <= w
                    and b.von <= bis + toleranz and von - toleranz <= b.bis]
         belegt = zw.get("status") == "belegt"
-        # hier als belegt markiert, nachdem der Gebäudeplan erstellt wurde → das Programm ist neuer und gilt
-        eigene_gilt = belegt and (plan is None or plan.stand is None or zw.get("belegt_am", "") > plan.stand.isoformat())
+        # hier als belegt markiert, nachdem der Gebäudeplan erstellt wurde → das Programm ist neuer und gilt;
+        # beim Gebäudeplan-Abgleich entschieden („vorrang“): planung = unsere Planung gilt, plan = Gebäudeplan gilt
+        vorrang = zw.get("vorrang")
+        eigene_gilt = vorrang == "planung" or (vorrang != "plan" and belegt and (
+            plan is None or plan.stand is None or zw.get("belegt_am", "") > plan.stand.isoformat()))
         if treffer and not eigene_gilt:
             if all(b.zimmer != zw["zimmer"] for b in treffer):
                 abgleich.append(Abgleich("anders", zw["person"], zw["name"], zw["zimmer"], treffer[0].zimmer, von))

@@ -32,6 +32,13 @@ def _dateien() -> list[str]:
     return [zp.ZUWEISUNGEN, umzug.DATEI, zp.UWT_AUTO]
 
 
+def dateien_mit_plan() -> list[str]:
+    """Planungsdateien plus Gebäudeplan – für Rückgängig nach einem Gebäudeplan-Import."""
+    from . import gebaeudeplan
+
+    return _dateien() + [gebaeudeplan.DATEI]
+
+
 # ---------------------------------------------------------------------------------------
 # Vorschau
 # ---------------------------------------------------------------------------------------
@@ -163,9 +170,10 @@ def vorschau_text(v: Vorschau, max_zeilen: int = 14) -> str:
 Schnappschuss = dict  # Dateiname -> Inhalt (None = Datei gab es nicht)
 
 
-def schnappschuss() -> Schnappschuss:
+def schnappschuss(namen: list[str] | None = None) -> Schnappschuss:
+    """Inhalt der Planungsdateien (``namen``: andere Auswahl, z. B. zusätzlich der Gebäudeplan beim Import)."""
     erg = {}
-    for name in _dateien():
+    for name in namen or _dateien():
         p = speicher.pfad(name)
         try:
             erg[name] = p.read_text(encoding="utf-8") if p.exists() else None
@@ -186,7 +194,7 @@ _verlauf: list[Schritt] = []
 
 def merken(titel: str, vorher: Schnappschuss) -> Schritt | None:
     """Nach einer erfolgreichen Änderung aufrufen (``vorher`` = Schnappschuss davor). Ohne Unterschied: nichts."""
-    nachher = schnappschuss()
+    nachher = schnappschuss(list(vorher))
     if nachher == vorher:
         return None
     s = Schritt(titel, vorher, nachher)
@@ -224,7 +232,7 @@ def rueckgaengig(quelle: str = "Rückgängig") -> tuple[bool, str]:
     s = letzter()
     if s is None:
         return False, "Nichts zum Rückgängigmachen."
-    jetzt = schnappschuss()
+    jetzt = schnappschuss(list(s.vorher))
     if jetzt != s.nachher:
         _verlauf.clear()                        # ältere Schritte passen dann auch nicht mehr
         return False, (f"„{s.titel}“ kann nicht mehr rückgängig gemacht werden: Danach wurde noch etwas an der "
