@@ -140,6 +140,7 @@ class PZeile:
     hi95: float
     gesichert: float | None
     ist: float | None
+    vertraege: float = 0.0
 
 
 @dataclass
@@ -169,7 +170,7 @@ def prognose(ds, standort: str, brutto: bool, zurueck: int = 24, vor: int = 24) 
         if mp:
             zeilen.append(PZeile(m, mp["art"], _f(mp["erwartet"]), _f(mp["lo80"]), _f(mp["hi80"]), _f(mp["lo95"]),
                                  _f(mp["hi95"]), _f(mp["gesichert"]) if mp["gesichert"] is not None else None,
-                                 _f(mp["ist"]) if mp["ist"] is not None else None))
+                                 _f(mp["ist"]) if mp["ist"] is not None else None, _f(mp["vertraege"])))
     m = ds.prognose.modelle.get(standort)
     if m is None:
         return Prognose(zeilen, ds.kapazitaet(standort, brutto), "", "", None, None, None, [], [])

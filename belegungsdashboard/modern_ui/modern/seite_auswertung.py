@@ -192,6 +192,8 @@ def _prognose(a) -> None:
     pg: ak.Prognose | None = a.daten["pg"]
     with a.leiste:
         segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, a.aw_horizont, lambda h: a.setzen(aw_horizont=h))
+        segmente({True: "95 %-Spanne an", False: "aus"}, a.aw_95, lambda v: a.setzen(aw_95=v, laden=False))
+        segmente({False: "Backtest aus", True: "Backtest zeigen"}, a.aw_backtest, lambda v: a.setzen(aw_backtest=v, laden=False))
     with a.inhalt:
         if pg is None or not pg.zeilen:
             leer("Die Prognose ist noch nicht berechnet.")
@@ -214,6 +216,11 @@ def _prognose(a) -> None:
         with ui.element("div").classes("m-zwei"):
             with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
                 ui.label("Monatsverlauf – Ø belegte Plätze je Monat").classes("m-btitel")
+                if a.aw_backtest and not pg.rueckblick:
+                    ui.label("Den Backtest gibt es je Standort – bitte oben einen Standort wählen.").classes("m-pille warn")
+                elif a.aw_backtest:
+                    ui.label("Backtest: was das Modell für jeden der letzten Monate einen Monat vorher vorhergesagt hätte – nur "
+                             "mit den damaligen Daten. Je näher an „Ist“, desto verlässlicher.").classes("m-ptext")
                 opt = _chart_basis()
                 opt["xAxis"]["data"] = [ak.monat_text(z.monat) for z in pg.zeilen]
                 band = lambda lo, hi, f: [None if z.art == "ist" else round(getattr(z, hi) - getattr(z, lo), 1) for z in pg.zeilen]  # noqa: E731
@@ -236,7 +243,17 @@ def _prognose(a) -> None:
                 if pg.kapazitaet:
                     opt["series"].append({"name": "Kapazität", "type": "line", "data": [pg.kapazitaet] * len(pg.zeilen),
                                           "symbol": "none", "lineStyle": {"color": T["rot"], "width": 1, "type": "dotted"}})
-                opt["legend"]["data"] = ["Ist", "Erwartet", "80 %-Spanne", "95 %-Spanne", "Kapazität"]
+                if not a.aw_95:
+                    opt["series"] = [x for x in opt["series"] if x["name"] not in ("u95", "95 %-Spanne")]
+                legende = ["Ist", "Erwartet", "80 %-Spanne"] + (["95 %-Spanne"] if a.aw_95 else []) + ["Kapazität"]
+                if a.aw_backtest and pg.rueckblick:
+                    zusatz = {z.monat: z.vertraege for z in pg.zeilen}
+                    blind = {mon: p + zusatz.get(mon, 0.0) for mon, _ist, p in pg.rueckblick}
+                    opt["series"].append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbolSize": 6,
+                                          "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in pg.zeilen],
+                                          "lineStyle": {"color": T["orange"], "width": 1.5, "type": "dotted"}})
+                    legende.append("Backtest (1 Monat vorher)")
+                opt["legend"]["data"] = legende
                 _chart(opt)
             with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
                 with ui.element("div").classes("m-paktionen").style("align-items:center"):
@@ -281,10 +298,16 @@ def _prognose(a) -> None:
                         ui.label(name).classes("m-name")
                         ui.label(f"± {_zahl(fehler, 1)}").classes("m-mono")
             with ui.element("section").classes("m-block"):
-                ui.label("Rückblick: Blind-Prognosen").classes("m-btitel")
+                ui.label("Backtest: Blind-Prognosen je Monat").classes("m-btitel")
                 if not pg.rueckblick:
-                    ui.label("Nur je Standort verfügbar.").classes("m-ptext")
-                for mon, ist, p in list(reversed(pg.rueckblick))[:8]:
+                    ui.label("Den Backtest gibt es je Standort – bitte oben einen Standort wählen.").classes("m-ptext")
+                else:
+                    abw = [abs(p - ist) for _m, ist, p in pg.rueckblick]
+                    ui.label(f"Jeweils einen Monat vorher gerechnet, nur mit damaligen Daten · Ø Abweichung ± {_zahl(sum(abw) / len(abw), 1)} "
+                             f"· größte ± {_zahl(max(abw), 1)}").classes("m-ptext")
+                    knopf("Im Diagramm zeigen" if not a.aw_backtest else "Im Diagramm ausblenden",
+                          lambda: a.setzen(aw_backtest=not a.aw_backtest, laden=False), "leise", "show_chart")
+                for mon, ist, p in list(reversed(pg.rueckblick)):
                     with ui.element("div").classes("m-liste-zeile"):
                         ui.label(ak.monat_text(mon)).classes("m-zweite").style("width:80px")
                         ui.label(f"Ist {_zahl(ist)} · Prognose {_zahl(p)}").classes("m-name")
