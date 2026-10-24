@@ -6,11 +6,11 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
-from nicegui import run, ui
+from nicegui import app, run, ui
 
 from belegung import __version__ as haupt_version
 
-from . import __version__, kern, seiten
+from . import __version__, kern, register, seite_anreisen, suche_palette
 from .stil import CSS
 from .ui_bausteine import attr, knopf, leer
 
@@ -20,7 +20,6 @@ TOAST_S = 6
 PRUEF_S = 30                # so oft wird geprüft, ob das Hauptprogramm etwas gespeichert hat
 STUFEN = [("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info")]
 AMPEL = {"dringend": "krit", "bald": "warn", "info": "ok"}
-NAV = [("anreisen", "Anreisen", "flight_land")] + [(k, t, i) for k, (t, i, _d, _z) in seiten.SEITEN.items()]
 
 
 def _stempel() -> tuple:
@@ -41,7 +40,8 @@ def _stempel() -> tuple:
 class Ansicht:
     def __init__(self) -> None:
         self.heute = date.today()
-        self.seite = "anreisen"
+        self.seite = "heute"
+        self.ansicht: dict[str, str] = {}      # Unteransicht je Seite (z. B. Zimmer → Zeitstrahl)
         self.stand = None
         self.anreisen: list[kern.Anreise] = []
         self.kennung: str | None = None
@@ -59,6 +59,15 @@ class Ansicht:
         self.zs_start = self.heute - timedelta(days=self.heute.weekday())
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
         self.rg_von = self.rg_bis = self.heute
+        self.zl_haus, self.zl_status, self.zl_text = "", "", ""
+        self.zl_schnell: set[str] = set()
+        self.ab_zeitraum, self.ein_tage = "heute", 14
+        self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
+        self.as_text, self.as_verstanden, self.as_chat = "", [], []
+        from belegung import konfig
+
+        self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
+        self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
 
     # ---- Daten ---------------------------------------------------------------------------
 
@@ -69,13 +78,15 @@ class Ansicht:
         self.stand = zp.laden()
         self.ohne_daten = self.stand.plan is None and not self.stand.bedarf
         self.karten = kern.karten(self.stand, self.heute)
-        if self.seite == "anreisen":
+        if self.seite == "anreisen" and self.ansicht_von("anreisen", "zuteilen") != "zuteilen":
+            seite_anreisen.daten(self)
+        elif self.seite == "anreisen":
             self.anreisen = kern.anreisen(self.stand, self.heute)
             if self.kennung not in {a.kennung for a in self.anreisen}:
                 self.kennung = kern.erste_offene(self.anreisen)
             self.zeilen = kern.zeilen(self.stand, self.kennung, self.heute)
         else:
-            seiten.SEITEN[self.seite][2](self)
+            register.SEITEN[self.seite][0](self)
         self.stempel = _stempel()
 
     async def laden(self, zeichnen: bool = True) -> None:
@@ -108,10 +119,26 @@ class Ansicht:
 
     async def seite_wechseln(self, seite: str) -> None:
         if seite != self.seite:
-            self.seite, self.daten = seite, None
-            self.panel_zu()
-            self.zeichnen()                    # sofort umschalten („Lädt …“), dann Daten
-            await self.laden()
+            await self.oeffnen(seite)
+
+    async def oeffnen(self, seite: str, ansicht: str | None = None, **zustand) -> None:
+        """Zu einer Seite springen (Seitenleiste, Suche, Karten) – optional mit Unteransicht und Zustand."""
+        karte = zustand.pop("karte", None)
+        for k, v in zustand.items():
+            setattr(self, k, v)
+        if ansicht:
+            self.ansicht[seite] = ansicht
+        self.seite, self.daten = seite, None
+        self.panel_zu()
+        self.zeichnen()                        # sofort umschalten („Lädt …“), dann Daten
+        await self.laden()
+        if karte:
+            from . import seite_zimmer
+
+            await seite_zimmer.karte_oeffnen(self, karte)
+
+    def ansicht_von(self, seite: str, standard: str) -> str:
+        return self.ansicht.get(seite, standard)
 
     # ---- Aufbau --------------------------------------------------------------------------
 
@@ -145,26 +172,26 @@ class Ansicht:
 
     def _nav_fuellen(self) -> None:
         self.nav.clear()
+        dringend = sum(1 for k in self.karten if k.stufe == "dringend")
         with self.nav:
-            for i, (k, text, icon) in enumerate(NAV):
-                if i == 1:
-                    ui.label("Planung & Betrieb").classes("m-navgruppe")
-                if k == "auswertung":
-                    ui.label("Überblick").classes("m-navgruppe")
+            gruppe = None
+            for k, text, icon, g in register.NAV:
+                if g and g != gruppe:
+                    ui.label(g).classes("m-navgruppe")
+                gruppe = g
                 p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
                 with p:
                     ui.icon(icon)
                     ui.label(text)
+                    if k == "heute" and self.karten:
+                        ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else "")).style(
+                            "margin-left:auto")
                 p.on("click", lambda k=k: self.seite_wechseln(k))
-            ui.label("Aufgaben").classes("m-navgruppe")
-            p = ui.element("button").classes("m-navpunkt")
-            with p:
-                ui.icon("inbox")
-                ui.label("Aufgaben-Center")
-                dringend = sum(1 for k in self.karten if k.stufe == "dringend")
-                if self.karten:
-                    ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else "")).style("margin-left:auto")
-            p.on("click", lambda: self.center_umschalten(True))
+            with ui.element("button").classes("m-navpunkt m-suche") as p:
+                ui.icon("search")
+                ui.label("Suchen")
+                ui.label("Strg K").classes("m-taste").style("margin-left:auto")
+            p.on("click", lambda: suche_palette.oeffnen(self))
 
     # ---- Zeichnen ------------------------------------------------------------------------
 
@@ -173,18 +200,19 @@ class Ansicht:
         self._aufgaben_knopf()
         for c in (self.werkzeuge, self.leiste, self.inhalt):
             c.clear()
-        titel = "Anreisen" if self.seite == "anreisen" else seiten.SEITEN[self.seite][0]
+        titel = register.TITEL[self.seite]
         self.titel.set_text(titel)
         if self.fehler:
             with self.inhalt:
                 leer(self.fehler)
-        elif self.stand is None or (self.seite != "anreisen" and self.daten is None):
+        elif self.stand is None or (self.daten is None and (self.seite != "anreisen"
+                                                            or self.ansicht_von("anreisen", "zuteilen") != "zuteilen")):
             with self.inhalt:
                 leer("Lädt …")
         elif self.seite == "anreisen":
             self._anreisen()
         else:
-            seiten.SEITEN[self.seite][3](self)
+            register.SEITEN[self.seite][1](self)
         self.leiste.set_visibility(bool(self.leiste.default_slot.children))
         if self.panel_def is None:
             self._center()
@@ -200,6 +228,12 @@ class Ansicht:
     # ---- Seite Anreisen ------------------------------------------------------------------
 
     def _anreisen(self) -> None:
+        seite_anreisen.werkzeuge(self)
+        ansicht = self.ansicht_von("anreisen", "zuteilen")
+        if ansicht == "abreisen":
+            return seite_anreisen.abreisen_zeichnen(self)
+        if ansicht == "eintragen":
+            return seite_anreisen.eintragen_zeichnen(self)
         with self.werkzeuge:
             wahl = ui.select({a.kennung: a.text for a in self.anreisen}, value=self.kennung,
                              on_change=self._anreise_gewaehlt).classes("m-zimmer").props(
@@ -207,6 +241,7 @@ class Ansicht:
             wahl.style("min-width: 220px; width: 400px; flex: 0 1 auto")
             knopf("", lambda: self._schritt(-1), "leise", "chevron_left", "Vorherige Anreise")
             knopf("", lambda: self._schritt(1), "leise", "chevron_right", "Nächste Anreise")
+        seite_anreisen.mehr_menue(self)
         if self.ohne_daten:
             with self.inhalt:
                 from belegung import konfig
@@ -253,7 +288,8 @@ class Ansicht:
             with ui.element("div"):
                 ui.element("div").classes(f"m-ampel {z.stufe}")
             with ui.element("div"):
-                attr(ui.label(z.name).classes("m-name"), title=z.name)
+                n = attr(ui.label(z.name).classes("m-name m-link"), title="Angaben zur Person (Geschlecht, Tier, Abreise …)")
+                n.on("click", lambda z=z: seite_anreisen.person_panel(self, z.schluessel))
                 if z.zweite:
                     ui.label(z.zweite).classes("m-zweite")
             ui.label(z.gruppe).classes("m-mono")
@@ -316,12 +352,12 @@ class Ansicht:
                 knopf("Später", lambda k=k: self._spaeter(k), "leise", titel="Bis morgen ausblenden").style(
                     "margin-left: auto")
 
-    def panel(self, titel: str, bauen) -> None:
+    def panel(self, titel: str, bauen, breit: bool = False) -> None:
         """Formular im Panel rechts (statt eines Dialogs, der die Tabelle verdeckt)."""
         self.panel_def = (titel, bauen)
         self.center_offen = True
         self.center.clear()
-        self.center.classes(add="offen")
+        self.center.classes(add="offen" + (" breit" if breit else ""), remove="" if breit else "breit")
         with self.center:
             with ui.element("div").classes("m-ckopf"):
                 ui.label(titel).classes("m-titel")
@@ -333,6 +369,7 @@ class Ansicht:
         if self.panel_def is not None:
             self.panel_def = None
             self.center_offen = False
+            self.center.classes(remove="breit")
             self._center()
 
     # ---- Toast ---------------------------------------------------------------------------
@@ -383,11 +420,14 @@ class Ansicht:
         await self.laden()
         self.toast(f"„{k.titel}“ bis morgen ausgeblendet", rueck=False)
 
-    async def _zeigen(self, kennung: str) -> None:
-        self.kennung, self.filter = kennung, "alle"
-        if self.seite != "anreisen":
-            self.seite, self.daten = "anreisen", None
-        await self.laden()
+    async def _zeigen(self, ziel: str) -> None:
+        """Zweiter Knopf einer Karte: Anreise (ISO-Datum) oder „Seite/Ansicht“ aus ``kern.ZIELE``."""
+        if ziel[:4].isdigit():
+            await self.oeffnen("anreisen", ansicht="zuteilen", kennung=ziel, filter="alle")
+            return
+        seite, _, ansicht = ziel.partition("/")
+        zustand = {"zl_schnell": {"maengel"}} if ziel == "zimmer/liste" else {}
+        await self.oeffnen(seite, ansicht=ansicht or None, **zustand)
 
     async def rueckgaengig(self) -> None:
         ok, text = await run.io_bound(kern.rueckgaengig)
@@ -421,6 +461,8 @@ class Ansicht:
             return
         if e.modifiers.ctrl and e.key.name.lower() == "z":
             await self.rueckgaengig()
+        elif e.modifiers.ctrl and e.key.name.lower() == "k":
+            suche_palette.oeffnen(self)
         elif e.key.name == "Escape" and self.center_offen:
             if self.panel_def is not None:
                 self.panel_zu()
@@ -430,6 +472,20 @@ class Ansicht:
             self.center_umschalten()
 
 
+@app.get("/druck/{name}")
+def druckansicht(name: str):
+    """Druckansicht aus dem Temp-Ordner (nur eigene .html-Dateien) – wenn kein Standardbrowser geöffnet werden kann."""
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse, PlainTextResponse
+
+    pfad = Path(tempfile.gettempdir()) / Path(name).name
+    if pfad.suffix != ".html" or not pfad.exists():
+        return PlainTextResponse("Nicht gefunden", status_code=404)
+    return FileResponse(pfad, media_type="text/html")
+
+
 @ui.page("/")
 async def startseite() -> None:
     a = Ansicht()
@@ -437,5 +493,5 @@ async def startseite() -> None:
     a.zeichnen()                               # sofort Rahmen zeigen („Lädt …“), dann Daten
     await ui.context.client.connected()
     await a.laden()
-    if a.karten and await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute):
-        a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist
+    if await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute) and a.seite != "heute":
+        a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist (Heute zeigt sie schon)

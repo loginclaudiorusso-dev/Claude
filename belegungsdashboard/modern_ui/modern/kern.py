@@ -303,6 +303,10 @@ class Karte:
 
 
 HAUPTPROGRAMM = "Im Hauptprogramm erledigen"
+# Vorgang-Ziel → Seite der neuen Oberfläche („Seite/Ansicht“), für den zweiten Knopf einer Karte
+ZIELE = {"konflikte": "anreisen", "eintragen": "anreisen/eintragen", "reinigung": "reinigung", "abreisen": "anreisen/abreisen",
+         "facility": "reinigung/facility", "maengel": "zimmer/liste", "engpaesse": "auswertung/zimmer", "gebaeudeplan": "daten",
+         "termin": "termine", "posteingang": "assistenz", "mail": "assistenz", "mieterende": "mieter", "umzug": "zimmer"}
 
 
 def _karte(v, stand: zp.Planstand | None) -> Karte:
@@ -323,7 +327,11 @@ def _karte(v, stand: zp.Planstand | None) -> Karte:
         k.aktion = Aktion("reinigung:heute", "Alle als gereinigt markieren")
     elif v.erledigen:
         k.aktion = Aktion(f"termin:{v.erledigen}", "Erledigt")
-    if k.aktion is None:
+    if k.zweite is None:
+        ziel = ZIELE.get(v.ziel.split(":")[0])
+        if ziel:
+            k.zweite = Aktion(f"zeigen:{v.ziel}", v.aktion.rstrip(" …") if k.aktion is None else "Ansehen", ziel)
+    if k.aktion is None and k.zweite is None:
         k.hinweis = f"{HAUPTPROGRAMM}: {v.aktion.rstrip(' …')}"
     return k
 
