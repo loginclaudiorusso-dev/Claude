@@ -15,7 +15,7 @@ from pathlib import Path
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFileDialog, QHBoxLayout, QMessageBox, QSpinBox, QVBoxLayout, QWidget,
+    QApplication, QDialog, QFileDialog, QHBoxLayout, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from .. import gebaeudeplan, speicher
@@ -43,6 +43,12 @@ def plan_importieren(parent, zustand) -> bool:
     except Exception as exc:              # noqa: BLE001
         zustand.meldung.emit(f"Gebäudeplan konnte nicht gelesen werden: {exc}", "fehler")
         return False
+    from .planabgleich_dialog import plan_pruefen, plan_uebernehmen
+
+    # erst prüfen (Unterschiede zu Belegung und Planung, Vorrang wählen), dann übernehmen
+    unterschiede = plan_pruefen(parent, zustand, plan)
+    if unterschiede is None:
+        return False
     kennung = None
     try:      # Kopie in den Eingangsordner – dann gilt diese Datei als aktueller Stand
         ziel = gebaeudeplan.eingangsordner() / Path(pfad).name
@@ -52,10 +58,7 @@ def plan_importieren(parent, zustand) -> bool:
         kennung = {"pfad": ziel.name, "geaendert": int(ziel.stat().st_mtime)}
     except OSError:
         pass
-    gebaeudeplan.speichern(plan, kennung)
-    belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
-    zustand.meldung.emit(f"Gebäudeplan importiert: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-    _gespeichert(zustand)
+    plan_uebernehmen(zustand, plan, unterschiede, kennung)
     return True
 
 
@@ -68,18 +71,14 @@ def plan_einfuegen(parent, zustand) -> bool:
     except ValueError as exc:
         zustand.meldung.emit(str(exc), "fehler")
         return False
-    belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
-    gesperrt = sum(1 for b in plan.belegungen if b.art == "gesperrt")
-    if QMessageBox.question(parent, "Gebäudeplan einfügen",
-                            f"Erkannt: {len(plan.zimmer)} Zimmer mit {sum(z.betten for z in plan.zimmer)} Betten, "
-                            f"{belegt} Belegungen, {gesperrt} Sperrungen.\n\nAls aktuellen Gebäudeplan (Stand heute) "
-                            "übernehmen?") != QMessageBox.Yes:
+    from .planabgleich_dialog import plan_pruefen, plan_uebernehmen
+
+    unterschiede = plan_pruefen(parent, zustand, plan)
+    if unterschiede is None:
         return False
+    plan_uebernehmen(zustand, plan, unterschiede, {"pfad": "Zwischenablage", "geaendert": 0})
     speicher.schreiben(f"{speicher.IMPORT_ORDNER}/gebaeudeplan_eingefuegt.json",
                        {"text": text, "html": html[:2_000_000]})       # Rohdaten zur Nachkontrolle
-    gebaeudeplan.speichern(plan, {"pfad": "Zwischenablage", "geaendert": 0})
-    zustand.meldung.emit(f"Gebäudeplan eingefügt: {len(plan.zimmer)} Zimmer, {belegt} Belegungen.", "ok")
-    _gespeichert(zustand)
     return True
 
 

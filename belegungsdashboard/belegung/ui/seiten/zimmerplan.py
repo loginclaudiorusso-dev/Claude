@@ -679,6 +679,44 @@ class ZimmerplanSeite(Seite):
     def aktualisieren(self) -> None:
         self.neu_laden()
 
+    def _plan_aus_ordner(self):
+        """Neuer Gebäudeplan im Ordner „Gebaeudeplan“: erst mit Belegung und Planung vergleichen. Ohne Unterschiede
+        gleich übernehmen (Rückgängig möglich), sonst nur melden – übernommen wird erst nach der Prüfung."""
+        from ... import aenderungen
+        from ... import planabgleich as pa
+
+        self._plan_wartet = None
+        kandidat = gebaeudeplan.neuer_plan()
+        if kandidat is None:
+            return None
+        plan, kennung = kandidat
+        stand = f" (Stand {plan.stand:%d.%m.%Y})" if plan.stand else ""
+        unterschiede = pa.vergleichen(plan, zp.laden())
+        if unterschiede:
+            self._plan_wartet = (plan, kennung, unterschiede)
+            self.z.neuigkeit.emit(f"Neuer Gebäudeplan {plan.datei}{stand} im Ordner – noch nicht übernommen: "
+                                  f"{pa.zusammenfassung(unterschiede)}. Bitte im Zimmerplan prüfen.", "warnung",
+                                  "zimmerplan", f"gebaeudeplan:{kennung['pfad']}:{kennung['geaendert']}")
+            return None
+        vorher = aenderungen.schnappschuss(aenderungen.dateien_mit_plan())
+        pa.anwenden(plan, [], kennung)
+        aenderungen.merken("Gebäudeplan übernommen", vorher)
+        belegt = sum(1 for b in plan.belegungen if b.art == "belegt")
+        self.z.neuigkeit.emit(f"Gebäudeplan {plan.datei}{stand} automatisch übernommen: {belegt} Belegungen – keine "
+                              "Unterschiede zu Belegung und Planung.", "ok", "daten:Gebäudeplan & ZKL", "")
+        return plan
+
+    def _plan_wartet_pruefen(self) -> None:
+        from ..planabgleich_dialog import plan_pruefen, plan_uebernehmen
+
+        if not getattr(self, "_plan_wartet", None):
+            return
+        plan, kennung, _u = self._plan_wartet
+        unterschiede = plan_pruefen(self, self.z, plan)
+        if unterschiede is not None:
+            self._plan_wartet = None
+            plan_uebernehmen(self.z, plan, unterschiede, kennung)
+
     def neu_laden(self) -> None:
         if self.nebenfenster:              # Importe und automatische UWT-Zuteilung nur im Hauptfenster
             self.stand = zp.laden()
@@ -687,12 +725,7 @@ class ZimmerplanSeite(Seite):
             self._anreisen_fuellen()
             self._tab_inhalt(self.tabs.index())
             return
-        neu = gebaeudeplan.automatisch_importieren()
-        if neu is not None:
-            belegt = sum(1 for b in neu.belegungen if b.art == "belegt")
-            stand = f" (Stand {neu.stand:%d.%m.%Y})" if neu.stand else ""
-            self.z.neuigkeit.emit(f"Gebäudeplan {neu.datei}{stand} automatisch übernommen: {belegt} Belegungen.", "ok",
-                                  "daten:Gebäudeplan & ZKL", "")
+        neu = self._plan_aus_ordner()
         uwt_neu = uwt.automatisch_importieren()
         if uwt_neu:
             from ..hauptfenster import uwt_meldung
@@ -900,6 +933,17 @@ class ZimmerplanSeite(Seite):
                     zahl.setText(str(n))
                     self.kennzahlen.addWidget(zahl)
         leeren(self.hinweise)
+        if (wartet := getattr(self, "_plan_wartet", None)):
+            from ... import planabgleich as pa
+
+            plan, _k, unterschiede = wartet
+            stand = f" (Stand {plan.stand:%d.%m.%Y})" if plan.stand else ""
+            h = Hinweis(f"<b>Neuer Gebäudeplan {plan.datei}{stand} liegt im Ordner und ist noch nicht übernommen.</b> "
+                        f"Unterschiede zu Belegung und Planung: {pa.zusammenfassung(unterschiede)}. Bis zur Prüfung "
+                        "gilt der bisherige Plan. Soll er gar nicht gelten: die Datei aus dem Ordner „Gebaeudeplan“ "
+                        "löschen.", "warnung", "Prüfen und übernehmen …")
+            h.knopf.clicked.connect(self._plan_wartet_pruefen)
+            self.hinweise.addWidget(h)
         if st.plan is None:
             h = Hinweis("Noch kein Gebäudeplan da – die Zimmer sind bekannt, die aktuelle Belegung aber nicht. "
                         "Plan importieren oder in den Ordner „Gebaeudeplan“ legen.",
