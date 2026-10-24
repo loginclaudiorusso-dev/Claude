@@ -1,0 +1,12 @@
+# Neue Oberfläche – nur was sie und die genutzte Logik des Hauptprogramms brauchen (ohne PySide6)
+nicegui==3.18.0
+pandas>=2.1
+numpy>=1.26
+openpyxl>=3.1
+pypdf>=4.0
+pdfminer.six>=20231228
+keyring>=24
+pywin32>=306; sys_platform == "win32"
+
+# Entwicklung
+pytest>=8
