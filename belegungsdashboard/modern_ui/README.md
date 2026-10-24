@@ -1,74 +1,60 @@
-# Neue Oberfläche (modern_ui) – Version 0.2.0
+# Neue Oberfläche (modern_ui) – Version 0.3.0
 
-Eine neue, ruhige Oberfläche für die tägliche Zimmerverteilung. Sie liegt in einem eigenen Ordner und
-**ändert keine Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner
-darüber (`belegung`): dieselben Dateien, dieselben Zuteil-Regeln, dasselbe Rückgängig.
+Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
+Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
+dieselben Dateien, dieselben Zuteil-Regeln, dasselbe Rückgängig. Beide Programme zeigen denselben Stand.
 
 ## Starten
 
-`modern_ui\Start.bat` doppelklicken. Beim ersten Start wird eine eigene Python-Umgebung (`modern_ui\.venv`)
-angelegt, ca. 1–3 Minuten. Das bisherige Programm startet weiter über `Start.bat` im Hauptordner.
+Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\Start.bat`. Beim ersten Start
+(und wenn neue Pakete dazukommen) richtet sie ihre eigene Python-Umgebung ein (`modern_ui\.venv`, einige Minuten).
 
-* Eigenes Fenster über pywebview (Edge WebView2, bei Windows 10/11 dabei).
-* Lässt sich pywebview nicht installieren, öffnet sich ein Edge-Fenster ohne Adressleiste. Läuft komplett
-  offline auf dem eigenen Rechner (127.0.0.1), nichts geht ins Internet.
-* Bitte **nicht gleichzeitig** mit dem bisherigen Programm Zuteilungen ändern. Die neue Oberfläche lädt von
-  selbst neu, wenn das Hauptprogramm etwas gespeichert hat (alle 30 Sekunden geprüft).
+* Eigenes Fenster (pywebview); klappt das nicht, ein Edge-Fenster ohne Adressleiste. Läuft nur auf dem eigenen
+  Rechner (127.0.0.1).
+* Bitte nicht gleichzeitig mit dem bisherigen Programm dieselben Dinge ändern. Die neue Oberfläche lädt von selbst
+  neu, wenn das Hauptprogramm etwas gespeichert hat (alle 30 Sekunden geprüft).
 
-## Was es kann
+## Gliederung – eine Ebene, Unteransichten als Umschalter oben
 
-| Bereich | Verhalten |
+| Seite | Ansichten und Funktionen |
 |---|---|
-| Anreisen | Auswahl der Anreise oben (‹ › blättert), Tabelle mit Name, Gruppe, Zeitraum, Zimmer, Hinweis |
-| Kennzahlen | eine Zeile: frei · belegt · gesperrt am Anreisetag |
-| Filter | Alle · Handlungsbedarf · Mängel · Ohne Zimmer (mit Anzahl) |
-| Zimmer in der Zeile | Auswahl speichert sofort; nur Zimmer, die die Regeln erlauben (Ausnahmen grau dahinter) |
-| Grüner Vorschlag | „2-317 nehmen“ bei Personen ohne Zimmer und bei Konflikten; oben „Alle Vorschläge übernehmen“ |
-| Konflikt | roter Rahmen am Zimmer + Grund (z. B. inzwischen unbewohnbar) + grünes Ausweichzimmer |
-| Aufgaben-Center | rechts, schiebt die Tabelle zur Seite statt sie zu verdecken; öffnet sich einmal am Tag von selbst, wenn Dringendes neu ist; Knopf „Aufgaben“ (Taste A) |
-| 1-Klick-Lösungen | Vorschläge übernehmen, Ausweichzimmer zuweisen, Reinigungen als erledigt markieren, Erinnerung erledigt |
-| Später | blendet eine Aufgabe bis morgen aus |
-| Rückgängig | im Hinweis unten nach jeder Änderung, oben rechts oder Strg+Z |
+| **Heute** | alles, was zu tun ist (Karten mit 1-Klick-Lösung), Anreisen der nächsten 7 Tage, Abreisen, Reinigung, Neuigkeiten |
+| **Anreisen** | *Zuteilen* (Zimmer in der Zeile, grüner Vorschlag, Filter, Personenangaben per Klick auf den Namen) · *Abreisen* (heute/morgen/Woche, drucken) · *Firmenprogramm* (was noch einzutragen ist, kopieren, abhaken) · Menü *Mehr*: Anreise-/Schlüsselliste, Zimmerschilder, Person hinzufügen, Planung zurücknehmen, Belegung optimieren, UWT automatisch zuteilen/zurücknehmen |
+| **Zimmer** | *Zeitstrahl* (Haus, 2/4/8 Wochen, Klick öffnet die Zimmerkarte) · *Liste* (Suche, Status, Mängel, Renoviert, Tier …, drucken, FM-Mängelbericht) · *Zimmerkarte*: Bewohner, Zimmer ändern, fest/geplant, Umzug planen/zurücknehmen, Mängel melden/beheben/unbewohnbar, Hinweis, Notizen mit Wiedervorlage, zur Reinigung |
+| **Reinigung** | *Reinigungsliste* (heute/Woche, abhaken, eilige auf einmal, Zimmer hinzufügen, drucken) · *Facility-Checks* |
+| **Termine** | *Liste* (fällig, demnächst, erledigt) · *Monat* · eigene Termine anlegen/ändern/löschen |
+| **Assistenz** | *Aufträge* in normalen Sätzen (verstehen → prüfen → ausführen, Rückgängig je Auftrag) · *Mails* (einfügen oder aus Outlook, erkennen, Person zuordnen, umsetzen, Posteingang) · *Fragen & Zahlen* (aus den Daten, optional KI) |
+| **Mieter** | Verträge, Mail zum Vertragsende (Outlook-Entwurf), *Neuer Mieter* (alle Unterlagen als PDF), *Verlängern* (Nebenabrede Word + PDF), Unterlagen neu erstellen |
+| **Auswertung** | *Lage* (heute, Verlauf mit Prognose) · *Belegung* (Zeitraum, Personentage) · *Prognose* (Monate, Spannen, Was-wäre-wenn, Modell, Rückblick) · *Zimmer & Engpässe* · Standort und Netto/Brutto |
+| **Daten & Import** | Anreiselisten, UWT, Gebäudeplan (prüfen und übernehmen), ZKL mit Abgleich, Zimmer-Pivot, Belegungs-Pivot (auch vom Server), Kapazitäten, Mieten/Anreisen für die Statistik, manuelle Einträge |
+| **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen) · *Zimmer* (Ausstattung ändern, kopieren) · Inventarliste drucken |
+| **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
 
-### Seiten (neu in 0.2.0)
+Überall: **Strg+K** sucht Personen, Zimmer und Seiten · **Strg+Z** bzw. „Rückgängig“ nimmt die letzte Änderung
+zurück · Formulare öffnen sich im **Panel rechts** (nichts legt sich über die Tabelle) · **A** öffnet die Aufgaben.
 
-| Seite | Inhalt |
-|---|---|
-| Zeitstrahl | Zimmer eines Hauses über 2, 4 oder 8 Wochen: belegt, im Programm geplant, gesperrt, Konflikt (rot); Punkt am Zimmer bei Mängeln; ‹ Heute › blättert wochenweise |
-| Reinigung | Heute / Diese Woche / Nächste Woche, nach Frist sortiert; Häkchen = gereinigt (Rückgängig möglich); „Alle eiligen als gereinigt markieren“; Zimmer von Hand hinzufügen (Panel rechts) und wieder entfernen; Drucken |
-| Mieter | Verträge mit Status; „Mail vorbereiten“ öffnet den Entwurf zum Vertragsende in Outlook (Panel rechts, Text änderbar) und vermerkt ihn; weitere Mieter laut Gebäudeplan |
-| Auswertung | freie Zimmer je Woche (jetzt und nach Planung, EMR, Doppel) mit Ampel; Belegung heute je Haus |
-| Verwalten | Datenstand, Datenordner öffnen; neuer Gebäudeplan im Ordner: prüfen und übernehmen (Unterschiede, Wahl je eigenem Eintrag); Einstellungen Reinigungstag und Puffer |
+### Gegenüber dem bisherigen Programm
 
-Formulare öffnen sich im Panel rechts – nichts legt sich über die Tabelle. Verträge anlegen/verlängern,
-Unterlagen, Importe von Listen und das Eintragen fürs Firmenprogramm bleiben vorerst im Hauptprogramm.
-
-Aufgaben ohne 1-Klick-Lösung (z. B. „Buchungen im Belegungssystem eintragen“) zeigen „Im Hauptprogramm erledigen“.
+* PDFs (Mietunterlagen, Nebenabrede) erstellt hier Microsoft Edge im Hintergrund; ohne Edge wird der Mietvertrag als
+  HTML gespeichert und zum Drucken geöffnet. Ablage: zuletzt genutzter Export-Ordner bzw. `Mietunterlagen` im Datenordner.
+* Drucken öffnet eine Druckansicht im Browser (drucken oder als PDF speichern).
+* Statistik-Listen (Mieten/Anreisen) werden mit automatischer Spaltenzuordnung gelesen; passt sie nicht, bitte
+  einmal im Hauptprogramm mit Spaltenwahl importieren – danach merkt sich das Programm die Zuordnung.
+* Darstellung (Designs, hell/dunkel) gibt es hier nicht – die neue Oberfläche ist bewusst ein ruhiges dunkles Design.
 
 ## Aufbau
 
 | Datei | Inhalt |
 |---|---|
-| `app.py` | Start (Fenster bzw. Edge-Fallback), Protokoll in `modern_ui.log` |
-| `modern/kern.py` | Brücke zur Logik des Hauptprogramms, ohne Oberfläche – testbar |
-| `modern/oberflaeche.py` | Rahmen (Seitenleiste, Kopf, Panel rechts, Hinweis mit Rückgängig) und Seite Anreisen |
-| `modern/seiten.py` | Seiten Zeitstrahl, Reinigung, Mieter, Auswertung, Verwalten |
-| `modern/seiten_kern.py` | Daten dieser Seiten, ohne Oberfläche – testbar |
-| `modern/ui_bausteine.py` | Knopf, Segmented Control, Leer-Hinweis |
-| `modern/stil.py` | Farben und Stil (dunkel), alle Farbwerte nur hier |
+| `app.py` | Start (Fenster bzw. Edge), Protokoll `modern_ui.log` |
+| `modern/oberflaeche.py` | Rahmen (Seitenleiste, Kopf, Panel rechts, Hinweis mit Rückgängig, Tasten) und Zuteilen |
+| `modern/register.py` | Gliederung: Seiten, Reihenfolge, Gruppen |
+| `modern/seite_*.py`, `modern/seiten.py` | die Seiten |
+| `modern/*_kern.py`, `modern/kern.py` | Daten und Änderungen über das Hauptprogramm, ohne Oberfläche – testbar |
+| `modern/stil.py` | Farben und Stil, alle Farbwerte nur hier |
 | `tests/` | Tests mit erfundenen Namen: `python -m pytest modern_ui/tests` |
-
-Eigene Ablage: `modern_ui.json` im Datenordner (nur „Später“ und „heute schon gezeigt“).
 
 ## Rückgängig machen / entfernen
 
-Die neue Oberfläche ist ein Zusatz. Den Ordner `modern_ui` löschen genügt – das bisherige Programm und
-seine Daten bleiben, wie sie sind. Sicherungen: vor 0.1.0 Branch `backup/v6.28.0`
-(`INNternat_v6.28.0_Sicherung.zip`), vor 0.2.0 Branch `backup/modern-0.1.0` (`INNternat_modern-0.1.0_Sicherung.zip`).
-
-## Nächste Schritte
-
-1. Strg+K: Suchen und Befehle (Person, Zimmer, Seite).
-2. Eintragsliste fürs Firmenprogramm als 1-Klick-Lösung.
-3. Im Zeitstrahl: Klick auf eine Belegung zeigt Person/Zimmer, Umzug per Ziehen.
-4. Mieter: Vertrag anlegen und verlängern.
+Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0` (jeweils auch als Zip in `Sicherung`).

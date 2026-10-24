@@ -96,7 +96,7 @@ def test_karten_spaeter_und_automatisch_oeffnen(leute):
     ks = kern.karten(zp.laden(), leute)
     anr = next(k for k in ks if k.id.startswith("anreise:"))
     assert anr.stufe == "dringend" and anr.aktion.schluessel == f"vorschlaege:{_kennung(leute)}"
-    assert all(k.aktion or k.hinweis.startswith(kern.HAUPTPROGRAMM) for k in ks)
+    assert all(k.aktion or k.zweite or k.hinweis.startswith(kern.HAUPTPROGRAMM) for k in ks)
     assert kern.automatisch_oeffnen(ks, leute) and not kern.automatisch_oeffnen(ks, leute)   # einmal am Tag
     kern.spaeter_setzen(anr.id, heute=leute)
     assert anr.id not in {k.id for k in kern.karten(zp.laden(), leute)}

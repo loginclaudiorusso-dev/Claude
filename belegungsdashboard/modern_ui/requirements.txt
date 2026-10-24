@@ -2,11 +2,13 @@
 nicegui==3.18.0
 pandas>=2.1
 numpy>=1.26
+statsmodels>=0.14                      # Prognose (Auswertung)
 openpyxl>=3.1
 pypdf>=4.0
 pdfminer.six>=20231228
 keyring>=24
-pywin32>=306; sys_platform == "win32"
+pywin32>=306; sys_platform == "win32"   # Outlook (Mails, Entwürfe), Pivot vom Server
+anthropic>=1.0                          # optional: KI für freie Fragen
 
 # Entwicklung
 pytest>=8
