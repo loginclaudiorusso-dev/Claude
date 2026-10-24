@@ -76,6 +76,12 @@ class HauptFenster(QMainWindow):
         rechts.setSpacing(0)
         rechts.addWidget(self._tableiste())
         rechts.addWidget(self._kopf())
+        from .newsflash import MeldungPopup, NewsflashLeiste
+
+        # Benachrichtigungen ohne Klick: wechselnde Leiste unter dem Kopf, Popup bei neuen dringenden Meldungen
+        self.newsflash = NewsflashLeiste()
+        self.newsflash.oeffnen.connect(self._meldung_oeffnen)
+        rechts.addWidget(self.newsflash)
         self.fortschritt = QProgressBar()
         self.fortschritt.setRange(0, 0)
         self.fortschritt.setFixedHeight(3)
@@ -143,6 +149,8 @@ class HauptFenster(QMainWindow):
         self.name_anzeigen()
         zustand.name_geaendert.connect(self.name_anzeigen)
         self.toast = Toast(wurzel)
+        self.popup = MeldungPopup(wurzel)
+        self.popup.oeffnen.connect(self._meldung_oeffnen)
         zustand.meldung.connect(self.toast.zeigen)
         zustand.neuigkeit.connect(self._neuigkeit)
         zustand.zimmer_geaendert.connect(self._stand_anzeigen)     # Gebäudeplan importiert → Datenstand neu
@@ -177,6 +185,14 @@ class HauptFenster(QMainWindow):
         self._melde_timer.timeout.connect(lambda: self.erinnerungen_pruefen(melden=True))
         self._melde_timer.start()
         QTimer.singleShot(1500, lambda: self.erinnerungen_pruefen(melden=True))
+        # Newsflash: nach Änderungen (gebündelt), alle 5 Minuten und kurz nach dem Start
+        self._nf_timer = QTimer(self, singleShot=True, interval=800, timeout=self.meldungen_aktualisieren)
+        for signal in (zustand.zimmer_geaendert, zustand.termine_geaendert, zustand.listen_geaendert,
+                       zustand.neuigkeit):
+            signal.connect(lambda *_a: self._nf_timer.start())
+        self._nf_takt = QTimer(self, interval=5 * 60 * 1000, timeout=self.meldungen_aktualisieren)
+        self._nf_takt.start()
+        QTimer.singleShot(2500, self.meldungen_aktualisieren)
         if uwt_neu:
             zustand.neuigkeit.emit(uwt_meldung(uwt_neu), "ok", "daten:UWT", "")
         if listen_neu:
@@ -628,6 +644,7 @@ class HauptFenster(QMainWindow):
             for feld in s.findChildren(DatumFeld):
                 feld.icon_aktualisieren()
         self._stand_anzeigen()
+        self.newsflash._zeigen()
 
     # ---- Laden ----------------------------------------------------------------------------
 
@@ -822,6 +839,44 @@ class HauptFenster(QMainWindow):
             karte_oeffnen(self, self.z, ziel.removeprefix("zimmer:"))
         else:
             self.zeigen(ziel)
+
+    # ---- Newsflash und Popup ----------------------------------------------------------------
+
+    def meldungen_aktualisieren(self) -> None:
+        """Leiste neu füllen; neue dringende Meldungen als Popup (minimiert: Windows-Meldung) – je Meldung einmal am Tag."""
+        from .. import gebaeudeplan, mails, neuigkeiten, vorgaenge
+        from .. import newsflash as nf
+        from .. import zimmerplan as zp
+
+        heute = date.today()
+        try:
+            liste = vorgaenge.sammeln(zp.laden(), heute, tm.alle(), mails.eingaenge(), mails.ARTEN,
+                                      gebaeudeplan.neuer_plan_da())
+        except Exception:
+            log.exception("Vorgänge für den Newsflash konnten nicht geladen werden")
+            liste = []
+        try:
+            neu = neuigkeiten.laden()
+        except Exception:
+            neu = []
+        meldungen = nf.meldungen(liste, neu)
+        self.newsflash.setzen(meldungen)
+        frisch = nf.neu_fuer_popup(meldungen, heute)
+        if not frisch:
+            return
+        if self.isMinimized() or not self.isVisible():
+            if self.tray is not None:
+                self.tray.showMessage(f"{len(frisch)} dringend" if len(frisch) > 1 else "Dringend",
+                                      "\n".join(m.zeile for m in frisch[:4]), QSystemTrayIcon.Warning, 20000)
+        else:
+            self.popup.zeigen(frisch)
+        nf.als_gesehen(frisch, heute)
+
+    def _meldung_oeffnen(self, m) -> None:
+        if m.vorgang is not None:
+            self.seiten["start"]._vorgang_oeffnen(m.vorgang)
+        elif m.ziel:
+            self._neuigkeit_oeffnen(m.ziel)
 
     def erinnerungen_pruefen(self, melden: bool = False) -> None:
         """Zählt offene Erinnerungen in der Seitenleiste; meldet neue (einmal am Tag je Erinnerung)."""
