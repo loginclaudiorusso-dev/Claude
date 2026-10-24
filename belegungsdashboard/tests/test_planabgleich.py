@@ -1,4 +1,4 @@
-"""6.26: Neuen Gebäudeplan vor dem Übernehmen mit Belegung und Planung im System vergleichen – Vorrang wählbar.
+"""6.26: Neuen Gebäudeplan vor dem Übernehmen mit dem Zimmerplan (bisheriger Gebäudeplan + eigene Einträge) vergleichen – Vorrang wählbar.
 Nur erfundene Namen."""
 
 import dataclasses

@@ -1,6 +1,6 @@
-"""Neuen Gebäudeplan vor dem Übernehmen prüfen: Was ist darin anders als das, was jetzt im System steht?
+"""Neuen Gebäudeplan vor dem Übernehmen prüfen: Was ist darin anders als das, was der Zimmerplan jetzt zeigt?
 
-„Im System“ ist die Belegung, wie der Zimmerplan sie zeigt: der bisherige Gebäudeplan plus die eigene Planung
+„Jetzt im Zimmerplan“ ist die Belegung, wie dieses Programm sie zeigt: der bisherige Gebäudeplan plus die eigene Planung
 (geplant/belegt, Mieter, Einpflegen aus der Assistenz) plus Umzüge. Verglichen werden nur Belegungen, die heute oder
 später noch laufen.
 
@@ -8,9 +8,9 @@ Unterschiede (je Person und Zimmer):
 
 * **zimmer**   – die Person steht im neuen Gebäudeplan in einem anderen Zimmer
 * **zeitraum** – gleiches Zimmer, aber An- oder Abreise weicht um mehr als ``TOLERANZ`` Tage ab
-* **fehlt**    – im System, aber nicht (mehr) im neuen Gebäudeplan (geplante künftige Anreisen nicht: die stehen im
+* **fehlt**    – im Zimmerplan, aber nicht (mehr) im neuen Gebäudeplan (geplante künftige Anreisen nicht: die stehen im
   Belegungssystem meist noch nicht)
-* **neu**      – im neuen Gebäudeplan, im System noch nicht
+* **neu**      – im neuen Gebäudeplan, im Zimmerplan noch nicht
 * **konflikt** – unsere Planung hat jemanden in einem Zimmer, das laut neuem Gebäudeplan voll (oder gesperrt) ist
 * **sperre** / **freigabe** – Sperrung bzw. Zimmerfreigabe ist neu, entfällt oder hat einen anderen Zeitraum
   (verglichen mit dem bisherigen Gebäudeplan; nur zur Information, der neue Plan gilt)
@@ -32,8 +32,8 @@ from .gebaeudeplan import Belegung
 
 TOLERANZ = timedelta(days=3)        # An-/Abreise im Gebäudeplan weicht oft ein paar Tage ab
 
-ART_TEXT = {"zimmer": "anderes Zimmer", "zeitraum": "anderer Zeitraum", "fehlt": "fehlt im neuen Plan",
-            "neu": "neu im Plan", "konflikt": "Doppelbelegung", "sperre": "Sperrung", "freigabe": "Zimmerfreigabe"}
+ART_TEXT = {"zimmer": "anderes Zimmer", "zeitraum": "anderer Zeitraum", "fehlt": "fehlt im neuen Gebäudeplan",
+            "neu": "nur im neuen Gebäudeplan", "konflikt": "Doppelbelegung", "sperre": "Sperrung", "freigabe": "Zimmerfreigabe"}
 # Auswahl je Unterschied: Schlüssel → Text. Der erste Eintrag ist die Voreinstellung.
 WAHL = {   # Schlüssel je Art (Texte mit Zimmer/Zeitraum: ``optionen_fuer``)
     "zimmer": ("plan", "planung"),
@@ -41,7 +41,8 @@ WAHL = {   # Schlüssel je Art (Texte mit Zimmer/Zeitraum: ``optionen_fuer``)
     "fehlt": ("planung", "entfernen"),
     "konflikt": ("planung", "entfernen"),
 }
-EIGEN = "eigener Eintrag"
+EIGEN = "eigener Eintrag"           # im Programm geplant (Zuteilen, Assistenz, Mieter, Umzüge)
+BISHER = "bisheriger Gebäudeplan"   # zuletzt übernommener Gebäudeplan
 
 
 def _teile(text: str) -> tuple[str, str]:
@@ -55,10 +56,10 @@ def optionen_fuer(u: "Unterschied") -> dict[str, str]:
     s_zi, s_zeit = _teile(u.system)
     p_zi, p_zeit = _teile(u.plan)
     if u.art == "zimmer":
-        return {"plan": f"Zimmer {p_zi} aus dem Gebäudeplan übernehmen",
+        return {"plan": f"Zimmer {p_zi} laut neuem Gebäudeplan",
                 "planung": f"in Zimmer {s_zi} lassen (eigener Eintrag gilt)"}
     if u.art == "zeitraum":
-        return {"plan": f"Zeitraum aus dem Gebäudeplan übernehmen ({p_zeit})",
+        return {"plan": f"Zeitraum laut neuem Gebäudeplan ({p_zeit})",
                 "planung": f"eigenen Zeitraum behalten ({s_zeit})"}
     if u.art == "fehlt":
         return {"planung": f"Eintrag in {s_zi} behalten (Belegungssystem nachtragen)",
@@ -91,9 +92,9 @@ class Unterschied:
     def text(self) -> str:
         teile = [f"{self.name}: {self.art_text}"]
         if self.system:
-            teile.append(f"im System {self.system}")
+            teile.append(f"jetzt im Zimmerplan {self.system}")
         if self.plan:
-            teile.append(f"im neuen Plan {self.plan}")
+            teile.append(f"im neuen Gebäudeplan {self.plan}")
         return " – ".join(teile)
 
 
@@ -102,7 +103,7 @@ def _kurz(zid: str) -> str:
 
 
 def _zeit(von: date, bis: date) -> str:
-    return f"{von:%d.%m.%Y} – {bis:%d.%m.%Y}"
+    return f"{von:%d.%m.%y} – {bis:%d.%m.%y}"
 
 
 def _personen(belegungen, heute: date) -> list[Belegung]:
@@ -134,7 +135,7 @@ def _ueberschneidet(v1: date, b1: date, v2: date, b2: date) -> bool:
 
 
 def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date | None = None) -> list[Unterschied]:
-    """Unterschiede zwischen dem neuen Gebäudeplan und der Belegung im System (Gebäudeplan bisher + Planung)."""
+    """Unterschiede zwischen dem neuen Gebäudeplan und dem Zimmerplan (bisheriger Gebäudeplan + eigene Einträge)."""
     heute = heute or date.today()
     zuweisung = {z["person"]: z for z in stand.zuweisungen}
     system = _spannen(_personen((b for bs in stand.lage.belegungen.values() for b in bs), heute))
@@ -144,7 +145,7 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
 
     for (_k, zid), (von, bis, b) in sorted(system.items(), key=lambda x: (x[1][0], x[1][2].name)):
         eigen = b.person in zuweisung
-        quelle = EIGEN if eigen else "Gebäudeplan bisher"
+        quelle = EIGEN if eigen else BISHER
         sys_text = f"{_kurz(zid)} · {_zeit(von, bis)} ({quelle})"
         treffer = [(k, v) for k, v in plan.items() if _gleich(b.name, v[2].name)]
         passend = [(k, v) for k, v in treffer if _ueberschneidet(von, bis, v[0], v[1])]
@@ -240,7 +241,8 @@ def _zeitraeume_vergleichen(art: str, alt: list[Belegung], neu: list[Belegung], 
 
 def zusammenfassung(unterschiede: list[Unterschied]) -> str:
     if not unterschiede:
-        return "Keine Unterschiede – der neue Gebäudeplan passt zu Belegung und eigenen Einträgen im System."
+        return ("Keine Unterschiede – der neue Gebäudeplan passt zum Zimmerplan (bisheriger Gebäudeplan und eigene "
+                "Einträge).")
     zahl: dict[str, int] = {}
     for u in unterschiede:
         zahl[u.art] = zahl.get(u.art, 0) + 1

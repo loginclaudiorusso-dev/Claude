@@ -1,10 +1,11 @@
 """Maske „Gebäudeplan prüfen“: vor dem Übernehmen zeigen, was im neuen Gebäudeplan anders ist als Belegung und
-eigenen Einträgen im System – und bei Unterschieden zu eigenen Einträgen wählen, was gelten soll. Logik: ``planabgleich``."""
+eigenen Einträgen im Zimmerplan – und bei Unterschieden zu eigenen Einträgen wählen, was gelten soll. Logik: ``planabgleich``."""
 
 from __future__ import annotations
 
 from datetime import date
 
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QHeaderView, QVBoxLayout
 
 from .. import aenderungen
@@ -21,16 +22,27 @@ class PlanAbgleichDialog(QDialog):
         self.z, self.neu = zustand, neu
         self.unterschiede = pa.vergleichen(neu, stand, heute)
         self.setWindowTitle("Gebäudeplan prüfen")
-        self.setMinimumSize(1060, 560)
+        self.setMinimumSize(1000, 560)
+        bild = QGuiApplication.primaryScreen().availableGeometry() if QGuiApplication.primaryScreen() else None
+        if bild is not None:                           # so breit wie sinnvoll, ohne über den Bildschirm zu ragen
+            self.resize(min(1280, bild.width() - 60), min(760, bild.height() - 60))
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 20, 24, 20)
         v.setSpacing(12)
         v.addWidget(label("Gebäudeplan prüfen, bevor er übernommen wird", "seitentitel"))
-        stand_text = f"Stand {neu.stand:%d.%m.%Y}" if neu.stand else "ohne Stand-Datum"
+        def herkunft(plan) -> str:
+            stand = f"Stand {plan.stand:%d.%m.%Y}" if plan.stand else "ohne Stand-Datum"
+            return f"„{plan.datei}“, {stand}"
+
         belegt = sum(1 for b in neu.belegungen if b.art == "belegt")
-        v.addWidget(label(f"{neu.datei} · {stand_text} · {len(neu.zimmer)} Zimmer, {belegt} Belegungen. Verglichen "
-                          "mit dem, was jetzt im System steht: bisheriger Gebäudeplan, eigene Einträge und Umzüge "
-                          "(nur heute und später).", "muted", umbruch=True))
+        bisher = (f"der bisherige Gebäudeplan ({herkunft(stand.plan)})" if stand.plan is not None
+                  else "noch kein Gebäudeplan")
+        v.addWidget(label(
+            f"<b>Neuer Gebäudeplan</b> = die Datei, die Sie jetzt übernehmen wollen: {herkunft(neu)} – "
+            f"{len(neu.zimmer)} Zimmer, {belegt} Belegungen (Export aus dem Belegungssystem).<br>"
+            f"<b>Jetzt im Zimmerplan</b> = was dieses Programm gerade zeigt: {bisher} plus die "
+            f"<b>eigenen Einträge</b> (im Programm geplant: Zuteilen, Assistenz, Mieter, Umzüge).<br>"
+            "Verglichen wird ab heute. Am Belegungssystem selbst ändert sich nichts.", "muted", umbruch=True))
         entscheiden = [u for u in self.unterschiede if u.entscheidbar]
         v.addWidget(Hinweis(pa.zusammenfassung(self.unterschiede)
                             + (f" – bei {len(entscheiden)} bitte wählen, was gelten soll." if entscheiden else ""),
@@ -38,8 +50,8 @@ class PlanAbgleichDialog(QDialog):
         if entscheiden:
             alle = QHBoxLayout()
             alle.addWidget(label("Für alle:", "fett"))
-            plan = knopf("Alles aus dem Gebäudeplan übernehmen", "ghost", None,
-                         "Zimmer und Zeiträume laut Gebäudeplan; eigene Einträge, die fehlen oder doppelt "
+            plan = knopf("Alles aus dem neuen Gebäudeplan übernehmen", "ghost", None,
+                         "Zimmer und Zeiträume laut neuem Gebäudeplan; eigene Einträge, die dort fehlen oder doppelt "
                          "belegen, werden gelöscht")
             plan.clicked.connect(lambda: self._alle("plan"))
             planung = knopf("Alle eigenen Einträge behalten", "ghost", None,
@@ -49,7 +61,7 @@ class PlanAbgleichDialog(QDialog):
             alle.addWidget(planung)
             alle.addStretch()
             v.addLayout(alle)
-        self.tab = Tabelle(["Art", "Person", "Jetzt im System", "Im neuen Plan", "Was soll gelten?"],
+        self.tab = Tabelle(["Art", "Person", "Zimmerplan jetzt", "Neuer Gebäudeplan", "Was soll gelten?"],
                            ["l", "l", "l", "l", "l"], dehnen=2)
         self._wahl: list[tuple[pa.Unterschied, QComboBox]] = []
         zeilen = []
@@ -59,15 +71,22 @@ class PlanAbgleichDialog(QDialog):
                 for schluessel, text in u.optionen.items():
                     box.addItem(text, schluessel)
                 box.setCurrentIndex(list(u.optionen).index(u.wahl))
-                box.currentIndexChanged.connect(lambda _i, u=u, box=box: setattr(u, "wahl", box.currentData()))
+                box.currentIndexChanged.connect(lambda _i, u=u, box=box: (setattr(u, "wahl", box.currentData()),
+                                                                           box.setToolTip(box.currentText())))
+                box.setToolTip(box.currentText())
                 self._wahl.append((u, box))
                 wahl = box
             else:
-                wahl = "wird aus dem neuen Plan übernommen" if u.art != "neu" else "kommt neu dazu"
+                wahl = ("wird aus dem neuen Gebäudeplan übernommen" if u.art != "neu"
+                        else "kommt aus dem neuen Gebäudeplan dazu")
             zeilen.append([u.art_text, u.name, u.system or "–", u.plan or "–", wahl])
         self.tab.fuellen(zeilen)
         self.tab.widgets_einpassen()
         self.tab.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)   # beide Vergleichsspalten wachsen
+        kh = self.tab.horizontalHeader()
+        for c, breite in ((0, 130), (1, 140), (4, 390)):   # feste Breite, Text bricht um; Rest für den Vergleich
+            kh.setSectionResizeMode(c, QHeaderView.Fixed)
+            self.tab.setColumnWidth(c, breite)
         self.tab.setWordWrap(True)                     # lange Zimmer-/Zeitangaben umbrechen statt „…“
         self.tab.resizeRowsToContents()
         for r, u in enumerate(self.unterschiede):
@@ -78,10 +97,9 @@ class PlanAbgleichDialog(QDialog):
         v.addWidget(self.tab, 1)
         if not self.unterschiede:
             v.addStretch()
-        v.addWidget(label("<b>Eigener Eintrag</b> = im Programm geplant (Zuteilen, Assistenz, Mieter), nicht aus dem "
-                          "Gebäudeplan. Wählen Sie „… lassen/behalten“, gilt im Zimmerplan weiter Ihr Eintrag, auch "
-                          "wenn der Gebäudeplan etwas anderes sagt. Alles andere kommt aus dem neuen Gebäudeplan. "
-                          "Nach dem Übernehmen nimmt Strg+Z alles zurück.", "klein", umbruch=True))
+        v.addWidget(label("Wählen Sie „… lassen/behalten“, gilt im Zimmerplan weiter der eigene Eintrag, auch wenn der "
+                          "neue Gebäudeplan etwas anderes sagt. Alles andere kommt aus dem neuen Gebäudeplan. Nach dem "
+                          "Übernehmen nimmt Strg+Z alles zurück.", "klein", umbruch=True))
         knoepfe = QHBoxLayout()
         knoepfe.addStretch()
         abbrechen = knopf("Abbrechen", "ghost")
