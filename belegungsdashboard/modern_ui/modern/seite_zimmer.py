@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from nicegui import run, ui
 
 from . import seiten, zimmer_kern as zk
-from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
+from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 
 ANSICHTEN = {"uebersicht": "Übersicht", "zeitstrahl": "Zeitstrahl", "liste": "Liste", "maengel": "Defekte Zimmer"}
 
@@ -74,22 +74,21 @@ def _liste(a) -> None:
         ui.label(f"{len(zs)} Zimmer").classes("m-kpi")
         knopf("Liste drucken", lambda: _drucken(a, "liste"), "", "print")
         knopf("FM-Mängelbericht", lambda: _drucken(a, "fm"), "", "build")
-    spalten = "28px 76px minmax(110px, .9fr) 90px minmax(80px, .6fr) minmax(90px, .7fr) minmax(160px, 1.6fr) minmax(120px, 1.2fr)"
+    spalten = "104px 76px minmax(110px, .9fr) 90px minmax(80px, .6fr) minmax(90px, .7fr) minmax(160px, 1.6fr) minmax(120px, 1.2fr)"
     with a.inhalt:
         if not zs:
             leer("Keine Zimmer mit diesen Filtern.")
             return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{spalten}"):
-            for t in ("", "Zimmer", "Lage", "Merkmale", "Renoviert", "Boden", "Heute", "Mängel / Hinweis"):
+            for t in ("Zustand", "Zimmer", "Lage", "Merkmale", "Renoviert", "Boden", "Heute", "Mängel / Hinweis"):
                 ui.label(t)
         for r in zs:
             stufe = {0: "", 1: "warn", 2: "warn", 3: "krit"}[r.stufe]
-            punkt = {"frei": "ok", "teilweise": "ok", "gesperrt": "neutral"}.get(r.status, "akzent")
             z = ui.element("div").classes("m-raster m-zeile m-klick").style(f"grid-template-columns:{spalten}")
             with z:
                 with ui.element("div"):
-                    ui.element("div").classes(f"m-ampel {punkt}")
-                ui.label(r.kurz).classes("m-name")
+                    badge(r.status)
+                ui.label(r.kurz).classes("m-name m-mono")
                 ui.label(r.lage).classes("m-zweite")
                 ui.label(r.merkmale or "–").classes("m-zweite")
                 ui.label(r.reno or "–").classes("m-zweite")
@@ -134,7 +133,7 @@ def _karte(a, k: zk.Karte) -> None:
     ui.label(f"{k.lage} · {k.betten} Bett{'en' if k.betten > 1 else ''}" + (f" · {k.merkmale}" if k.merkmale else "")
              ).classes("m-ptext")
     if k.unbewohnbar:
-        ui.label(f"Unbewohnbar: {k.unbewohnbar}").classes("m-pille krit")
+        badge("unbewohnbar", f"unbewohnbar: {k.unbewohnbar}")
     # Bewohner
     ui.label("Bewohner").classes("m-ktitel")
     if not k.personen:
@@ -306,9 +305,9 @@ def _uebersicht(a) -> None:
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
         tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
         tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
-        ui.html('<span class="m-legende"><i class="frei"></i>frei<i class="teilweise"></i>1 Bett frei<i class="belegt"></i>belegt'
-                '<i class="geplant"></i>geplant<i class="gesperrt"></i>gesperrt · <b style="color:var(--orange)">!</b> Mangel'
-                ' · rot umrandet: unbewohnbar</span>', sanitize=False).style("margin-left:auto")
+        with ui.element("span").classes("m-legende").style("margin-left:auto"):
+            for z_ in ("frei", "teilweise", "belegt", "geplant", "gesperrt", "maengel", "unbewohnbar"):
+                badge(z_)
     with a.inhalt:
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
@@ -344,7 +343,7 @@ def _maengel(a) -> None:
         from .seite_daten import _hochladen
 
         _hochladen(a, "Erledigte aus FM-Liste", ".xlsx", lambda f: _fm_zurueck(a, f), art="leise")
-    sp = "28px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
+    sp = "116px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
     with a.inhalt:
         if not zs:
             leer("Keine offenen Mängel – alle Zimmer in Ordnung.")
@@ -360,7 +359,7 @@ def _maengel(a) -> None:
             for z in gruppe:
                 with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
                     with ui.element("div"):
-                        ui.element("div").classes("m-ampel " + {3: "krit", 2: "warn", 1: "neutral"}[z.stufe])
+                        badge("unbewohnbar" if z.stufe == 3 else "maengel", {3: "unbewohnbar", 2: "Mängel", 1: "Hinweis"}[z.stufe])
                     n_ = ui.label(z.kurz).classes("m-name m-link")
                     n_.on("click", lambda z=z: karte_oeffnen(a, z.zimmer))
                     ui.label(z.lage).classes("m-zweite")

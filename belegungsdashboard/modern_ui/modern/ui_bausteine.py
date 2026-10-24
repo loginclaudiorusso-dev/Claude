@@ -42,6 +42,26 @@ def leer(text: str) -> None:
     ui.label(text).classes("m-leer")
 
 
+# Zustände – überall dieselbe Farbe, dasselbe Symbol, derselbe Text
+ZUSTAND = {
+    "frei": ("ok", "check_circle", "frei"), "teilweise": ("ok", "adjust", "1 Bett frei"),
+    "belegt": ("blau", "person", "belegt"), "geplant": ("akzent", "schedule", "geplant"),
+    "gesperrt": ("neutral", "block", "gesperrt"), "maengel": ("warn", "priority_high", "Mängel"),
+    "unbewohnbar": ("krit", "report", "unbewohnbar"),
+}
+SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "handeln": "error", "alle": "groups",
+           "np": "trending_flat", "offen": "pending", "eilig": "bolt", "erledigt": "task_alt", "laufend": "key",
+           "mail": "mail", "weitere": "apartment", 3: "report", 2: "priority_high", 1: "info"}
+
+
+def badge(zustand: str, text: str | None = None) -> None:
+    """Farbiges Zustands-Badge mit Symbol (frei, belegt, geplant, gesperrt, Mängel, unbewohnbar)."""
+    farbe, icon, standard = ZUSTAND.get(zustand, ("neutral", "help", zustand))
+    with ui.element("span").classes(f"m-badge {farbe}"):
+        ui.icon(icon)
+        ui.label(text or standard)
+
+
 def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | None = None) -> None:
     """Klickbare Kennzahl-Kacheln: (Schlüssel, Zahl, Text, Farbe ok|warn|krit|akzent|neutral|blau).
     Die aktive Kachel ist hervorgehoben; ein Klick ruft ``bei_klick(Schlüssel)`` (Filter oder Sprung)."""
@@ -51,9 +71,10 @@ def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | Non
             b = ui.element("button").classes(f"m-stat {farbe}" + (" an" if an else ""))
             attr(b, aria_pressed=str(an).lower(), title=(titel or {}).get(schluessel, "Klick: filtern" if bei_klick else ""))
             with b:
-                ui.label(str(zahl)).classes("z")
+                with ui.element("span").classes("k"):
+                    ui.icon(SYMBOLE.get(schluessel, "circle")).classes("s")
+                    ui.label(str(zahl)).classes("z")
                 with ui.element("span").classes("l"):
-                    ui.element("i")
                     ui.label(text)
             if bei_klick:
                 b.on("click", lambda s=schluessel: bei_klick(s))
