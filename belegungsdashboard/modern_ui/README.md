@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.4.0
+# Neue Oberfläche (modern_ui) – Version 0.5.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -30,6 +30,11 @@ Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\S
 | **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen) · *Zimmer* (Ausstattung ändern, kopieren) · Inventarliste drucken |
 | **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
 
+**Kennzahlen sind Knöpfe** (neu in 0.5): Ein Klick filtert (z. B. Zimmer-Übersicht „frei“, Reinigung „erledigt“,
+defekte Zimmer „dringend“, Anreise „ohne Zimmer“, Mieter „Mail offen“) oder springt an die passende Stelle (auf
+Heute: „frei“ → Zimmer-Übersicht, „ohne Zimmer“ → Zuteilen, „nach Planung“ → Engpässe, „Mängel“ → defekte Zimmer).
+Nochmal klicken hebt den Filter auf. Knöpfe und Umschalter sind plastischer gestaltet.
+
 Überall: **Strg+K** sucht Personen, Zimmer und Seiten · **Strg+Z** bzw. „Rückgängig“ nimmt die letzte Änderung
 zurück · Formulare öffnen sich im **Panel rechts** (nichts legt sich über die Tabelle) · **A** öffnet die Aufgaben.
 
@@ -57,4 +62,4 @@ zurück · Formulare öffnen sich im **Panel rechts** (nichts legt sich über di
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0` (jeweils auch als Zip in `Sicherung`).
