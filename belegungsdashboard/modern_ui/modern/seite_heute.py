@@ -19,6 +19,7 @@ class Tag:
     abreisen: list = field(default_factory=list)        # (Tag-Text, Name, Zimmer)
     reinigung: tuple = (0, 0)                            # (eilig, offen heute)
     neuigkeiten: list = field(default_factory=list)     # (Zeit-Text, Text, Art)
+    np: object = None                                    # kern.NachPlanung
 
 
 def tag_daten(stand, heute: date) -> Tag:
@@ -40,7 +41,13 @@ def tag_daten(stand, heute: date) -> Tag:
 
 
 def daten(a) -> None:
+    from .kern import nach_planung
+
     a.daten = tag_daten(a.stand, a.heute)
+    try:
+        a.daten.np = nach_planung(a.stand, a.heute, 12)
+    except Exception:                          # noqa: BLE001 – Anzeige darf Heute nie blockieren
+        a.daten.np = None
 
 
 def zeichnen(a) -> None:
@@ -52,6 +59,13 @@ def zeichnen(a) -> None:
                 f'<span class="m-punktt">·</span><b>{z["belegt"]}</b> belegt<span class="m-punktt">·</span>'
                 f'<b>{z["gesperrt"]}</b> gesperrt<span class="m-punktt">·</span>'
                 f'<b>{z["ohne_zimmer"]}</b> Anreisen ohne Zimmer (8 Wochen)</span>', sanitize=False)
+        np_ = t.np
+        if np_ and np_.tiefst:
+            text, frei, stufe = np_.tiefst
+            p = ui.label(f"nach Planung mind. {frei} frei · {text.split(' · ')[0]}").classes(
+                "m-pille " + {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe])
+            attr(p, title="Wenn alle Anreisen der nächsten 12 Wochen ein Zimmer haben (auch die noch ohne – probeweise nach "
+                          "den Regeln zugeteilt). Details unter Heute rechts bzw. Auswertung → Zimmer & Engpässe.")
     with a.inhalt:
         with ui.element("div").classes("m-heute"):
             with ui.element("section").classes("m-heute-links"):
@@ -76,6 +90,8 @@ def zeichnen(a) -> None:
                             attr(ui.label(text).classes("m-name"), title=text)
                             ui.label(f"{mit}/{n}").classes("m-mono")
                         z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
+                if t.np:
+                    _nach_planung_block(a, t.np)
                 with ui.element("div").classes("m-block"):
                     ui.label("Abreisen heute und morgen").classes("m-btitel")
                     if not t.abreisen:
@@ -103,3 +119,24 @@ def zeichnen(a) -> None:
                                 with ui.element("div"):
                                     ui.label(text).classes("m-ptext").style("color:var(--text)")
                                     ui.label(zeit).classes("m-zweite")
+
+
+STUFE = {"ok": "ok", "knapp": "warn", "kritisch": "krit"}
+
+
+def _nach_planung_block(a, np_) -> None:
+    """Freie Zimmer der nächsten 5 Wochen nach Planung – gesamt, EMR, Doppelzimmer, mit Ampel."""
+    with ui.element("div").classes("m-block"):
+        ui.label("Frei nach Planung – nächste 5 Wochen").classes("m-btitel")
+        ui.label(f"Ganz freie Zimmer, wenn auch die {np_.offen} Anreisen ohne Zimmer probeweise zugeteilt sind"
+                 + (f" ({np_.ohne_platz} fänden keins)" if np_.ohne_platz else "") + ".").classes("m-ptext")
+        with ui.element("div").classes("m-np"):
+            for t in ("Woche", "jetzt", "nach Planung", "EMR", "Doppel"):
+                ui.label(t).classes("m-zweite")
+            for text, jetzt, frei, emr, doppel, stufe, je in np_.wochen[:5]:
+                ui.label(text).classes("m-ptext")
+                ui.label(str(jetzt)).classes("m-mono")
+                ui.label(str(frei)).classes(f"m-pille {STUFE[je['gesamt']]}")
+                ui.label(str(emr)).classes(f"m-pille {STUFE[je['emr']]}")
+                ui.label(str(doppel)).classes(f"m-pille {STUFE[je['doppel']]}")
+        knopf("Alle 12 Wochen", lambda: a.oeffnen("auswertung", ansicht="zimmer"), "leise", "insights")

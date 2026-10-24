@@ -266,6 +266,7 @@ class WZeile:
     emr: int
     doppel: int
     stufe: str            # ok | knapp | kritisch
+    stufen: dict = field(default_factory=dict)   # je Art (gesamt, emr, doppel)
 
 
 @dataclass
@@ -295,7 +296,8 @@ def auswertung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12)
 
     heute = heute or date.today()
     np_ = eintragen.nach_planung(stand, heute, wochen)
-    ws = [WZeile(j.text, j.gesamt, n.gesamt, n.emr, n.doppel, n.gesamtstufe) for j, n in np_.wochen]
+    ws = [WZeile(j.text, j.gesamt, n.gesamt, n.emr, n.doppel, n.gesamtstufe, {a: n.stufe(a) for a in ("gesamt", "emr", "doppel")})
+          for j, n in np_.wochen]
     hs: dict[str, HausZeile] = {}
     for z in stand.zimmer:
         if not z.aktiv or z.gaeste:

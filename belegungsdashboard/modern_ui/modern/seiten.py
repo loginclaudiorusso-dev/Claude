@@ -493,21 +493,25 @@ STUFE_AW = {"ok": "ok", "knapp": "warn", "kritisch": "krit"}
 
 
 def aw_zeichnen(a) -> None:
+    from belegung import eintragen
+
     aw: sk.Auswertung = a.daten
     with a.leiste:
         tief = min(aw.wochen, key=lambda w: w.frei_nach, default=None)
         ui.html(f'<span class="m-kpi"><b>{aw.offen}</b> Anreisen ohne Zimmer in 12 Wochen<span class="m-punktt">·</span>'
-                f'<b>{aw.ohne_platz}</b> fänden keins<span class="m-punktt">·</span>knappste Woche: '
+                f'<b>{aw.ohne_platz}</b> fänden keins<span class="m-punktt">·</span>knappste Woche nach Planung: '
                 f'<b>{E(tief.kw) if tief else "–"}</b> ({tief.frei_nach if tief else 0} frei)</span>', sanitize=False)
+        knopf("Grenzen ändern", lambda: a.oeffnen("einstellungen", ansicht="allgemein"), "leise", "tune").style("margin-left:auto")
     with a.inhalt:
         with ui.element("div").classes("m-zwei"):
-            with ui.element("section").classes("m-block"):
-                ui.label("Freie Zimmer je Woche").classes("m-btitel")
-                ui.label("Ganz freie Zimmer (ohne Gästezimmer). „Nach Planung“: wenn alle bekannten Anreisen nach den "
-                         "Regeln ein Zimmer bekommen.").classes("m-ptext")
+            with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
+                ui.label("Freie Zimmer je Woche – jetzt und nach Planung").classes("m-btitel")
+                ui.label("„Nach Planung“: auch alle bekannten Anreisen ohne Zimmer probeweise nach den Regeln zugeteilt "
+                         "(nichts wird gespeichert). EMR und Doppel gelten nach Planung. Ampel: " + eintragen.grenzen_text()
+                         + ".").classes("m-ptext")
                 hoechst = max([w.frei_jetzt for w in aw.wochen] + [1])
-                with ui.element("div").classes("m-aw-tab"):
-                    for t in ("Woche", "jetzt", "nach Planung", "EMR", "Doppel"):
+                with ui.element("div").classes("m-aw-tab breit"):
+                    for t in ("Woche", "frei jetzt", "frei nach Planung", "EMR", "Doppel UWT", "Lage nach Planung"):
                         ui.label(t).classes("k")
                     for w in aw.wochen:
                         with ui.element("div").classes("m-aw-kw"):
@@ -516,13 +520,22 @@ def aw_zeichnen(a) -> None:
                         ui.label(str(w.frei_jetzt)).classes("m-mono")
                         with ui.element("div").classes("m-aw-balken"):
                             with ui.element("div").classes("m-spur"):
-                                ui.element("div").classes(f"m-bar {STUFE_AW[w.stufe]}").style(
+                                ui.element("div").classes(f"m-bar {STUFE_AW[w.stufen.get('gesamt', w.stufe)]}").style(
                                     f"width:{max(2, round(100 * w.frei_nach / hoechst))}%")
                             ui.label(str(w.frei_nach)).classes("m-mono")
-                        ui.label(str(w.emr)).classes("m-mono")
-                        ui.label(str(w.doppel)).classes("m-mono")
+                        for art, wert in (("emr", w.emr), ("doppel", w.doppel)):
+                            with ui.element("div"):
+                                ui.label(str(wert)).classes(f"m-pille {STUFE_AW[w.stufen.get(art, 'ok')]}")
+                        eng = [n for art, n in (("gesamt", "Zimmer"), ("emr", "EMR"), ("doppel", "Doppelzimmer"))
+                               if w.stufen.get(art, "ok") != "ok"]
+                        ui.label({"ok": "ok", "knapp": "knapp", "kritisch": "kritisch"}[w.stufe] + (" – " + ", ".join(eng) if eng else "")
+                                 ).classes("m-zweite" + (" m-krit" if w.stufe == "kritisch" else " m-warn" if w.stufe == "knapp" else ""))
             with ui.element("section").classes("m-block"):
-                ui.label(f"Belegung heute je Haus").classes("m-btitel")
+                ui.label("Was gezählt wird").classes("m-btitel")
+                for art, text in eintragen.ENGPASS_ERKLAERUNG.items():
+                    ui.label(f"{eintragen.ENGPASS_NAMEN[art]}: {text}").classes("m-ptext")
+            with ui.element("section").classes("m-block"):
+                ui.label("Belegung heute je Haus").classes("m-btitel")
                 ui.label("Anteil belegter Zimmer an den nutzbaren (ohne gesperrte, ohne Gästezimmer).").classes("m-ptext")
                 for h in aw.haeuser:
                     with ui.element("div").classes("m-aw-haus"):

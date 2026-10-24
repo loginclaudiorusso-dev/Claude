@@ -64,9 +64,11 @@ class Ansicht:
         self.ab_zeitraum, self.ein_tage = "heute", 14
         self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
         self.as_text, self.as_verstanden, self.as_chat = "", [], []
+        self.zu_tag = self.heute
         from belegung import konfig
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
+        self.aw_95, self.aw_backtest = True, False
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
 
     # ---- Daten ---------------------------------------------------------------------------
@@ -85,6 +87,10 @@ class Ansicht:
             if self.kennung not in {a.kennung for a in self.anreisen}:
                 self.kennung = kern.erste_offene(self.anreisen)
             self.zeilen = kern.zeilen(self.stand, self.kennung, self.heute)
+            try:
+                self.np = kern.nach_planung(self.stand, self.heute, 12)
+            except Exception:                  # noqa: BLE001 – Kennzahl darf das Zuteilen nie blockieren
+                self.np = None
         else:
             register.SEITEN[self.seite][0](self)
         self.stempel = _stempel()
@@ -258,6 +264,12 @@ class Ansicht:
                 ui.html(f'<span class="m-kpi"><b>{k["frei"]}</b> frei<span class="m-punktt">·</span><b>{k["belegt"]}</b> '
                         f'belegt<span class="m-punktt">·</span><b>{k["gesperrt"]}</b> gesperrt'
                         f'<span class="m-punktt">·</span>am {tag:%d.%m.}</span>', sanitize=False)
+                if getattr(self, "np", None) and self.np.tiefst:
+                    text, frei, stufe = self.np.tiefst
+                    p = attr(ui.label(f"nach Planung mind. {frei} frei · {text.split(' · ')[0]}").classes(
+                        "m-pille " + {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe]),
+                        title="Wenn alle Anreisen der nächsten 12 Wochen ein Zimmer hätten – Klick: alle Wochen")
+                    p.style("cursor:pointer").on("click", lambda: self.oeffnen("auswertung", ansicht="zimmer"))
                 offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
                 if offen:
                     knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",

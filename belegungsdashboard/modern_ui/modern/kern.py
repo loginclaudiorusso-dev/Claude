@@ -404,3 +404,28 @@ def automatisch_oeffnen(ks: list[Karte], heute: date | None = None) -> bool:
         roh["gezeigt"] = {heute.isoformat(): sorted(gezeigt | neu)}
         speicher.schreiben(ZUSTAND, roh)
     return bool(neu)
+
+
+# ---------------------------------------------------------------------------------------
+# Frei nach Planung
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class NachPlanung:
+    wochen: list          # (Woche-Text, frei jetzt, frei nach Planung, EMR, Doppel, Stufe gesamt, Stufen je Art)
+    tiefst: tuple | None  # (Woche-Text, frei nach Planung, Stufe)
+    offen: int
+    ohne_platz: int
+
+
+def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12) -> NachPlanung:
+    """Freie Zimmer je Woche, wenn alle bekannten Anreisen (auch die ohne Zimmer) nach den Regeln ein Zimmer hätten."""
+    from belegung import eintragen
+
+    heute = heute or date.today()
+    np_ = eintragen.nach_planung(stand, heute, wochen)
+    zeilen = [(n.text, j.gesamt, n.gesamt, n.emr, n.doppel, n.gesamtstufe,
+               {a: n.stufe(a) for a in ("gesamt", "emr", "doppel")}) for j, n in np_.wochen]
+    t = np_.tiefst
+    return NachPlanung(zeilen, (t.text, t.gesamt, t.stufe("gesamt")) if t else None, np_.offen, np_.ohne_platz)
+
