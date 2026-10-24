@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.27.2, 24.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.28.0, 24.10.2026)
 
 ## Als Nächstes
 
@@ -128,7 +128,14 @@
 - 6.27.2: Nutzer-Meldung: Doppelbelegung gemeldet, obwohl die Person aus dem Gebäudeplan laut Zimmerplan in ein
   anderes Zimmer gezogen ist. Ursache: Die Doppelbelegungs-Prüfung sah nur den neuen Gebäudeplan, nicht die Umzüge im
   Programm. Mit Datenkopie nachgestellt (Umzug + Plan vom 03.10.) und behoben. Falls es beim Nutzer anders lag
-  (z. B. neuerer Plan zeigt die Person wirklich im alten Zimmer): Gebäudeplan-Datei erfragen.
+  (z. B. neuerer Plan zeigt die Person wirklich im alten Zimmer): Gebäudeplan-Datei erfragen. Nutzer bestätigt:
+  Umzug war eingetragen.
+- **Leitlinie des Nutzers (24.10.):** Das firmeneigene Programm bleibt (Abrechnung). Dieses Programm soll den Rest so
+  einfach wie möglich machen: mehr Automatisierung bei Zimmerverteilung, Reinigung und Prüfung; übersichtliche
+  Benachrichtigungen ohne Klick; übersichtliche Oberfläche.
+- 6.28: Newsflash-Leiste (wechselnd) und Popup für neue dringende Meldungen – ohne Klick sichtbar.
+  * Offen/zu entscheiden: Wechseltakt (7 s), Popup-Dauer (20 s), „einmal am Tag“ – mit dem Nutzer abstimmen.
+  * Nächste Kandidaten (Leitlinie): mehr Automatik bei Zuteilung/Reinigung/Prüfung, Oberfläche entschlacken.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

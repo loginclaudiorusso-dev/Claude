@@ -1,4 +1,4 @@
-# Rückweg: von 6.27.2 zurück zu 6.27.1, 6.27.0, 6.26.0, 6.25.1, 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.28.0 zurück zu 6.27.2, 6.27.1, 6.27.0, 6.26.0, 6.25.1, 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -40,7 +40,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.26.0** | `backup/v6.26.0` | `23b650f` | `INNternat_v6.26.0_Sicherung.zip` |
 | **6.27.0** | `backup/v6.27.0` | `36baafc` | `INNternat_v6.27.0_Sicherung.zip` |
 | **6.27.1** | `backup/v6.27.1` | `b42364b` | `INNternat_v6.27.1_Sicherung.zip` |
-| **6.27.2** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.27.2** | `backup/v6.27.2` | `b88c5ce` | `INNternat_v6.27.2_Sicherung.zip` |
+| **6.28.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -365,6 +366,11 @@ Namen, „ / “ mit Zeitraum am Zeilenende), Tests, Version 6.25.1. Datenformat
 
 **6.27.2** (seit `b42364b`): Korrektur im Gebäudeplan-Abgleich (`planabgleich._woanders`, Quelle „Umzug im
 Programm“), Test, Version 6.27.2. Datenformate unverändert.
+
+**6.28.0** (seit `b88c5ce`): Commits siehe `git log backup/v6.27.2..claude/ui-overhaul-v6`.
+* Inhalt: `belegung/newsflash.py`, `ui/newsflash.py` (Leiste + Popup), Einbau im Hauptfenster, Tests, Version 6.28.0.
+* Daten: In den Einstellungen gibt es neu `newsflash_gesehen` (welche dringenden Meldungen heute schon als Popup kamen).
+* Ältere Versionen ignorieren den Eintrag.
 * Gemerkte Tabs mit der Seite „Mieter“ öffnen in 6.20 die Startseite.
 
 **6.22.0** (seit `0ecabb6`): ein Commit (`376e48b`).

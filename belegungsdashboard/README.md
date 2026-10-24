@@ -27,6 +27,22 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.28 – Benachrichtigungen ohne Klick
+
+* **Newsflash-Leiste** unter dem Seitentitel, auf jeder Seite. Sie zeigt nacheinander alles, was gerade ansteht, und
+  wechselt alle 7 Sekunden.
+  * Inhalt: die Vorgänge von „Heute“ (dringend und als Nächstes, z. B. Reinigung vor Einzug, Anreisen ohne Zimmer,
+    Buchungen eintragen, Vertragsende) und die Neuigkeiten der letzten 24 Stunden.
+  * Farbe nach Dringlichkeit: rot = dringend, orange = als Nächstes, Akzentfarbe = neu. Ohne offene Punkte steht dort
+    „Alles erledigt“ (grün).
+  * Maus darüber hält an, ‹ › blättert, ein Klick auf den Text führt direkt hin (optional).
+* **Popup unten rechts** beim Start und immer dann, wenn etwas Dringendes neu dazukommt. Je Zeile gibt es
+  „Ansehen“. Es schließt sich nach 20 Sekunden von selbst (nicht, solange die Maus darüber ist).
+  * Jede dringende Meldung kommt höchstens einmal am Tag als Popup.
+  * Ist das Programm minimiert, kommt stattdessen die Windows-Meldung.
+* Aktualisiert wird nach jeder Änderung und zusätzlich alle 5 Minuten. Glocke und Neuigkeiten-Leiste bleiben für den
+  Verlauf.
+
 ## Neu in 6.27.2 – Korrektur: Umzüge im Gebäudeplan-Abgleich
 
 * **Keine falsche „Doppelbelegung“ mehr nach einem Umzug im Programm.** Beispiel: Im Programm ist jemand von 3.1-E24
