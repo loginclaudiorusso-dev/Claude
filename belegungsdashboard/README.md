@@ -27,6 +27,24 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.27 – Mail zum Vertragsende, Sperrungen im Gebäudeplan-Abgleich, klarere Auswahl
+
+* **Mail zum Vertragsende (Mieter):** „Mail zum Vertragsende …“ auf der Seite Mieter (auch für Mieter laut
+  Gebäudeplan) erstellt eine fertige Mail. Es gibt zwei Varianten: „Verlängerung anfragen“ (mit Rückmeldefrist
+  4 Wochen vor Ende) oder „Auszug bestätigen“ (Übergabe, Schlüssel, ggf. Mietsicherheit).
+  * Text und Betreff sind änderbar. „In Outlook öffnen“ zeigt die Mail in Outlook, abgeschickt wird dort von Hand.
+    Ohne Outlook geht es über das Standard-Mailprogramm oder „Text kopieren“.
+  * Die E-Mail-Adresse wird am Vertrag gemerkt (neu auch in „Neuer Mieter“).
+  * Unter **Heute** steht „Mietvertrag … endet …“, sobald ein Vertrag in den nächsten 6 Wochen endet und noch keine
+    Mail vorbereitet wurde. In der Liste steht „Mail offen“ bzw. „Mail ✓“.
+  * Eigene Fassung: `Vorlagen/Mieter/Mail_Vertragsende_anfrage.txt` bzw. `…_auszug.txt` (erste Zeile = Betreff,
+    Platzhalter z. B. `{gruss}`, `{nr}`, `{zimmer}`, `{ende}`, `{frist}`, `{absender}`).
+* **Gebäudeplan-Abgleich meldet auch Sperrungen und Zimmerfreigaben:** jeweils neu, entfällt oder anderer Zeitraum.
+* **Klarere Auswahl im Abgleich:** „Eigener Eintrag“ statt „Planung“, und jede Option sagt, was danach gilt.
+  Beispiele: „Zimmer 2-223 aus dem Gebäudeplan übernehmen“, „in Zimmer 2-213 lassen (eigener Eintrag gilt)“,
+  „Eintrag in 2-213 löschen – Person neu zuteilen“. Für alle: „Alles aus dem Gebäudeplan übernehmen“ bzw. „Alle
+  eigenen Einträge behalten“.
+
 ## Neu in 6.26 – Gebäudeplan erst prüfen, dann übernehmen
 
 * **Vor jedem Gebäudeplan-Import kommt eine Prüfung.** Das gilt für „Gebäudeplan importieren“, „aus der

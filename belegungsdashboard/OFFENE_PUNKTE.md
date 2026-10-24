@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.26.0, 24.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.27.0, 24.10.2026)
 
 ## Als Nächstes
 
@@ -115,8 +115,12 @@
   „Gebaeudeplan“ übernimmt nur noch ohne Unterschiede automatisch.
   * Mit Datenkopie geprüft: Der Plan vom 03.10. gegen sich selbst ergibt keine Unterschiede, gezielte Änderungen werden
     alle gefunden.
-  * Offen/zu entscheiden: Sperrungen (gesperrt/frei) und Zimmerfreigaben werden noch nicht als eigene Unterschiede
-    gemeldet, nur als Doppelbelegung. Nachfragen, ob das gebraucht wird.
+  * Erledigt in 6.27: Sperrungen und Zimmerfreigaben werden gemeldet (Nutzer wollte es).
+- 6.27: Nutzer fand die Auswahl „in der Planung behalten“ irreführend. Jetzt heißt es „eigener Eintrag“, und die
+  Optionen nennen Zimmer und Zeitraum. Mail zum Vertragsende für Mieter (Outlook öffnet, Nutzer sendet).
+  * Offen/zu entscheiden: Mailtexte (Frist 4 Wochen vor Ende, Absender „Ihr Team des Internats Goslar“) vom Nutzer
+    prüfen lassen. Eigene Fassung geht über die Vorlagen-Dateien.
+  * Outlook-Anbindung („In Outlook öffnen“) nur unter Windows mit pywin32 – hier nicht testbar, mailto-Weg geprüft.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung

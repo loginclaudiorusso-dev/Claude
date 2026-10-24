@@ -1,4 +1,4 @@
-# Rückweg: von 6.26.0 zurück zu 6.25.1, 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.27.0 zurück zu 6.26.0, 6.25.1, 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -37,7 +37,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.24.1** | `backup/v6.24.1` | `0785630` | `INNternat_v6.24.1_Sicherung.zip` |
 | **6.25.0** | `backup/v6.25.0` | `7ad872b` | `INNternat_v6.25.0_Sicherung.zip` |
 | **6.25.1** | `backup/v6.25.1` | `3dcba12` | `INNternat_v6.25.1_Sicherung.zip` |
-| **6.26.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.26.0** | `backup/v6.26.0` | `23b650f` | `INNternat_v6.26.0_Sicherung.zip` |
+| **6.27.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -346,6 +347,16 @@ Namen, „ / “ mit Zeitraum am Zeilenende), Tests, Version 6.25.1. Datenformat
 * Daten: In `zimmer_zuweisungen.json` kann neu `vorrang` stehen.
 * Ältere Versionen: Sie ignorieren `vorrang`. Dort gilt wieder der Gebäudeplan, wie vor 6.26. Neue Pläne im Ordner
   übernehmen sie ohne Prüfung.
+
+**6.27.0** (seit `23b650f`): Commits siehe `git log backup/v6.26.0..claude/ui-overhaul-v6`.
+* Inhalt:
+  * Mail zum Vertragsende (`mieter.ende_mail/mail_offen/mail_vermerken`, `erinnerung.outlook_entwurf/mailto`,
+    Maske `ui/mieter_mail_dialog.py`, Vorgang „mieterende:“ unter Heute)
+  * Abgleich meldet Sperrungen/Zimmerfreigaben; Auswahltexte mit Zimmer/Zeitraum (`planabgleich.optionen_fuer`)
+  * Tests, Version 6.27.0
+* Daten: In `mieter.json` gibt es neu `email` und `mail_ende`.
+* Ältere Versionen: Sie lesen `mieter.json` normal und ignorieren die neuen Felder. Beim Speichern eines Vertrags
+  (z. B. Verlängern) unter 6.26 gehen `email` und `mail_ende` dieses Vertrags verloren.
 * Gemerkte Tabs mit der Seite „Mieter“ öffnen in 6.20 die Startseite.
 
 **6.22.0** (seit `0ecabb6`): ein Commit (`376e48b`).
