@@ -27,6 +27,16 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.27.1 – Gebäudeplan-Prüfung: eindeutige Begriffe
+
+* Die Maske erklärt oben genau, was verglichen wird – mit Dateiname und Stand:
+  * **Neuer Gebäudeplan** = die Datei, die gerade übernommen werden soll (Export aus dem Belegungssystem).
+  * **Zimmerplan jetzt** = was dieses Programm gerade zeigt: der bisherige Gebäudeplan plus die **eigenen Einträge**
+    (im Programm geplant: Zuteilen, Assistenz, Mieter, Umzüge).
+  * Am Belegungssystem selbst ändert sich nichts.
+* „System“ kommt nicht mehr vor (war mit dem Belegungssystem zu verwechseln). Die Tabelle zeigt kurze Jahreszahlen
+  und bricht um, die Auswahl hat eine feste Breite, der volle Text steht im Tooltip.
+
 ## Neu in 6.27 – Mail zum Vertragsende, Sperrungen im Gebäudeplan-Abgleich, klarere Auswahl
 
 * **Mail zum Vertragsende (Mieter):** „Mail zum Vertragsende …“ auf der Seite Mieter (auch für Mieter laut

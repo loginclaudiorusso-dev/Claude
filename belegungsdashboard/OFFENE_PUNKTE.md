@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.27.0, 24.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.27.1, 24.10.2026)
 
 ## Als Nächstes
 
@@ -121,6 +121,10 @@
   * Offen/zu entscheiden: Mailtexte (Frist 4 Wochen vor Ende, Absender „Ihr Team des Internats Goslar“) vom Nutzer
     prüfen lassen. Eigene Fassung geht über die Vorlagen-Dateien.
   * Outlook-Anbindung („In Outlook öffnen“) nur unter Windows mit pywin32 – hier nicht testbar, mailto-Weg geprüft.
+- 6.27.1: Nutzer fragte, was „neuer Plan“ und „System“ sind – das Programm wird auch von anderen genutzt. Jetzt:
+  „Neuer Gebäudeplan“ (Datei, Stand) vs. „Zimmerplan jetzt“ (bisheriger Gebäudeplan + eigene Einträge), beides mit
+  Dateiname/Stand erklärt. Blockschulplan 2026/27 (Nutzer-Upload 24.10.) war schon importiert und geprüft – alle Blöcke
+  stimmen; keine Änderung nötig.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
