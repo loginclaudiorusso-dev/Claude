@@ -15,7 +15,7 @@ from nicegui import run, ui
 
 from . import seiten_kern as sk
 from .kern import kurz
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 
 E = html.escape
 
@@ -169,18 +169,17 @@ def rg_zeichnen(a) -> None:
     n = sk.reinigung_zaehlen(a.daten)
     eilig = [z for z in a.daten if not z.erledigt and z.prio <= 1]
     with a.leiste:
-        ui.html(f'<span class="m-kpi"><b>{n["offen"]}</b> offen<span class="m-punktt">·</span>'
-                f'<b style="color:var(--rot)">{n["eilig"]}</b> eilig<span class="m-punktt">·</span>'
-                f'<b>{n["erledigt"]}</b> erledigt<span class="m-punktt">·</span>{a.rg_von:%d.%m.} – {a.rg_bis:%d.%m.}</span>',
-                sanitize=False)
+        kennzahlen([("offen", n["offen"], "offen", "akzent"), ("eilig", n["eilig"], "eilig (Anreise bald)", "krit" if n["eilig"] else "ok"),
+                    ("erledigt", n["erledigt"], "erledigt", "ok"), ("alle", len(a.daten), "alle", "neutral")],
+                   a.rg_filter, lambda f: a.setzen(rg_filter=f, laden=False))
+        ui.label(f"{a.rg_von:%d.%m.} – {a.rg_bis:%d.%m.}").classes("m-kpi")
         if eilig:
             knopf(f"Alle {len(eilig)} eiligen als gereinigt markieren" if len(eilig) > 1 else "Eilige als gereinigt markieren",
                   lambda: a.aendern(sk.reinigung_setzen, [z.schluessel for z in eilig], True, a.rg_von, a.rg_bis),
                   "gruen", "done_all")
-        segmente({"offen": f"Offen {n['offen']}", "alle": f"Alle {len(a.daten)}"}, a.rg_filter,
-                 lambda f: a.setzen(rg_filter=f, laden=False))
     with a.inhalt:
-        zs = [z for z in a.daten if a.rg_filter == "alle" or not z.erledigt]
+        zs = [z for z in a.daten if a.rg_filter == "alle" or (a.rg_filter == "erledigt" and z.erledigt)
+              or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
         if not zs:
             leer("Keine offenen Reinigungen in diesem Zeitraum." if a.daten else "Keine Reinigungen in diesem Zeitraum.")
             return
@@ -276,9 +275,10 @@ def mt_zeichnen(a) -> None:
     offen = [m for m in vertraege if m.mail_offen]
     with a.leiste:
         laufend = sum(1 for m in vertraege if m.bis >= a.heute)
-        ui.html(f'<span class="m-kpi"><b>{laufend}</b> laufende Verträge<span class="m-punktt">·</span>'
-                f'<b>{len(offen)}</b> Mail zum Vertragsende offen<span class="m-punktt">·</span>'
-                f'<b>{len(weitere)}</b> weitere laut Gebäudeplan</span>', sanitize=False)
+        kennzahlen([("laufend", laufend, "laufende Verträge", "ok"), ("mail", len(offen), "Mail zum Vertragsende offen",
+                                                                       "warn" if offen else "neutral"),
+                    ("weitere", len(weitere), "weitere laut Gebäudeplan", "neutral")], a.mt_filter,
+                   lambda f: a.setzen(mt_filter=None if f == a.mt_filter else f, laden=False))
         knopf("Neuer Mieter", lambda: mieter_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
     with a.inhalt:
         if not vertraege and not weitere:
@@ -289,6 +289,9 @@ def mt_zeichnen(a) -> None:
                 for t in ("", "Nr.", "Name", "Zimmer", "Zeitraum", "Status", "Mail zum Vertragsende", ""):
                     ui.label(t)
             for m in vertraege:
+                if (a.mt_filter == "mail" and not m.mail_offen) or (a.mt_filter == "laufend" and m.bis < a.heute) \
+                        or a.mt_filter == "weitere":
+                    continue
                 with ui.element("div").classes("m-raster m-zeile" + (" fertig" if m.bis < a.heute else "")).style(
                         f"grid-template-columns:{MT_SPALTEN}"):
                     with ui.element("div"):
@@ -312,7 +315,7 @@ def mt_zeichnen(a) -> None:
                     with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
                         knopf("", lambda m=m: verlaengern_panel(a, m), "leise", "update", "Verlängern (Nebenabrede) …")
                         knopf("", lambda m=m: _unterlagen(a, m.nr), "leise", "description", "Unterlagen neu erstellen")
-        if weitere:
+        if weitere and a.mt_filter in (None, "weitere"):
             ui.label("Weitere Mieter laut Gebäudeplan (ohne Vertrag in diesem Programm)").classes("m-abschnitt")
             for name, zimmer, zeit in weitere:
                 with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{MT_SPALTEN}"):

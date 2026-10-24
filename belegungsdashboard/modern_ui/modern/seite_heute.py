@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from nicegui import ui
 
 from .kern import WT, kurz
-from .ui_bausteine import attr, knopf, leer
+from .ui_bausteine import attr, kennzahlen, knopf, leer
 
 
 @dataclass
@@ -40,6 +40,9 @@ def tag_daten(stand, heute: date) -> Tag:
     return t
 
 
+STUFE = {"ok": "ok", "knapp": "warn", "kritisch": "krit"}
+
+
 def daten(a) -> None:
     from .kern import nach_planung
 
@@ -55,17 +58,30 @@ def zeichnen(a) -> None:
     z = t.zimmer
     with a.leiste:
         wt = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"][a.heute.weekday()]
-        ui.html(f'<span class="m-kpi">{wt}, {a.heute:%d.%m.%Y}<span class="m-punktt">·</span><b>{z["frei"]}</b> frei'
-                f'<span class="m-punktt">·</span><b>{z["belegt"]}</b> belegt<span class="m-punktt">·</span>'
-                f'<b>{z["gesperrt"]}</b> gesperrt<span class="m-punktt">·</span>'
-                f'<b>{z["ohne_zimmer"]}</b> Anreisen ohne Zimmer (8 Wochen)</span>', sanitize=False)
+        werte = [("frei", z["frei"], "frei heute", "ok"), ("belegt", z["belegt"], "belegt", "blau"),
+                 ("gesperrt", z["gesperrt"], "gesperrt", "neutral"),
+                 ("ohne", z["ohne_zimmer"], "Anreisen ohne Zimmer", "krit" if z["ohne_zimmer"] else "ok")]
         np_ = t.np
         if np_ and np_.tiefst:
             text, frei, stufe = np_.tiefst
-            p = ui.label(f"nach Planung mind. {frei} frei · {text.split(' · ')[0]}").classes(
-                "m-pille " + {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe])
-            attr(p, title="Wenn alle Anreisen der nächsten 12 Wochen ein Zimmer haben (auch die noch ohne – probeweise nach "
-                          "den Regeln zugeteilt). Details unter Heute rechts bzw. Auswertung → Zimmer & Engpässe.")
+            werte.append(("np", frei, f"frei nach Planung · {text.split(' · ')[0]}", STUFE[stufe]))
+        werte.append(("maengel", sum(1 for _ in _defekte(a)), "Zimmer mit Mängeln", "warn"))
+
+        def sprung(k):
+            if k == "ohne":
+                return a.oeffnen("anreisen", ansicht="zuteilen", filter="ohne")
+            if k == "np":
+                return a.oeffnen("auswertung", ansicht="zimmer")
+            if k == "maengel":
+                return a.oeffnen("zimmer", ansicht="maengel")
+            return a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=k)
+
+        kennzahlen(werte, None, sprung, {"ohne": "Anreisen der nächsten 8 Wochen ohne Zimmer – Klick: zuteilen",
+                                         "np": "Mindestens so viele Zimmer bleiben frei, wenn alle bekannten Anreisen ein Zimmer "
+                                               "hätten – Klick: alle Wochen",
+                                         "maengel": "Klick: defekte Zimmer", "frei": "Klick: Zimmer-Übersicht",
+                                         "belegt": "Klick: Zimmer-Übersicht", "gesperrt": "Klick: Zimmer-Übersicht"})
+        ui.label(f"{wt}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
     with a.inhalt:
         with ui.element("div").classes("m-heute"):
             with ui.element("section").classes("m-heute-links"):
@@ -121,9 +137,6 @@ def zeichnen(a) -> None:
                                     ui.label(zeit).classes("m-zweite")
 
 
-STUFE = {"ok": "ok", "knapp": "warn", "kritisch": "krit"}
-
-
 def _nach_planung_block(a, np_) -> None:
     """Freie Zimmer der nächsten 5 Wochen nach Planung – gesamt, EMR, Doppelzimmer, mit Ampel."""
     with ui.element("div").classes("m-block"):
@@ -140,3 +153,10 @@ def _nach_planung_block(a, np_) -> None:
                 ui.label(str(emr)).classes(f"m-pille {STUFE[je['emr']]}")
                 ui.label(str(doppel)).classes(f"m-pille {STUFE[je['doppel']]}")
         knopf("Alle 12 Wochen", lambda: a.oeffnen("auswertung", ansicht="zimmer"), "leise", "insights")
+
+
+def _defekte(a):
+    from belegung import maengel as mg
+
+    aktiv = {z.id for z in a.stand.zimmer if z.aktiv}
+    return [zid for zid in mg.offen_je_zimmer() if zid in aktiv]

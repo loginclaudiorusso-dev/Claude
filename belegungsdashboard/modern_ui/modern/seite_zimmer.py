@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from nicegui import run, ui
 
 from . import seiten, zimmer_kern as zk
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 
 ANSICHTEN = {"uebersicht": "Übersicht", "zeitstrahl": "Zeitstrahl", "liste": "Liste", "maengel": "Defekte Zimmer"}
 
@@ -294,11 +294,13 @@ def _uebersicht(a) -> None:
     alle = [k for et in haeuser.values() for ks in et.values() for k in ks]
     n = {s: sum(1 for k in alle if k.status == s) for s in ("frei", "teilweise", "belegt", "geplant", "gesperrt")}
     defekt = sum(1 for k in alle if k.stufe)
+    f = a.zu_filter
     with a.leiste:
-        ui.html(f'<span class="m-kpi">am <b>{a.zu_tag:%d.%m.%Y}</b><span class="m-punktt">·</span><b>{n["frei"] + n["teilweise"]}</b> frei'
-                f'<span class="m-punktt">·</span><b>{n["belegt"]}</b> belegt<span class="m-punktt">·</span><b>{n["geplant"]}</b> geplant'
-                f'<span class="m-punktt">·</span><b>{n["gesperrt"]}</b> gesperrt<span class="m-punktt">·</span>'
-                f'<b style="color:var(--orange)">{defekt}</b> mit Mängeln</span>', sanitize=False)
+        kennzahlen([("frei", n["frei"] + n["teilweise"], "frei", "ok"), ("belegt", n["belegt"], "belegt", "blau"),
+                    ("geplant", n["geplant"], "geplant", "akzent"), ("gesperrt", n["gesperrt"], "gesperrt", "neutral"),
+                    ("maengel", defekt, "mit Mängeln", "warn")], f,
+                   lambda k: a.setzen(zu_filter=None if k == a.zu_filter else k, laden=False))
+        ui.label(f"am {a.zu_tag:%d.%m.%Y}").classes("m-kpi")
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
         knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
@@ -317,7 +319,9 @@ def _uebersicht(a) -> None:
                             ui.label(etage).classes("m-zweite m-etage-titel")
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
-                                    kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "")
+                                    passt = (f is None or (f == "maengel" and k.stufe) or k.status == f
+                                             or (f == "frei" and k.status == "teilweise"))
+                                    kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=k.titel)
                                     with b:
@@ -331,9 +335,9 @@ def _maengel(a) -> None:
     zs: list[zk.MZeile] = a.daten
     with a.leiste:
         n = {st: sum(1 for z in zs if z.stufe == st) for st in (3, 2, 1)}
-        ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{n[3]}</b> nicht bewohnbar<span class="m-punktt">·</span>'
-                f'<b style="color:var(--orange)">{n[2]}</b> dringend<span class="m-punktt">·</span><b>{n[1]}</b> leicht'
-                f'<span class="m-punktt">·</span>{sum(len(z.maengel) for z in zs)} offene Mängel</span>', sanitize=False)
+        kennzahlen([(3, n[3], "nicht bewohnbar", "krit"), (2, n[2], "dringend", "warn"), (1, n[1], "leicht", "neutral")],
+                   a.dz_filter, lambda k: a.setzen(dz_filter=None if k == a.dz_filter else k, laden=False))
+        ui.label(f"{sum(len(z.maengel) for z in zs)} offene Mängel").classes("m-kpi")
         knopf("FM-Bericht drucken", lambda: _fm(a, "druck"), "", "print").style("margin-left:auto")
         knopf("FM-Liste (Excel)", lambda: _fm(a, "excel"), "", "table_view")
         knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "leise", "content_copy")
@@ -346,7 +350,7 @@ def _maengel(a) -> None:
             leer("Keine offenen Mängel – alle Zimmer in Ordnung.")
             return
         for st, titel in zk.STUFEN.items():
-            gruppe = [z for z in zs if z.stufe == st]
+            gruppe = [z for z in zs if z.stufe == st and (a.dz_filter is None or a.dz_filter == st)]
             if not gruppe:
                 continue
             ui.label(f"{titel} ({len(gruppe)})").classes("m-abschnitt")

@@ -12,7 +12,7 @@ from belegung import __version__ as haupt_version
 
 from . import __version__, kern, register, seite_anreisen, suche_palette
 from .stil import CSS
-from .ui_bausteine import attr, knopf, leer
+from .ui_bausteine import attr, kennzahlen, knopf, leer
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +65,7 @@ class Ansicht:
         self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
         self.as_text, self.as_verstanden, self.as_chat = "", [], []
         self.zu_tag = self.heute
+        self.zu_filter = self.dz_filter = self.mt_filter = None
         from belegung import konfig
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
@@ -261,27 +262,27 @@ class Ansicht:
             k = kern.kennzahlen(self.stand, tag)
             n = kern.zaehlen(self.zeilen)
             with self.leiste:
-                ui.html(f'<span class="m-kpi"><b>{k["frei"]}</b> frei<span class="m-punktt">·</span><b>{k["belegt"]}</b> '
-                        f'belegt<span class="m-punktt">·</span><b>{k["gesperrt"]}</b> gesperrt'
-                        f'<span class="m-punktt">·</span>am {tag:%d.%m.}</span>', sanitize=False)
-                if getattr(self, "np", None) and self.np.tiefst:
-                    text, frei, stufe = self.np.tiefst
-                    p = attr(ui.label(f"nach Planung mind. {frei} frei · {text.split(' · ')[0]}").classes(
-                        "m-pille " + {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe]),
-                        title="Wenn alle Anreisen der nächsten 12 Wochen ein Zimmer hätten – Klick: alle Wochen")
-                    p.style("cursor:pointer").on("click", lambda: self.oeffnen("auswertung", ansicht="zimmer"))
+                # links: die Personen dieser Anreise (Filter) – rechts: Zimmer am Anreisetag (Sprung zur Übersicht)
+                kennzahlen([("alle", n["alle"], "Personen", "neutral"), ("handeln", n["handeln"], "Handlungsbedarf", "krit"),
+                            ("ohne", n["ohne"], "ohne Zimmer", "akzent"), ("maengel", n["maengel"], "Mängel", "warn")],
+                           self.filter, lambda f: self._filtern("alle" if f == self.filter else f))
+                ui.element("div").classes("m-trennlinie")
+                zimmer = [("frei", k["frei"], f"frei am {tag:%d.%m.}", "ok"), ("belegt", k["belegt"], "belegt", "blau"),
+                          ("gesperrt", k["gesperrt"], "gesperrt", "neutral")]
+                np_ = getattr(self, "np", None)
+                if np_ and np_.tiefst:
+                    text, frei, stufe = np_.tiefst
+                    zimmer.append(("np", frei, f"nach Planung · {text.split(' · ')[0]}", {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe]))
+                kennzahlen(zimmer, None, lambda k: self.oeffnen("auswertung", ansicht="zimmer") if k == "np" else
+                           self.oeffnen("zimmer", ansicht="uebersicht", zu_tag=tag, zu_filter=k),
+                           {"np": "Mindestens so viele Zimmer bleiben frei, wenn alle Anreisen der nächsten 12 Wochen ein "
+                                  "Zimmer hätten – Klick: alle Wochen",
+                            "frei": "Klick: diese Zimmer in der Übersicht", "belegt": "Klick: diese Zimmer in der Übersicht",
+                            "gesperrt": "Klick: diese Zimmer in der Übersicht"})
                 offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
                 if offen:
                     knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",
-                          self._alle_vorschlaege, "gruen", "done_all")
-                with ui.element("div").classes("m-segm").props('role="group" aria-label="Filter"'):
-                    for f, text in kern.FILTER.items():
-                        b = ui.element("button").classes("an" if f == self.filter else "")
-                        attr(b, aria_pressed=str(f == self.filter).lower())
-                        with b:
-                            ui.label(text)
-                            ui.label(str(n[f])).classes("n")
-                        b.on("click", lambda f=f: self._filtern(f))
+                          self._alle_vorschlaege, "gruen", "done_all").style("margin-left:auto")
         with self.inhalt:
             if not self.kennung:
                 leer("Keine Anreisen ab heute in den Listen.")
