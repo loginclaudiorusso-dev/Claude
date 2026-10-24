@@ -171,6 +171,8 @@ class Ansicht:
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
                 self.leiste = ui.element("div").classes("m-leiste")
                 self.inhalt = ui.element("div").classes("m-inhalt")
+            self.schleier = ui.element("div").classes("m-schleier")
+            self.schleier.on("click", self._schliessen)
             self.center = ui.element("aside").classes("m-center")
             attr(self.center, aria_label="Aufgaben")
         self.toast_box = ui.element("div")
@@ -329,9 +331,19 @@ class Ansicht:
 
     # ---- Panel rechts: Aufgaben oder Formular --------------------------------------------
 
+    def _schliessen(self) -> None:
+        if self.panel_def is not None:
+            self.panel_zu()
+        else:
+            self.center_umschalten(False)
+
+    def _schleier_setzen(self) -> None:
+        self.schleier.classes(add="offen" if self.center_offen else "", remove="" if self.center_offen else "offen")
+
     def _center(self) -> None:
         self.center.clear()
         self.center.classes(add="offen" if self.center_offen else "", remove="" if self.center_offen else "offen")
+        self._schleier_setzen()
         with self.center:
             with ui.element("div").classes("m-ckopf"):
                 ui.label("Aufgaben").classes("m-titel")
@@ -349,10 +361,14 @@ class Ansicht:
                         self._karte(k)
 
     def _karte(self, k: kern.Karte) -> None:
-        with ui.element("article").classes("m-karte"):
+        with ui.element("article").classes(f"m-karte {k.stufe}"):
             with ui.element("div").classes("k1"):
-                ui.element("div").classes(f"m-ampel {AMPEL[k.stufe]}")
-                ui.label(k.titel)
+                with ui.element("span").classes(f"m-ksymbol {AMPEL[k.stufe]}"):
+                    ui.icon(kern.symbol(k.id))
+                with ui.element("div").classes("k1t"):
+                    ui.label(k.titel)
+                    ui.label({"dringend": "Dringend", "bald": "Als Nächstes", "info": "Zur Info"}[k.stufe]).classes(
+                        f"m-kstufe {AMPEL[k.stufe]}")
             if k.detail:
                 attr(ui.label(k.detail).classes("k2"), title=k.detail)
             with ui.element("div").classes("k3"):
@@ -366,11 +382,12 @@ class Ansicht:
                     "margin-left: auto")
 
     def panel(self, titel: str, bauen, breit: bool = False) -> None:
-        """Formular im Panel rechts (statt eines Dialogs, der die Tabelle verdeckt)."""
+        """Formular im Panel rechts (gleitet über den abgedunkelten Inhalt, Klick daneben schließt)."""
         self.panel_def = (titel, bauen)
         self.center_offen = True
         self.center.clear()
         self.center.classes(add="offen" + (" breit" if breit else ""), remove="" if breit else "breit")
+        self._schleier_setzen()
         with self.center:
             with ui.element("div").classes("m-ckopf"):
                 ui.label(titel).classes("m-titel")
