@@ -1,5 +1,6 @@
-"""Seiten Zeitstrahl, Reinigung, Mieter, Auswertung und Verwalten. Jede Seite hat ``daten`` (läuft im Hintergrund,
-ohne Oberfläche) und ``zeichnen`` (baut Kopf-Werkzeuge, Leiste und Inhalt). Formulare öffnen sich im Panel rechts."""
+"""Bausteine mehrerer Seiten: Zeitstrahl (in „Zimmer“), Reinigung mit Facility-Checks, Mieter, Zimmer & Engpässe
+(in „Auswertung“), Gebäudeplan prüfen (in „Daten & Import“) und Drucken. Daten laden im Hintergrund (``*_daten``),
+Formulare öffnen sich im Panel rechts."""
 
 from __future__ import annotations
 
@@ -81,11 +82,11 @@ def _zs_html(a) -> str:
         hintergrund += f'<div class="m-zs-jetzt" style="left:calc({(a.heute - a.zs_start).days + .5} * 100% / var(--tage))"></div>'
     for z in a.daten:
         hinweis = f'<span class="m-zs-h" title="{E(z.hinweis)}">●</span>' if z.hinweis else ""
-        teile.append(f'<div class="m-zs-zeile"><div class="m-zs-lab" title="{E(z.lage)}">'
+        teile.append(f'<div class="m-zs-zeile"><div class="m-zs-lab" data-z="{E(z.zimmer)}" title="{E(z.lage)} – Klick öffnet die Zimmerkarte">'
                      f'<b>{E(z.kurz)}</b>{" · DZ" if z.betten > 1 else ""}{hinweis}</div><div class="m-zs-spur">{hintergrund}')
         for b in z.balken:
             kl = f"m-zs-b {b.art}" + (" ol" if b.offen_links else "") + (" or" if b.offen_rechts else "")
-            teile.append(f'<div class="{kl}" title="{E(b.titel)}" style="left:calc({b.start} * 100% / var(--tage));'
+            teile.append(f'<div class="{kl}" data-z="{E(z.zimmer)}" title="{E(b.titel)}" style="left:calc({b.start} * 100% / var(--tage));'
                          f'width:calc({b.tage} * 100% / var(--tage) - 2px)"><span>{E(b.text)}</span></div>')
         teile.append("</div></div>")
     teile.append("</div>")
@@ -97,6 +98,11 @@ def _zs_html(a) -> str:
 # =======================================================================================
 
 def rg_daten(a) -> None:
+    if a.ansicht_von("reinigung", "liste") == "facility":
+        from belegung import eintragen
+
+        a.daten = eintragen.facility_checks(a.stand.lage, a.heute - timedelta(days=14), a.heute + timedelta(days=45))
+        return
     von, bis = sk.zeitraum(a.rg_zeitraum, a.heute)
     a.daten = sk.reinigung(a.stand, von, bis, a.heute)
     a.rg_von, a.rg_bis = von, bis
@@ -105,7 +111,57 @@ def rg_daten(a) -> None:
 RG_SPALTEN = "36px 70px minmax(80px, .8fr) minmax(90px, 1fr) minmax(100px, .9fr) minmax(120px, 1.5fr) minmax(100px, 1.2fr) 140px 36px"
 
 
+def facility_setzen(schluessel: str, an: bool) -> str:
+    from belegung import eintragen
+    from belegung import zimmerplan as zp
+
+    from .kern import _schritt
+
+    heute = date.today()
+    c = next((x for x in eintragen.facility_checks(zp.laden().lage, heute - timedelta(days=60), heute + timedelta(days=90))
+              if x.schluessel == schluessel), None)
+    if c is None:
+        raise ValueError("Den Facility-Check gibt es nicht mehr.")
+    _schritt("Facility-Check", lambda: eintragen.facility_setzen(c, an), [eintragen.FACILITY_DATEI])
+    return f"Zimmer {c.zimmer.removeprefix('GS-')}: Facility-Check " + ("erledigt" if an else "wieder offen")
+
+
+def _facility(a) -> None:
+    from belegung import eintragen
+
+    cs = a.daten
+    with a.leiste:
+        ui.html(f'<span class="m-kpi"><b>{sum(1 for c in cs if not c.haken)}</b> offen · Auszüge nach mindestens '
+                f'{round(eintragen.facility_tage() / 30.44)} Monaten: {E(eintragen.FACILITY_AUFGABE)}</span>', sanitize=False)
+    sp = "36px 110px 90px minmax(160px, 1.4fr) minmax(120px, 1fr) 110px"
+    with a.inhalt:
+        if not cs:
+            leer("Keine Facility-Checks in den nächsten Wochen.")
+            return
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("", "Auszug", "Zimmer", "Bewohner", "Maßnahme", "Aufenthalt"):
+                ui.label(t)
+        for c in cs:
+            with ui.element("div").classes("m-raster m-zeile" + (" fertig" if c.haken else "")).style(f"grid-template-columns:{sp}"):
+                with ui.element("div"):
+                    b = ui.element("button").classes("m-haken" + (" an" if c.haken else ""))
+                    attr(b, title="Erledigt", aria_pressed=str(c.haken).lower())
+                    with b:
+                        ui.icon("check")
+                    b.on("click", lambda c=c: a.aendern(facility_setzen, c.schluessel, not c.haken))
+                ui.label(f"{c.bis:%d.%m.%Y}").classes("m-mono")
+                ui.label(c.zimmer.removeprefix("GS-")).classes("m-mono")
+                ui.label(c.name).classes("m-name")
+                ui.label(c.massnahme).classes("m-zweite")
+                ui.label(f"{c.monate} Monate").classes("m-mono")
+
+
 def rg_zeichnen(a) -> None:
+    ansicht = a.ansicht_von("reinigung", "liste")
+    with a.werkzeuge:
+        segmente({"liste": "Reinigungsliste", "facility": "Facility-Checks"}, ansicht, lambda v: a.oeffnen("reinigung", ansicht=v))
+    if ansicht == "facility":
+        return _facility(a)
     with a.werkzeuge:
         segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w))
         knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "", "add")
@@ -187,12 +243,21 @@ def _rg_hinzu_panel(a) -> None:
 
 async def _rg_drucken(a) -> None:
     text = await run.io_bound(sk.reinigung_druck, a.rg_von, a.rg_bis, a.heute)
-    pfad = Path(tempfile.gettempdir()) / f"Reinigungsliste_{a.rg_von:%Y-%m-%d}.html"
-    pfad.write_text(text.replace("</body>", "<script>window.print()</script></body>"), encoding="utf-8")
-    if not _datei_oeffnen(str(pfad)):
-        a.toast(f"Druckansicht gespeichert: {pfad}", rueck=False)
+    html_drucken(a, text, f"Reinigungsliste_{a.rg_von:%Y-%m-%d}")
+
+
+def html_drucken(a, text: str, name: str) -> None:
+    """Druckansicht im Standardbrowser öffnen (dort drucken oder als PDF speichern)."""
+    pfad = Path(tempfile.gettempdir()) / f"{name}.html"
+    if "</body>" in text:
+        text = text.replace("</body>", "<script>window.print()</script></body>")
     else:
-        a.toast("Druckansicht geöffnet", rueck=False)
+        text = f"<!doctype html><meta charset='utf-8'>{text}<script>window.print()</script>"
+    pfad.write_text(text, encoding="utf-8")
+    if _datei_oeffnen(str(pfad)):
+        a.toast("Druckansicht geöffnet – dort drucken oder als PDF speichern", rueck=False)
+    else:
+        ui.navigate.to(f"/druck/{pfad.name}", new_tab=True)
 
 
 # =======================================================================================
@@ -203,7 +268,7 @@ def mt_daten(a) -> None:
     a.daten = sk.mieter(a.heute)
 
 
-MT_SPALTEN = "28px 70px minmax(160px, 1.3fr) 90px 190px minmax(130px, 1fr) minmax(170px, 1fr)"
+MT_SPALTEN = "28px 70px minmax(160px, 1.3fr) 90px 190px minmax(120px, 1fr) minmax(170px, 1fr) 76px"
 
 
 def mt_zeichnen(a) -> None:
@@ -214,14 +279,14 @@ def mt_zeichnen(a) -> None:
         ui.html(f'<span class="m-kpi"><b>{laufend}</b> laufende Verträge<span class="m-punktt">·</span>'
                 f'<b>{len(offen)}</b> Mail zum Vertragsende offen<span class="m-punktt">·</span>'
                 f'<b>{len(weitere)}</b> weitere laut Gebäudeplan</span>', sanitize=False)
-        ui.label("Verträge anlegen, verlängern und Unterlagen: im Hauptprogramm").classes("m-zweite").style("margin-left:auto")
+        knopf("Neuer Mieter", lambda: mieter_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
     with a.inhalt:
         if not vertraege and not weitere:
             leer("Keine Mieter.")
             return
         if vertraege:
             with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{MT_SPALTEN}"):
-                for t in ("", "Nr.", "Name", "Zimmer", "Zeitraum", "Status", "Mail zum Vertragsende"):
+                for t in ("", "Nr.", "Name", "Zimmer", "Zeitraum", "Status", "Mail zum Vertragsende", ""):
                     ui.label(t)
             for m in vertraege:
                 with ui.element("div").classes("m-raster m-zeile" + (" fertig" if m.bis < a.heute else "")).style(
@@ -244,6 +309,9 @@ def mt_zeichnen(a) -> None:
                             knopf("", lambda m=m: _mail_panel(a, m), "leise", "mail", "Noch einmal vorbereiten")
                         elif m.bis >= a.heute:
                             knopf("Mail", lambda m=m: _mail_panel(a, m), "leise", "mail", "Mail zum Vertragsende vorbereiten")
+                    with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
+                        knopf("", lambda m=m: verlaengern_panel(a, m), "leise", "update", "Verlängern (Nebenabrede) …")
+                        knopf("", lambda m=m: _unterlagen(a, m.nr), "leise", "description", "Unterlagen neu erstellen")
         if weitere:
             ui.label("Weitere Mieter laut Gebäudeplan (ohne Vertrag in diesem Programm)").classes("m-abschnitt")
             for name, zimmer, zeit in weitere:
@@ -255,6 +323,122 @@ def mt_zeichnen(a) -> None:
                     ui.label(zeit).classes("m-mono")
                     ui.label("")
                     ui.label("")
+                    ui.label("")
+
+
+async def _mit_datei(a, aktion, *args) -> bool:
+    """Unterlagen erstellen und die Datei öffnen."""
+    ergebnis = {}
+
+    def los():
+        text, pfad = aktion(*args)
+        ergebnis["pfad"] = pfad
+        return text
+
+    if await a.aendern(los):
+        if not _datei_oeffnen(str(ergebnis["pfad"])):
+            a.toast(f"Gespeichert: {ergebnis['pfad']}", rueck=False)
+        return True
+    return False
+
+
+async def _unterlagen(a, nr: str) -> None:
+    from . import mieter_kern as mk
+
+    await _mit_datei(a, mk.unterlagen_neu, nr)
+
+
+def mieter_neu_panel(a) -> None:
+    from belegung import mieter as mt
+
+    from . import mieter_kern as mk
+
+    def bauen():
+        ui.label("Alle Unterlagen in einer PDF (Mietvertrag, Wohnungsgeberbestätigung, SEPA, Mietschuldenfreiheit) – "
+                 "der Mieter wird im Zimmerplan eingetragen.").classes("m-ptext")
+        with ui.element("div").classes("m-zweispaltig"):
+            anrede = ui.select(mk.ANREDEN, value="Frau", label="Anrede").classes("m-feld").props(
+                'dense outlined dark options-dense popup-content-class="m-popup"')
+            nr = ui.input("Vertragsnummer", value=mt.naechste_nummer()).classes("m-feld").props("dense outlined dark")
+            vor = ui.input("Vorname").classes("m-feld").props("dense outlined dark")
+            nach = ui.input("Nachname").classes("m-feld").props("dense outlined dark")
+            von = ui.input("Mietbeginn", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            bis = ui.input("Mietende", value=mt.standard_ende(a.heute).isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+            miete = ui.number("Miete (€)", value=mt.STANDARD_MIETE, min=0, step=10).classes("m-feld").props("dense outlined dark")
+            flaeche = ui.number("Fläche (m²)", value=mt.STANDARD_FLAECHE, min=1, step=1, format="%d").classes("m-feld").props(
+                "dense outlined dark")
+            schl = ui.number("Schlüssel", value=1, min=0, step=1, format="%d").classes("m-feld").props("dense outlined dark")
+            mail = ui.input("E-Mail (optional)").classes("m-feld").props("dense outlined dark")
+        zimmer = ui.select({}, label="Zimmer", with_input=True).classes("m-feld").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")
+        kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=indigo-4")
+
+        async def zimmer_fuellen():
+            try:
+                v, b = date.fromisoformat(von.value), date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                return
+            zimmer.set_options(await run.io_bound(mk.zimmer_auswahl, v, b, anrede.value, bool(alle.value)), value=zimmer.value
+                               if zimmer.value else None)
+
+        def beginn():
+            try:
+                bis.value = mt.standard_ende(date.fromisoformat(von.value)).isoformat()
+            except (TypeError, ValueError):
+                pass
+
+        von.on_value_change(lambda _e: (beginn(), zimmer_fuellen()))
+        bis.on_value_change(lambda _e: zimmer_fuellen())
+        alle.on_value_change(lambda _e: zimmer_fuellen())
+        anrede.on_value_change(lambda _e: zimmer_fuellen())
+        ui.timer(0.05, zimmer_fuellen, once=True)
+
+        async def erstellen():
+            try:
+                v, b = date.fromisoformat(von.value), date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte Beginn und Ende wählen.", fehler=True)
+                return
+            werte = {"nr": nr.value or "", "anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
+                     "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
+                     "schluessel": schl.value or 0, "kaution": kaution.value, "kaution_bis": v, "email": mail.value or ""}
+            if await _mit_datei(a, mk.neuer_vertrag, werte):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Unterlagen erstellen", erstellen, "primaer", "description")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Neuer Mieter", bauen, breit=True)
+
+
+def verlaengern_panel(a, m) -> None:
+    from belegung import mieter as mt
+
+    from . import mieter_kern as mk
+
+    def bauen():
+        ui.label(f"{m.name} · Zimmer {m.zimmer} · bisher bis {m.bis:%d.%m.%Y}. Erstellt die Nebenabrede (Word und PDF) "
+                 "und verlängert den Eintrag im Zimmerplan.").classes("m-ptext")
+        bis = ui.input("Neues Mietende", value=mt.standard_ende(m.bis + timedelta(days=1)).isoformat()).classes(
+            "m-feld").props("dense outlined dark type=date")
+
+        async def los():
+            try:
+                d = date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte ein Datum wählen.", fehler=True)
+                return
+            if await _mit_datei(a, mk.verlaengern, m.nr, d):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Nebenabrede erstellen", los, "primaer", "update")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel(f"Verlängern · MV {m.nr}", bauen)
 
 
 def _mail_panel(a, m) -> None:
@@ -351,63 +535,8 @@ def aw_zeichnen(a) -> None:
 
 
 # =======================================================================================
-# Verwalten
+# Gebäudeplan prüfen (Panel) – genutzt von „Daten & Import“
 # =======================================================================================
-
-def vw_daten(a) -> None:
-    a.daten = {"stand": sk.datenstand(a.stand), "plan": sk.neuer_plan(), "einst": sk.einstellungen()}
-
-
-def vw_zeichnen(a) -> None:
-    d = a.daten
-    with a.inhalt:
-        with ui.element("div").classes("m-zwei"):
-            with ui.element("section").classes("m-block"):
-                ui.label("Datenstand").classes("m-btitel")
-                for bereich, wert, hinweis in d["stand"]:
-                    with ui.element("div").classes("m-dl"):
-                        ui.label(bereich).classes("k")
-                        with ui.element("div"):
-                            attr(ui.label(wert).classes("v"), title=wert)
-                            if hinweis:
-                                ui.label(hinweis).classes("m-zweite")
-                from belegung import konfig
-
-                with ui.element("div").classes("m-paktionen"):
-                    knopf("Datenordner öffnen", lambda: _datei_oeffnen(str(konfig.datenordner())) or a.toast(
-                        str(konfig.datenordner()), rueck=False), "", "folder_open")
-                    knopf("Neu laden", a.laden, "leise", "refresh")
-            with ui.element("section").classes("m-block"):
-                ui.label("Gebäudeplan").classes("m-btitel")
-                if d["plan"] is None:
-                    ui.label("Kein neuer Gebäudeplan im Ordner „Gebaeudeplan“. Neue Word-Datei dort ablegen – sie wird "
-                             "hier geprüft, bevor sie gilt.").classes("m-ptext")
-                else:
-                    plan, kennung, unterschiede = d["plan"]
-                    from belegung import planabgleich as pa
-
-                    ui.label(f"Neu im Ordner: {plan.datei}" + (f" (Stand {plan.stand:%d.%m.%Y})" if plan.stand else "")
-                             ).classes("m-name")
-                    ui.label(pa.zusammenfassung(unterschiede) if unterschiede else
-                             "Keine Unterschiede zum Zimmerplan.").classes("m-ptext")
-                    with ui.element("div").classes("m-paktionen"):
-                        if unterschiede:
-                            knopf("Prüfen und übernehmen …", lambda: _plan_panel(a, plan, kennung, unterschiede), "primaer")
-                        else:
-                            knopf("Übernehmen", lambda: a.aendern(sk.plan_uebernehmen, plan, [], kennung), "primaer")
-                ui.label("Einstellungen").classes("m-btitel").style("margin-top:18px")
-                for k, (text, typ, _s) in sk.EINSTELLUNGEN.items():
-                    with ui.element("div").classes("m-einst"):
-                        ui.label(text).classes("m-ptext")
-                        if typ is bool:
-                            ui.switch(value=d["einst"][k], on_change=lambda e, k=k: a.aendern(
-                                sk.einstellung_setzen, k, e.value)).props("dense color=indigo-4")
-                        else:
-                            n = ui.number(value=d["einst"][k], min=0, max=7, step=1, format="%d").classes("m-feld klein").props(
-                                "dense outlined dark")
-                            n.on("blur", lambda _e, k=k, n=n: a.aendern(sk.einstellung_setzen, k, int(n.value or 0))
-                                 if int(n.value or 0) != a.daten["einst"][k] else None)
-
 
 def _plan_panel(a, plan, kennung, unterschiede) -> None:
     def bauen():
@@ -450,10 +579,3 @@ def _plan_panel(a, plan, kennung, unterschiede) -> None:
     a.panel(f"Gebäudeplan prüfen · {len(unterschiede)} Unterschiede", bauen)
 
 
-SEITEN = {
-    "zeitstrahl": ("Zeitstrahl", "view_timeline", zs_daten, zs_zeichnen),
-    "reinigung": ("Reinigung", "cleaning_services", rg_daten, rg_zeichnen),
-    "mieter": ("Mieter", "key", mt_daten, mt_zeichnen),
-    "auswertung": ("Auswertung", "insights", aw_daten, aw_zeichnen),
-    "verwalten": ("Verwalten", "settings", vw_daten, vw_zeichnen),
-}
