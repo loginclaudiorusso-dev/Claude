@@ -27,6 +27,23 @@ Einstellungen und lokale Listen liegen wie bisher neben der exe
 weiterverwendet; neu: `einstellungen.json`, Ordner `importe/` und `erinnerungen/`). Mit der Umgebungsvariable
 `BELEGUNG_DATEN` lässt sich der Ordner umlenken, z. B. auf ein Netzlaufwerk.
 
+## Neu in 6.26 – Gebäudeplan erst prüfen, dann übernehmen
+
+* **Vor jedem Gebäudeplan-Import kommt eine Prüfung.** Das gilt für „Gebäudeplan importieren“, „aus der
+  Zwischenablage einfügen“ und eine neue Datei im Ordner „Gebaeudeplan“. Verglichen wird mit dem, was jetzt im System
+  steht: bisheriger Gebäudeplan, eigene Planung (geplant/belegt, Mieter, Einpflegen) und Umzüge, ab heute.
+  * **Gemeldet wird:** anderes Zimmer, anderer Zeitraum (mehr als 3 Tage), fehlt im neuen Plan, neu im Plan und
+    Doppelbelegung (unsere Planung hat jemanden in einem Zimmer, das laut neuem Plan voll oder gesperrt ist).
+  * Geplante künftige Anreisen, die das Belegungssystem noch nicht kennt, zählen nicht als Unterschied. Das ist
+    normal.
+* **Vorrang wählen:** Bei Unterschieden zur eigenen Planung je Zeile „Gebäudeplan gilt“ oder „Planung behalten“
+  (bzw. „Planung entfernen“), oder für alle auf einmal. Die Wahl ist beim nächsten Abgleich vorausgewählt.
+  * „Planung behalten“ heißt: Im Zimmerplan gilt für diese Person die eigene Planung, auch gegen den Gebäudeplan.
+* **Übernehmen oder abbrechen:** Bei „Abbrechen“ bleibt der bisherige Plan. Nach „Übernehmen“ nimmt Strg+Z alles
+  zurück, auch den Gebäudeplan.
+* **Ordner „Gebaeudeplan“:** Eine neue Datei wird nur noch dann automatisch übernommen, wenn es keine Unterschiede gibt.
+  Sonst erscheint im Zimmerplan ein Hinweis mit „Prüfen und übernehmen …“.
+
 ## Neu in 6.25.1 – Assistenz: auch nur Zimmernummern und kleine Namen
 
 * **Nur die Zimmernummer unter einer Kopfzeile** („2-603“) bucht das Zimmer für den Zeitraum der Kopfzeile, mit

@@ -1,4 +1,4 @@
-# Rückweg: von 6.25.1 zurück zu 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
+# Rückweg: von 6.26.0 zurück zu 6.25.1, 6.25.0, 6.24.1, 6.24.0, 6.23.0, 6.22.0, 6.21.0, 6.20.0, 6.19.0, 6.18.0, 6.17.1, 6.17.0, 6.16.0, 6.15.0, 6.14.0, 6.13.0, 6.12.0, 6.11.0, 6.10.0, 6.9.1, 6.8.0, 6.7.1, 6.6.0, 6.5.0, 6.4.0, 6.3.0, 6.2.0, 6.1.0, 6.0.0 oder 5.17.0
 
 Jede größere Lieferung hat einen eigenen, geprüften Sicherungspunkt. Zurück geht es jederzeit, ohne Code von Hand
 zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind seit 5.17.0 unverändert).
@@ -36,7 +36,8 @@ zu rekonstruieren – und ohne Arbeitsdaten zu verlieren (die Datenformate sind 
 | **6.24.0** | `backup/v6.24.0` | `8319408` | `INNternat_v6.24.0_Sicherung.zip` |
 | **6.24.1** | `backup/v6.24.1` | `0785630` | `INNternat_v6.24.1_Sicherung.zip` |
 | **6.25.0** | `backup/v6.25.0` | `7ad872b` | `INNternat_v6.25.0_Sicherung.zip` |
-| **6.25.1** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
+| **6.25.1** | `backup/v6.25.1` | `3dcba12` | `INNternat_v6.25.1_Sicherung.zip` |
+| **6.26.0** (aktuell) | `claude/ui-overhaul-v6` | siehe Abschnitt 5 | `INNternat_Update.zip` |
 
 **Wichtig – Historie am 15.10.2026 bereinigt (Datenschutz):** In frühen Commits vom 03.10. standen echte Namen und
 TN-Nummern in Testdaten. Diese Stellen wurden in der ganzen Git-Historie durch erfundene Namen gleicher Länge ersetzt.
@@ -329,6 +330,22 @@ Rückweg für den Code: Zip 6.17.0 oder `git revert` dieses Commits.
 
 **6.25.1** (seit `7ad872b`): Korrektur der Erkennung in `assistenz.py` (nur Zimmernummer unter Kopfzeile, kleine
 Namen, „ / “ mit Zeitraum am Zeilenende), Tests, Version 6.25.1. Datenformate unverändert.
+* **Historie am 24.10.2026 bereinigt (Datenschutz):** Ein echter Name stand in einem Code-Kommentar. Die beiden
+  Commits nach `7ad872b` wurden ohne ihn neu geschrieben: `1547a22` (Assistenz) und `3dcba12` (Version 6.25.1); der
+  Korrektur-Commit entfiel. Der Inhalt ist Byte für Byte gleich geblieben. Frühere Nummern dieser Commits gelten
+  nicht mehr.
+
+**6.26.0** (seit `3dcba12`): Commits siehe `git log backup/v6.25.1..claude/ui-overhaul-v6`.
+* Inhalt:
+  * `belegung/planabgleich.py` (Vergleich, Vorrang, Übernehmen)
+  * Maske `ui/planabgleich_dialog.py`; Import, Einfügen und Ordner gehen über die Prüfung
+    (`gebaeudeplan.neuer_plan` liest, ohne zu speichern)
+  * Zuweisungen kennen `vorrang` („planung“/„plan“), `zimmerplan.lage_bauen` beachtet es
+  * Rückgängig umfasst beim Import auch den Gebäudeplan (`aenderungen.dateien_mit_plan`)
+  * Tests (`tests/test_planabgleich.py`), Version 6.26.0
+* Daten: In `zimmer_zuweisungen.json` kann neu `vorrang` stehen.
+* Ältere Versionen: Sie ignorieren `vorrang`. Dort gilt wieder der Gebäudeplan, wie vor 6.26. Neue Pläne im Ordner
+  übernehmen sie ohne Prüfung.
 * Gemerkte Tabs mit der Seite „Mieter“ öffnen in 6.20 die Startseite.
 
 **6.22.0** (seit `0ecabb6`): ein Commit (`376e48b`).

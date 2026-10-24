@@ -1,4 +1,4 @@
-# Offene Punkte und Arbeitsweise (Stand v6.25.1, 21.10.2026)
+# Offene Punkte und Arbeitsweise (Stand v6.26.0, 24.10.2026)
 
 ## Als Nächstes
 
@@ -106,6 +106,17 @@
 - 6.25.1: Nutzer-Meldung 21.10.: noch immer nicht im Zeitstrahl. Ursachen: Zeilen nur mit Zimmernummer unter der
   Kopfzeile und klein geschriebene Namen wurden nicht gebucht. Behoben; im Zeitstrahl Januar 2027 mit echten Klicks
   geprüft. Falls es beim Nutzer weiter hakt: genaue Eingabe (Text aus „Zuletzt erledigt“) erfragen.
+- **Datenschutz (24.10.):** Ein echter Name aus einer Nutzer-Nachricht stand in einem Code-Kommentar (6.25.1). Er war
+  nie im Update-Paket, aber auf GitHub. Auf Wunsch des Nutzers wurde die Historie bereinigt (2 Commits neu, Inhalt
+  gleich). Über die alte Commit-Nummer ist er bei GitHub noch abrufbar, bis GitHub aufräumt. **Weiter offen beim
+  Nutzer:** Repository auf privat stellen (es ist öffentlich). Lehre: Der Namens-Scan bricht jetzt den Commit ab und
+  enthält auch Namen aus Nutzer-Nachrichten und Screenshots.
+- 6.26: Gebäudeplan wird vor dem Übernehmen mit Belegung und Planung verglichen; Vorrang je Person wählbar; Ordner
+  „Gebaeudeplan“ übernimmt nur noch ohne Unterschiede automatisch.
+  * Mit Datenkopie geprüft: Der Plan vom 03.10. gegen sich selbst ergibt keine Unterschiede, gezielte Änderungen werden
+    alle gefunden.
+  * Offen/zu entscheiden: Sperrungen (gesperrt/frei) und Zimmerfreigaben werden noch nicht als eigene Unterschiede
+    gemeldet, nur als Doppelbelegung. Nachfragen, ob das gebraucht wird.
 - **Datenschutz (15.10.):** Historie bereinigt – echte Namen/TN-Nr. (14 Namen, 7 Nummern in frühen Testdaten vom 03.10.)
   in allen Commits durch erfundene ersetzt, alle 19 Branches neu geschrieben (Inhalt der Spitzen unverändert). Alte
   Historie als Bundle beim Nutzer. **Noch offen beim Nutzer:** Repository auf privat stellen (über die Arbeitsumgebung
