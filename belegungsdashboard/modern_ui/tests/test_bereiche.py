@@ -131,3 +131,22 @@ def test_termine_inventar_einstellungen_daten(haus):
     dk.kapazitaeten_speichern({"BFW GS": {"netto": 80, "brutto": 100}})
     assert dk.kapazitaeten()["BFW GS"]["netto"] == 80
     assert {q.schluessel for q in dk.uebersicht()} >= {"anreisen", "uwt", "gebaeudeplan", "pivot", "manuell"}
+
+
+def test_defekte_zimmer_uebersicht_nach_planung(haus):
+    from belegung import maengel as mg
+    from belegung import zimmerplan as zp
+    from modern import kern
+    from modern import zimmer_kern as zk
+
+    mg.setzen("GS-2-303", "schimmel", True, haus)
+    mg.setzen("GS-2-304", "fenster", True, haus)
+    st = zp.laden()
+    zs = zk.maengel_liste(st, haus)
+    assert [z.kurz for z in zs] == ["2-303", "2-304"] and zs[0].stufe == 3 and zs[1].stufe == 1
+    assert "2-303" in zk.fm_mailtext(st) and "<" in zk.fm_bericht_html(st, haus)
+    haeuser = zk.uebersicht(st, haus)
+    kachel = next(k for et in haeuser["2"].values() for k in et if k.kurz == "2-303")
+    assert kachel.stufe == 3 and kachel.unbewohnbar
+    np_ = kern.nach_planung(st, haus, 4)
+    assert len(np_.wochen) == 4 and np_.tiefst is not None and np_.offen >= 1

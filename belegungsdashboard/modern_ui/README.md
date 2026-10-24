@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.3.0
+# Neue Oberfläche (modern_ui) – Version 0.4.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -18,14 +18,14 @@ Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\S
 
 | Seite | Ansichten und Funktionen |
 |---|---|
-| **Heute** | alles, was zu tun ist (Karten mit 1-Klick-Lösung), Anreisen der nächsten 7 Tage, Abreisen, Reinigung, Neuigkeiten |
-| **Anreisen** | *Zuteilen* (Zimmer in der Zeile, grüner Vorschlag, Filter, Personenangaben per Klick auf den Namen) · *Abreisen* (heute/morgen/Woche, drucken) · *Firmenprogramm* (was noch einzutragen ist, kopieren, abhaken) · Menü *Mehr*: Anreise-/Schlüsselliste, Zimmerschilder, Person hinzufügen, Planung zurücknehmen, Belegung optimieren, UWT automatisch zuteilen/zurücknehmen |
-| **Zimmer** | *Zeitstrahl* (Haus, 2/4/8 Wochen, Klick öffnet die Zimmerkarte) · *Liste* (Suche, Status, Mängel, Renoviert, Tier …, drucken, FM-Mängelbericht) · *Zimmerkarte*: Bewohner, Zimmer ändern, fest/geplant, Umzug planen/zurücknehmen, Mängel melden/beheben/unbewohnbar, Hinweis, Notizen mit Wiedervorlage, zur Reinigung |
+| **Heute** | alles, was zu tun ist (Karten mit 1-Klick-Lösung), **frei nach Planung** (5 Wochen, gesamt/EMR/Doppel mit Ampel), Anreisen der nächsten 7 Tage, Abreisen, Reinigung, Neuigkeiten |
+| **Anreisen** | *Zuteilen* (oben „nach Planung mind. … frei“, Zimmer in der Zeile, grüner Vorschlag, Filter, Personenangaben per Klick auf den Namen) · *Abreisen* (heute/morgen/Woche, drucken) · *Firmenprogramm* (was noch einzutragen ist, kopieren, abhaken) · Menü *Mehr*: Anreise-/Schlüsselliste, Zimmerschilder, Person hinzufügen, Planung zurücknehmen, Belegung optimieren, UWT automatisch zuteilen/zurücknehmen |
+| **Zimmer** | *Übersicht* (alle Zimmer als Kacheln je Haus und Etage, Tag wählbar, Mängel-Marke, unbewohnbar rot) · *Zeitstrahl* (Haus, 2/4/8 Wochen, Klick öffnet die Zimmerkarte) · *Liste* (Suche, Status, Mängel, Renoviert, Tier …, drucken, FM-Mängelbericht) · *Zimmerkarte*: Bewohner, Zimmer ändern, fest/geplant, Umzug planen/zurücknehmen, Mängel melden/beheben/unbewohnbar, Hinweis, Notizen mit Wiedervorlage, zur Reinigung · *Defekte Zimmer* (nach Dringlichkeit, „behoben“ je Mangel, nächste Anreise, FM-Bericht, FM-Excel, Erledigte aus der FM-Liste übernehmen, für Mail kopieren) |
 | **Reinigung** | *Reinigungsliste* (heute/Woche, abhaken, eilige auf einmal, Zimmer hinzufügen, drucken) · *Facility-Checks* |
 | **Termine** | *Liste* (fällig, demnächst, erledigt) · *Monat* · eigene Termine anlegen/ändern/löschen |
 | **Assistenz** | *Aufträge* in normalen Sätzen (verstehen → prüfen → ausführen, Rückgängig je Auftrag) · *Mails* (einfügen oder aus Outlook, erkennen, Person zuordnen, umsetzen, Posteingang) · *Fragen & Zahlen* (aus den Daten, optional KI) |
 | **Mieter** | Verträge, Mail zum Vertragsende (Outlook-Entwurf), *Neuer Mieter* (alle Unterlagen als PDF), *Verlängern* (Nebenabrede Word + PDF), Unterlagen neu erstellen |
-| **Auswertung** | *Lage* (heute, Verlauf mit Prognose) · *Belegung* (Zeitraum, Personentage) · *Prognose* (Monate, Spannen, Was-wäre-wenn, Modell, Rückblick) · *Zimmer & Engpässe* · Standort und Netto/Brutto |
+| **Auswertung** | *Lage* (heute, Verlauf mit Prognose) · *Belegung* (Zeitraum, Personentage) · *Prognose* (Monate, 80/95 %-Spannen, **Backtest im Diagramm**, Was-wäre-wenn, Modell, Blind-Prognosen) · *Zimmer & Engpässe* (frei jetzt und nach Planung, EMR/Doppel mit Ampel, Lage) · Standort und Netto/Brutto |
 | **Daten & Import** | Anreiselisten, UWT, Gebäudeplan (prüfen und übernehmen), ZKL mit Abgleich, Zimmer-Pivot, Belegungs-Pivot (auch vom Server), Kapazitäten, Mieten/Anreisen für die Statistik, manuelle Einträge |
 | **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen) · *Zimmer* (Ausstattung ändern, kopieren) · Inventarliste drucken |
 | **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
@@ -57,4 +57,4 @@ zurück · Formulare öffnen sich im **Panel rechts** (nichts legt sich über di
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0` (jeweils auch als Zip in `Sicherung`).

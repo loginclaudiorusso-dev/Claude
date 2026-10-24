@@ -308,3 +308,34 @@ CSS += """
 CSS += """
 .m-block > .m-knopf, .m-plan-u > .m-knopf { align-self: flex-start; }
 """
+
+CSS += """
+/* Zimmer: Übersicht und defekte Zimmer */
+.m-haeuser { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; padding: 18px 20px; align-items: start; }
+.m-etage { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: start; padding: 4px 0; }
+.m-etage-titel { padding-top: 6px; }
+.m-kacheln { display: flex; flex-wrap: wrap; gap: 4px; }
+.m-kachel { position: relative; width: 44px; height: 30px; border-radius: 6px; border: 1px solid transparent; font: inherit; font-size: 11.5px;
+  font-variant-numeric: tabular-nums; cursor: pointer; display: grid; place-items: center; color: var(--text); padding: 0; }
+.m-kachel:hover { filter: brightness(1.25); }
+.m-kachel.frei, .m-legende i.frei { background: color-mix(in srgb, var(--gruen) 26%, var(--fl)); }
+.m-kachel.teilweise, .m-legende i.teilweise { background: color-mix(in srgb, var(--gruen) 12%, var(--fl)); border-color: color-mix(in srgb, var(--gruen) 45%, transparent); }
+.m-kachel.belegt, .m-legende i.belegt { background: #2A3350; }
+.m-kachel.geplant, .m-legende i.geplant { background: color-mix(in srgb, var(--akzent) 22%, var(--fl)); }
+.m-kachel.gesperrt, .m-legende i.gesperrt { background: repeating-linear-gradient(135deg, #2A2D34 0 5px, #22252B 5px 10px); color: var(--text3); }
+.m-kachel.unbew { border: 2px solid var(--rot); }
+.m-kachel-m { position: absolute; top: -6px; right: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
+  border-radius: 7px; padding: 0 4px; line-height: 14px; }
+.m-mliste { display: flex; flex-direction: column; gap: 2px; }
+.m-mzeile { display: grid; grid-template-columns: minmax(0, 1fr) 70px 30px; align-items: center; gap: 6px; }
+.m-mzeile .m-knopf { height: 22px; padding: 0 4px; }
+"""
+
+CSS += """
+.m-np { display: grid; grid-template-columns: minmax(150px, 1.6fr) 44px 90px 60px 60px; gap: 6px 10px; align-items: center; }
+.m-np .m-pille { justify-self: start; font-variant-numeric: tabular-nums; }
+"""
+
+CSS += """
+.m-aw-tab.breit { grid-template-columns: minmax(170px, 1.2fr) 70px minmax(140px, 2fr) 70px 90px minmax(160px, 1.4fr); }
+"""
