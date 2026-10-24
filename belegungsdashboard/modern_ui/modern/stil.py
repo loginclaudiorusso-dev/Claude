@@ -14,6 +14,11 @@ T = {
     "rot": "#F2706B",
     "orange": "#E9A15A",
     "gruen": "#4CC38A",
+    "blau": "#6E8BD8",
+    "knopf_oben": "#262A33",   # Knopf: leichter Verlauf von oben nach unten
+    "knopf_unten": "#1C1F26",
+    "akzent_oben": "#94A2FF",
+    "akzent_unten": "#6B7BF2",
 }
 
 CSS = """
@@ -21,7 +26,8 @@ CSS = """
   --bg: %(bg)s; --fl: %(fl)s; --fl2: %(fl2)s; --rand: %(rand)s; --rand2: %(rand2)s;
   --text: %(text)s; --text2: %(text2)s; --text3: %(text3)s;
   --akzent: %(akzent)s; --akzent-text: %(akzent_text)s;
-  --rot: %(rot)s; --orange: %(orange)s; --gruen: %(gruen)s;
+  --rot: %(rot)s; --orange: %(orange)s; --gruen: %(gruen)s; --blau: %(blau)s;
+  --k-oben: %(knopf_oben)s; --k-unten: %(knopf_unten)s; --a-oben: %(akzent_oben)s; --a-unten: %(akzent_unten)s;
   --r: 6px;
   --schrift: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
@@ -338,4 +344,69 @@ CSS += """
 
 CSS += """
 .m-aw-tab.breit { grid-template-columns: minmax(170px, 1.2fr) 70px minmax(140px, 2fr) 70px 90px minmax(160px, 1.4fr); }
+"""
+
+
+CSS += """
+/* ===== Knöpfe, Umschalter, Kennzahlen (0.5) – plastisch statt flach ===== */
+.m-knopf { height: 32px; padding: 0 13px; border-radius: 8px; font-weight: 500; letter-spacing: .005em;
+  border: 1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, var(--k-oben), var(--k-unten));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.45);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .08s; }
+.m-knopf:hover { background: linear-gradient(180deg, #2E333E, #22262E); border-color: rgba(255,255,255,.15); }
+.m-knopf:active { transform: translateY(1px); box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+.m-knopf .material-icons { font-size: 17px; opacity: .9; }
+.m-knopf.primaer { color: #0B0D1A; font-weight: 600; border-color: rgba(148,162,255,.6);
+  background: linear-gradient(180deg, var(--a-oben), var(--a-unten));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 0 1px rgba(124,140,255,.15), 0 4px 14px rgba(124,140,255,.28); }
+.m-knopf.primaer:hover { filter: brightness(1.07); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 0 1px rgba(124,140,255,.25), 0 6px 18px rgba(124,140,255,.38); }
+.m-knopf.leise { background: transparent; border-color: transparent; box-shadow: none; color: var(--text2); }
+.m-knopf.leise:hover { background: rgba(255,255,255,.06); color: var(--text); }
+.m-knopf.gruen { height: 28px; color: #7FE0B0; border-color: rgba(76,195,138,.45);
+  background: linear-gradient(180deg, rgba(76,195,138,.22), rgba(76,195,138,.10));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 10px rgba(76,195,138,.15); }
+.m-knopf.gruen:hover { background: linear-gradient(180deg, rgba(76,195,138,.32), rgba(76,195,138,.16)); }
+.m-kopf .m-knopf { height: 32px; }
+
+.m-segm { background: #0B0C10; border: 1px solid var(--rand); border-radius: 10px; padding: 3px; gap: 2px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.55); }
+.m-segm button { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 13px; color: var(--text2); transition: background .15s, color .15s; }
+.m-segm button:hover { color: var(--text); background: rgba(255,255,255,.04); }
+.m-segm button.an { color: var(--text); font-weight: 600; background: linear-gradient(180deg, #2C303A, #23262E);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 1px 3px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
+.m-segm button.an::after { content: ""; display: block; position: relative; }
+
+/* Kennzahl-Kacheln (klickbar) */
+.m-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.m-stat { --c: var(--text2); font: inherit; color: var(--text); cursor: pointer; text-align: left; min-width: 104px;
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 14px 8px 12px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.07); background: linear-gradient(180deg, #1F222A, #17191F);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.4);
+  transition: transform .12s, border-color .15s, box-shadow .15s, background .15s; }
+.m-stat:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c) 45%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.45); }
+.m-stat:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+.m-stat .z { font-size: 21px; font-weight: 650; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.m-stat .l { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+.m-stat .l i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px color-mix(in srgb, var(--c) 70%, transparent); }
+.m-stat.an { border-color: color-mix(in srgb, var(--c) 70%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 20%, #1F222A), color-mix(in srgb, var(--c) 8%, #17191F));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent), 0 6px 20px color-mix(in srgb, var(--c) 18%, transparent); }
+.m-stat.ok { --c: var(--gruen); } .m-stat.warn { --c: var(--orange); } .m-stat.krit { --c: var(--rot); }
+.m-stat.akzent { --c: var(--akzent); } .m-stat.blau { --c: var(--blau); } .m-stat.neutral { --c: var(--text3); }
+.m-stat.ok .z { color: #8BE3B6; } .m-stat.warn .z { color: #F3BE85; } .m-stat.krit .z { color: #F7A19C; }
+
+/* Kacheln ausblenden, die nicht zum Filter passen */
+.m-kachel.aus { opacity: .14; filter: grayscale(.6); }
+
+/* Navigation: aktiver Punkt mit Akzentleiste */
+.m-navpunkt { position: relative; height: 34px; border-radius: 8px; }
+.m-navpunkt.aktiv { background: linear-gradient(90deg, rgba(124,140,255,.16), rgba(124,140,255,.03)); color: var(--text); }
+.m-navpunkt.aktiv::before { content: ""; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--akzent); }
+.m-navpunkt.aktiv .material-icons { color: var(--akzent); }
+"""
+
+CSS += """
+.m-trennlinie { width: 1px; align-self: stretch; background: var(--rand); margin: 4px 4px; }
+.m-leiste { padding: 12px 20px; gap: 12px; }
 """

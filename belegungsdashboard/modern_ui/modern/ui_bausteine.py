@@ -40,3 +40,20 @@ def segmente(optionen: dict, aktiv, bei_klick) -> None:
 
 def leer(text: str) -> None:
     ui.label(text).classes("m-leer")
+
+
+def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | None = None) -> None:
+    """Klickbare Kennzahl-Kacheln: (Schlüssel, Zahl, Text, Farbe ok|warn|krit|akzent|neutral|blau).
+    Die aktive Kachel ist hervorgehoben; ein Klick ruft ``bei_klick(Schlüssel)`` (Filter oder Sprung)."""
+    with ui.element("div").classes("m-stats").props('role="group"'):
+        for schluessel, zahl, text, farbe in werte:
+            an = aktiv is not None and schluessel == aktiv
+            b = ui.element("button").classes(f"m-stat {farbe}" + (" an" if an else ""))
+            attr(b, aria_pressed=str(an).lower(), title=(titel or {}).get(schluessel, "Klick: filtern" if bei_klick else ""))
+            with b:
+                ui.label(str(zahl)).classes("z")
+                with ui.element("span").classes("l"):
+                    ui.element("i")
+                    ui.label(text)
+            if bei_klick:
+                b.on("click", lambda s=schluessel: bei_klick(s))
