@@ -1,5 +1,5 @@
-"""Mieter: alle Mietverträge auf einen Blick – Ablauf, Verlängerung (Nebenabrede), Unterlagen neu erstellen –
-dazu die Mieter laut Gebäudeplan, die (noch) nicht mit dem Programm angelegt wurden."""
+"""Mieter: alle Mietverträge auf einen Blick – Ablauf, Verlängerung (Nebenabrede), Mail zum Vertragsende, Unterlagen
+neu erstellen – dazu die Mieter laut Gebäudeplan, die (noch) nicht mit dem Programm angelegt wurden."""
 
 from __future__ import annotations
 
@@ -56,13 +56,16 @@ class MieterSeite(Seite):
         self.k_vertraege.inhalt.addWidget(self.tab)
         aktionen = QHBoxLayout()
         aktionen.setSpacing(8)
+        self.b_mail = knopf("Mail zum Vertragsende …", "ghost", "mail",
+                            "Vorgefertigte Mail (Verlängerung anfragen oder Auszug bestätigen) – in Outlook öffnen")
+        self.b_mail.clicked.connect(lambda _c=False: self._mail())
         self.b_verl = knopf("Verlängern (Nebenabrede) …", "ghost", "kalender")
         self.b_verl.clicked.connect(self._verlaengern)
         self.b_neu_pdf = knopf("Unterlagen neu erstellen …", "ghost", "drucker")
         self.b_neu_pdf.clicked.connect(self._unterlagen)
         self.b_karte = knopf("Personenkarte", "ghost", "person")
         self.b_karte.clicked.connect(lambda: self._oeffnen(self.tab.currentRow()))
-        for b in (self.b_verl, self.b_neu_pdf, self.b_karte):
+        for b in (self.b_mail, self.b_verl, self.b_neu_pdf, self.b_karte):
             aktionen.addWidget(b)
         aktionen.addStretch()
         self.k_vertraege.inhalt.addLayout(aktionen)
@@ -76,6 +79,9 @@ class MieterSeite(Seite):
         self.tab2.cellDoubleClicked.connect(lambda r, _c: self._weitere_verlaengern(r))
         self.k_weitere.inhalt.addWidget(self.tab2)
         a2 = QHBoxLayout()
+        m2 = knopf("Mail zum Vertragsende …", "ghost", "mail", "Vorgefertigte Mail – Adresse bitte eintragen")
+        m2.clicked.connect(lambda: self._weitere_mail(self.tab2.currentRow()))
+        a2.addWidget(m2)
         b2 = knopf("Nebenabrede erstellen …", "ghost", "kalender")
         b2.clicked.connect(lambda: self._weitere_verlaengern(self.tab2.currentRow()))
         a2.addWidget(b2)
@@ -112,6 +118,8 @@ class MieterSeite(Seite):
             text, stufe = mt.status(m, heute)
             laufend += stufe in ("ok", "knapp", "akzent")
             bald += stufe == "knapp"
+            if stufe == "knapp":
+                text += " · Mail ✓" if not mt.mail_offen(m, heute) else " · Mail offen"
             zeilen.append([m.nr, f"{m.nachname}, {m.vorname}", m.zimmer_kurz, f"{m.von:%d.%m.%Y}", f"{m.bis:%d.%m.%Y}",
                            f"{mt._euro(m.miete)} €", Pille(text, stufe),
                            f"{len(m.verlaengerungen)}×" if m.verlaengerungen else "–"])
@@ -146,7 +154,7 @@ class MieterSeite(Seite):
 
     def _auswahl(self) -> None:
         an = self._gewaehlt() is not None
-        for b in (self.b_verl, self.b_neu_pdf, self.b_karte):
+        for b in (self.b_mail, self.b_verl, self.b_neu_pdf, self.b_karte):
             b.setEnabled(an)
 
     # ---- Aktionen -----------------------------------------------------------------------
@@ -172,6 +180,25 @@ class MieterSeite(Seite):
         if 0 <= i < len(self._weitere):
             b = self._weitere[i]
             VerlaengernDialog(self.z, "", self.window(), name=b.name, bis=b.bis).exec()
+
+    def _mail(self, mv: mt.Mietvertrag | None = None) -> None:
+        from ..mieter_mail_dialog import MieterMailDialog
+
+        mv = mv or self._gewaehlt()
+        if mv is not None:
+            MieterMailDialog(self.z, mv, self.window()).exec()
+
+    def mail_oeffnen(self, nr: str) -> None:
+        """Aus „Heute“: Mail zum Vertragsende für diesen Vertrag."""
+        if (mv := mt.nach_nummer(nr)) is not None:
+            self._mail(mv)
+
+    def _weitere_mail(self, r: int) -> None:
+        if r < 0:
+            return
+        i = self.tab2.daten_zeile(r)
+        if 0 <= i < len(self._weitere):
+            self._mail(mt.aus_belegung(self._weitere[i]))
 
     def _unterlagen(self) -> None:
         from ..mieter_dialog import unterlagen_speichern

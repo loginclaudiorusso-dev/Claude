@@ -33,7 +33,7 @@ class Vorgang:
     detail: str
     aktion: str              # Beschriftung der Hauptaktion
     ziel: str                # konflikte | anreise:<iso> | eintragen | posteingang | termin:<id> | reinigung | engpaesse
-    #                          | abreisen | gebaeudeplan | facility | umzug:<id>
+    #                          | abreisen | gebaeudeplan | facility | umzug:<id> | mieterende:<Nr>
     datum: date | None = None
     erledigen: str = ""      # Termin-ID: direkt „erledigt“ setzbar
 
@@ -163,6 +163,21 @@ def posteingang_vorgaenge(eingaenge: list, arten: dict) -> list[Vorgang]:
     return erg
 
 
+def mieter_vorgaenge(heute: date) -> list[Vorgang]:
+    """Mietverträge, die bald enden und für die noch keine Mail zum Vertragsende vorbereitet wurde."""
+    from . import mieter
+
+    erg = []
+    for mv in mieter.laden():
+        if mieter.mail_offen(mv, heute):
+            tage = (mv.bis - heute).days
+            erg.append(Vorgang(f"mieterende:{mv.nr}", "dringend" if tage <= 14 else "bald",
+                               f"Mietvertrag {mv.nr} endet {_tag(mv.bis, heute)}",
+                               f"{mv.nachname}, {mv.vorname} · Zimmer {mv.zimmer_kurz} – Mail zum Vertragsende vorbereiten",
+                               "Mail vorbereiten", f"mieterende:{mv.nr}", mv.bis))
+    return erg
+
+
 def sammeln(stand: zp.Planstand | None, heute: date, termine: list | None = None, eingaenge: list | None = None,
             arten: dict | None = None, neuer_plan: bool = False, engpaesse: bool = True) -> list[Vorgang]:
     """Alle Vorgänge, sortiert: Stufe, Datum, Titel."""
@@ -171,6 +186,7 @@ def sammeln(stand: zp.Planstand | None, heute: date, termine: list | None = None
         erg += zimmerplan_vorgaenge(stand, heute, engpaesse)
     erg += termin_vorgaenge(termine or [], heute)
     erg += posteingang_vorgaenge(eingaenge or [], arten or {})
+    erg += mieter_vorgaenge(heute)
     if neuer_plan:
         erg.append(Vorgang("gebaeudeplan", "bald", "Neuer Gebäudeplan im Ordner",
                            "Im Ordner „Gebaeudeplan“ liegt eine neue Word-Datei", "Importieren", "gebaeudeplan"))

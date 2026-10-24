@@ -52,6 +52,8 @@ class Mietvertrag:
     kaution: bool = False                  # Mietsicherheit vereinbart? Ohne: § „Mietsicherheit“ entfällt
     erstellt: str = ""
     verlaengerungen: list[dict] = field(default_factory=list)   # [{"bis_alt", "bis", "am"}]
+    email: str = ""                        # für die Mail zum Vertragsende
+    mail_ende: str = ""                    # Mail zum Vertragsende vorbereitet am (ISO-Datum) – gilt für das aktuelle Ende
 
     @property
     def weiblich(self) -> bool:
@@ -223,6 +225,105 @@ def verlaengern(nr: str, bis_neu: date) -> Mietvertrag:
     protokoll.eintragen([{"aktion": "Mietvertrag verlängert", "name": f"{mv.nachname}, {mv.vorname}", "person": mv.person,
                           "alt": alt.isoformat(), "neu": bis_neu.isoformat(), "von": mv.von.isoformat(), "quelle": "Mieter"}])
     return mv
+
+
+# ---------------------------------------------------------------------------------------
+# Mail zum Vertragsende (wird in Outlook geöffnet und dort von Hand abgeschickt)
+# ---------------------------------------------------------------------------------------
+
+MAIL_ARTEN = {"anfrage": "Verlängerung anfragen", "auszug": "Auszug bestätigen"}
+MAIL_VORLAGE = "Mail_Vertragsende_{art}.txt"    # eigene Fassung im Ordner Vorlagen/Mieter (erste Zeile: Betreff)
+ABSENDER = "Ihr Team des Internats Goslar\nINN-tegrativ gGmbH\n" + ADRESSE
+
+_MAIL_STANDARD = {
+    "anfrage": ("Ihr Mietvertrag{nr_text} – Zimmer {zimmer} endet am {ende}",
+                "{gruss}\n\n"
+                "Ihr Mietvertrag{nr_text} für das Zimmer {zimmer} ({adresse}) endet am {ende}.\n\n"
+                "Bitte teilen Sie uns bis zum {frist} mit, ob Sie das Mietverhältnis verlängern möchten. Eine "
+                "Verlängerung halten wir in einer kurzen Nebenabrede fest.\n\n"
+                "Falls Sie ausziehen, vereinbaren wir gern einen Termin für die Zimmerübergabe am {ende}. Bitte geben "
+                "Sie dabei {schluessel_text} zurück und hinterlassen Sie das Zimmer besenrein.{kaution_text}\n\n"
+                "Bei Fragen melden Sie sich gern.\n\n"
+                "Mit freundlichen Grüßen\n{absender}"),
+    "auszug": ("Ihr Auszug aus Zimmer {zimmer} am {ende}",
+               "{gruss}\n\n"
+               "Ihr Mietvertrag{nr_text} für das Zimmer {zimmer} ({adresse}) endet am {ende}. Hiermit bestätigen wir "
+               "Ihren Auszug zu diesem Tag.\n\n"
+               "Für die Zimmerübergabe schlagen wir den {ende} vor – bitte nennen Sie uns eine passende Uhrzeit. Bitte "
+               "geben Sie dabei {schluessel_text} zurück und hinterlassen Sie das Zimmer besenrein.{kaution_text}\n\n"
+               "Vielen Dank, dass Sie bei uns gewohnt haben. Bei Fragen melden Sie sich gern.\n\n"
+               "Mit freundlichen Grüßen\n{absender}"),
+}
+
+
+def mail_gruss(anrede: str, vorname: str, nachname: str) -> str:
+    if anrede == "Frau":
+        return f"Sehr geehrte Frau {nachname}"
+    if anrede == "Herr":
+        return f"Sehr geehrter Herr {nachname}"
+    return f"Guten Tag {f'{vorname} {nachname}'.strip()}"
+
+
+def mail_werte(mv: Mietvertrag, heute: date | None = None) -> dict[str, str]:
+    heute = heute or date.today()
+    frist = max(heute + timedelta(days=7), mv.bis - timedelta(days=28))
+    n = max(mv.schluessel, 1)
+    return {
+        "gruss": mail_gruss(mv.anrede, mv.vorname, mv.nachname) + ",",
+        "nr_text": f" Nr. {mv.nr}" if mv.nr else "", "nr": mv.nr, "zimmer": mv.zimmer_kurz,
+        "adresse": ADRESSE, "ende": f"{mv.bis:%d.%m.%Y}", "frist": f"{min(frist, mv.bis):%d.%m.%Y}",
+        "schluessel_text": "den Schlüssel" if n == 1 else f"alle {n} Schlüssel",
+        "kaution_text": " Die Mietsicherheit rechnen wir nach der Übergabe ab." if mv.kaution else "",
+        "absender": ABSENDER, "name": mv.name,
+    }
+
+
+def mail_vorlage(art: str) -> tuple[str, str]:
+    """(Betreff, Text) mit Platzhaltern – eigene Fassung aus Vorlagen/Mieter, sonst der Standard."""
+    ordner = vorlagen_ordner()
+    datei = ordner / MAIL_VORLAGE.format(art=art) if ordner else None
+    if datei is not None and datei.is_file():
+        zeilen = datei.read_text(encoding="utf-8").splitlines()
+        if zeilen:
+            return zeilen[0].removeprefix("Betreff:").strip(), "\n".join(zeilen[1:]).strip("\n")
+    return _MAIL_STANDARD[art]
+
+
+def ende_mail(mv: Mietvertrag, art: str = "anfrage", heute: date | None = None) -> tuple[str, str]:
+    """Betreff und Text der Mail zum Vertragsende. Unbekannte Platzhalter bleiben stehen (statt abzubrechen)."""
+    betreff, text = mail_vorlage(art)
+    w = mail_werte(mv, heute)
+
+    def ein(t: str) -> str:
+        return re.sub(r"\{(\w+)\}", lambda m: w.get(m.group(1), m.group(0)), t)
+
+    return ein(betreff), ein(text)
+
+
+def aus_belegung(b) -> Mietvertrag:
+    """Mieter laut Gebäudeplan (ohne Vertrag im Programm) – für die Mail; Anrede unbekannt."""
+    nach, _, vor = b.name.partition(",")
+    return Mietvertrag("", "", vor.strip(), nach.strip(), b.zimmer, b.von, b.bis, schluessel=1)
+
+
+def mail_vermerken(nr: str, email: str, heute: date | None = None) -> None:
+    """E-Mail-Adresse am Vertrag merken und notieren, dass die Mail zum (aktuellen) Ende vorbereitet wurde."""
+    alle = laden()
+    mv = next((m for m in alle if m.nr == nr), None)
+    if mv is None:
+        return
+    mv.email = email.strip()
+    mv.mail_ende = (heute or date.today()).isoformat()
+    _speichern(alle)
+
+
+def mail_offen(mv: Mietvertrag, heute: date | None = None) -> bool:
+    """Endet bald und es wurde (seit der letzten Verlängerung) noch keine Mail vorbereitet."""
+    heute = heute or date.today()
+    if not (heute <= mv.bis <= heute + timedelta(days=BALD_TAGE)):
+        return False
+    letzte = max([v.get("am", "") for v in mv.verlaengerungen] + [""])
+    return not mv.mail_ende or mv.mail_ende < letzte
 
 
 # ---------------------------------------------------------------------------------------

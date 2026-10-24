@@ -485,6 +485,12 @@ class StartSeite(Seite):
                 seite.finder._ansicht_setzen("liste")
         elif art == "gebaeudeplan":
             self._gebaeudeplan_importieren()
+        elif art == "mieterende":                       # Mail zum Vertragsende (Seite „Mieter“)
+            self.z.navigieren.emit("mieter")
+            fenster = self.window()
+            seite = getattr(fenster, "seiten", {}).get("mieter")
+            if seite is not None:
+                seite.mail_oeffnen(wert)
         else:
             self._zimmerplan({"eintragen": "Aufgaben", "engpaesse": "Aufgaben", "facility": "Aufgaben",
                               "reinigung": "Reinigung", "abreisen": "Abreisen"}.get(art, "Aufgaben"))

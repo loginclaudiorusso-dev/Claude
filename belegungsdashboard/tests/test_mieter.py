@@ -153,3 +153,48 @@ def test_kaution_optional_und_paragrafen_ruecken_auf():
     d = mv.zu_dict()
     d.pop("kaution")
     assert mt.Mietvertrag.aus_dict(d).kaution is True
+
+
+def test_mail_zum_vertragsende(daten):
+    """6.27: vorgefertigte Mail – Verlängerung anfragen oder Auszug bestätigen; „offen“, bis sie vorbereitet wurde."""
+    from belegung import erinnerung, mieter as mt, vorgaenge
+
+    mv = _mv()
+    mv.bis, mv.schluessel, mv.kaution, mv.email = date(2026, 11, 30), 2, True, "hanna@example.org"
+    mt.anlegen(mv)
+    heute = date(2026, 10, 24)
+    betreff, text = mt.ende_mail(mv, "anfrage", heute)
+    assert betreff == "Ihr Mietvertrag Nr. 26-011 – Zimmer 6-1005 endet am 30.11.2026"
+    assert text.startswith("Sehr geehrte Frau Testfall,") and "bis zum 02.11.2026" in text
+    assert "alle 2 Schlüssel" in text and "Mietsicherheit" in text and "{" not in text
+    betreff, text = mt.ende_mail(mv, "auszug", heute)
+    assert "Auszug" in betreff and "bestätigen wir Ihren Auszug" in text
+    herr = _mv(anrede="Herr")
+    assert mt.ende_mail(herr, "anfrage", heute)[1].startswith("Sehr geehrter Herr Testfall,")
+    # ohne Vertrag (laut Gebäudeplan): neutraler Gruß, keine Nummer
+    from belegung.gebaeudeplan import Belegung
+
+    ohne = mt.aus_belegung(Belegung("GS-6-1", date(2026, 1, 1), date(2026, 11, 15), "belegt", "Beispiel, Kai"))
+    b, t = mt.ende_mail(ohne, "anfrage", heute)
+    assert t.startswith("Guten Tag Kai Beispiel,") and "Nr." not in b and "Nr." not in t
+    # offen → Vorgang „Heute“ → vermerkt → erledigt; nach Verlängerung wieder offen (für das neue Ende)
+    assert mt.mail_offen(mt.laden()[0], heute)
+    assert [v.ziel for v in vorgaenge.mieter_vorgaenge(heute)] == ["mieterende:26-011"]
+    mt.mail_vermerken("26-011", "neu@example.org", heute)
+    assert not mt.mail_offen(mt.laden()[0], heute) and mt.laden()[0].email == "neu@example.org"
+    assert vorgaenge.mieter_vorgaenge(heute) == []
+    assert not mt.mail_offen(mv, date(2026, 9, 1))                         # noch nicht „bald“
+    url = erinnerung.mailto("a@b.de", "Betreff ä", "Zeile 1\nZeile 2")
+    assert url == "mailto:a@b.de?subject=Betreff%20%C3%A4&body=Zeile%201%0D%0AZeile%202"
+
+
+def test_eigene_mail_vorlage(daten, monkeypatch, tmp_path):
+    from belegung import mieter as mt
+
+    ordner = tmp_path / "vorlagen"
+    ordner.mkdir()
+    (ordner / "Mail_Vertragsende_anfrage.txt").write_text("Betreff: Vertrag {nr} endet\n{gruss}\nBis {ende}. {unbekannt}",
+                                                          encoding="utf-8")
+    monkeypatch.setattr(mt, "vorlagen_ordner", lambda: ordner)
+    assert mt.ende_mail(_mv(), "anfrage") == ("Vertrag 26-011 endet",
+                                              "Sehr geehrte Frau Testfall,\nBis 28.02.2027. {unbekannt}")

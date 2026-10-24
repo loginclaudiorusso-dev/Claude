@@ -94,6 +94,23 @@ def outlook_mail(titel: str, erinnern_am: date, text: str, empfaenger: str = "")
     return f"mail:{marke}"
 
 
+def outlook_entwurf(empfaenger: str, betreff: str, text: str) -> None:
+    """Mail in Outlook öffnen (nicht senden) – geprüft und abgeschickt wird von Hand."""
+    m = _outlook().CreateItem(0)  # olMailItem
+    m.To = empfaenger
+    m.Subject = betreff
+    m.Body = text
+    m.Display(False)
+
+
+def mailto(empfaenger: str, betreff: str, text: str) -> str:
+    """mailto-Link für das Standard-Mailprogramm (Zeilenumbrüche als CRLF)."""
+    from urllib.parse import quote
+
+    return (f"mailto:{quote(empfaenger.strip(), safe='@,;')}?subject={quote(betreff)}"
+            f"&body={quote(text.replace(chr(10), chr(13) + chr(10)))}")
+
+
 def outlook_entfernen(kennung: str) -> bool:
     """Termin bzw. noch nicht verschickte Mail löschen. False, wenn nichts (mehr) zu finden ist."""
     if not kennung:

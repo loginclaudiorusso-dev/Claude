@@ -105,6 +105,9 @@ class NeuerMieterDialog(QDialog):
         self.nachname = QLineEdit()
         self.nachname.setPlaceholderText("Nachname")
         feld("Nachname", self.nachname)
+        self.email = QLineEdit()
+        self.email.setPlaceholderText("optional")
+        feld("E-Mail", self.email, "für die Mail zum Vertragsende")
         heute = date.today()
         start = heute.replace(day=1) + timedelta(days=32)
         self.von = DatumFeld(start.replace(day=1))
@@ -219,7 +222,7 @@ class NeuerMieterDialog(QDialog):
                               self.nachname.text().strip(), self.zimmer.currentData() or "", self.von.datum(),
                               self.bis.datum(), round(self.miete.value(), 2), self.flaeche.value(),
                               self.schluessel.value(), self.kaution.datum() if self.mit_kaution.isChecked() else None,
-                              kaution=self.mit_kaution.isChecked())
+                              kaution=self.mit_kaution.isChecked(), email=self.email.text().strip())
 
     def _erstellen(self) -> None:
         mv = self._vertrag()
