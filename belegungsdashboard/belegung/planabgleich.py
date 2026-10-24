@@ -43,6 +43,7 @@ WAHL = {   # Schlüssel je Art (Texte mit Zimmer/Zeitraum: ``optionen_fuer``)
 }
 EIGEN = "eigener Eintrag"           # im Programm geplant (Zuteilen, Assistenz, Mieter, Umzüge)
 BISHER = "bisheriger Gebäudeplan"   # zuletzt übernommener Gebäudeplan
+UMZUG = "Umzug im Programm"         # Umzug, im Programm eingetragen (im Belegungssystem evtl. noch nicht)
 
 
 def _teile(text: str) -> tuple[str, str]:
@@ -79,6 +80,7 @@ class Unterschied:
     wahl: str = ""                   # gewählte Option ("" = nur Information)
     optionen: dict = field(default_factory=dict)
     zusatz: str = ""                 # Sperrung/Freigabe: „neu“ | „entfällt“ | „geändert“
+    info: str = ""                   # statt einer Wahl: was mit diesem Unterschied passiert
 
     @property
     def entscheidbar(self) -> bool:
@@ -130,6 +132,15 @@ def _spannen(belegungen: list[Belegung]) -> dict[tuple[str, str], tuple[date, da
     return erg
 
 
+def _woanders(b: Belegung, zid: str, von: date, bis: date, im_zimmerplan: list[Belegung]) -> bool:
+    """Laut Zimmerplan wohnt die Person aus dem neuen Gebäudeplan in dieser Zeit in einem anderen Zimmer (z. B. Umzug
+    im Programm, im Belegungssystem noch nicht nachgetragen) – dann belegt sie dieses Zimmer nicht."""
+    if not b.name or b.art != "belegt":
+        return False
+    zimmer = {x.zimmer for x in im_zimmerplan if _gleich(x.name, b.name) and x.von <= bis and von <= x.bis}
+    return bool(zimmer) and zid not in zimmer
+
+
 def _ueberschneidet(v1: date, b1: date, v2: date, b2: date) -> bool:
     return v1 <= b2 + TOLERANZ and v2 - TOLERANZ <= b1
 
@@ -138,15 +149,17 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
     """Unterschiede zwischen dem neuen Gebäudeplan und dem Zimmerplan (bisheriger Gebäudeplan + eigene Einträge)."""
     heute = heute or date.today()
     zuweisung = {z["person"]: z for z in stand.zuweisungen}
-    system = _spannen(_personen((b for bs in stand.lage.belegungen.values() for b in bs), heute))
+    im_zimmerplan = _personen((b for bs in stand.lage.belegungen.values() for b in bs), heute)
+    system = _spannen(im_zimmerplan)
     plan = _spannen(_personen(neu.belegungen, heute))
     erg: list[Unterschied] = []
     gefunden: set[tuple[str, str]] = set()
 
     for (_k, zid), (von, bis, b) in sorted(system.items(), key=lambda x: (x[1][0], x[1][2].name)):
         eigen = b.person in zuweisung
-        quelle = EIGEN if eigen else BISHER
+        quelle = EIGEN if eigen else UMZUG if b.umzug else BISHER
         sys_text = f"{_kurz(zid)} · {_zeit(von, bis)} ({quelle})"
+        info = "Umzug im Programm bleibt – im Belegungssystem nachtragen" if b.umzug and not eigen else ""
         treffer = [(k, v) for k, v in plan.items() if _gleich(b.name, v[2].name)]
         passend = [(k, v) for k, v in treffer if _ueberschneidet(von, bis, v[0], v[1])]
         hier = [(k, v) for k, v in passend if k[1] == zid]
@@ -155,14 +168,14 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
             gefunden.add(k)
             if abs((p_von - von).days) > TOLERANZ.days or abs((p_bis - bis).days) > TOLERANZ.days:
                 erg.append(Unterschied("zeitraum", b.name, b.person if eigen else "", sys_text,
-                                       f"{_kurz(zid)} · {_zeit(p_von, p_bis)}", von))
+                                       f"{_kurz(zid)} · {_zeit(p_von, p_bis)}", von, info=info))
             continue
         if passend or treffer:
             k, (p_von, p_bis, _p) = (passend or treffer)[0]
             gefunden.add(k)
             art = "zimmer" if k[1] != zid else "zeitraum"
             erg.append(Unterschied(art, b.name, b.person if eigen else "", sys_text,
-                                   f"{_kurz(k[1])} · {_zeit(p_von, p_bis)}", von))
+                                   f"{_kurz(k[1])} · {_zeit(p_von, p_bis)}", von, info=info))
             continue
         if eigen and von > heute and zuweisung[b.person].get("status") != "belegt":
             continue        # geplante Anreise: steht im Belegungssystem meist noch nicht – normal, kein Unterschied
@@ -184,7 +197,8 @@ def vergleichen(neu: gebaeudeplan.Gebaeudeplan, stand: zp.Planstand, heute: date
         if bis < heute or (z["person"], "zimmer") in schon:
             continue
         andere = [b for b in im_plan.get(z["zimmer"], []) if b.von <= bis and von <= b.bis
-                  and not (b.name and _gleich(b.name, z["name"]))]
+                  and not (b.name and _gleich(b.name, z["name"]))
+                  and not _woanders(b, z["zimmer"], max(von, b.von), min(bis, b.bis), im_zimmerplan)]
         if any(b.art == "gesperrt" for b in andere) or len(andere) >= betten.get(z["zimmer"], 1):
             wer = ", ".join(sorted({(f"gesperrt ({b.grund})" if b.grund else "gesperrt") if b.art == "gesperrt"
                                     else b.name for b in andere}))

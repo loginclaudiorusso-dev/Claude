@@ -144,3 +144,32 @@ def test_sperrungen_und_freigaben(welt):
         ("Zimmerfreigabe entfällt", frei[5].removeprefix("GS-"))])
     assert all(not u.entscheidbar for u in us)
     assert "Sperrung" in pa.zusammenfassung(us) and "Zimmerfreigabe" in pa.zusammenfassung(us)
+
+
+def test_umzug_im_programm_ist_keine_doppelbelegung(welt):
+    """6.27.2: Umzug im Programm (im Gebäudeplan noch nicht nachgetragen) – das alte Zimmer ist frei; wer danach dort
+    eingeplant ist, steht nicht als Doppelbelegung da. Der Umzug bleibt nach dem Übernehmen bestehen."""
+    from belegung import assistenz, umzug
+    from belegung import planabgleich as pa
+    from belegung import zimmerplan as zp
+
+    alt, frei, _ = welt
+    st = zp.laden()
+    anna = next(x for x in st.lage.belegungen[frei[0]] if x.name == "Altbestand, Anna")
+    umzug.speichern(st, anna, frei[4], date(2026, 10, 20), "Test")
+    st = zp.laden()
+    vs = assistenz.verstehen_alle(f"Neu, Nora vom 21.10.2026 bis 31.01.2027 in {frei[0].removeprefix('GS-')}",
+                                  {z.id for z in st.zimmer}, HEUTE)
+    for a in vs[0].aktionen:
+        a.an = True
+    assistenz.ausfuehren(vs, HEUTE)
+    neu = _neu(alt, alt.belegungen)                          # Gebäudeplan kennt den Umzug noch nicht
+    us = pa.vergleichen(neu, zp.laden(), HEUTE)
+    assert not any(u.art == "konflikt" for u in us)
+    anna_u = next(u for u in us if u.name == "Altbestand, Anna")
+    assert anna_u.art == "zimmer" and "(Umzug im Programm)" in anna_u.system and "nachtragen" in anna_u.info
+    assert not anna_u.entscheidbar
+    pa.anwenden(neu, us)
+    wo = {x.zimmer for bs in zp.laden().lage.belegungen.values() for x in bs
+          if x.name == "Altbestand, Anna" and x.bis >= HEUTE}
+    assert wo == {frei[4]}

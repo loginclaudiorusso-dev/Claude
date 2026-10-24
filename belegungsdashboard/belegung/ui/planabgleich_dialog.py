@@ -41,7 +41,7 @@ class PlanAbgleichDialog(QDialog):
             f"<b>Neuer Gebäudeplan</b> = die Datei, die Sie jetzt übernehmen wollen: {herkunft(neu)} – "
             f"{len(neu.zimmer)} Zimmer, {belegt} Belegungen (Export aus dem Belegungssystem).<br>"
             f"<b>Jetzt im Zimmerplan</b> = was dieses Programm gerade zeigt: {bisher} plus die "
-            f"<b>eigenen Einträge</b> (im Programm geplant: Zuteilen, Assistenz, Mieter, Umzüge).<br>"
+            f"<b>eigenen Einträge</b> (im Programm geplant: Zuteilen, Assistenz, Mieter) und Umzüge im Programm.<br>"
             "Verglichen wird ab heute. Am Belegungssystem selbst ändert sich nichts.", "muted", umbruch=True))
         entscheiden = [u for u in self.unterschiede if u.entscheidbar]
         v.addWidget(Hinweis(pa.zusammenfassung(self.unterschiede)
@@ -77,8 +77,8 @@ class PlanAbgleichDialog(QDialog):
                 self._wahl.append((u, box))
                 wahl = box
             else:
-                wahl = ("wird aus dem neuen Gebäudeplan übernommen" if u.art != "neu"
-                        else "kommt aus dem neuen Gebäudeplan dazu")
+                wahl = u.info or ("wird aus dem neuen Gebäudeplan übernommen" if u.art != "neu"
+                                  else "kommt aus dem neuen Gebäudeplan dazu")
             zeilen.append([u.art_text, u.name, u.system or "–", u.plan or "–", wahl])
         self.tab.fuellen(zeilen)
         self.tab.widgets_einpassen()
