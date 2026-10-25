@@ -54,7 +54,8 @@ def _basis(t: dict, animation: bool) -> dict:
                         "axisPointer": {"type": "line", "lineStyle": {"color": t["text3"], "type": "dashed"}},
                         "extraCssText": "backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 10px; "
                                         "box-shadow: 0 10px 28px rgba(0,0,0,.22); min-width: 240px;"},
-            "legend": {"textStyle": {"color": t["text2"], "fontSize": 11}, "top": 26, "left": 8, "itemWidth": 18, "itemHeight": 8},
+            "legend": {"type": "scroll", "textStyle": {"color": t["text2"], "fontSize": 11}, "top": 26, "left": 8, "right": 8,
+                       "itemWidth": 18, "itemHeight": 8, "pageIconColor": t["text2"], "pageTextStyle": {"color": t["text3"]}},
             "xAxis": {"type": "category", "boundaryGap": False, **achse}, "yAxis": {"type": "value", "scale": True, **achse},
             "animation": animation, "animationDuration": 900, "animationEasing": "cubicOut", "animationDurationUpdate": 280}
 
@@ -631,6 +632,8 @@ def zeichnen(a) -> None:
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
     if not praes:
         with a.leiste:
+            with ui.element("div").classes("m-xbereich"):
+                segmente(BEREICHE, a.aw_bereich, lambda v: a.setzen(aw_bereich=v, laden=False))
             knopf("Präsentation", lambda: _modus(a, "praes"), "primaer", "slideshow",
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")
             _export_menue(a, pg, zustand, box, ex)
@@ -638,14 +641,20 @@ def zeichnen(a) -> None:
     with a.inhalt:
         wurzel = ui.element("div").classes("m-ex" + (" praes" if praes else "") + (" still" if getattr(a, "_still", False) else ""))
     a._still = False
+    bereich = "dashboard" if praes else a.aw_bereich
+    wurzel.classes(add=f"b-{bereich}")
     with wurzel:
         if praes:
             _praes_kopf(a, pg)
+        sz_raster = None
+        if bereich == "szenario":                 # links der Graph mit Schattenkurve, rechts die Stellschrauben
+            sz_raster = ui.element("div").classes("m-xsz")
         # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (Detail – steht unter dem Graph) ----------
         gs_box = None
         gs = a.daten if a.aw_status else (a.daten.get("alt") or {})   # Goslar-Detail zeigt immer UWTler und Mieter
         gs_sm = gs.get("sm") or []
-        if a.aw_standort == GOSLAR and gs.get("sl"):
+        if a.aw_standort == GOSLAR and gs.get("sl") and bereich in ("szenario",) or (praes and a.aw_standort == GOSLAR
+                                                                                    and gs.get("sl")):
             gs_box = ui.element("section").classes("m-block m-xgs" + (" kompakt" if praes else ""))
 
             def goslar_zeichnen():
@@ -662,9 +671,11 @@ def zeichnen(a) -> None:
                     a._prognose_chart()
             goslar_zeichnen()
         # ---- Ebene A: KPI-Karten ----------------------------------------------------------
-        kpi_box = ui.element("div").classes("m-xk")
+        kpi_box = ui.element("div").classes("m-xk") if bereich == "dashboard" else None
 
         def kpis_zeichnen():
+            if kpi_box is None:
+                return ex()
             kpi_box.clear()
             e = ex()
             with kpi_box:
@@ -672,12 +683,16 @@ def zeichnen(a) -> None:
                     _kpi_karte(k)
             return e
         e0 = kpis_zeichnen()
-        # ---- Ebene B: Erkenntnisse (in der Präsentation unter dem Graph) ------------------------
-        er_box = ui.element("section").classes("m-xe")
+        # ---- Ebene B: Erkenntnisse – Dashboard: drei Insight-Badges; Details: alle; Präsentation: unter dem Graph ----
+        er_box = ui.element("section").classes("m-xe" if praes or bereich == "details" else "m-xi")
 
         def erkenntnisse_zeichnen(e=None):
             e = e or ex()
             er_box.clear()
+            if not praes and bereich == "dashboard":
+                with er_box:
+                    _insights(a, e, zustand, kap_echt)
+                return
             with er_box:
                 kopf = ui.element("button").classes("m-xe-kopf")
                 with kopf:
@@ -687,16 +702,24 @@ def zeichnen(a) -> None:
                         ui.icon("expand_less" if a.aw_summary else "expand_more").style("margin-left:auto")
                 if not praes:
                     kopf.on("click", lambda: (setattr(a, "aw_summary", not a.aw_summary), erkenntnisse_zeichnen()))
-                if a.aw_summary or praes:
+                if a.aw_summary or praes or bereich == "details":
                     with ui.element("ul").classes("m-xe-liste"):
                         for art, text in (e.erkenntnisse[:4] if praes else e.erkenntnisse):
                             with ui.element("li"):
                                 ui.label(art).classes(f"m-xe-tag {TAG.get(art, '')}")
                                 ui.label(text)
         erkenntnisse_zeichnen(e0)
+        if bereich in ("szenario", "details"):
+            er_box.set_visibility(bereich == "details")
 
         # ---- Hauptgraph (wird bei Reiter-/Ansichtswechsel allein neu gebaut – ohne Neuladen, ohne Seitenaufbau) ----
-        graph_box = ui.element("section").classes("m-block m-xg")
+        if sz_raster is not None:
+            with sz_raster:
+                graph_box = ui.element("section").classes("m-block m-xg kompakt")
+        else:
+            graph_box = ui.element("section").classes("m-block m-xg")
+        if bereich == "details":
+            graph_box.set_visibility(False)          # Details: keine Grafik – nur Tabellen und Protokoll
 
         def variante(mit: bool) -> dict:
             """Daten der Ansicht „Belegung“ (ohne UWTler/Mieter) bzw. „Nach Status“ (mit) – eine liegt immer vor."""
@@ -751,6 +774,13 @@ def zeichnen(a) -> None:
                 setattr(a, k, v)
             graph_zeichnen(neu_aufbau and a.aw_anim and not a.weniger_bewegung)
 
+        def werkzeuge():
+            """Aufbau abspielen und Optionen – als Symbole, rechts in der Filterleiste."""
+            if not a.weniger_bewegung:
+                knopf("", lambda: graph_zeichnen(True), "leise m-xg-symbol", "play_arrow",
+                      "Aufbau abspielen – Graph neu aufbauen (geführte Animation)")
+            _optionen(a, pg, True, graph_wechsel)
+
         def graph_zeichnen(animiert_: bool):
             graph_box.clear()
             box.pop("schritt", None)
@@ -767,6 +797,7 @@ def zeichnen(a) -> None:
                                      lambda b_: a.setzen(aw_brutto=b_, nur_seite=True), sofort=True)
                             segmente({12: "12M", 24: "24M", 36: "36M"}, a.aw_horizont,
                                      lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
+                            werkzeuge()
                 with ui.element("div").classes("m-xg-kopf"):
                     _js_segmente(CHARTS, a.aw_chart, "tab")
                     with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
@@ -783,11 +814,9 @@ def zeichnen(a) -> None:
                             box["schritt"] = ui.label(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}").classes("m-zweite")
                             knopf("", lambda: praes_schritt(a, 1), "leise", "chevron_right", "Nächster Schritt (→)")
                             knopf("Alles", lambda: praes_schritt(a, 4), "leise")
-                    with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
-                        if not a.weniger_bewegung:
-                            knopf("Aufbau abspielen", lambda: graph_zeichnen(True), "leise", "play_arrow",
-                                  "Graph neu aufbauen (geführte Animation) – z. B. für die Präsentation")
-                        _optionen(a, pg, True, graph_wechsel)
+                    if praes:
+                        with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
+                            werkzeuge()
                 story = (animiert_ and trend and not a.aw_status and not parallel and (not praes or a.aw_schritt == 4))
                 chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes(
                     "m-chart m-xg-chart" + (" gross" if praes else ""))
@@ -807,7 +836,7 @@ def zeichnen(a) -> None:
                 melder = ui.element("div").classes("m-xg-melder").style("display:none")
                 melder.on("mgraph", graph_sync, args=["detail"])
 
-        graph_zeichnen(animiert)
+        graph_zeichnen(animiert and bereich != "details")
         a._graph_zeichnen = graph_zeichnen
         if not getattr(a, "_vorrechnen_laeuft", False):   # Standortwechsel vorbereiten (Hintergrund, einmal zur Zeit)
             async def _vor():
@@ -829,7 +858,8 @@ def zeichnen(a) -> None:
             chart.update()
             modi_senden()                            # Szenario/Kontingent: auch die vorbereiteten Ansichten erneuern
         a._prognose_chart = chart_neu
-        graph_box.move(wurzel, target_index=1 if praes else 0)    # der Graph steht immer ganz oben
+        if sz_raster is None:
+            graph_box.move(wurzel, target_index=1 if praes else 0)    # der Graph steht immer ganz oben
 
         if praes:
             er_box.move(wurzel)
@@ -839,19 +869,18 @@ def zeichnen(a) -> None:
                 _standortvergleich(a, hell, kompakt=True)
             return
 
+        if bereich == "dashboard":
+            return
+        if bereich == "details":
+            _details(a, pg, zustand, hell, wurzel, er_box)
+            return
         # ---- Szenario (Simulation) -----------------------------------------------------------
-        sz_box = ui.element("section").classes("m-block m-xs")
-        tab_box = ui.element("section").classes("m-block m-xt")
-
-        def tabelle_zeichnen():
-            _tabelle(a, tab_box, pg, zustand)
+        with sz_raster:
+            sz_box = ui.element("section").classes("m-block m-xs")
 
         def alles_neu():
             chart_neu()
-            e = kpis_zeichnen()
-            erkenntnisse_zeichnen(e)
             szenario_zeichnen()
-            tabelle_zeichnen()
 
         sanierung = a.daten.get("sanierung")
 
@@ -923,20 +952,45 @@ def zeichnen(a) -> None:
                          "Auslastung haben eine belastbare Grundlage im Modell; andere Annahmen (z. B. Verweildauer) werden nicht "
                          "scheinbar genau simuliert. Gespeichert wird nichts.").classes("m-zweite").style("white-space:normal")
         szenario_zeichnen()
-        if gs_box is not None:                                   # Goslar-Detail: unter Graph, Kennzahlen und Szenario
+        if gs_box is not None:                                   # Goslar: Kontingente planen – unter Graph und Szenario
             gs_box.move(wurzel)
 
-        # ---- unterhalb des sichtbaren Bereichs: einen Takt später (Graph und Kennzahlen stehen zuerst) ---------
-        def unten():
-            if wurzel.is_deleted:
-                return
-            with wurzel:
-                if a.daten["sv"]:                                     # Standortvergleich
+
+BEREICHE = {"dashboard": "Dashboard", "szenario": "Szenarien & Simulation", "details": "Details & Protokoll"}
+
+
+def _insights(a, e, zustand, kap_echt: int) -> None:
+    """Dashboard: die drei wichtigsten Erkenntnisse als schmale Badges (ganzer Text als Tooltip), Rest unter „Details“."""
+    wichtig = [x for x in e.erkenntnisse if x[0] != "Hinweis"][:3] or e.erkenntnisse[:3]
+    for art, text in wichtig:
+        with ui.element("div").classes("m-xi-badge") as b:
+            ui.label(art).classes(f"m-xe-tag {TAG.get(art, '')}")
+            ui.label(text).classes("m-xi-text")
+        attr(b, title=text)
+    if zustand["kap"] != kap_echt or zustand["offset"]:
+        knopf("Szenario aktiv", lambda: a.setzen(aw_bereich="szenario", laden=False), "leise m-xi-szenario", "science",
+              "Im Graph läuft eine Simulation – bearbeiten unter „Szenarien & Simulation“")
+    rest = len(e.erkenntnisse) - len(wichtig)
+    if rest > 0:
+        knopf(f"+{rest}", lambda: a.setzen(aw_bereich="details", laden=False), "leise m-xi-mehr", "",
+              "Alle Erkenntnisse unter „Details & Protokoll“")
+
+
+def _details(a, pg, zustand, hell: bool, wurzel, er_box) -> None:
+    """Details & Protokoll: aufklappbare Abschnitte – Monate im Detail offen, der Rest geschlossen."""
+    with wurzel:
+        with ui.element("div").classes("m-xd"):
+            with ui.expansion("Monate im Detail", icon="table_rows", value=True).classes("m-xd-teil"):
+                tab_box = ui.element("section").classes("m-xt")
+                _tabelle(a, tab_box, pg, zustand)
+            with ui.expansion("Erkenntnisse – vollständig", icon="lightbulb").classes("m-xd-teil") as ex_:
+                pass
+            er_box.move(ex_)
+            if a.daten.get("sv"):
+                with ui.expansion("Standortvergleich", icon="leaderboard").classes("m-xd-teil"):
                     _standortvergleich(a, hell)
-                tab_box.move(wurzel)                                  # Detailtabelle
-                tabelle_zeichnen()
-                _methodik(a, pg)                                      # Methodik und Backtest
-        ui.timer(0.03, unten, once=True)
+            with ui.expansion("So wurde gerechnet & Backtest", icon="fact_check").classes("m-xd-teil"):
+                _methodik(a, pg)
 
 
 def _modus(a, modus: str) -> None:
@@ -1080,7 +1134,7 @@ def _status_badge(a, pg, backtest_moeglich: bool) -> None:
 
 def _optionen(a, pg, backtest_moeglich: bool, graph_wechsel) -> None:
     """Erweiterte Optionen im Menü: Backtest, Bänder, UWTler/Mieter einbeziehen, Animation."""
-    with knopf("Optionen", None, "leise", "tune"):
+    with knopf("", None, "leise m-xg-symbol m-xg-optionen", "tune", "Optionen – Backtest, 95 %-Band, Animation"):
         with ui.menu().props('dark class="m-menue m-optionen"'):
             ui.label("Graph").classes("m-menue-kopf")
             _schalter("Backtest im Graph (Blind-Prognosen)" + ("" if pg.rueckblick else " – kein Verlauf"),
@@ -1209,7 +1263,7 @@ def _kpi_karte(k: an.Kpi) -> None:
 def _sz_vergleich(pg, zustand) -> None:
     zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"])
     with ui.element("div").classes("m-xs-tab"):
-        for t in ("", "Ausgangsszenario (echt)", "Szenario"):
+        for t in ("", "Ausgang (echt)", "Szenario"):
             ui.label(t).classes("m-zweite")
         for z in zeilen:
             ui.label(z.titel).classes("m-name")

@@ -794,3 +794,54 @@ CSS += """
 CSS += """
 .m-xg-filter .m-segm, .m-xg-kopf .m-segm { margin-left: 0; }    /* Standorte und Reiter bündig links */
 """
+CSS += """
+/* 0.17 – Prognose in drei Bereichen: Dashboard ohne Scrollen, Szenarien, Details & Protokoll */
+.m-ex.b-dashboard { gap: 12px; padding-top: 14px; padding-bottom: 12px; }
+.m-ex.b-dashboard .m-xg { padding-top: 12px; padding-bottom: 10px; gap: 4px; }
+.m-ex.b-dashboard .m-chart.m-xg-chart { height: max(250px, calc(100vh - 470px)) !important; }
+.m-ex.b-dashboard .m-xg-filter { padding-bottom: 8px; }
+.m-ex.b-dashboard .m-xk { gap: 10px; }
+.m-ex.b-dashboard .m-xk-karte { padding: 9px 14px 8px; gap: 1px; }
+.m-ex.b-dashboard .m-xk-wert .w { font-size: 24px; }
+.m-ex.b-dashboard .m-xk-bezug, .m-ex.b-dashboard .m-xk-vgl { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-ex.b-dashboard .m-xk-vgl .q-icon { font-size: 12px; }
+.m-xi { display: flex; gap: 8px; align-items: stretch; min-width: 0; border: 0; background: transparent; }
+.m-xi-badge { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px;
+  border: 1px solid var(--rand); background: var(--fl); font-size: 12.5px; color: var(--text2); cursor: help; }
+.m-xi-badge .m-xe-tag { flex: none; font-size: 9.5px; }
+.m-xi-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.m-xi-szenario { color: var(--orange) !important; border-color: var(--orange) !important; flex: none; }
+.m-xi-mehr { flex: none; }
+.m-xg-symbol { width: 32px; padding: 0 !important; justify-content: center; }
+.m-xsz { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(430px, 1fr); gap: 16px; align-items: start; }
+.m-xsz .m-xg .m-chart.m-xg-chart { height: max(320px, calc(100vh - 380px)) !important; }
+.m-xsz .m-xs { position: sticky; top: 0; }
+.m-xsz .m-xs-tab { grid-template-columns: minmax(130px, auto) 1fr 1fr; gap: 3px 12px; }
+.m-xsz .m-xs-step > .m-name { width: 84px; }
+@media (max-width: 1250px) { .m-xsz { grid-template-columns: 1fr; } }
+.m-xd { display: flex; flex-direction: column; gap: 10px; }
+.m-xd-teil { border: 1px solid var(--rand); border-radius: 12px; background: var(--fl); overflow: hidden; }
+.m-xd-teil .q-expansion-item__container > .q-item { min-height: 48px; font-weight: 600; color: var(--text); }
+.m-xd-teil .q-expansion-item__content { padding: 4px 16px 14px; }
+.m-xd-teil .q-item__section--avatar .q-icon { color: var(--text3); }
+.m-xd-teil .m-xt, .m-xd-teil .m-xe, .m-xd-teil .m-block { border: 0; background: transparent; padding-left: 0; padding-right: 0; }
+"""
+CSS += """
+.m-xbereich { display: flex; } .m-xbereich .m-segm { margin-left: 0; }
+.m-xsz .m-xg-kopf { gap: 6px 8px; }
+.m-xsz .m-xg-ansicht { display: none; }               /* im schmalen Graph: Badge entfällt, die Ansicht steht im Titel */
+.m-xsz .m-xs-tab { font-size: 12.5px; }
+"""
+CSS += """
+.m-ex.b-dashboard .m-xi { padding-right: 56px; }       /* Platz für den Griff der Werkzeugleiste unten rechts */
+"""
+CSS += """
+/* Dashboard füllt genau den sichtbaren Bereich – der Graph nimmt, was übrig bleibt (alle Layouts) */
+.m-ex.b-dashboard { height: 100%; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; max-width: none; }
+.m-ex.b-dashboard > .m-xg { flex: 1 1 auto; min-height: 330px; display: flex; flex-direction: column; }
+.m-ex.b-dashboard .m-chart.m-xg-chart { flex: 1 1 auto; height: auto !important; min-height: 210px; }
+.m-ex.b-dashboard > .m-xk, .m-ex.b-dashboard > .m-xi { flex: none; }
+"""
+CSS += """
+.m-xd .m-xt .m-zeile { min-height: 36px; }
+"""
