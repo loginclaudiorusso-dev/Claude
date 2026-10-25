@@ -383,3 +383,23 @@ def einstellung_setzen(schluessel: str, wert) -> str:
         raise ValueError("Bitte 0 bis 7 Tage.")
     _schritt(f"Einstellung: {text}", lambda: speicher.einstellung_setzen(schluessel, wert), [speicher.EINSTELLUNGEN])
     return "Einstellung gespeichert"
+
+
+def wochenblatt(montag: date, namen: bool = True) -> str:
+    """Wochenblatt zum Aushängen: je Tag Zimmer, Abreise, Anreise, Reinigung (für Hausmeister und Reinigung)."""
+    from belegung import drucklisten
+
+    stand = zp.laden()
+    sonntag = montag + timedelta(days=6)
+    s = f"{stand.plan.stand:%d.%m.%Y}" if stand.plan and stand.plan.stand else ""
+    return drucklisten.wochenblatt_html(stand.lage, _reinigungen(stand, montag, sonntag), montag, namen, s)
+
+
+def wochen(heute: date) -> dict[str, str]:
+    """Auswahl „Diese Woche · KW 43 (19.10.–25.10.)“ … für die nächsten vier Wochen (Schlüssel: Montag ISO)."""
+    erg = {}
+    for i, text in enumerate(["Diese Woche", "Nächste Woche", "In 2 Wochen", "In 3 Wochen"]):
+        mo = heute - timedelta(days=heute.weekday()) + timedelta(weeks=i)
+        erg[mo.isoformat()] = f"{text} · KW {mo.isocalendar()[1]} ({mo:%d.%m.}–{mo + timedelta(days=6):%d.%m.})"
+    return erg
+

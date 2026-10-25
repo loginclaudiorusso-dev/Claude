@@ -165,7 +165,10 @@ def rg_zeichnen(a) -> None:
     with a.werkzeuge:
         segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w))
         knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "", "add")
-        knopf("Drucken", lambda: _rg_drucken(a), "", "print")
+        with knopf("Drucken", None, "", "print"):
+            with ui.menu().props('dark class="m-menue"'):
+                ui.menu_item("Reinigungsliste (gewählter Zeitraum)", lambda: _rg_drucken(a))
+                ui.menu_item("Wochenblatt zum Aushängen …", lambda: _wochenblatt_panel(a))
     n = sk.reinigung_zaehlen(a.daten)
     eilig = [z for z in a.daten if not z.erledigt and z.prio <= 1]
     with a.leiste:
@@ -594,4 +597,25 @@ def _plan_panel(a, plan, kennung, unterschiede) -> None:
 
     a.panel(f"Gebäudeplan prüfen · {len(unterschiede)} Unterschiede", bauen)
 
+
+def _wochenblatt_panel(a) -> None:
+    """Wochenblatt: An- und Abreisen und Reinigungen je Tag – zum Aushängen für Hausmeister und Reinigung."""
+    def bauen():
+        ui.label("An- und Abreisen und Reinigungen je Tag – zum Aushängen für Hausmeister und Reinigung.").classes("m-ptext")
+        woche = ui.select(sk.wochen(a.heute), value=next(iter(sk.wochen(a.heute))), label="Woche").classes("m-feld").props(
+            'dense outlined dark popup-content-class="m-popup"')
+        namen = ui.checkbox("mit Namen", value=True).props("dark dense")
+
+        async def drucken():
+            from datetime import date as _d
+
+            html = await run.io_bound(sk.wochenblatt, _d.fromisoformat(woche.value), bool(namen.value))
+            mo = _d.fromisoformat(woche.value)
+            html_drucken(a, html, f"Wochenblatt_KW{mo.isocalendar()[1]}_{mo:%Y}")
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Drucken / PDF", drucken, "primaer", "print")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel("Wochenblatt", bauen)
 

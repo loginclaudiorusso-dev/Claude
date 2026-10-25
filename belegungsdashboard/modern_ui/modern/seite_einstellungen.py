@@ -134,9 +134,11 @@ def _allgemein(a) -> None:
                     "m-feld").props("dense outlined dark")
                 lmod = ui.input("Lokales Modell: Name", value=ki.get("lokal_modell", "qwen2.5:7b-instruct")).classes("m-feld").props(
                     "dense outlined dark")
-                knopf("KI-Einstellungen speichern", lambda: a.aendern(ki_setzen, backend.value, modell.value or llm.CLAUDE_STANDARDMODELL,
-                                                                      effort.value, url.value or "", lmod.value or "",
-                                                                      schl.value or None), "", "check")
+                with ui.element("div").classes("m-paktionen"):
+                    knopf("KI-Einstellungen speichern", lambda: a.aendern(ki_setzen, backend.value, modell.value or llm.CLAUDE_STANDARDMODELL,
+                                                                          effort.value, url.value or "", lmod.value or "",
+                                                                          schl.value or None), "", "check")
+                    knopf("Verbindung testen", lambda: _ki_testen(a), "leise", "bolt")
 
 
 # ---- Stammdaten -------------------------------------------------------------------------
@@ -258,3 +260,31 @@ def _wieder(a, s) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Wiederherstellen", bauen)
+
+
+def ki_testen() -> str:
+    """Eine kurze Frage an die eingestellte KI – wie „Verbindung testen“ im bisherigen Programm."""
+    from datetime import date
+
+    from belegung.assistent.llm import Einstellungen, backend_erstellen
+
+    from . import auswertung_kern as ak
+
+    ds, fehler = ak.datenstand()
+    if ds is None:
+        raise ValueError(fehler or "Erst Daten laden.")
+    backend = backend_erstellen(Einstellungen.aus_dict(speicher.einstellungen().get("ki", {})))
+    if backend is None:
+        raise ValueError("Die KI ist ausgeschaltet – oben „Claude“ oder „lokales Modell“ wählen und speichern.")
+    return backend.antworte("Wie hoch ist die Belegung insgesamt heute? Antworte in einem Satz.", [], ds, date.today())
+
+
+async def _ki_testen(a) -> None:
+    a.toast("Teste die Verbindung …", rueck=False)
+    try:
+        text = await run.io_bound(ki_testen)
+    except Exception as exc:                  # noqa: BLE001
+        a.toast(f"Test fehlgeschlagen: {exc}", fehler=True)
+        return
+    a.toast(f"Verbindung klappt: {text[:160]}", rueck=False)
+

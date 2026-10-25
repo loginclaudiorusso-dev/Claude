@@ -73,6 +73,7 @@ class Lage:
     haeuser: list
     verlauf: dict                 # tage, ist, prognose, lo80, hi80
     hinweise: list = field(default_factory=list)
+    anreisen: list = field(default_factory=list)   # nächste 21 Tage: (Datum, Standort, Anzahl, Bezeichnung)
 
     @property
     def anteil(self) -> float | None:
@@ -90,7 +91,8 @@ def lage(ds, standort: str, brutto: bool, zurueck: int = 120, vor: int = 180) ->
     hi = [round(_f(w), 1) if not i else None for w, i in zip(v["hi80"], v["ist"])]
     return Lage(tag, a.belegt, a.kapazitaet, dict(sorted(a.teile.items(), key=lambda x: -x[1])),
                 ds.haeuser_am(standort, tag), {"tage": tage, "ist": ist, "prognose": prog, "lo80": lo, "hi80": hi},
-                list(ds.hinweise))
+                list(ds.hinweise), [(e.von, konfig.STANDORT_LABEL.get(e.standort, e.standort), e.anzahl, e.bezeichnung or "–")
+                                    for e in ds.anreisen(standort, date.today(), date.today() + timedelta(days=20))])
 
 
 # ---------------------------------------------------------------------------------------
@@ -185,3 +187,68 @@ def einschaetzung(hi80: float, kapazitaet: int) -> tuple[str, str]:
         return "unbekannt", "Kapazität fehlt"
     stufe, text = konfig.ampel_stufe(hi80 / kapazitaet)
     return stufe, f"{text} · {round(100 * hi80 / kapazitaet)} %"
+
+
+# ---------------------------------------------------------------------------------------
+# Belegung im Zeitraum – Einzelheiten wie im bisherigen Programm (Tagesverlauf, Monate, Häuser, Muster)
+# ---------------------------------------------------------------------------------------
+
+WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+@dataclass
+class BDetails:
+    tage: list[str]                   # „TT.MM.“ je Tag
+    ist: list[bool]                   # Ist-Wert (sonst Prognose)
+    kategorien: dict[str, list[float]]  # Belegungsart → Werte je Tag (Zukunft: Reha = Prognose)
+    tiefst: float
+    tiefst_tag: date | None
+    auslastung: float | None          # Ø Auslastung (0–1)
+    spitze: float | None              # höchste Auslastung (0–1)
+    monate: list[tuple[str, float, bool]]   # (Monat, Personentage, nur Ist)
+    haeuser: list[tuple[str, str, float, float, float]]   # Haus, Standort, zuletzt, Ø, Höchst
+    haeuser_stand: date | None
+    muster: list[list[float | None]]  # 7 Wochentage × 12 Monate: Ø Ist-Belegung (letzte 4 Jahre)
+
+
+def belegung_details(ds, standort: str, von: date, bis: date, brutto: bool) -> BDetails:
+    import pandas as pd
+
+    if bis < von:
+        von, bis = bis, von
+    von = max(von, ds.erster_tag)
+    df = ds.verlauf(standort, von, bis, brutto)
+    w = df["wert"]
+    kap = ds.kapazitaet(standort, brutto)
+    ist = df["ist"].to_numpy()
+    kat = ds.kategorien(standort, von, bis, brutto)
+    if (~ist).any():                     # Zukunft: Reha durch die Prognose ersetzen (wie im Hauptprogramm)
+        kat = kat.copy()
+        andere = kat.drop(columns=["Reha"] + (["Anreise"] if "Anreise" in kat else [])).sum(axis=1)
+        kat.loc[~ist, "Reha"] = (df["wert"] - andere)[~ist]
+        if "Anreise" in kat:
+            kat.loc[~ist, "Anreise"] = 0
+    kategorien = {str(c): [round(float(x), 1) for x in kat[c].to_numpy()] for c in kat.columns if float(kat[c].abs().sum())}
+    monate = []
+    for periode, gruppe in df.groupby(df.index.to_period("M")):
+        monate.append((f"{MONATE[periode.month - 1]} {str(periode.year)[2:]}", round(float(gruppe["wert"].sum())),
+                       bool(gruppe["ist"].all())))
+    ende = min(bis, ds.letzter_tag)
+    haeuser = []
+    if ende >= von:
+        hdf = ds.pivot.haeuser.loc[pd.Timestamp(von):pd.Timestamp(ende)]
+        for h, st in sorted(ds.pivot.haus_standort.items()):
+            if standort not in (konfig.GESAMT, st) or hdf.empty or not hdf[h].any():
+                continue
+            haeuser.append((h, konfig.STANDORT_LABEL[st], float(hdf[h].iloc[-1]), float(hdf[h].mean()), float(hdf[h].max())))
+    historie = ds.reha(standort)[: pd.Timestamp(ds.stichtag)]
+    muster: list[list[float | None]] = [[None] * 12 for _ in range(7)]
+    if len(historie):
+        historie = historie[historie.index >= historie.index[-1] - pd.Timedelta(days=4 * 365)]
+        hd = pd.DataFrame({"w": historie.to_numpy(dtype=float), "m": historie.index.month, "d": historie.index.weekday})
+        pv = hd.pivot_table(index="d", columns="m", values="w", aggfunc="mean").reindex(index=range(7), columns=range(1, 13))
+        muster = [[None if pd.isna(x) else round(float(x), 1) for x in zeile] for zeile in pv.to_numpy()]
+    return BDetails([f"{t:%d.%m.}" for t in w.index], [bool(x) for x in ist], kategorien,
+                    float(w.min()) if len(w) else 0.0, w.idxmin().date() if len(w) else None,
+                    float(w.mean()) / kap if kap and len(w) else None, float(w.max()) / kap if kap and len(w) else None,
+                    monate, haeuser, ende if haeuser else None, muster)

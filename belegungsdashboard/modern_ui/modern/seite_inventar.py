@@ -10,9 +10,10 @@ from belegung import zimmerplan as zp
 
 from . import seiten
 from .kern import _schritt
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 
-ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Zimmer"}
+ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Zimmer", "haeuser": "Übersicht je Haus"}
+HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
 
 
 def daten(a) -> None:
@@ -71,10 +72,19 @@ def zeichnen(a) -> None:
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("inventar", ansicht=v))
         knopf("Neuer Gegenstand", lambda: _gegenstand_panel(a, None), "primaer", "add")
-        knopf("Inventarliste drucken", lambda: seiten.html_drucken(a, iv.druck_html(inv, a.daten["zimmer"]), "Inventarliste"),
-              "", "print")
+        with knopf("Drucken & Export", None, "", "print"):
+            with ui.menu().props('dark class="m-menue"'):
+                ui.menu_item("Inventarliste drucken (alle Häuser)",
+                             lambda: seiten.html_drucken(a, iv.druck_html(inv, a.daten["zimmer"]), "Inventarliste"))
+                for h in HAEUSER:
+                    ui.menu_item(f"Inventarliste Haus {h} drucken", lambda h=h: seiten.html_drucken(
+                        a, iv.druck_html(inv, a.daten["zimmer"], h), f"Inventarliste_Haus_{h}"))
+                ui.separator()
+                ui.menu_item("Als Excel speichern (je Zimmer)", lambda: _excel(a))
     if ansicht == "gegenstaende":
         _gegenstaende(a, inv)
+    elif ansicht == "haeuser":
+        _haeuser(a, inv)
     else:
         _zimmer(a, inv)
 
@@ -103,11 +113,27 @@ def _gegenstaende(a, inv: iv.Inventar) -> None:
 
 def _zimmer(a, inv: iv.Inventar) -> None:
     sp = "90px minmax(120px, .8fr) minmax(240px, 2fr) 90px"
+    with a.leiste:
+        segmente({"": "Alle Häuser", **{h: f"Haus {h}" for h in HAEUSER}}, a.iv_haus, lambda h: a.setzen(iv_haus=h, laden=False))
+        suche = ui.input(placeholder="Zimmer oder Gegenstand …", value=a.iv_text).classes("m-feld m-sucheingabe").props(
+            "dense outlined dark clearable")
+        suche.on("keydown.enter", lambda: a.setzen(iv_text=suche.value or "", laden=False))
+        suche.on("clear", lambda: a.setzen(iv_text="", laden=False))
+        segmente({False: "Alle Zimmer", True: "nur ohne Ausstattung"}, a.iv_ohne, lambda o: a.setzen(iv_ohne=o, laden=False))
+    text_f = (a.iv_text or "").lower()
+    zs = [z for z in a.daten["zimmer"] if (not a.iv_haus or z.haus == a.iv_haus)
+          and (not a.iv_ohne or not inv.zimmer.get(z.id))
+          and (not text_f or text_f in f"{z.kurz} {inv.kurztext(z.id)}".lower())]
+    with a.leiste:
+        ui.label(f"{len(zs)} Zimmer").classes("m-kpi m-mono")
     with a.inhalt:
+        if not zs:
+            leer("Keine Zimmer für diese Auswahl.")
+            return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
             for t in ("Zimmer", "Lage", "Ausstattung", ""):
                 ui.label(t)
-        for z in sorted(a.daten["zimmer"], key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
+        for z in sorted(zs, key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
             text = inv.kurztext(z.id)
             with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
                 ui.label(z.kurz).classes("m-name")
@@ -140,10 +166,21 @@ def _gegenstand_panel(a, g) -> None:
                 knopf("Löschen", loeschen, "leise", "delete")
             knopf("Abbrechen", a.panel_zu, "leise")
         if g:
-            wo = a.daten["inv"].wo(g.id)
-            ui.label(f"In {len(wo)} Zimmern").classes("m-ktitel")
-            ui.label(", ".join(f"{zid.removeprefix('GS-')} ({n})" for zid, n in wo[:60]) or "–").classes("m-zweite").style(
-                "white-space:normal")
+            inv = a.daten["inv"]
+            wo = inv.wo(g.id)
+            ui.label("Wo steht das?").classes("m-ktitel")
+            if not wo:
+                ui.label(f"„{g.name}“ steht noch in keinem Zimmer.").classes("m-ptext")
+            else:
+                ui.label(f"{inv.verteilt(g.id)} Stück in {len(wo)} Zimmern").classes("m-ptext")
+                haus_von = {z.id: z.haus for z in a.daten["zimmer"]}
+                je: dict[str, list[str]] = {}
+                for zid, n in wo:
+                    je.setdefault(haus_von.get(zid, "?"), []).append(zid.removeprefix("GS-") + (f" ({n}×)" if n > 1 else ""))
+                for h, zs in sorted(je.items()):
+                    with ui.element("div").classes("m-wo"):
+                        ui.label(f"Haus {h}").classes("m-name")
+                        ui.label(", ".join(zs)).classes("m-zweite").style("white-space:normal")
 
     a.panel(g.name if g else "Neuer Gegenstand", bauen)
 
@@ -210,3 +247,58 @@ def _zimmer_panel(a, z) -> None:
             knopf("Kopieren", kop, "", "content_copy")
 
     a.panel(f"Ausstattung · {z.kurz}", bauen)
+
+
+def _haeuser(a, inv: iv.Inventar) -> None:
+    """Stück je Haus, gesamt in Zimmern, Bestand und was noch im Lager ist."""
+    zimmer = a.daten["zimmer"]
+    je_haus = inv.je_haus({z.id: z.haus for z in zimmer})
+    ohne = sum(1 for z in zimmer if not inv.zimmer.get(z.id) and not z.gaeste)
+    mit = sum(1 for z in zimmer if inv.zimmer.get(z.id))
+    zu_viel = [g.name for g in inv.gegenstaende if (f := inv.frei(g.id)) is not None and f < 0]
+    with a.leiste:
+        kennzahlen([("mit", mit, "Zimmer ausgestattet", "ok"), ("ohne", ohne, "ohne Ausstattung", "warn" if ohne else "ok")]
+                   + ([("zuviel", len(zu_viel), "mehr verteilt als vorhanden", "krit")] if zu_viel else []), None,
+                   lambda k: a.oeffnen("inventar", ansicht="zimmer", iv_ohne=True) if k == "ohne" else None,
+                   {"ohne": "ohne Gästezimmer – Klick: diese Zimmer zeigen",
+                    "zuviel": ", ".join(zu_viel)})
+    sp = "minmax(180px, 1.6fr) " + " ".join(["70px"] * len(HAEUSER)) + " 90px 90px 90px"
+    with a.inhalt:
+        if not inv.gegenstaende:
+            leer("Noch keine Gegenstände.")
+            return
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ["Gegenstand"] + [f"H{h}" for h in HAEUSER] + ["in Zimmern", "Bestand", "im Lager"]:
+                ui.label(t)
+        for g in inv.gegenstaende:
+            h = je_haus.get(g.id, {})
+            frei = inv.frei(g.id)
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                ui.label(g.name).classes("m-name")
+                for x in HAEUSER:
+                    ui.label(str(h.get(x) or "")).classes("m-mono")
+                ui.label(str(inv.verteilt(g.id))).classes("m-mono")
+                ui.label("–" if g.bestand is None else str(g.bestand)).classes("m-mono")
+                ui.label("–" if frei is None else str(frei)).classes("m-mono" + (" m-krit" if frei is not None and frei < 0 else ""))
+
+
+def excel_speichern(zimmer: list) -> tuple[str, str]:
+    from pathlib import Path
+
+    from belegung import speicher
+
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / "Inventar_Zimmer.xlsx"
+    iv.excel_speichern(pfad, iv.laden(), zimmer)
+    return f"Excel gespeichert: {pfad.name}", str(pfad)
+
+
+async def _excel(a) -> None:
+    try:
+        text, pfad = await run.io_bound(excel_speichern, a.daten["zimmer"])
+    except PermissionError:
+        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+        return
+    a.toast(text if seiten._datei_oeffnen(pfad) else f"{text} – {pfad}", rueck=False)
+
