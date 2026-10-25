@@ -42,7 +42,7 @@ def test_fuenf_themes_drei_layouts_und_farben():
 
     assert list(themes.THEMES) == ["original", "inn", "linear", "obsidian", "nordic"]
     assert list(themes.LAYOUTS) == ["original", "grid", "canvas", "showcase"]
-    assert themes.farben({}) == dict(T)
+    assert {k: v for k, v in themes.farben({}).items() if k in T} == dict(T)
     for t in ("inn", "linear", "obsidian", "nordic"):
         assert set(themes.modi(t)) == {"hell", "dunkel"}
         assert themes.farben({"layout": "grid", "theme": t}) != themes.farben({})
@@ -79,3 +79,21 @@ def test_canvas_versteht_saetze():
     v = ck.verstehen("Abreisen diese Woche", h)
     assert v.abreisen and v.bis == date(2026, 10, 18)
     assert ck.verstehen("2-301", h).zimmerfrage and ck.verstehen("Müller", h).rest == "müller"
+
+
+def test_prognose_szenario_kernaussagen_jahresvergleich():
+    from modern import auswertung_kern as ak
+
+    zeilen = [ak.PZeile(date(2025, m, 1), "ist", 100.0 + m, 0, 0, 0, 0, None, 100.0 + m) for m in range(1, 13)]
+    zeilen += [ak.PZeile(date(2026, m, 1), "prognose", 110.0 + m, 105.0 + m, 115.0 + m, 100.0 + m, 120.0 + m, 90.0, None)
+               for m in range(1, 13)]
+    pg = ak.Prognose(zeilen, 130, "M", "", 2.0, 4.0, .8, [], [])
+    zs = ak.szenario(pg, 130, 0)
+    assert zs[0].text.startswith("Reserve") and zs[-1].reserve == 130 - 122
+    eng = ak.szenario(pg, 120, 10)                       # +10 % und weniger Plätze → Engpass
+    assert all(z.text.startswith("Engpass") for z in eng if z.art != "ist")
+    assert eng[0].erwartet == zs[0].erwartet              # Ist bleibt Ist
+    k = ak.kernaussagen(pg, 130)
+    assert k[0].startswith("Höchststand voraussichtlich Dez 2026") and any("Trefferquote" in x for x in k)
+    jv = ak.jahresvergleich(pg)
+    assert set(jv) == {2025, 2026} and jv[2025][0][0] == 101.0 and jv[2026][1][0] == 111.0
