@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.13.0
+# Neue Oberfläche (modern_ui) – Version 0.14.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,23 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Geführter Aufbau, Standorte parallel (neu in 0.14)
+
+* **Geführter Aufbau des Prognosegraphen** (beim Öffnen, beim Wechsel des Reiters bzw. der Ansicht und mit
+  „Aufbau abspielen“ – nicht bei Filterwechseln; aus bei „Bewegung reduzieren“ im System oder unter *Optionen*):
+  1. das **Ist** zeichnet sich von links auf,
+  2. der **Stichtag-Marker** trennt Vergangenheit und Zukunft, der laufende Monat erscheint,
+  3. die **Prognose** zieht sich weiter, danach **fächern sich die 80/95 %-Bänder** vom Prognosestrich aus auf,
+  4. **Spotlight-Badges** markieren die wichtigsten Punkte der nächsten 12 Monate: Höchststand (mit Auslastung) und
+     der erste Engpass – oder, wenn es keinen gibt, der Tiefpunkt.
+  Alles mit Ease-out; die Achse bleibt dabei fest. Die Badges stehen auch ohne Animation im Graph.
+* **Ansicht-Badge über dem Graph** folgt sofort den Schaltern: „Ansicht: Inklusive UWTler und Mieter“,
+  „… Inklusive UWTler“, „… Inklusive Mieter“ oder „Ansicht: Reine Teilnehmer-Sicht“.
+* **Standorte parallel** (nur bei *Gesamt*, Schalter „Ansicht“ am Graph): Auslastung in % von Bad Pyrmont, Goslar
+  und Weser-Ems in einem Graph – Ist durchgezogen, Prognose gestrichelt, feste Standortfarben, Linien bei 70/85/100 %,
+  Tooltip mit allen drei Standorten (Prozent und Plätze). Prozent macht unterschiedlich große Standorte vergleichbar.
+* Feinschliff: Tooltips bleiben im Diagramm, Diagramme blenden beim Wechsel weich ein.
 
 ## UWTler und Mieter aus echten Daten (neu in 0.13)
 
@@ -202,4 +219,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0` (jeweils auch als Zip in `Sicherung`).
