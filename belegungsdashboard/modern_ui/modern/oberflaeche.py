@@ -143,11 +143,21 @@ class Ansicht:
         if neu != self.stempel and self.panel_def is None:     # offenes Formular nicht unter den Händen neu bauen
             await self.laden()
 
-    async def setzen(self, laden: bool = True, **werte) -> None:
-        """Zustand der Seite ändern (z. B. Haus im Zeitstrahl) und neu zeichnen."""
+    async def setzen(self, laden: bool = True, nur_seite: bool = False, **werte) -> None:
+        """Zustand der Seite ändern (z. B. Haus im Zeitstrahl) und neu zeichnen.
+
+        ``nur_seite``: reiner Filterwechsel – nur die Daten der Seite neu rechnen, nicht Zimmerplan und Aufgaben (schnell)."""
         for k, v in werte.items():
             setattr(self, k, v)
-        if laden:
+        if laden and nur_seite and self.stand is not None:
+            try:
+                await run.io_bound(register.SEITEN[self.seite][0], self)
+                self.fehler = ""
+            except Exception as exc:          # noqa: BLE001 – Fehler sichtbar machen statt leerer Seite
+                log.exception("Laden fehlgeschlagen")
+                self.fehler = f"Die Daten konnten nicht geladen werden: {exc}"
+            self.zeichnen()
+        elif laden:
             await self.laden()
         else:
             self.zeichnen()
@@ -211,6 +221,12 @@ class Ansicht:
         attr(self.toolbar, role="toolbar", aria_label="Darstellung")
         self._toolbar_fuellen()
         ui.add_body_html(_TOOLBAR_JS)
+        from .seite_prognose import GRAPH_JS
+
+        ui.add_body_html(GRAPH_JS)            # Prognosegraph: Reiterwechsel im Browser
+        from .seite_heute import BRIEFING_JS
+
+        ui.add_body_html(BRIEFING_JS)         # Heute: Morgen-Briefing vorlesen (Sprachausgabe des Systems)
         self.toast_box = ui.element("div")
         ui.keyboard(self._taste, ignore=["input", "select", "textarea"])   # Esc auch, wenn ein Knopf den Fokus hat
         ui.timer(PRUEF_S, self.pruefen)
@@ -745,6 +761,7 @@ class Ansicht:
                         self._karte(k)
 
     def _karte(self, k: kern.Karte) -> None:
+        pro = self.design["layout"] != "original"          # neue Layouts: „Später“ als Symbol im Kartenkopf
         with ui.element("article").classes(f"m-karte {k.stufe}"):
             with ui.element("div").classes("k1"):
                 with ui.element("span").classes(f"m-ksymbol {AMPEL[k.stufe]}"):
@@ -753,6 +770,8 @@ class Ansicht:
                     ui.label(k.titel)
                     ui.label({"dringend": "Dringend", "bald": "Als Nächstes", "info": "Zur Info"}[k.stufe]).classes(
                         f"m-kstufe {AMPEL[k.stufe]}")
+                if pro:
+                    knopf("", lambda k=k: self._spaeter(k), "leise m-kspaeter", "snooze", "Später – bis morgen ausblenden")
             if k.detail:
                 attr(ui.label(k.detail).classes("k2"), title=k.detail)
             with ui.element("div").classes("k3"):
@@ -762,8 +781,9 @@ class Ansicht:
                     knopf(k.zweite.text, lambda k=k: self._zeigen(k.zweite.zeigen), "")
                 if k.hinweis:
                     ui.label(k.hinweis).classes("k4")
-                knopf("Später", lambda k=k: self._spaeter(k), "leise", titel="Bis morgen ausblenden").style(
-                    "margin-left: auto")
+                if not pro:
+                    knopf("Später", lambda k=k: self._spaeter(k), "leise", titel="Bis morgen ausblenden").style(
+                        "margin-left: auto")
 
     def panel(self, titel: str, bauen, breit: bool = False) -> None:
         """Formular im Panel rechts (gleitet über den abgedunkelten Inhalt, Klick daneben schließt)."""

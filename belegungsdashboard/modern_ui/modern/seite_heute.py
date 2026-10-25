@@ -6,6 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
+import json
+
 from nicegui import run, ui
 
 from .kern import WT, kurz
@@ -57,7 +59,62 @@ def daten(a) -> None:
         a.daten.np = None
 
 
+MONATE_LANG = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
+               "Dezember"]
+WOCHENTAGE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+
+def briefing(t: Tag, karten: list, heute: date) -> list[str]:
+    """Morgen-Briefing in wenigen Sätzen (zum Vorlesen): Anreisen, Zimmer, Aufgaben – nur Zahlen und Aufgabentitel,
+    keine Personennamen."""
+    sz = [f"Guten Morgen. Das Briefing für {WOCHENTAGE[heute.weekday()]}, den {heute.day}. {MONATE_LANG[heute.month - 1]}."]
+    heute_an = [x for x in t.anreisen if x[0] == heute.isoformat()]
+    morgen_an = [x for x in t.anreisen if x[0] == (heute + timedelta(days=1)).isoformat()]
+    if heute_an:
+        n, mit = sum(x[2] for x in heute_an), sum(x[3] for x in heute_an)
+        sz.append(f"Heute reisen {n} Personen an" + (f", {n - mit} davon haben noch kein Zimmer." if n > mit else
+                                                       ", alle haben ein Zimmer."))
+    elif morgen_an:
+        n, mit = sum(x[2] for x in morgen_an), sum(x[3] for x in morgen_an)
+        sz.append(f"Heute keine Anreisen. Morgen kommen {n} Personen" + (f", {n - mit} davon noch ohne Zimmer." if n > mit else
+                                                                         ", alle mit Zimmer."))
+    else:
+        sz.append("Heute und morgen sind keine Anreisen geplant.")
+    z = t.zimmer
+    sz.append(f"{z['frei']} Zimmer sind heute frei" + (f", {z['ohne_zimmer']} Personen der nächsten Wochen warten noch auf ein "
+                                                       "Zimmer." if z.get("ohne_zimmer") else "."))
+    dringend = [k for k in karten if k.stufe == "dringend"]
+    if dringend:
+        sz.append(f"{len(dringend)} dringende Aufgabe{'n' if len(dringend) != 1 else ''}. Zuerst: {dringend[0].titel}.")
+    else:
+        sz.append("Keine dringenden Aufgaben – " + (f"{len(karten)} weitere stehen an." if karten else "alles erledigt."))
+    sz.append("Ende des Briefings.")
+    return sz
+
+
+BRIEFING_JS = """<script>
+window.mBriefing = (knopf, saetze) => {   // Sprachausgabe im Browser/Windows (Web Speech) – es verlässt nichts den Rechner
+  const box = knopf.closest('.m-feed-kopf') || document; const text = box.querySelector('.m-briefing-text');
+  if (text) text.classList.add('offen');
+  const s = window.speechSynthesis;
+  if (!s || typeof SpeechSynthesisUtterance === 'undefined') { knopf.classList.add('stumm'); return; }
+  if (s.speaking || s.pending) { s.cancel(); knopf.classList.remove('spricht'); return; }
+  const de = s.getVoices().find(v => (v.lang || '').toLowerCase().startsWith('de'));
+  saetze.forEach((satz, i) => {
+    const u = new SpeechSynthesisUtterance(satz); u.lang = 'de-DE'; if (de) u.voice = de; u.rate = 1.0;
+    if (text) u.onstart = () => text.querySelectorAll('li').forEach((li, j) => li.classList.toggle('jetzt', j === i));
+    if (i === saetze.length - 1) u.onend = u.onerror = () => { knopf.classList.remove('spricht');
+      if (text) text.querySelectorAll('li').forEach(li => li.classList.remove('jetzt')); };
+    s.speak(u);
+  });
+  knopf.classList.add('spricht');
+};
+</script>"""
+
+
 def zeichnen(a) -> None:
+    if a.design.get("layout", "original") != "original":
+        return _feed(a)                       # neue Layouts: Newsfeed mit Briefing; Original bleibt 1:1
     t: Tag = a.daten
     z = t.zimmer
     with a.leiste:
@@ -207,3 +264,112 @@ def _willkommen(a) -> None:
                         ui.icon(icon)
                     ui.label(f"{i}. {titel}").classes("m-name")
                     ui.label(text).classes("m-ptext")
+
+
+# =======================================================================================
+# Newsfeed (alle Layouts außer „Original“): nur das Wesentliche, chronologisch – jetzt · heute · morgen
+# =======================================================================================
+
+def feed_eintraege(t: Tag, karten: list, heute: date) -> dict:
+    """Gruppiert, was heute zählt: dringende Aufgaben, Anreisen/Abreisen heute und morgen, eilige Reinigung, Warnungen."""
+    tag_iso, morgen_iso = heute.isoformat(), (heute + timedelta(days=1)).isoformat()
+    return {
+        "jetzt": [k for k in karten if k.stufe == "dringend"],
+        "heute_an": [x for x in t.anreisen if x[0] == tag_iso],
+        "morgen_an": [x for x in t.anreisen if x[0] == morgen_iso],
+        "heute_ab": [x for x in t.abreisen if x[0] == "heute"],
+        "morgen_ab": [x for x in t.abreisen if x[0] == "morgen"],
+        "reinigung": t.reinigung[0],
+        "warnungen": [x for x in t.neuigkeiten if x[2] in ("warnung", "fehler")][:3],
+        "weitere": [k for k in karten if k.stufe != "dringend"],
+    }
+
+
+def _feed(a) -> None:
+    t: Tag = a.daten
+    z = t.zimmer
+    f = feed_eintraege(t, a.karten, a.heute)
+    saetze = briefing(t, a.karten, a.heute)
+    with a.werkzeuge:
+        b = ui.element("button").classes("m-briefing")
+        attr(b, title="Morgen-Briefing vorlesen (ca. 30 Sekunden) – noch einmal klicken beendet",
+             aria_label="Briefing abspielen")
+        with b:
+            with ui.element("span").classes("m-welle"):
+                for _ in range(4):
+                    ui.element("i")
+            ui.label("Briefing abspielen")
+        b.on("click", js_handler=f"(e) => mBriefing(e.currentTarget, {json.dumps(saetze)})")
+    with a.leiste:
+        werte = [("frei", z["frei"], "Zimmer frei heute", "ok"),
+                 ("ohne", z["ohne_zimmer"], "Anreisen ohne Zimmer", "krit" if z["ohne_zimmer"] else "ok"),
+                 ("dringend", len(f["jetzt"]), "dringende Aufgaben", "krit" if f["jetzt"] else "ok")]
+        kennzahlen(werte, None, lambda k: (a.center_umschalten(True) if k == "dringend" else
+                                            a.oeffnen("anreisen", ansicht="zuteilen", filter="ohne") if k == "ohne" else
+                                            a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter="frei")),
+                   {"frei": "Klick: Zimmer-Übersicht", "ohne": "Klick: zuteilen", "dringend": "Klick: alle Aufgaben"})
+        ui.label(f"{WOCHENTAGE[a.heute.weekday()]}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
+    with a.inhalt:
+        if t.willkommen:
+            _willkommen(a)
+        with ui.element("div").classes("m-feed"):
+            with ui.element("div").classes("m-feed-kopf"):
+                with ui.element("ol").classes("m-briefing-text"):        # Mitschrift – erscheint beim Abspielen
+                    for satz in saetze:
+                        with ui.element("li"):
+                            ui.label(satz)
+            _abschnitt("Jetzt", "bolt", "krit")
+            if f["jetzt"]:
+                for k in f["jetzt"]:
+                    with ui.element("div").classes("m-feed-eintrag"):
+                        a._karte(k)
+            else:
+                _eintrag("check_circle", "Keine dringenden Aufgaben", "Alles Wichtige ist erledigt.", "ok")
+            for w_zeit, w_text, w_art in f["warnungen"]:
+                _eintrag("warning", w_text, f"Hinweis · {w_zeit}", "warn")
+            _abschnitt(f"Heute · {WOCHENTAGE[a.heute.weekday()]}", "today", "")
+            _tag(a, f["heute_an"], f["heute_ab"], "heute")
+            if f["reinigung"]:
+                _eintrag("cleaning_services", f"{f['reinigung']} Zimmer vor Einzug noch reinigen", "Reinigung · heute", "krit",
+                         lambda: a.oeffnen("reinigung", rg_zeitraum="heute"))
+            _abschnitt("Morgen", "event", "")
+            _tag(a, f["morgen_an"], f["morgen_ab"], "morgen")
+            if f["weitere"]:
+                with ui.element("div").classes("m-feed-mehr"):
+                    knopf(f"{len(f['weitere'])} weitere Aufgaben (als Nächstes, zur Info)", lambda: a.center_umschalten(True),
+                          "leise", "inbox")
+
+
+def _abschnitt(titel: str, icon: str, art: str) -> None:
+    with ui.element("div").classes(f"m-feed-abschnitt {art}"):
+        ui.icon(icon)
+        ui.label(titel)
+
+
+def _eintrag(icon: str, titel: str, unter: str, art: str = "", klick=None) -> None:
+    e = ui.element("button" if klick else "div").classes(f"m-feed-eintrag m-feed-zeile {art}")
+    with e:
+        with ui.element("span").classes(f"m-feed-symbol {art}"):
+            ui.icon(icon)
+        with ui.element("div").classes("m-feed-txt"):
+            ui.label(titel).classes("m-name")
+            ui.label(unter).classes("m-zweite")
+        if klick:
+            ui.icon("chevron_right").classes("m-feed-pfeil")
+    if klick:
+        e.on("click", klick)
+
+
+def _tag(a, anreisen: list, abreisen: list, wann: str) -> None:
+    if not anreisen and not abreisen:
+        _eintrag("event_available", f"{'Heute' if wann == 'heute' else 'Morgen'} keine Anreisen und Abreisen", "", "neutral")
+        return
+    for kennung, text, n, mit in anreisen:
+        offen = n - mit
+        _eintrag("flight_land", f"Anreise: {text.split(' · ', 1)[-1]}",
+                 f"{n} Personen · " + (f"{offen} ohne Zimmer – zuteilen" if offen else "alle mit Zimmer"),
+                 "krit" if offen else "ok", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
+    if abreisen:
+        namen = ", ".join(f"{n} ({z})" for _w, n, z in abreisen[:4]) + (f" und {len(abreisen) - 4} weitere" if len(abreisen) > 4 else "")
+        _eintrag("flight_takeoff", f"{len(abreisen)} Abreise{'n' if len(abreisen) != 1 else ''}", namen, "neutral",
+                 lambda: a.oeffnen("anreisen", ansicht="abreisen"))

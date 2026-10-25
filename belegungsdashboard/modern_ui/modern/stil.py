@@ -700,16 +700,6 @@ body.praesentation .m-kopf, body.praesentation .m-leiste { display: none !import
 """
 CSS += """
 /* 0.12 – Prognose: Backtest-/Status-Schalter, Management-Szenario, Goslar-Aufteilung */
-.m-xg-toggle { --c: var(--text3); font: inherit; font-size: 13px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
-  height: 32px; padding: 0 6px 0 11px; border-radius: 9px; border: 1px solid var(--rand2); background: var(--fl); cursor: pointer; }
-.m-xg-toggle .q-icon { font-size: 18px; color: var(--c); }
-.m-xg-toggle-status { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px;
-  border-radius: 7px; background: color-mix(in srgb, var(--text3) 18%, transparent); color: var(--text3); }
-.m-xg-toggle.an { --c: var(--orange); border-color: color-mix(in srgb, var(--orange) 60%, transparent); color: var(--text);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orange) 30%, transparent); }
-.m-xg-toggle.an .m-xg-toggle-status { background: var(--orange); color: #fff; }
-.m-xg-toggle:hover:not(.aus) { background: color-mix(in srgb, var(--text) 5%, var(--fl)); }
-.m-xg-toggle.aus, .m-xg-status.aus { opacity: .45; cursor: not-allowed; }
 .m-xg-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
 .m-xg-status.aus .m-segm { pointer-events: none; }
 .m-xg-fuss i.l.sz { border-top: 3px dotted var(--orange); opacity: .8; } .m-xg-fuss i.l.kont { border-top: 1.5px dashed var(--text2); }
@@ -773,4 +763,17 @@ CSS += """
 @keyframes m-xg-ein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .m-xg-chart { animation: none; } .m-xg-gruppen-hinweis { transition: none; } }
 .m-xg-kopf { row-gap: 8px; }
+"""
+CSS += """
+/* 0.15 – Optionen-Menü mit Gruppen, Backtest-Status */
+.m-menue-kopf { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3);
+  padding: 8px 14px 2px; }
+.m-xg-status.aus { opacity: .45; cursor: not-allowed; }
+.m-xg-gruppen-hinweis.bt { color: var(--orange); border-color: var(--orange); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+"""
+CSS += """
+/* 0.15 – Standortwechsel: Inhalt blendet weich aus und wieder ein */
+.m-ex { animation: m-xg-ein .22s cubic-bezier(.22, .61, .36, 1) both; }
+.m-ex.m-wechselt { opacity: .45; transition: opacity .12s ease-out; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .m-ex { animation: none; } .m-ex.m-wechselt { transition: none; } }
 """
