@@ -159,16 +159,60 @@ class Prognose:
     monate_historie: int = 0
 
 
+_CACHE: dict = {}                     # (Datenstand, Standort, Netto/Brutto, Zeitraum) → Prognose; je Datenstand neu
+_CACHE_MAX = 64
+
+
+def _monatsprognosen(ds, standort: str, brutto: bool, monate: list[date]) -> dict:
+    """Wie ``Datenstand.monatsprognose`` je Monat – aber die Verträge (Listen ohne Reha/Anreisen) für den ganzen
+    Zeitraum mit *einer* Tagesrechnung statt einer je Monat (gleiches Ergebnis, ein Bruchteil der Zeit)."""
+    import pandas as pd
+
+    werte = {w.monat: w for w in ds.prognose.werte.get(standort, [])}
+    relevant = [m for m in monate if m in werte]
+    if not relevant:
+        return {}
+    ende = (pd.Timestamp(max(relevant)) + pd.offsets.MonthEnd(0)).date()
+    kat = ds.kategorien(standort, min(relevant), ende, brutto)
+    spalten = [c for c in kat.columns if c not in ("Reha", "Anreise")]
+    vert = kat[spalten].sum(axis=1) if spalten else pd.Series(0.0, index=kat.index)
+    je_monat = vert.groupby(vert.index.to_period("M")).mean()
+    kap = ds.kapazitaet(standort, brutto)
+    erg = {}
+    for m in relevant:
+        w = werte[m]
+        v = float(je_monat.get(pd.Period(m, "M"), 0.0)) if spalten else 0.0
+        erg[m] = {"monat": m, "art": w.art, "erwartet": w.erwartet + v, "vertraege": v, "lo80": w.lo80 + v, "hi80": w.hi80 + v,
+                  "lo95": w.lo95 + v, "hi95": w.hi95 + v, "gesichert": (w.gesichert + v) if w.gesichert is not None else None,
+                  "ist": w.ist, "kapazitaet": kap}
+    return erg
+
+
 def prognose(ds, standort: str, brutto: bool, zurueck: int = 24, vor: int = 24) -> Prognose | None:
+    """Monatsprognose mit Bändern, Backtest und Modellangaben – zwischengespeichert je Datenstand (ein neuer Datenstand
+    nach Import/Änderung ist ein neues Objekt und rechnet frisch)."""
     if ds.prognose is None:
         return None
+    schluessel = (id(ds), standort, brutto, zurueck, vor)
+    treffer = _CACHE.get(schluessel)
+    if treffer is not None and treffer[0] is ds:
+        return treffer[1]
+    pg = _prognose(ds, standort, brutto, zurueck, vor)
+    if len(_CACHE) >= _CACHE_MAX:
+        _CACHE.clear()
+    _CACHE[schluessel] = (ds, pg)
+    return pg
+
+
+def _prognose(ds, standort: str, brutto: bool, zurueck: int, vor: int) -> Prognose:
     import pandas as pd
 
     start = date(ds.stichtag.year, ds.stichtag.month, 1)
+    monate = [(pd.Timestamp(start) + pd.DateOffset(months=i)).date() for i in range(-zurueck, vor)]
+    alle = _monatsprognosen(ds, standort, brutto, monate)
     zeilen = []
-    for i in range(-zurueck, vor):
-        m = (pd.Timestamp(start) + pd.DateOffset(months=i)).date()
-        mp = ds.monatsprognose(standort, m, brutto)
+    for m in monate:
+        mp = alle.get(m)
         if mp:
             zeilen.append(PZeile(m, mp["art"], _f(mp["erwartet"]), _f(mp["lo80"]), _f(mp["hi80"]), _f(mp["lo95"]),
                                  _f(mp["hi95"]), _f(mp["gesichert"]) if mp["gesichert"] is not None else None,
