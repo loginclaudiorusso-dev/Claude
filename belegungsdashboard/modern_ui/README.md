@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.8.0
+# Neue Oberfläche (modern_ui) – Version 0.9.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,28 +48,35 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
-## Designs und Navigation (neu in 0.8)
+## Darstellung: Layout × Theme (neu in 0.9)
 
-Oben rechts das **Paletten-Symbol** (oder *Einstellungen → Allgemein → Darstellung*) – wirkt sofort, ohne Neuladen
-(halb ausgefüllte Formulare bleiben), und wird gespeichert (`modern_ui.json` im Datenordner).
+**Werkzeugleiste unten rechts** (blendet sich nach kurzer Zeit auf einen Griff zurück; Griff anklicken = angeheftet):
+Layout · Theme · Hell/Dunkel · Dichte · Suchen/Prompt · Vollbild · Notiz · **Original-Zustand** (roter Knopf, 1 Klick).
+Dieselbe Wahl unter *Einstellungen → Allgemein → Darstellung*. Wirkt sofort ohne Neuladen und bleibt gespeichert
+(`modern_ui.json` im Datenordner – auch die Notiz).
 
-| Design | Charakter |
+**Ebene 1 – Layout (Aufbau)**
+
+| Layout | Aufbau |
 |---|---|
-| **Original** | das bisherige Design, unverändert (Standard) – jederzeit per Klick zurück |
-| **inn-tegrativ Corporate** | Navigation in inn-tegrativ Deep Blue (#183861), heller, ruhiger Arbeitsbereich, klare Kanten |
-| **Linear Monochrome** | ultra-minimal und dicht: Graustufen, harte Kanten, mehr Zeilen auf dem Bildschirm |
-| **Bento Modern** | Kennzahlen und Blöcke als Kärtchen im Raster, dezentes Glas, großzügige Typografie |
-| **High Contrast Editorial** | warmes Papier, größere Schrift, Serifen-Überschriften, stärkste Text- und Statuskontraste |
+| **Original-Zustand** | bisheriges Design und Layout, unverändert (Standard) |
+| **Classic Enterprise Grid** | Seitenleiste, einklappbar auf Symbole mit Tooltips (Strg+B), volle Datendichte |
+| **AI-Canvas & Prompt** | zentrale Eingabe oben (Strg+K oder /, Esc leert): versteht z. B. „freie Zimmer Haus 2“, „ohne Zimmer“, „neu“, „EMR nächste Woche“, „Mängel unbewohnbar“, „Abreisen diese Woche“, Namen, Zimmernummern – Antworten erscheinen live als Karten (Kennzahlen, Personen, Zimmer, Abreisen); Klick öffnet Zimmerkarte/Zuteilen, „Alle als Liste“ übernimmt die Filter |
+| **Showcase** | schwebendes Dock oben (alle Seiten, „Verwalten ▾“), große Titel, Kennzahl-Kacheln, Karten mit Glas, viel Weißraum |
 
-In den vier neuen Designs: Kennzahlen als ruhige Kärtchen (keine Leuchteffekte), Zustände in gedeckten Farben
-(frei grün, belegt blau, geplant indigo, gesperrt grau, Mängel/ohne Zimmer amber, Handlungsbedarf/unbewohnbar rot),
-Diagramme in den Farben des Designs. **Navigation** wahlweise als Seitenleiste, **schmale Seitenleiste** (nur Symbole
-mit Tooltip, Strg+B, Pfeil unten) oder **oben** (alle Seiten direkt, „Verwalten ▾“ mit Daten & Import, Inventar,
-Einstellungen) – kein Menüpunkt fällt weg. Im Original bleibt die bisherige Seitenleiste.
+**Ebene 2 – Theme (nur Farben/Schrift), in jedem Layout:** Original · inn-tegrativ (#183861) · Linear Monochrome ·
+Executive Obsidian (Bronze/Champagner) · Soft Nordic (Slate/Sand) – jeweils **hell und dunkel** (Original-Farben nur
+dunkel). Dazu **Dichte** normal/kompakt. Dialoge mit Milchglas-Hintergrund, Menüs als Glas-Popover, Tabellen mit
+festem Kopf, gedeckte Status-Badges.
 
-Technik: Die neuen Designs greifen nur über Klassen am `<body>` (`pro`, `th-…`); ohne sie gilt ausschließlich das
-bisherige CSS. Ein Test stellt sicher, dass jede neue Regel daran gebunden ist; ein Bildvergleich aller Seiten zeigt
-„Original“ pixelgleich zu 0.7 (bis auf das neue Paletten-Symbol und den Block „Darstellung“).
+Technik: Ohne Klassen am `<body>` gilt ausschließlich das bisherige CSS; alles Neue hängt an `body.pro` (+ `lay-…`,
+`th-…`, `mod-…`, `dichte-…`). Ein Test prüft das für jede Regel; der Bildvergleich aller 29 Ansichten zeigt den
+Original-Zustand pixelgleich zu 0.7 – bis auf die Werkzeugleiste, die Versionsnummer, die Zahlen in der Zimmer-Legende
+und den Block „Darstellung“. Aus 0.8 übernommen: „Corporate“ → inn-tegrativ, „Bento“ → Obsidian, „Editorial“ → Nordic,
+„Navigation oben“ → Showcase.
+
+**Zimmer-Übersicht:** Die Legende zeigt jetzt die Anzahl je Zustand (frei, 1 Bett frei, belegt, geplant, gesperrt,
+Mängel, unbewohnbar).
 
 **Neu in 0.7:** Zimmer-*Karten* mit allen Details, Person direkt im Zimmer hinzufügen, Filter „neu (7 Tage)“ und
 die restlichen Funktionen des bisherigen Programms (fett in der Tabelle oben).
@@ -105,4 +112,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0` (jeweils auch als Zip in `Sicherung`).
