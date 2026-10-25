@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.7.0
+# Neue Oberfläche (modern_ui) – Version 0.8.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,29 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Designs und Navigation (neu in 0.8)
+
+Oben rechts das **Paletten-Symbol** (oder *Einstellungen → Allgemein → Darstellung*) – wirkt sofort, ohne Neuladen
+(halb ausgefüllte Formulare bleiben), und wird gespeichert (`modern_ui.json` im Datenordner).
+
+| Design | Charakter |
+|---|---|
+| **Original** | das bisherige Design, unverändert (Standard) – jederzeit per Klick zurück |
+| **inn-tegrativ Corporate** | Navigation in inn-tegrativ Deep Blue (#183861), heller, ruhiger Arbeitsbereich, klare Kanten |
+| **Linear Monochrome** | ultra-minimal und dicht: Graustufen, harte Kanten, mehr Zeilen auf dem Bildschirm |
+| **Bento Modern** | Kennzahlen und Blöcke als Kärtchen im Raster, dezentes Glas, großzügige Typografie |
+| **High Contrast Editorial** | warmes Papier, größere Schrift, Serifen-Überschriften, stärkste Text- und Statuskontraste |
+
+In den vier neuen Designs: Kennzahlen als ruhige Kärtchen (keine Leuchteffekte), Zustände in gedeckten Farben
+(frei grün, belegt blau, geplant indigo, gesperrt grau, Mängel/ohne Zimmer amber, Handlungsbedarf/unbewohnbar rot),
+Diagramme in den Farben des Designs. **Navigation** wahlweise als Seitenleiste, **schmale Seitenleiste** (nur Symbole
+mit Tooltip, Strg+B, Pfeil unten) oder **oben** (alle Seiten direkt, „Verwalten ▾“ mit Daten & Import, Inventar,
+Einstellungen) – kein Menüpunkt fällt weg. Im Original bleibt die bisherige Seitenleiste.
+
+Technik: Die neuen Designs greifen nur über Klassen am `<body>` (`pro`, `th-…`); ohne sie gilt ausschließlich das
+bisherige CSS. Ein Test stellt sicher, dass jede neue Regel daran gebunden ist; ein Bildvergleich aller Seiten zeigt
+„Original“ pixelgleich zu 0.7 (bis auf das neue Paletten-Symbol und den Block „Darstellung“).
+
 **Neu in 0.7:** Zimmer-*Karten* mit allen Details, Person direkt im Zimmer hinzufügen, Filter „neu (7 Tage)“ und
 die restlichen Funktionen des bisherigen Programms (fett in der Tabelle oben).
 *Neu* heißt: zum ersten Mal in den Listen. Das Hauptprogramm speichert dafür kein Datum – die neue Oberfläche merkt
@@ -82,4 +105,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0` (jeweils auch als Zip in `Sicherung`).
