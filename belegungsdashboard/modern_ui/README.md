@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.9.0
+# Neue Oberfläche (modern_ui) – Version 0.10.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,27 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Prognose für Präsentationen (neu in 0.10)
+
+*Auswertung → Prognose*:
+* **Kernaussagen** (einklappbar) – Höchststand mit Auslastung, Engpass-Monate bzw. knappste Reserve, ruhigster Monat,
+  Trefferquote des Backtests; passen sich dem Szenario an.
+* **Drei Diagramme** (Umschalter über dem Diagramm): *Trend & Spanne* (Ist durchgezogen mit Punkten, Prognose
+  gestrichelt, 80/95 %-Spannen als Verlaufsflächen, Marke „Prognose →“), *Kapazitäts-Reserve* (belegt / freie Reserve /
+  über Kapazität gestapelt), *Vorjahresvergleich* (Jahre übereinander, Jan–Dez). Aufbau-Animation von links nach rechts.
+* **Tooltip** mit Glas-Effekt: Ist, Erwartet, 80/95 %-Spanne und Rest-Kapazität, farbig geordnet.
+* **Was wäre, wenn**: Regler und Feld für die Kapazität (400–1.200 bzw. ±50 %) und Regler für die Auslastung (±15 %) –
+  Kapazitätslinie, Tabelle („Reserve vorhanden“ / „Engpass!“, Reserve je Monat) und Kernaussagen ändern sich sofort.
+  „Zurücksetzen“ stellt die echten Werte wieder her. Nur testweise – gespeichert wird nichts.
+* **Export** oben rechts: *Chart als PNG* (ohne Bedienelemente, doppelte Auflösung – für PowerPoint) und *Daten
+  exportieren* als Excel (mit Blatt „Info“: Standort, Netto/Brutto, Szenario, Modell) oder CSV. Ablage im Export-Ordner.
+* Standort, Netto/Brutto, Zeitraum, 95 %-Spanne und Backtest wirken wie bisher; Farben folgen dem gewählten Theme.
+
+**Zimmer-Übersicht:** Die Legende ist entfallen – die Kacheln oben tragen dieselben Symbole und Farben wie die Zimmer
+und zählen: frei (Zimmer mit mindestens einem freien Bett; Doppelzimmer mit nur einem freien Bett sind grün umrandet
+und werden in der Kachel genannt, wenn es welche gibt), belegt, geplant, gesperrt, mit Mängeln und neu **unbewohnbar**
+– jede Kachel filtert per Klick.
+
 ## Darstellung: Layout × Theme (neu in 0.9)
 
 **Werkzeugleiste unten rechts** (blendet sich nach kurzer Zeit auf einen Griff zurück; Griff anklicken = angeheftet):
@@ -74,9 +95,6 @@ Technik: Ohne Klassen am `<body>` gilt ausschließlich das bisherige CSS; alles 
 Original-Zustand pixelgleich zu 0.7 – bis auf die Werkzeugleiste, die Versionsnummer, die Zahlen in der Zimmer-Legende
 und den Block „Darstellung“. Aus 0.8 übernommen: „Corporate“ → inn-tegrativ, „Bento“ → Obsidian, „Editorial“ → Nordic,
 „Navigation oben“ → Showcase.
-
-**Zimmer-Übersicht:** Die Legende zeigt jetzt die Anzahl je Zustand (frei, 1 Bett frei, belegt, geplant, gesperrt,
-Mängel, unbewohnbar).
 
 **Neu in 0.7:** Zimmer-*Karten* mit allen Details, Person direkt im Zimmer hinzufügen, Filter „neu (7 Tage)“ und
 die restlichen Funktionen des bisherigen Programms (fett in der Tabelle oben).
@@ -112,4 +130,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0` (jeweils auch als Zip in `Sicherung`).
