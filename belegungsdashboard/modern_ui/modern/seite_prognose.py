@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from nicegui import run, ui
+from nicegui import background_tasks, run, ui
 
 from belegung import konfig
 
@@ -491,39 +491,76 @@ def vergleich_option(sv: list, aktiv: str, hell: bool, animation: bool) -> dict:
 # Ansicht
 # =======================================================================================
 
+_GRUPPEN: dict = {}                    # Zwischenspeicher der UWT-/Mieter-Aufteilung je Datenstand und Auswahl
+
+
+_DATEN: dict = {}                      # fertig gerechnete Seitendaten je Datenstand und Auswahl (Standortwechsel ohne Rechnen)
+
+
 def daten(a, ds) -> None:
-    """Prognose laden und die Schalter „UWTler / Mieter einbeziehen“ einrechnen (echte Listen, Verträge, Zimmerplan)."""
+    """Prognose laden und die Schalter „UWTler / Mieter einbeziehen“ einrechnen (echte Listen, Verträge, Zimmerplan).
+    Ergebnisse werden je Auswahl zwischengespeichert; die anderen Standorte rechnet ``vorrechnen`` im Hintergrund."""
+    stand = getattr(a, "stand", None)
+    a.daten = dict(_daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter))
+    if a.aw_standort == GOSLAR:
+        a.daten["kontingent"] = kern.kontingent_lesen(a.aw_standort)     # Planung kann sich ändern – immer frisch
+
+
+def vorrechnen(a) -> None:
+    """Hintergrund: Daten der übrigen Standorte (und Netto/Brutto-Gegenstück) vorbereiten."""
+    ds, stand = (a.daten or {}).get("ds"), getattr(a, "stand", None)
+    if ds is None:
+        return
+    for standort in ak.STANDORTE:
+        _daten_fuer(ds, stand, standort, a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter)
+    _daten_fuer(ds, stand, a.aw_standort, not a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter)
+
+
+def _daten_fuer(ds, stand, standort: str, brutto: bool, horizont: int, uwt: bool, mieter: bool) -> dict:
+    schluessel = (id(ds), id(stand), standort, brutto, horizont, uwt, mieter)
+    treffer = _DATEN.get(schluessel)
+    if treffer is not None and treffer[0] is ds and treffer[1] is stand:
+        return treffer[2]
+    d = _daten_rechnen(ds, stand, standort, brutto, horizont, uwt, mieter)
+    if len(_DATEN) > 24:
+        _DATEN.clear()
+    _DATEN[schluessel] = (ds, stand, d)
+    return d
+
+
+def _daten_rechnen(ds, stand, standort: str, brutto: bool, horizont: int, uwt: bool, mieter: bool) -> dict:
     import pandas as pd
 
-    stand = getattr(a, "stand", None)
     mieter_zr = an.mieter_zeitraeume(stand)
-    lang = a.aw_chart == "jahr"
 
-    def gruppen_fuer(standort, pg):
+    def gruppen_fuer(st, pg):
         if not pg or not pg.zeilen:
             return None
         bis = (pd.Timestamp(pg.zeilen[-1].monat) + pd.offsets.MonthEnd(0)).date()
         von = min(pg.zeilen[0].monat, ds.stichtag - pd.Timedelta(days=370))
-        return an.gruppen(ds, standort, a.aw_brutto, von, bis, mieter_zr, a.aw_uwt, a.aw_mieter)
+        schluessel = (id(ds), st, brutto, von, bis, tuple(mieter_zr), uwt, mieter)
+        if schluessel not in _GRUPPEN:
+            if len(_GRUPPEN) > 32:
+                _GRUPPEN.clear()
+            _GRUPPEN[schluessel] = (ds, an.gruppen(ds, st, brutto, von, bis, mieter_zr, uwt, mieter))
+        return _GRUPPEN[schluessel][1]
 
-    roh = ak.prognose(ds, a.aw_standort, a.aw_brutto, 36 if lang else 24, a.aw_horizont)
-    g = gruppen_fuer(a.aw_standort, roh)
+    roh = ak.prognose(ds, standort, brutto, 36, horizont)      # 36 Monate: der Vorjahresvergleich braucht kein Neuladen
+    g = gruppen_fuer(standort, roh)
     voll = an.mit_gruppen(roh, g) if g else roh
-    if voll and lang:                       # Vorjahresvergleich: drei Jahre zurück, sonst die üblichen 24 Monate
+    pg = voll
+    if voll:                                                    # sonst die üblichen 24 Ist-Monate
         a_ = max(0, len([z for z in voll.zeilen if z.art == "ist"]) - 24)
         pg = type(voll)(**{**voll.__dict__, "zeilen": voll.zeilen[a_:]})
-    else:
-        pg = voll
-    a.daten = {"pg": pg, "pg_lang": voll if lang else None, "stichtag": ds.stichtag, "ds": ds, "gruppen": g,
-               "gruppen_da": a.aw_standort in an.GRUPPEN_STANDORTE,
-               "sv": an.standort_vergleich(ds, a.aw_brutto, min(12, a.aw_horizont), gruppen_fn=gruppen_fuer)}
-    goslar = a.aw_standort == GOSLAR
-    if pg and g and (a.aw_status or goslar):
-        a.daten["sm"] = an.status_monate(pg, g)
-    if pg and g and goslar:
-        a.daten["sl"] = an.status_lage(ds, a.aw_standort, a.aw_brutto, a.daten["sm"], g)
-        a.daten["kontingent"] = kern.kontingent_lesen(a.aw_standort)
-    a.daten["sanierung"] = an.sanierung_plaetze(getattr(stand, "lage", None), a.aw_standort)
+    d = {"pg": pg, "pg_lang": voll, "stichtag": ds.stichtag, "ds": ds, "gruppen": g,
+         "gruppen_da": standort in an.GRUPPEN_STANDORTE,
+         "sv": an.standort_vergleich(ds, brutto, min(12, horizont), gruppen_fn=gruppen_fuer)}
+    if pg and g:                            # immer: „Nach Status“ schaltet ohne Neuladen um
+        d["sm"] = an.status_monate(pg, g)
+    if pg and g and standort == GOSLAR:
+        d["sl"] = an.status_lage(ds, standort, brutto, d["sm"], g)
+    d["sanierung"] = an.sanierung_plaetze(getattr(stand, "lage", None), standort)
+    return d
 
 
 def _praes_klasse(a, an_: bool) -> None:
@@ -565,13 +602,14 @@ def zeichnen(a) -> None:
     a.aw_anim_gezeigt, a._anim_jetzt = True, False
     hell = bool(_t().get("hell"))
     zustand = {"kap": a.aw_kap, "offset": a.aw_offset}
-    parallel = a.aw_parallel and a.aw_standort == konfig.GESAMT
-    c = lambda anim=False, phase="voll": {"pg": pg, "phase": phase, "parallel": parallel, "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,  # noqa: E731
+    par = lambda: a.aw_parallel and a.aw_standort == konfig.GESAMT  # noqa: E731
+    def c(anim=False, phase="voll", **ueber):
+        return {"pg": pg, "phase": phase, "parallel": par(), "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,
                             "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95, "backtest": a.aw_backtest,
-                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not parallel else 4, "animation": anim,
+                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
-                            "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else ""}
+                            "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else "", **ueber}
     ds = a.daten["ds"]
     box: dict = {}
     sm = a.daten.get("sm") or []
@@ -589,7 +627,7 @@ def zeichnen(a) -> None:
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
     if not praes:
         with a.leiste:
-            segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, a.aw_horizont, lambda h: a.setzen(aw_horizont=h))
+            segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, a.aw_horizont, lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
             knopf("Präsentation", lambda: _modus(a, "praes"), "primaer", "slideshow",
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")
             _export_menue(a, pg, zustand, box, ex)
@@ -650,65 +688,114 @@ def zeichnen(a) -> None:
                                 ui.label(text)
         erkenntnisse_zeichnen(e0)
 
-        # ---- Hauptgraph ----------------------------------------------------------------
+        # ---- Hauptgraph (wird bei Reiter-/Ansichtswechsel allein neu gebaut – ohne Neuladen, ohne Seitenaufbau) ----
         graph_box = ui.element("section").classes("m-block m-xg")
-        with graph_box:
-            with ui.element("div").classes("m-xg-kopf"):
-                segmente(CHARTS, a.aw_chart, lambda k: _chart_art(a, k))
-                trend = a.aw_chart == "trend"
-                _umschalter("history", "Backtest", a.aw_backtest and trend and not a.aw_status,
-                            lambda: a.setzen(aw_backtest=not a.aw_backtest, laden=False),
-                            "Blind-Prognosen der Vergangenheit (je einen Monat vorher gerechnet) im Graph zeigen"
-                            if pg.rueckblick else "Für diese Auswahl gibt es keinen Backtest-Verlauf",
-                            aus=not (trend and not a.aw_status and pg.rueckblick))
-                with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
-                    attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · übrige) oder – "
-                                                    "bei „Gesamt“ – die drei Standorte parallel")
-                    ansichten = {"kurve": "Belegung", "status": "Nach Status"}
-                    if a.aw_standort == konfig.GESAMT:
-                        ansichten["standorte"] = "Standorte parallel"
-                    jetzt = "standorte" if parallel else "status" if a.aw_status else "kurve"
-                    segmente(ansichten, jetzt, lambda v: _ansicht(a, v) if trend else None)
-                if praes and a.aw_chart == "trend" and not a.aw_status and not parallel:
-                    with ui.element("div").classes("m-xg-schritte"):
-                        knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
-                        box["schritt"] = ui.label(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}").classes("m-zweite")
-                        knopf("", lambda: praes_schritt(a, 1), "leise", "chevron_right", "Nächster Schritt (→)")
-                        knopf("Alles", lambda: praes_schritt(a, 4), "leise")
-                with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
-                    if not a.weniger_bewegung:
-                        knopf("Aufbau abspielen", lambda: _abspielen(a), "leise", "play_arrow",
-                              "Graph neu aufbauen (Animation) – z. B. für die Präsentation")
-                    if not praes:
-                        with knopf("Optionen", None, "leise", "tune"):
-                            with ui.menu().props('dark class="m-menue"'):
-                                _schalter("95 %-Band zeigen", a.aw_95, lambda: a.setzen(aw_95=not a.aw_95, laden=False))
-                                ui.separator()
-                                _schalter("Animation beim Öffnen" + (" (System: weniger Bewegung)" if a.weniger_bewegung else ""),
-                                          a.aw_anim and not a.weniger_bewegung, lambda: a.setzen(aw_anim=not a.aw_anim, laden=False),
-                                          aus=a.weniger_bewegung)
-            _gruppen_schalter(a)
-            # Geführter Aufbau (Story): Ist → Stichtag → Prognose, dann fächern die Bänder auf und die Badges erscheinen
-            story = (animiert and a.aw_chart == "trend" and not a.aw_status and not parallel
-                     and (not praes or a.aw_schritt == 4))
-            chart = ui.echart(option(c(animiert, "start" if story else "voll"))).classes(
-                "m-chart m-xg-chart" + (" gross" if praes else ""))
-            box["chart"] = chart
-            if story:
-                ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
-            with ui.element("div").classes("m-xg-fuss"):
-                ui.html(_legende_text("standorte" if a.aw_chart == "trend" and parallel else
-                                      "status" if a.aw_chart == "trend" and a.aw_status else a.aw_chart,
-                                      kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)
+
+        def modi() -> dict:
+            """Fertige Diagramm-Optionen aller Ansichten – der Browser schaltet damit ohne Rückfrage um (< 50 ms)."""
+            anim = a.aw_anim and not a.weniger_bewegung
+            d = {"reserve": option(c(anim, art="reserve")), "jahr": option(c(anim, art="jahr")),
+                 "kurve": option(c(anim, art="trend", status=False, parallel=False))}
+            if anim and not praes:
+                d["kurve_start"] = option(c(True, "start", art="trend", status=False, parallel=False))
+            if a.daten.get("sm"):
+                d["status"] = option(c(anim, art="trend", status=True, parallel=False))
+            if a.aw_standort == konfig.GESAMT and a.daten.get("sv"):
+                d["standorte"] = option(c(anim, art="trend", status=False, parallel=True))
+            return d
+
+        def modi_senden():
+            if "daten" in box and not box["daten"].is_deleted:
+                box["daten"]._props["data-modi"] = json.dumps(modi())
+                box["daten"].update()
+
+        def graph_sync(e):
+            """Der Browser hat umgeschaltet – Zustand nachziehen (ohne neu zu zeichnen)."""
+            d = (e.args or {}).get("detail") or {}
+            a.aw_chart = d.get("tab", a.aw_chart)
+            a.aw_status, a.aw_parallel = d.get("ansicht") == "status", d.get("ansicht") == "standorte"
+            if praes:
+                graph_zeichnen(False)                # Schrittsteuerung der Präsentation hängt am Modus
+            elif "chart" in box:
+                box["chart"].options.clear()
+                box["chart"].options.update(option(c(False)))
+
+        def graph_wechsel(**werte):
+            """Reiter, Ansicht, Backtest, 95 %-Band: Daten liegen schon vor → nur den Graph neu zeichnen."""
+            neu_aufbau = any(k in werte and werte[k] != getattr(a, k) for k in ("aw_chart", "aw_status", "aw_parallel"))
+            for k, v in werte.items():
+                setattr(a, k, v)
+            graph_zeichnen(neu_aufbau and a.aw_anim and not a.weniger_bewegung)
+
+        def graph_zeichnen(animiert_: bool):
+            graph_box.clear()
+            box.pop("schritt", None)
+            parallel = par()
+            trend = a.aw_chart == "trend"
+            jetzt = "standorte" if parallel else "status" if a.aw_status else "kurve"
+            attr(graph_box, data_tab=a.aw_chart, data_ansicht=jetzt, data_anim="1" if a.aw_anim and not a.weniger_bewegung else "0")
+            with graph_box:
+                with ui.element("div").classes("m-xg-kopf"):
+                    _js_segmente(CHARTS, a.aw_chart, "tab")
+                    with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
+                        attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · übrige) "
+                                                        "oder – bei „Gesamt“ – die drei Standorte parallel")
+                        ansichten = {"kurve": "Belegung", "status": "Nach Status"}
+                        if a.aw_standort == konfig.GESAMT:
+                            ansichten["standorte"] = "Standorte parallel"
+                        _js_segmente(ansichten, jetzt, "ansicht")
+                    _status_badge(a, pg, True)
+                    if praes and trend and not a.aw_status and not parallel:
+                        with ui.element("div").classes("m-xg-schritte"):
+                            knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
+                            box["schritt"] = ui.label(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}").classes("m-zweite")
+                            knopf("", lambda: praes_schritt(a, 1), "leise", "chevron_right", "Nächster Schritt (→)")
+                            knopf("Alles", lambda: praes_schritt(a, 4), "leise")
+                    with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
+                        if not a.weniger_bewegung:
+                            knopf("Aufbau abspielen", lambda: graph_zeichnen(True), "leise", "play_arrow",
+                                  "Graph neu aufbauen (geführte Animation) – z. B. für die Präsentation")
+                        _optionen(a, pg, True, graph_wechsel)
+                story = (animiert_ and trend and not a.aw_status and not parallel and (not praes or a.aw_schritt == 4))
+                chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes(
+                    "m-chart m-xg-chart" + (" gross" if praes else ""))
+                box["chart"] = chart
+                if story:
+                    ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
+                schluessel = jetzt if trend else a.aw_chart
+                with ui.element("div").classes("m-xg-fuss"):
+                    for k, art in (("kurve", "trend"), ("status", "status"), ("standorte", "standorte"), ("reserve", "reserve"),
+                                   ("jahr", "jahr")):
+                        leg = ui.html(_legende_text(art, kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)
+                        attr(leg, data_legende=k)
+                        if k != schluessel:
+                            leg.style("display:none")
+                box["daten"] = ui.element("div").classes("m-xg-daten").style("display:none")
+                box["daten"]._props["data-modi"] = json.dumps(modi())
+                melder = ui.element("div").classes("m-xg-melder").style("display:none")
+                melder.on("mgraph", graph_sync, args=["detail"])
+
+        graph_zeichnen(animiert)
+        a._graph_zeichnen = graph_zeichnen
+        if not getattr(a, "_vorrechnen_laeuft", False):   # Standortwechsel vorbereiten (Hintergrund, einmal zur Zeit)
+            async def _vor():
+                a._vorrechnen_laeuft = True
+                try:
+                    await run.io_bound(vorrechnen, a)
+                finally:
+                    a._vorrechnen_laeuft = False
+            background_tasks.create(_vor(), name="prognose-vorrechnen")
 
         def chart_neu(schritt_animation: bool = False):
             """Optionen ersetzen – ohne erneuten Aufbau; nur ein Präsentationsschritt darf weich einblenden."""
             neu = option(c(schritt_animation and a.aw_anim and not a.weniger_bewegung))
             if "schritt" in box:
                 box["schritt"].set_text(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}")
+            chart = box["chart"]
             chart.options.clear()
             chart.options.update(neu)
             chart.update()
+            modi_senden()                            # Szenario/Kontingent: auch die vorbereiteten Ansichten erneuern
         a._prognose_chart = chart_neu
         graph_box.move(wurzel, target_index=1 if praes else 0)    # der Graph steht immer ganz oben
 
@@ -807,14 +894,17 @@ def zeichnen(a) -> None:
         if gs_box is not None:                                   # Goslar-Detail: unter Graph, Kennzahlen und Szenario
             gs_box.move(wurzel)
 
-        # ---- Standortvergleich ---------------------------------------------------------------
-        if a.daten["sv"]:
-            _standortvergleich(a, hell)
-        # ---- Detailtabelle --------------------------------------------------------------------
-        tab_box.move(wurzel)
-        tabelle_zeichnen()
-        # ---- Methodik und Backtest ------------------------------------------------------------
-        _methodik(a, pg)
+        # ---- unterhalb des sichtbaren Bereichs: einen Takt später (Graph und Kennzahlen stehen zuerst) ---------
+        def unten():
+            if wurzel.is_deleted:
+                return
+            with wurzel:
+                if a.daten["sv"]:                                     # Standortvergleich
+                    _standortvergleich(a, hell)
+                tab_box.move(wurzel)                                  # Detailtabelle
+                tabelle_zeichnen()
+                _methodik(a, pg)                                      # Methodik und Backtest
+        ui.timer(0.03, unten, once=True)
 
 
 def _modus(a, modus: str) -> None:
@@ -822,18 +912,6 @@ def _modus(a, modus: str) -> None:
     if modus == "praes":
         a.aw_schritt = 4
     a.zeichnen()
-
-
-def _chart_art(a, k: str):
-    if k != a.aw_chart:
-        a._anim_jetzt = True                 # Wechsel des Reiters: Graph baut sich (wenn erlaubt) neu auf
-    return a.setzen(aw_chart=k, laden=k == "jahr" or a.aw_chart == "jahr")
-
-
-def _ansicht(a, v: str):
-    a._anim_jetzt = True
-    return a.setzen(aw_status=v == "status", aw_parallel=v == "standorte",
-                    laden=v == "status" and "sm" not in (a.daten or {}))
 
 
 def _story_weiter(chart, neu: dict) -> None:
@@ -846,11 +924,14 @@ def _story_weiter(chart, neu: dict) -> None:
 
 
 async def _abspielen(a) -> None:
-    """Graph bewusst neu aufbauen: leeren, dann mit Animation zeichnen (verändert keine Daten)."""
-    a._anim_jetzt = True
+    """Graph bewusst neu aufbauen (verändert keine Daten) – nur der Graph, nicht die Seite."""
     if a.aw_modus == "praes" and a.aw_chart == "trend":
         a.aw_schritt = 4
-    a.zeichnen()
+    if getattr(a, "_graph_zeichnen", None):
+        a._graph_zeichnen(not a.weniger_bewegung)
+    else:
+        a._anim_jetzt = True
+        a.zeichnen()
 
 
 def _schalter(text: str, an_: bool, klick, aus: bool = False) -> None:
@@ -886,26 +967,96 @@ def _legende_text(art: str, szenario: bool = False) -> str:
             "<span>Lücken = keine Daten für diesen Monat</span>")
 
 
-def _gruppen_schalter(a) -> None:
-    """[✓] UWTler einbeziehen  [✓] Mieter einbeziehen – rechnet die Gruppen in Kurve, Kennzahlen und Tabellen ein bzw. heraus."""
-    da = a.daten.get("gruppen_da")
-    with ui.element("div").classes("m-xg-gruppen"):
-        for feld, text, titel in (
-                ("aw_uwt", "UWTler einbeziehen", "Gebuchte UWT-Blöcke (UWT-Listen) – aus: aus Kurve und Kennzahlen herausgerechnet"),
-                ("aw_mieter", "Mieter einbeziehen", "Mietverträge (Seite „Mieter“) und Mieter laut Zimmerplan – aus: herausgerechnet")):
-            an_ = getattr(a, feld)
-            b = ui.element("button").classes("m-xg-check" + (" an" if an_ else "") + ("" if da else " aus"))
-            attr(b, role="checkbox", aria_checked=str(an_).lower(),
-                 title=titel if da else "An diesem Standort gibt es keine UWTler und Mieter (nur Goslar)",
-                 **({} if da else {"disabled": True}))
+def _js_segmente(optionen: dict, aktiv, art: str) -> None:
+    """Segmented Control, das im Browser umschaltet (mGraph) – ohne Rückfrage beim Server."""
+    with ui.element("div").classes("m-segm").props('role="group"'):
+        for wert, text in optionen.items():
+            b = ui.element("button").classes("an" if wert == aktiv else "")
+            attr(b, aria_pressed=str(wert == aktiv).lower(), **{f"data_{art}": wert})
             with b:
-                ui.icon("check_box" if an_ else "check_box_outline_blank")
-                ui.label(text)
-            if da:
-                b.on("click", lambda feld=feld: _gruppe_umschalten(a, feld, hinweis))
-        hinweis = ui.label(_ansicht_text(a.aw_uwt, a.aw_mieter)).classes(
+                ui.label(str(text))
+            b.on("click", js_handler=f"(e) => mGraph.wechsel(e, {json.dumps(wert) if art == 'tab' else 'null'}, "
+                                     f"{json.dumps(wert) if art == 'ansicht' else 'null'})")
+
+
+GRAPH_JS = """<script>
+window.mSofort = (e) => {   // Filterknopf: sofort hervorheben und Inhalt weich abblenden, bis die Daten da sind
+  const b = e && e.currentTarget; if (!b) return;
+  b.parentElement.querySelectorAll('button').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-pressed', x === b); });
+  const ex = document.querySelector('.m-ex'); if (ex) ex.classList.add('m-wechselt');
+};
+window.mGraph = {   // Prognosegraph: Reiter und Ansichten im Browser umschalten (vorbereitete Optionen, < 50 ms)
+  umwandeln(o) {
+    if (Array.isArray(o)) return o.map(x => this.umwandeln(x));
+    if (o && typeof o === 'object') { const r = {};
+      for (const [k, v] of Object.entries(o)) { if (k[0] === ':') r[k.slice(1)] = new Function('return ' + v)(); else r[k] = this.umwandeln(v); }
+      return r; }
+    return o;
+  },
+  wechsel(ev, tab, ansicht) {
+    const box = ev.currentTarget.closest('.m-xg'); if (!box) return;
+    const st = box.dataset;
+    tab = tab || st.tab;
+    if (ansicht && tab !== 'trend') return;
+    ansicht = ansicht || st.ansicht;
+    if (tab === st.tab && ansicht === st.ansicht) return;
+    st.tab = tab; st.ansicht = ansicht;
+    const key = tab === 'trend' ? ansicht : tab;
+    const roh = box.querySelector('.m-xg-daten').dataset.modi || '{}';
+    if (box.__roh !== roh) { box.__roh = roh; box.__modi = JSON.parse(roh); box.__fertig = {}; }
+    const modi = box.__modi, fertig = box.__fertig;
+    const opt = k => fertig[k] || (fertig[k] = this.umwandeln(modi[k]));
+    const el = box.querySelector('.m-xg-chart'); const comp = el && getElement(el.id.replace(/^c/, ''));
+    if (comp && comp.chart) {
+      clearTimeout(box.__story);
+      if (key === 'kurve' && st.anim === '1' && modi.kurve_start) {
+        comp.chart.setOption(opt('kurve_start'), { notMerge: true });
+        box.__story = setTimeout(() => comp.chart.setOption(opt('kurve')), 2750);
+      } else if (modi[key]) {
+        comp.chart.setOption(opt(key), { notMerge: true });
+      }
+    }
+    box.querySelectorAll('[data-tab]').forEach(b => { const an = b.dataset.tab === tab; b.classList.toggle('an', an); b.setAttribute('aria-pressed', an); });
+    box.querySelectorAll('[data-ansicht]').forEach(b => { const an = b.dataset.ansicht === ansicht; b.classList.toggle('an', an); b.setAttribute('aria-pressed', an); });
+    const sa = box.querySelector('.m-xg-status'); if (sa) sa.classList.toggle('aus', tab !== 'trend');
+    box.querySelectorAll('[data-legende]').forEach(l => l.style.display = l.dataset.legende === key ? '' : 'none');
+    box.querySelectorAll('[data-nur]').forEach(l => l.style.display = l.dataset.nur === key ? '' : 'none');
+    const m = box.querySelector('.m-xg-melder');
+    if (m) m.dispatchEvent(new CustomEvent('mgraph', { detail: { tab, ansicht } }));
+  },
+};
+</script>"""
+
+
+def _status_badge(a, pg, backtest_moeglich: bool) -> None:
+    """Kompakter Status statt Checkboxen: welche Gruppen in der Kurve stecken, ob der Backtest läuft."""
+    if a.daten.get("gruppen_da"):
+        ui.label(_ansicht_text(a.aw_uwt, a.aw_mieter)).classes(
             "m-xg-gruppen-hinweis" + ("" if a.aw_uwt or a.aw_mieter else " rein"))
-        hinweis.set_visibility(bool(da))
+    if a.aw_backtest and backtest_moeglich and pg.rueckblick:
+        b = ui.label("Backtest an").classes("m-xg-gruppen-hinweis bt")
+        attr(b, data_nur="kurve")
+        if a.aw_chart != "trend" or a.aw_status or a.aw_parallel:
+            b.style("display:none")
+
+
+def _optionen(a, pg, backtest_moeglich: bool, graph_wechsel) -> None:
+    """Erweiterte Optionen im Menü: Backtest, Bänder, UWTler/Mieter einbeziehen, Animation."""
+    da = a.daten.get("gruppen_da")
+    with knopf("Optionen", None, "leise", "tune"):
+        with ui.menu().props('dark class="m-menue m-optionen"'):
+            ui.label("Graph").classes("m-menue-kopf")
+            _schalter("Backtest im Graph (Blind-Prognosen)" + ("" if pg.rueckblick else " – kein Verlauf"),
+                      a.aw_backtest and backtest_moeglich, lambda: graph_wechsel(aw_backtest=not a.aw_backtest),
+                      aus=not (backtest_moeglich and pg.rueckblick))
+            _schalter("95 %-Band zeigen", a.aw_95, lambda: graph_wechsel(aw_95=not a.aw_95))
+            ui.separator()
+            ui.label("Personenkreis" + ("" if da else " – nur Goslar / Gesamt")).classes("m-menue-kopf")
+            _schalter("UWTler einbeziehen", a.aw_uwt, lambda: _gruppe_umschalten(a, "aw_uwt"), aus=not da)
+            _schalter("Mieter einbeziehen", a.aw_mieter, lambda: _gruppe_umschalten(a, "aw_mieter"), aus=not da)
+            ui.separator()
+            _schalter("Animation beim Öffnen" + (" (System: weniger Bewegung)" if a.weniger_bewegung else ""),
+                      a.aw_anim and not a.weniger_bewegung, lambda: graph_wechsel(aw_anim=not a.aw_anim), aus=a.weniger_bewegung)
 
 
 def _ansicht_text(uwt: bool, mieter: bool) -> str:
@@ -914,11 +1065,9 @@ def _ansicht_text(uwt: bool, mieter: bool) -> str:
     return "Ansicht: Inklusive " + " und ".join(n for n, an_ in (("UWTler", uwt), ("Mieter", mieter)) if an_)
 
 
-async def _gruppe_umschalten(a, feld: str, hinweis) -> None:
-    setattr(a, feld, not getattr(a, feld))
-    hinweis.set_text(_ansicht_text(a.aw_uwt, a.aw_mieter))        # sofort – die Neuberechnung folgt
-    hinweis.classes(add="rein" if not (a.aw_uwt or a.aw_mieter) else "", remove="" if not (a.aw_uwt or a.aw_mieter) else "rein")
-    await a.setzen()
+async def _gruppe_umschalten(a, feld: str) -> None:
+    """UWTler/Mieter ein- oder ausrechnen: betrifft alle Kennzahlen → neu rechnen (aus dem Zwischenspeicher schnell)."""
+    await a.setzen(nur_seite=True, **{feld: not getattr(a, feld)})
 
 
 def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
@@ -928,18 +1077,6 @@ def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False)
         ui.icon(icon)
         ui.label(text)
     if klick and not aus:
-        b.on("click", klick)
-
-
-def _umschalter(icon: str, text: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
-    """Direkter Ein/Aus-Schalter mit Statusanzeige (z. B. Backtest)."""
-    b = ui.element("button").classes("m-xg-toggle" + (" an" if an_ else "") + (" aus" if aus else ""))
-    attr(b, title=titel, aria_pressed=str(an_).lower(), **({"disabled": True} if aus else {}))
-    with b:
-        ui.icon(icon)
-        ui.label(text)
-        ui.label("an" if an_ else "aus").classes("m-xg-toggle-status")
-    if not aus:
         b.on("click", klick)
 
 
@@ -1071,7 +1208,7 @@ def _standortvergleich(a, hell: bool, kompakt: bool = False) -> None:
                             ui.element("span").classes("m-xv-farbe").style(f"background:{farben[v.standort]}")
                             ui.label(v.name)
                         attr(b, title="Diesen Standort im Graph zeigen")
-                        b.on("click", lambda v=v: a.setzen(aw_standort=v.standort))
+                        b.on("click", lambda v=v: a.setzen(aw_standort=v.standort, nur_seite=True))
                         ui.label(_z(v.belegt)).classes("m-mono")
                         ui.label(_z(v.kapazitaet)).classes("m-mono")
                         ui.label(an._p(v.auslastung)).classes("m-mono")
@@ -1179,7 +1316,7 @@ def _praes_kopf(a, pg) -> None:
                      f"Kapazität {_z(a.aw_kap)} Plätze" + (" · SZENARIO" if (a.aw_kap != (pg.kapazitaet or 0) or a.aw_offset) else ""))\
                 .classes("m-zweite")
         with ui.element("div").classes("m-xp-aktionen"):
-            segmente(ak.STANDORTE, a.aw_standort, lambda s: a.setzen(aw_standort=s))
+            segmente(ak.STANDORTE, a.aw_standort, lambda s: a.setzen(aw_standort=s, nur_seite=True))
             knopf("Standorte", lambda: (setattr(a, "aw_vergleich_praes", not a.aw_vergleich_praes), a.zeichnen()),
                   "leise" if not a.aw_vergleich_praes else "", "leaderboard", "Standortvergleich ein-/ausblenden")
             knopf("", a.vollbild_umschalten, "leise", "fullscreen", "Vollbild")

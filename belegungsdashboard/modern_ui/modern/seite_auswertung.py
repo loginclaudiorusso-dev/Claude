@@ -54,8 +54,8 @@ def zeichnen(a) -> None:
         seiten.aw_zeichnen(a)
         return
     with a.leiste:
-        segmente(ak.STANDORTE, a.aw_standort, lambda s: a.setzen(aw_standort=s))
-        segmente({False: "Netto", True: "Brutto"}, a.aw_brutto, lambda b: a.setzen(aw_brutto=b))
+        segmente(ak.STANDORTE, a.aw_standort, lambda s: a.setzen(aw_standort=s, nur_seite=True), sofort=True)
+        segmente({False: "Netto", True: "Brutto"}, a.aw_brutto, lambda b: a.setzen(aw_brutto=b, nur_seite=True), sofort=True)
     if "fehler" in a.daten:
         with a.inhalt:
             leer(a.daten["fehler"])

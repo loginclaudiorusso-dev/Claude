@@ -27,15 +27,19 @@ def knopf(text: str, on_click=None, art: str = "", icon: str = "", titel: str = 
     return b
 
 
-def segmente(optionen: dict, aktiv, bei_klick) -> None:
-    """Segmented Control: ein Knopf je Option, der aktive hervorgehoben."""
+def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False) -> None:
+    """Segmented Control: ein Knopf je Option, der aktive hervorgehoben.
+
+    ``sofort``: der Knopf wird schon im Browser umgestellt (ohne auf den Server zu warten) – für Filter, die neu laden."""
     with ui.element("div").classes("m-segm").props('role="group"'):
         for wert, text in optionen.items():
             b = ui.element("button").classes("an" if wert == aktiv else "")
             attr(b, aria_pressed=str(wert == aktiv).lower())
             with b:
                 ui.label(str(text))
-            b.on("click", lambda wert=wert: bei_klick(wert))
+            b.on("click", lambda wert=wert: bei_klick(wert),
+                 js_handler="(...args) => { if (window.mSofort) mSofort(args[0]); emit(...args); }" if sofort
+                 else "(...args) => emit(...args)")
 
 
 def leer(text: str) -> None:
