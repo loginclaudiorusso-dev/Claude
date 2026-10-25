@@ -77,7 +77,7 @@ def option(c: dict) -> dict:
     o = _basis(t, c["animation"])
     pg, kap, offset = c["pg"], c["kap"], c["offset"]
     ort = konfig.STANDORT_LABEL.get(c["standort"], c["standort"])
-    zaehl = "Brutto" if c["brutto"] else "Netto"
+    zaehl = ("Brutto" if c["brutto"] else "Netto") + (f" · {c['gruppen_text']}" if c.get("gruppen_text") else "")
     szen = " · SZENARIO" if (kap != (pg.kapazitaet or 0) or offset) else ""
     if c["art"] == "jahr":
         return _vorjahr(o, t, c, ort, zaehl, szen)
@@ -391,18 +391,38 @@ def vergleich_option(sv: list, aktiv: str, hell: bool, animation: bool) -> dict:
 # =======================================================================================
 
 def daten(a, ds) -> None:
-    pg = ak.prognose(ds, a.aw_standort, a.aw_brutto, 24, a.aw_horizont)
-    a.daten = {"pg": pg, "stichtag": ds.stichtag, "ds": ds,
-               "sv": an.standort_vergleich(ds, a.aw_brutto, min(12, a.aw_horizont))}
-    if a.aw_chart == "jahr":
-        a.daten["pg_lang"] = ak.prognose(ds, a.aw_standort, a.aw_brutto, 36, a.aw_horizont)
+    """Prognose laden und die Schalter „UWTler / Mieter einbeziehen“ einrechnen (echte Listen, Verträge, Zimmerplan)."""
+    import pandas as pd
+
+    stand = getattr(a, "stand", None)
+    mieter_zr = an.mieter_zeitraeume(stand)
+    lang = a.aw_chart == "jahr"
+
+    def gruppen_fuer(standort, pg):
+        if not pg or not pg.zeilen:
+            return None
+        bis = (pd.Timestamp(pg.zeilen[-1].monat) + pd.offsets.MonthEnd(0)).date()
+        von = min(pg.zeilen[0].monat, ds.stichtag - pd.Timedelta(days=370))
+        return an.gruppen(ds, standort, a.aw_brutto, von, bis, mieter_zr, a.aw_uwt, a.aw_mieter)
+
+    roh = ak.prognose(ds, a.aw_standort, a.aw_brutto, 36 if lang else 24, a.aw_horizont)
+    g = gruppen_fuer(a.aw_standort, roh)
+    voll = an.mit_gruppen(roh, g) if g else roh
+    if voll and lang:                       # Vorjahresvergleich: drei Jahre zurück, sonst die üblichen 24 Monate
+        a_ = max(0, len([z for z in voll.zeilen if z.art == "ist"]) - 24)
+        pg = type(voll)(**{**voll.__dict__, "zeilen": voll.zeilen[a_:]})
+    else:
+        pg = voll
+    a.daten = {"pg": pg, "pg_lang": voll if lang else None, "stichtag": ds.stichtag, "ds": ds, "gruppen": g,
+               "gruppen_da": a.aw_standort in an.GRUPPEN_STANDORTE,
+               "sv": an.standort_vergleich(ds, a.aw_brutto, min(12, a.aw_horizont), gruppen_fn=gruppen_fuer)}
     goslar = a.aw_standort == GOSLAR
-    if pg and (a.aw_status or goslar):
-        a.daten["sm"] = an.status_monate(ds, a.aw_standort, a.aw_brutto, pg)
-    if pg and goslar:
-        a.daten["sl"] = an.status_lage(ds, a.aw_standort, a.aw_brutto, a.daten["sm"])
+    if pg and g and (a.aw_status or goslar):
+        a.daten["sm"] = an.status_monate(pg, g)
+    if pg and g and goslar:
+        a.daten["sl"] = an.status_lage(ds, a.aw_standort, a.aw_brutto, a.daten["sm"], g)
         a.daten["kontingent"] = kern.kontingent_lesen(a.aw_standort)
-    a.daten["sanierung"] = an.sanierung_plaetze(getattr(getattr(a, "stand", None), "lage", None), a.aw_standort)
+    a.daten["sanierung"] = an.sanierung_plaetze(getattr(stand, "lage", None), a.aw_standort)
 
 
 def _praes_klasse(a, an_: bool) -> None:
@@ -448,7 +468,8 @@ def zeichnen(a) -> None:
                             "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95, "backtest": a.aw_backtest,
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
-                            "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent()}
+                            "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
+                            "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else ""}
     ds = a.daten["ds"]
     box: dict = {}
     sm = a.daten.get("sm") or []
@@ -460,7 +481,8 @@ def zeichnen(a) -> None:
         return a.daten.get("kontingent") or an.kontingent_vorschlag(sm, kap_echt)
 
     def ex():
-        return an.executive(ds, a.aw_standort, a.aw_brutto, pg, zustand["kap"], zustand["offset"], min(12, a.aw_horizont))
+        return an.executive(ds, a.aw_standort, a.aw_brutto, pg, zustand["kap"], zustand["offset"], min(12, a.aw_horizont),
+                            a.daten.get("gruppen"))
 
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
     if not praes:
@@ -475,7 +497,8 @@ def zeichnen(a) -> None:
     with wurzel:
         if praes:
             _praes_kopf(a, pg)
-        # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (direkt unter der Standortwahl) ----------
+        # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (Detail – steht unter dem Graph) ----------
+        gs_box = None
         if a.aw_standort == GOSLAR and a.daten.get("sl"):
             gs_box = ui.element("section").classes("m-block m-xgs" + (" kompakt" if praes else ""))
 
@@ -526,7 +549,8 @@ def zeichnen(a) -> None:
         erkenntnisse_zeichnen(e0)
 
         # ---- Hauptgraph ----------------------------------------------------------------
-        with ui.element("section").classes("m-block m-xg"):
+        graph_box = ui.element("section").classes("m-block m-xg")
+        with graph_box:
             with ui.element("div").classes("m-xg-kopf"):
                 segmente(CHARTS, a.aw_chart, lambda k: _chart_art(a, k))
                 trend = a.aw_chart == "trend"
@@ -557,6 +581,7 @@ def zeichnen(a) -> None:
                                 _schalter("Animation beim Öffnen" + (" (System: weniger Bewegung)" if a.weniger_bewegung else ""),
                                           a.aw_anim and not a.weniger_bewegung, lambda: a.setzen(aw_anim=not a.aw_anim, laden=False),
                                           aus=a.weniger_bewegung)
+            _gruppen_schalter(a)
             chart = ui.echart(option(c(animiert))).classes("m-chart m-xg-chart" + (" gross" if praes else ""))
             box["chart"] = chart
             with ui.element("div").classes("m-xg-fuss"):
@@ -572,9 +597,12 @@ def zeichnen(a) -> None:
             chart.options.update(neu)
             chart.update()
         a._prognose_chart = chart_neu
+        graph_box.move(wurzel, target_index=1 if praes else 0)    # der Graph steht immer ganz oben
 
         if praes:
             er_box.move(wurzel)
+            if gs_box is not None:
+                gs_box.move(wurzel)
             if a.aw_vergleich_praes and a.daten["sv"]:
                 _standortvergleich(a, hell, kompakt=True)
             return
@@ -663,6 +691,8 @@ def zeichnen(a) -> None:
                          "Auslastung haben eine belastbare Grundlage im Modell; andere Annahmen (z. B. Verweildauer) werden nicht "
                          "scheinbar genau simuliert. Gespeichert wird nichts.").classes("m-zweite").style("white-space:normal")
         szenario_zeichnen()
+        if gs_box is not None:                                   # Goslar-Detail: unter Graph, Kennzahlen und Szenario
+            gs_box.move(wurzel)
 
         # ---- Standortvergleich ---------------------------------------------------------------
         if a.daten["sv"]:
@@ -722,6 +752,28 @@ def _legende_text(art: str, szenario: bool = False) -> str:
             "<span>Lücken = keine Daten für diesen Monat</span>")
 
 
+def _gruppen_schalter(a) -> None:
+    """[✓] UWTler einbeziehen  [✓] Mieter einbeziehen – rechnet die Gruppen in Kurve, Kennzahlen und Tabellen ein bzw. heraus."""
+    da = a.daten.get("gruppen_da")
+    with ui.element("div").classes("m-xg-gruppen"):
+        for feld, text, titel in (
+                ("aw_uwt", "UWTler einbeziehen", "Gebuchte UWT-Blöcke (UWT-Listen) – aus: aus Kurve und Kennzahlen herausgerechnet"),
+                ("aw_mieter", "Mieter einbeziehen", "Mietverträge (Seite „Mieter“) und Mieter laut Zimmerplan – aus: herausgerechnet")):
+            an_ = getattr(a, feld)
+            b = ui.element("button").classes("m-xg-check" + (" an" if an_ else "") + ("" if da else " aus"))
+            attr(b, role="checkbox", aria_checked=str(an_).lower(),
+                 title=titel if da else "An diesem Standort gibt es keine UWTler und Mieter (nur Goslar)",
+                 **({} if da else {"disabled": True}))
+            with b:
+                ui.icon("check_box" if an_ else "check_box_outline_blank")
+                ui.label(text)
+            if da:
+                b.on("click", lambda feld=feld: a.setzen(**{feld: not getattr(a, feld)}))
+        g = a.daten.get("gruppen")
+        if da and g is not None and g.text():
+            ui.label(f"Kurve {g.text()} – reine Teilnehmer-Sicht").classes("m-xg-gruppen-hinweis")
+
+
 def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
     b = ui.element("button").classes("m-xs-pill" + (" an" if an_ else "") + (" aus" if aus else ""))
     attr(b, title=titel, aria_pressed=str(an_).lower(), **({"disabled": True} if aus else {}))
@@ -749,7 +801,7 @@ def _goslar(a, sl: an.StatusLage, sm, kap: int, kont: dict | None, kompakt: bool
     fb = an.STATUS_FARBEN[hell]
     h = sl.heute
     with ui.element("div").classes("m-paktionen").style("align-items:baseline"):
-        ui.label("Goslar · UWTler und Mieter").classes("m-btitel")
+        ui.label("Goslar · UWTler, Mieter und Kontingente" + ("" if kompakt else " (Detail)")).classes("m-btitel")
         ui.label(f"Stichtag {sl.stichtag:%d.%m.%Y} · Kapazität {_z(kap)} Plätze · UWT und Mieter: gebuchte Plätze").classes("m-zweite")
     # Balken der Kapazität heute
     with ui.element("div").classes("m-xgs-balken"):
@@ -800,14 +852,20 @@ def _goslar(a, sl: an.StatusLage, sm, kap: int, kont: dict | None, kompakt: bool
                 ui.label(f"{rest:g} %").classes("m-mono w")
                 ui.label(f"= {_z(kap * rest / 100)} Plätze (Rest)").classes("m-zweite")
         st = {"ok": "", "knapp": " warn", "ueber": " krit"}
+        k0 = zeilen[0] if zeilen else None
         with ui.element("div").classes("m-xgs-tab"):
-            for t in ("Monat", "UWT gebucht", "Mieter gebucht", "Übrige (Prognose)", "Gesamt"):
-                ui.label(t).classes("m-zweite")
+            ui.label("Monat").classes("m-zweite")
+            for titel, grenze in (("UWTler gebucht", k0.k_uwt if k0 else 0), ("Mieter (Verträge)", k0.k_mieter if k0 else 0),
+                                  ("Teilnehmende & Sonstige", k0.k_uebrige if k0 else 0)):
+                attr(ui.label(f"{titel} · Plan {_z(grenze)}").classes("m-zweite"),
+                     title="Echte Werte; „Plan“ = Kontingent aus der Aufteilung oben. Orange: ≥ 90 % des Plans, rot: darüber")
+            ui.label("Gesamt · Auslastung").classes("m-zweite")
             for z in zeilen[:6]:
                 ui.label(ak.monat_text(z.monat) + (" · laufend" if z.art == "laufend" else "")).classes("m-name")
-                for wert, grenze, schl in ((z.uwt, z.k_uwt, "UWT"), (z.mieter, z.k_mieter, "Mieter"), (z.uebrige, z.k_uebrige, "uebrige")):
-                    ui.label(f"{_z(wert)} / {_z(grenze)}").classes("m-mono" + st[z.stufe[schl]])
-                ui.label(f"{_z(z.uwt + z.mieter + z.uebrige)} / {_z(kap)}").classes("m-mono")
+                for wert, schl in ((z.uwt, "UWT"), (z.mieter, "Mieter"), (z.uebrige, "uebrige")):
+                    ui.label(_z(wert)).classes("m-mono" + st[z.stufe[schl]])
+                summe = z.uwt + z.mieter + z.uebrige
+                ui.label(f"{_z(summe)} · {an._p(summe / kap)}").classes("m-mono")
         for satz in an.kontingent_saetze(zeilen, kont):
             ui.label(satz).classes("m-ptext")
         ui.label("Kontingente sind eine Planungsannahme der neuen Oberfläche (gespeichert in modern_ui.json). "

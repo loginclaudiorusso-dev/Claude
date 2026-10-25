@@ -741,7 +741,7 @@ CSS += """
 .m-xgs-stepper { display: flex; flex-wrap: wrap; gap: 8px 28px; }
 .m-xgs-step { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .m-xgs-step .w { min-width: 46px; text-align: center; font-weight: 650; color: var(--text); }
-.m-xgs-tab { display: grid; grid-template-columns: minmax(120px, auto) repeat(4, minmax(110px, auto)); gap: 4px 18px; max-width: 780px;
+.m-xgs-tab { display: grid; grid-template-columns: minmax(130px, auto) repeat(4, minmax(150px, auto)); gap: 4px 22px; max-width: 980px;
   font-size: 13px; }
 .m-xgs-tab .warn { color: var(--orange) !important; } .m-xgs-tab .krit { color: var(--rot) !important; font-weight: 650; }
 .m-xgs.kompakt .m-xgs-zahl .w { font-size: 22px; }
@@ -750,4 +750,16 @@ CSS += """
 body .m-xs-step .m-knopf.klein, body .m-xgs-step .m-knopf.klein { border: 1px solid var(--rand2) !important;
   background: var(--fl) !important; color: var(--text) !important; box-shadow: none !important; }
 body .m-xs-step .m-knopf.klein:hover, body .m-xgs-step .m-knopf.klein:hover { border-color: var(--akzent) !important; }
+"""
+CSS += """
+/* 0.13 – Gruppen-Schalter über dem Graph */
+.m-xg-gruppen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 2px 0 2px; }
+.m-xg-check { font: inherit; font-size: 13px; color: var(--text2); display: inline-flex; align-items: center; gap: 6px; height: 30px;
+  padding: 0 12px 0 8px; border-radius: 8px; border: 1px solid var(--rand2); background: var(--fl); cursor: pointer; }
+.m-xg-check .q-icon { font-size: 19px; color: var(--text3); }
+.m-xg-check.an { color: var(--text); border-color: color-mix(in srgb, var(--akzent) 55%, transparent); }
+.m-xg-check.an .q-icon { color: var(--akzent); }
+.m-xg-check.aus { opacity: .45; cursor: not-allowed; }
+.m-xg-gruppen-hinweis { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--blau); border: 1px solid var(--blau);
+  border-radius: 9px; padding: 1px 8px; text-transform: uppercase; }
 """
