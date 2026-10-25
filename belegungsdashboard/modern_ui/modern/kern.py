@@ -498,3 +498,22 @@ def neue_personen(stand: zp.Planstand, heute: date | None = None, tage: int = NE
             erg[k] = tag
     return erg
 
+
+
+# ---------------------------------------------------------------------------------------
+# Design (Theme) und Navigation – gespeichert in der eigenen Datei, wirkt nach dem Neustart weiter
+# ---------------------------------------------------------------------------------------
+
+def design_lesen() -> tuple[str, str]:
+    from .themes import NAV, THEMES
+
+    d = speicher.lesen(ZUSTAND, {}).get("design", {})
+    theme = d.get("theme") if d.get("theme") in THEMES else "original"
+    nav = d.get("nav") if d.get("nav") in NAV else "seite"
+    return theme, nav
+
+
+def design_setzen(theme: str, nav: str) -> None:
+    roh = speicher.lesen(ZUSTAND, {})
+    roh["design"] = {"theme": theme, "nav": nav}
+    speicher.schreiben(ZUSTAND, roh)
