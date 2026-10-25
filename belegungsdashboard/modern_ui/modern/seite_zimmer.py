@@ -524,20 +524,25 @@ def _uebersicht(a) -> None:
     defekt = sum(1 for k in alle if k.stufe)
     f = a.zu_filter
     with a.leiste:
-        kennzahlen([("frei", n["frei"] + n["teilweise"], "frei", "ok"), ("belegt", n["belegt"], "belegt", "blau"),
-                    ("geplant", n["geplant"], "geplant", "akzent"), ("gesperrt", n["gesperrt"], "gesperrt", "neutral"),
-                    ("maengel", defekt, "mit Mängeln", "warn")], f,
-                   lambda k: a.setzen(zu_filter=None if k == a.zu_filter else k, laden=False))
+        unbew = sum(1 for k in alle if k.unbewohnbar)
+        # Die Kacheln sind zugleich die Legende: gleiche Symbole und Farben wie die Zimmer darunter
+        kennzahlen([("frei", n["frei"] + n["teilweise"], "frei" + (f" · davon {n['teilweise']} mit 1 Bett" if n["teilweise"] else ""), "ok"),
+                    ("belegt", n["belegt"], "belegt", "blau"), ("geplant", n["geplant"], "geplant", "akzent"),
+                    ("gesperrt", n["gesperrt"], "gesperrt", "neutral"), ("maengel", defekt, "mit Mängeln", "warn"),
+                    ("unbewohnbar", unbew, "unbewohnbar", "krit")], f,
+                   lambda k: a.setzen(zu_filter=None if k == a.zu_filter else k, laden=False),
+                   {"frei": f"Mindestens ein Bett frei: {n['frei']} ganz leer, {n['teilweise']} Doppelzimmer mit einem freien "
+                            "Bett (grün umrandet) – Klick: nur diese zeigen",
+                    "belegt": "Alle Betten belegt (blau) – Klick: nur diese", "geplant": "Nur geplant, noch nicht eingezogen "
+                    "(violett) – Klick: nur diese", "gesperrt": "Gesperrt (gestreift) – Klick: nur diese",
+                    "maengel": "Offene Mängel (Marke „!“ an der Kachel) – Klick: nur diese",
+                    "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen) – Klick: nur diese"})
         ui.label(f"am {a.zu_tag:%d.%m.%Y}").classes("m-kpi")
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
         knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
         tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
         tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
-        anzahl = {**n, "maengel": defekt, "unbewohnbar": sum(1 for k in alle if k.unbewohnbar)}
-        with ui.element("span").classes("m-legende").style("margin-left:auto"):
-            for z_ in ("frei", "teilweise", "belegt", "geplant", "gesperrt", "maengel", "unbewohnbar"):
-                badge(z_, zahl=anzahl[z_])
     with a.inhalt:
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
@@ -548,7 +553,7 @@ def _uebersicht(a) -> None:
                             ui.label(etage).classes("m-zweite m-etage-titel")
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
-                                    passt = (f is None or (f == "maengel" and k.stufe) or k.status == f
+                                    passt = (f is None or (f == "maengel" and k.stufe) or (f == "unbewohnbar" and k.unbewohnbar) or k.status == f
                                              or (f == "frei" and k.status == "teilweise"))
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus")
                                     b = ui.element("button").classes(kl)
