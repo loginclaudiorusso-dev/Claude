@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.14.0
+# Neue Oberfläche (modern_ui) – Version 0.15.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,30 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Heute als Newsfeed, Briefing, Drawer, Tempo (neu in 0.15)
+
+In allen neuen Layouts (Canvas, Showcase, Grid – jedes Theme); im Layout **Original** bleibt alles 1:1 wie bisher.
+
+* **Heute als Newsfeed:** ein aufgeräumter, chronologischer Strom mit nur dem Wesentlichen – **Jetzt** (dringende
+  Aufgaben mit 1-Klick-Lösung, Warnungen), **Heute** (Anreisen mit „ohne Zimmer“, Abreisen, eilige Reinigung) und
+  **Morgen**. Alles andere steckt hinter „N weitere Aufgaben“ im Drawer. Oben drei Kennzahlen: Zimmer frei, Anreisen
+  ohne Zimmer, dringende Aufgaben.
+* **Briefing abspielen** (Wellen-Symbol oben im Kopf): liest in rund 30 Sekunden die drei wichtigsten Fakten vor –
+  Anreisen (und wie viele ohne Zimmer), freie Zimmer, dringende Aufgaben – mit der Sprachausgabe von Windows/Edge.
+  Es verlässt nichts den Rechner, es werden keine Namen vorgelesen. Die Mitschrift erscheint dabei unter dem Kopf,
+  der aktuelle Satz ist hervorgehoben; ein zweiter Klick beendet.
+* **Aufgaben-Drawer** rechts: Glas-Optik (stark weichgezeichnet, fast schwarz bzw. im hellen Modus fast weiß),
+  flüssig scrollbar, Gruppenköpfe bleiben stehen, dringende Karten mit feiner roter Linie links, **„Später“ als
+  Symbol** (Wecker) im Kartenkopf. Während der Drawer offen ist, tritt die Werkzeugleiste zurück.
+* **Diagramme ohne Wartezeit:** Reiter (Trend · Reserve · Vorjahr) und Ansichten (Belegung · Nach Status · Standorte
+  parallel) schalten **im Browser** um – alle Ansichten liegen fertig vor (gemessen 14–30 ms statt 0,3–2 s).
+  Standort, Netto/Brutto und Zeitraum rechnen nur noch die Seite neu (nicht Zimmerplan und Aufgaben), die Prognose
+  wird einmal je Datenstand gerechnet (680 → 46 ms, danach aus dem Zwischenspeicher) und die übrigen Standorte im
+  Hintergrund vorbereitet; der Knopf schaltet sofort um (gemessen 0,2–0,3 s bis zum neuen Graph statt 1,2–1,9 s).
+* **Aufgeräumte Kontrollen:** keine Checkboxen mehr über dem Graph. **Backtest**, **95 %-Band**, **UWTler / Mieter
+  einbeziehen** und die Animation stehen im Menü **Optionen**; über dem Graph zeigt ein Status-Badge, was gerade
+  einbezogen ist („Ansicht: Inklusive UWTler und Mieter“ bzw. „Reine Teilnehmer-Sicht“, dazu „Backtest an“).
 
 ## Geführter Aufbau, Standorte parallel (neu in 0.14)
 
@@ -219,4 +243,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0` (jeweils auch als Zip in `Sicherung`).
