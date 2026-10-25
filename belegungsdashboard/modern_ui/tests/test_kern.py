@@ -105,8 +105,10 @@ def test_karten_spaeter_und_automatisch_oeffnen(leute):
     assert not any(k.id.startswith("anreise:") for k in kern.karten(zp.laden(), leute + timedelta(days=1)))
 
 
-def test_symbol_je_aufgabentyp_und_willkommen():
+def test_symbol_je_aufgabentyp_und_willkommen(tmp_path, monkeypatch):
     from modern import kern
+
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))     # nie in den echten Datenordner schreiben
 
     assert kern.symbol("anreise:2026-10-26") == "flight_land"
     assert kern.symbol("reinigung_dringend") == "cleaning_services"

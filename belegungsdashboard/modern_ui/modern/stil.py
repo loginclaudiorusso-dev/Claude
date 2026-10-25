@@ -542,3 +542,57 @@ html, body, .q-layout, .q-page-container { background:
   background: rgba(147,51,234,.18); border: 1px solid rgba(167,139,250,.3); }
 .m-w-nr .q-icon, .m-w-nr .material-icons { font-size: 18px; }
 """
+
+CSS += """
+/* ===== 0.7: Zimmer-Karten, Filter-Menü, Neu-Badge, Person ins Zimmer ===== */
+.m-namezeile { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.m-neu-badge { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; border-radius: 999px;
+  color: #DBEAFE; background: linear-gradient(90deg, rgba(59,130,246,.45), rgba(99,102,241,.45));
+  border: 1px solid rgba(147,197,253,.45); box-shadow: 0 0 12px rgba(59,130,246,.35); cursor: help; }
+.m-hinweisbox { margin: 16px 20px 0; padding: 10px 14px; border-radius: 12px; color: var(--text2);
+  background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.25); }
+.m-khaus { margin: 20px; padding: 18px; border-radius: var(--r2); background: var(--glas2); border: 1px solid var(--glasrand);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.m-khaus-kopf { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.m-khaus-kopf .q-icon { color: #A5B4FC; font-size: 20px; }
+.m-ketagen { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+.m-ketage { width: 280px; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px;
+  background: rgba(0,0,0,.18); border: 1px solid var(--glasrand); }
+.m-ketage-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px 2px; }
+.m-zkarte { font: inherit; color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--glasrand);
+  transition: transform .15s ease-out, border-color .15s, box-shadow .2s, background .15s; }
+.m-zkarte:hover { transform: translateY(-1px) scale(1.01); border-color: rgba(165,180,252,.55); background: rgba(255,255,255,.07);
+  box-shadow: 0 10px 22px rgba(0,0,0,.35); }
+.m-zkarte.unbew { border-color: rgba(242,112,107,.6); box-shadow: 0 0 0 1px rgba(242,112,107,.25); }
+.m-zk-kopf { display: flex; align-items: center; gap: 8px; }
+.m-zk-nr { font-weight: 700; font-size: 14px; }
+.m-zk-mangel { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--text2); }
+.m-zk-mangel .q-icon { font-size: 15px; color: var(--orange); margin-top: 1px; }
+.m-zk-mangel.warn { color: #F3BE85; } .m-zk-mangel.krit { color: #F7A19C; } .m-zk-mangel.krit .q-icon { color: var(--rot); }
+.m-zk-bel { display: flex; gap: 8px; align-items: flex-start; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,.07); }
+.m-zk-bel .q-icon { font-size: 16px; margin-top: 2px; color: #93A8E8; }
+.m-zk-bel.geplant .q-icon { color: #C4B5FD; } .m-zk-bel.gesperrt .q-icon { color: #9CA3AF; }
+.m-zk-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+
+.m-menue { padding: 6px 0; min-width: 260px; }
+.m-mgruppe { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text3);
+  padding: 10px 14px 4px; }
+.m-mpunkt { min-height: 30px !important; padding: 2px 14px !important; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.m-mhaken { font-size: 18px; color: var(--text3); } .m-mhaken.an { color: #A5B4FC; }
+.m-knopf.akzent { border-color: rgba(165,180,252,.45); background: rgba(99,102,241,.18); color: #C7D2FE; }
+
+.m-ktitelzeile { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.m-ktitelzeile .m-knopf { height: 30px; }
+.m-kandidat { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;
+  border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--glasrand); }
+.m-zweispaltig { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+.m-raster .q-checkbox { margin-left: 4px; }
+"""
+CSS += """
+.m-zwei > .m-breit { grid-column: 1 / -1; }
+"""
+CSS += """
+.m-wo { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.035);
+  border: 1px solid var(--glasrand); }
+"""
