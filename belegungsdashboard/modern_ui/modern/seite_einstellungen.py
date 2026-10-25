@@ -91,6 +91,7 @@ def _allgemein(a) -> None:
     d = a.daten
     with a.inhalt:
         with ui.element("div").classes("m-zwei"):
+            _darstellung(a)
             with ui.element("section").classes("m-block"):
                 ui.label("Zimmerplanung").classes("m-btitel")
                 for k, (text, _s, _mi, _ma) in ZAHLEN.items():
@@ -287,4 +288,29 @@ async def _ki_testen(a) -> None:
         a.toast(f"Test fehlgeschlagen: {exc}", fehler=True)
         return
     a.toast(f"Verbindung klappt: {text[:160]}", rueck=False)
+
+
+def _darstellung(a) -> None:
+    """Design und Navigation – dasselbe wie das Paletten-Symbol oben rechts."""
+    from . import themes
+
+    with ui.element("section").classes("m-block m-breit"):
+        ui.label("Darstellung").classes("m-btitel")
+        ui.label("Wirkt sofort und bleibt gespeichert. „Original“ ist das bisherige Design – jederzeit zurück per Klick. "
+                 "Die Navigation lässt sich in den neuen Designs schmal (nur Symbole, Strg+B) oder oben anzeigen.").classes("m-ptext")
+        with ui.element("div").classes("m-designs"):
+            for k, (name, text) in themes.THEMES.items():
+                b = ui.element("button").classes(f"m-design d-{k}" + (" an" if k == a.theme else ""))
+                attr(b, aria_pressed=str(k == a.theme).lower())
+                with b:
+                    with ui.element("div").classes("m-design-muster"):
+                        for _i in range(3):
+                            ui.element("i")
+                    ui.label(name).classes("m-name")
+                    ui.label(text).classes("m-zweite").style("white-space:normal")
+                b.on("click", lambda k=k: a.design_wechseln(theme=k))
+        if a.theme == "original":
+            ui.label("Navigation: im Original immer die Seitenleiste.").classes("m-zweite")
+        else:
+            segmente(themes.NAV, a.navmodus, lambda n: a.design_wechseln(nav=n))
 

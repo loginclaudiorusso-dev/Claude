@@ -9,8 +9,14 @@ from nicegui import ui
 
 from . import auswertung_kern as ak
 from . import seiten
-from .stil import T
+from . import themes
 from .ui_bausteine import attr, knopf, leer, segmente
+
+
+def _T() -> dict:
+    """Diagrammfarben des gewählten Designs (ECharts nimmt Farben aus Python, nicht aus dem CSS)."""
+    return themes.farben(themes.AKTIV)
+
 
 ANSICHTEN = {"lage": "Lage", "belegung": "Belegung", "prognose": "Prognose", "zimmer": "Zimmer & Engpässe"}
 AMPEL = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit", "unbekannt": "neutral"}
@@ -58,18 +64,18 @@ def zeichnen(a) -> None:
 
 
 def _chart_basis() -> dict:
-    achse = {"axisLine": {"lineStyle": {"color": T["rand2"]}}, "axisLabel": {"color": T["text3"]},
-             "splitLine": {"lineStyle": {"color": T["rand"]}}}
-    return {"backgroundColor": "transparent", "textStyle": {"color": T["text2"], "fontFamily": "Segoe UI, sans-serif"},
+    achse = {"axisLine": {"lineStyle": {"color": _T()["rand2"]}}, "axisLabel": {"color": _T()["text3"]},
+             "splitLine": {"lineStyle": {"color": _T()["rand"]}}}
+    return {"backgroundColor": "transparent", "textStyle": {"color": _T()["text2"], "fontFamily": "Segoe UI, sans-serif"},
             "grid": {"left": 48, "right": 20, "top": 30, "bottom": 30}, "tooltip": {"trigger": "axis"},
-            "legend": {"textStyle": {"color": T["text2"]}, "top": 0, "right": 10},
+            "legend": {"textStyle": {"color": _T()["text2"]}, "top": 0, "right": 10},
             "xAxis": {"type": "category", **achse}, "yAxis": {"type": "value", **achse, "scale": True}}
 
 
 def _chart(opt: dict) -> None:
     """Legende in den Farben der Linien/Flächen (sonst nimmt ECharts seine Standardpalette)."""
     for se in opt["series"]:
-        se["color"] = se.get("lineStyle", {}).get("color") or se.get("areaStyle", {}).get("color") or T["text3"]
+        se["color"] = se.get("lineStyle", {}).get("color") or se.get("areaStyle", {}).get("color") or _T()["text3"]
         if se.get("lineStyle", {}).get("opacity") == 0 and "areaStyle" in se:
             se["color"] = se["areaStyle"]["color"]
     ui.echart(opt).classes("m-chart")
@@ -106,14 +112,14 @@ def _lage(a) -> None:
                      "symbol": "none", "tooltip": {"show": False}},
                     {"name": "80 %-Spanne", "type": "line", "data": [None if h is None else round(h - l, 1) for h, l in
                                                                       zip(v["hi80"], v["lo80"])],
-                     "stack": "band", "lineStyle": {"opacity": 0}, "symbol": "none", "areaStyle": {"color": T["akzent"], "opacity": .15}},
-                    {"name": "Ist", "type": "line", "data": v["ist"], "symbol": "none", "lineStyle": {"color": T["text"], "width": 2}},
+                     "stack": "band", "lineStyle": {"opacity": 0}, "symbol": "none", "areaStyle": {"color": _T()["akzent"], "opacity": .15}},
+                    {"name": "Ist", "type": "line", "data": v["ist"], "symbol": "none", "lineStyle": {"color": _T()["text"], "width": 2}},
                     {"name": "Prognose", "type": "line", "data": v["prognose"], "symbol": "none",
-                     "lineStyle": {"color": T["akzent"], "width": 2, "type": "dashed"}},
+                     "lineStyle": {"color": _T()["akzent"], "width": 2, "type": "dashed"}},
                 ]
                 if lg.kapazitaet:
                     opt["series"].append({"name": "Kapazität", "type": "line", "data": [lg.kapazitaet] * len(v["tage"]),
-                                          "symbol": "none", "lineStyle": {"color": T["rot"], "width": 1, "type": "dotted"}})
+                                          "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
                 opt["legend"]["data"] = ["Ist", "Prognose", "80 %-Spanne", "Kapazität"]
                 _chart(opt)
             with ui.element("section").classes("m-block"):
@@ -208,7 +214,7 @@ def _belegung(a) -> None:
 
 
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
-    farben = [T["akzent"], T["blau"], T["gruen"], T["orange"], T["rot"], T["text2"], T["text3"]]
+    farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
     with ui.element("div").classes("m-zwei"):
         with ui.element("section").classes("m-block m-breit"):
             ui.label(f"Tagesverlauf {ak.STANDORTE.get(a.aw_standort, '')} nach Belegungsart"
@@ -222,11 +228,11 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                              for i, (k, v) in enumerate(det.kategorien.items())]
             if zr.kapazitaet:
                 opt["series"].append({"name": "Kapazität", "type": "line", "data": [zr.kapazitaet] * len(det.tage),
-                                      "symbol": "none", "lineStyle": {"color": T["rot"], "width": 1, "type": "dotted"}})
+                                      "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
             if not all(det.ist) and any(det.ist):
                 stich = det.tage[sum(det.ist) - 1]
-                opt["series"][0]["markLine"] = {"symbol": "none", "label": {"formatter": "Stichtag", "color": T["text3"]},
-                                                "lineStyle": {"color": T["text3"], "type": "dashed"}, "data": [{"xAxis": stich}]}
+                opt["series"][0]["markLine"] = {"symbol": "none", "label": {"formatter": "Stichtag", "color": _T()["text3"]},
+                                                "lineStyle": {"color": _T()["text3"], "type": "dashed"}, "data": [{"xAxis": stich}]}
             _chart(opt)
         with ui.element("section").classes("m-block"):
             ui.label("Personentage je Monat").classes("m-btitel")
@@ -235,8 +241,8 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
             opt["xAxis"]["data"] = [m for m, _w, _i in det.monate]
             opt["yAxis"]["scale"] = False
             opt["series"] = [{"name": "Personentage", "type": "bar", "barMaxWidth": 28,
-                              "data": [{"value": w_, "itemStyle": {"color": T["akzent"], "opacity": 1 if i_ else .4}}
-                                       for _m, w_, i_ in det.monate], "lineStyle": {"color": T["akzent"]}}]
+                              "data": [{"value": w_, "itemStyle": {"color": _T()["akzent"], "opacity": 1 if i_ else .4}}
+                                       for _m, w_, i_ in det.monate], "lineStyle": {"color": _T()["akzent"]}}]
             _chart(opt)
         with ui.element("section").classes("m-block"):
             ui.label("Häuser").classes("m-btitel")
@@ -267,13 +273,13 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                 opt["grid"] = {"left": 40, "right": 20, "top": 10, "bottom": 60}
                 opt["xAxis"] = {**opt["xAxis"], "data": ak.MONATE, "splitArea": {"show": False}}
                 opt["yAxis"] = {"type": "category", "data": ak.WOCHENTAGE, "inverse": True,
-                                "axisLabel": {"color": T["text3"]}, "axisLine": {"lineStyle": {"color": T["rand2"]}}}
+                                "axisLabel": {"color": _T()["text3"]}, "axisLine": {"lineStyle": {"color": _T()["rand2"]}}}
                 opt["visualMap"] = {"min": min(vs), "max": max(vs), "calculable": False, "orient": "horizontal",
-                                    "left": "center", "bottom": 0, "textStyle": {"color": T["text3"]},
-                                    "inRange": {"color": [T["fl2"], T["akzent"]]}}
+                                    "left": "center", "bottom": 0, "textStyle": {"color": _T()["text3"]},
+                                    "inRange": {"color": [_T()["fl2"], _T()["akzent"]]}}
                 opt["series"] = [{"name": "Ø belegt", "type": "heatmap", "data": werte,
-                                  "label": {"show": True, "color": T["text"], "fontSize": 10},
-                                  "lineStyle": {"color": T["akzent"]}}]
+                                  "label": {"show": True, "color": _T()["text"], "fontSize": 10},
+                                  "lineStyle": {"color": _T()["akzent"]}}]
                 opt.pop("legend", None)
                 ui.echart(opt).classes("m-chart")
 
@@ -321,20 +327,20 @@ def _prognose(a) -> None:
                     {"name": "u95", "type": "line", "data": unten("lo95"), "stack": "b95", "lineStyle": {"opacity": 0}, "symbol": "none",
                      "tooltip": {"show": False}},
                     {"name": "95 %-Spanne", "type": "line", "data": band("lo95", "hi95", 0), "stack": "b95", "lineStyle": {"opacity": 0},
-                     "symbol": "none", "areaStyle": {"color": T["akzent"], "opacity": .08}},
+                     "symbol": "none", "areaStyle": {"color": _T()["akzent"], "opacity": .08}},
                     {"name": "u80", "type": "line", "data": unten("lo80"), "stack": "b80", "lineStyle": {"opacity": 0}, "symbol": "none",
                      "tooltip": {"show": False}},
                     {"name": "80 %-Spanne", "type": "line", "data": band("lo80", "hi80", 0), "stack": "b80", "lineStyle": {"opacity": 0},
-                     "symbol": "none", "areaStyle": {"color": T["akzent"], "opacity": .18}},
+                     "symbol": "none", "areaStyle": {"color": _T()["akzent"], "opacity": .18}},
                     {"name": "Ist", "type": "line", "data": [round(z.ist, 1) if z.ist is not None and z.art != "prognose" else None
-                                                             for z in pg.zeilen], "lineStyle": {"color": T["text"], "width": 2},
+                                                             for z in pg.zeilen], "lineStyle": {"color": _T()["text"], "width": 2},
                      "symbolSize": 4},
                     {"name": "Erwartet", "type": "line", "data": [None if z.art == "ist" else round(z.erwartet, 1) for z in pg.zeilen],
-                     "lineStyle": {"color": T["akzent"], "width": 2, "type": "dashed"}, "symbolSize": 4},
+                     "lineStyle": {"color": _T()["akzent"], "width": 2, "type": "dashed"}, "symbolSize": 4},
                 ]
                 if pg.kapazitaet:
                     opt["series"].append({"name": "Kapazität", "type": "line", "data": [pg.kapazitaet] * len(pg.zeilen),
-                                          "symbol": "none", "lineStyle": {"color": T["rot"], "width": 1, "type": "dotted"}})
+                                          "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
                 if not a.aw_95:
                     opt["series"] = [x for x in opt["series"] if x["name"] not in ("u95", "95 %-Spanne")]
                 legende = ["Ist", "Erwartet", "80 %-Spanne"] + (["95 %-Spanne"] if a.aw_95 else []) + ["Kapazität"]
@@ -343,7 +349,7 @@ def _prognose(a) -> None:
                     blind = {mon: p + zusatz.get(mon, 0.0) for mon, _ist, p in pg.rueckblick}
                     opt["series"].append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbolSize": 6,
                                           "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in pg.zeilen],
-                                          "lineStyle": {"color": T["orange"], "width": 1.5, "type": "dotted"}})
+                                          "lineStyle": {"color": _T()["orange"], "width": 1.5, "type": "dotted"}})
                     legende.append("Backtest (1 Monat vorher)")
                 opt["legend"]["data"] = legende
                 _chart(opt)

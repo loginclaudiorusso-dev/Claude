@@ -10,7 +10,7 @@ from nicegui import app, run, ui
 
 from belegung import __version__ as haupt_version
 
-from . import __version__, kern, register, seite_anreisen, suche_palette
+from . import __version__, kern, register, seite_anreisen, suche_palette, themes
 from .stil import CSS
 from .ui_bausteine import attr, badge_neu, kennzahlen, knopf, leer
 
@@ -47,6 +47,11 @@ class Ansicht:
         self.kennung: str | None = None
         self.zeilen: list[kern.Zeile] = []
         self.neu: dict = {}                    # neue Personen (Schlüssel → erstmals gesehen)
+        try:
+            self.theme, self.navmodus = kern.design_lesen()
+        except Exception:                      # noqa: BLE001 – im Zweifel das bisherige Design
+            self.theme, self.navmodus = "original", "seite"
+        themes.AKTIV = self.theme
         self.filter = "alle"
         self.karten: list[kern.Karte] = []
         self.daten = None                      # Daten der aktuellen Seite (außer Anreisen)
@@ -162,7 +167,8 @@ class Ansicht:
 
     def aufbauen(self) -> None:
         ui.add_css(CSS)
-        ui.query("body").classes("dark")
+        ui.add_css(themes.CSS)                 # greift nur mit body.pro / body.th-… – „original“ bleibt unberührt
+        ui.query("body").classes(" ".join(["dark"] + themes.klassen(self.theme, self.navmodus)))
         with ui.element("div").classes("m-app"):
             with ui.element("nav").classes("m-nav"):
                 with ui.element("div").classes("m-marke"):
@@ -172,6 +178,7 @@ class Ansicht:
                 ui.label(f"Neue Oberfläche {__version__}\nDaten und Regeln: Belegung {haupt_version}").classes(
                     "m-navfuss").style("white-space: pre-line")
             with ui.element("div").classes("m-haupt"):
+                self.topnav = ui.element("nav").classes("m-topnav")     # nur sichtbar in neuen Designs mit „Navigation oben“
                 with ui.element("header").classes("m-kopf"):
                     self.titel = ui.label("Anreisen").classes("m-titel")
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
@@ -180,6 +187,9 @@ class Ansicht:
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf")
                     attr(self.aufgaben_knopf, title="Aufgaben-Center (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
+                    with knopf("", None, "leise", "palette", "Design und Navigation"):
+                        self.design_menue = ui.menu().props('dark class="m-menue"')
+                    self._design_menue_fuellen()
                 self.leiste = ui.element("div").classes("m-leiste")
                 self.inhalt = ui.element("div").classes("m-inhalt")
             self.schleier = ui.element("div").classes("m-schleier")
@@ -212,6 +222,108 @@ class Ansicht:
                 ui.label("Suchen")
                 ui.label("Strg K").classes("m-taste").style("margin-left:auto")
             p.on("click", lambda: suche_palette.oeffnen(self))
+            if self.theme != "original":
+                for el in self.nav.default_slot.children:          # Tooltips für die schmale Leiste
+                    if "m-navpunkt" in el.classes:
+                        texte = [c.text for c in el.default_slot.children if hasattr(c, "text") and "m-zahl" not in c.classes]
+                        if texte:
+                            attr(el, title=texte[0])
+                schmal = self.navmodus == "schmal"
+                with ui.element("button").classes("m-navpunkt m-navklapp") as k:
+                    ui.icon("keyboard_double_arrow_left")
+                    ui.label("Leiste einklappen")
+                attr(k, title="Leiste ausklappen (Strg+B)" if schmal else "Leiste einklappen (Strg+B)")
+                k.on("click", lambda: self.design_wechseln(nav="seite" if schmal else "schmal"))
+        self._topnav_fuellen(dringend)
+
+    def _topnav_fuellen(self, dringend: int) -> None:
+        """Navigation oben: alle Punkte direkt sichtbar, „Verwalten“ als Dropdown – kein Punkt fällt weg."""
+        self.topnav.clear()
+        if self.theme == "original" or self.navmodus != "oben":
+            return
+        with self.topnav:
+            with ui.element("div").classes("m-marke"):
+                ui.label("B").classes("m-logo")
+            gruppen = {}
+            for k, text, icon, g in register.NAV:
+                gruppen.setdefault(g, []).append((k, text, icon))
+            for g, punkte in gruppen.items():
+                if g == "Verwalten":
+                    continue
+                if g:
+                    ui.element("div").classes("m-trenner")
+                for k, text, icon in punkte:
+                    p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
+                    attr(p, title=text)
+                    with p:
+                        ui.icon(icon)
+                        ui.label(text)
+                        if k == "heute" and self.karten:
+                            ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else ""))
+                    p.on("click", lambda k=k: self.seite_wechseln(k))
+            verwalten = [x for x in register.NAV if x[3] == "Verwalten"]
+            ui.element("div").classes("m-trenner")
+            aktiv = any(k == self.seite for k, *_r in verwalten)
+            with ui.element("button").classes("m-navpunkt" + (" aktiv" if aktiv else "")) as v:
+                ui.icon("tune")
+                ui.label("Verwalten")
+                ui.icon("expand_more")
+                with ui.menu().props('dark class="m-menue"'):
+                    for k, text, icon, _g in verwalten:
+                        with ui.menu_item(on_click=lambda k=k: self.seite_wechseln(k)).classes("m-mpunkt"):
+                            ui.icon(icon).classes("m-mhaken" + (" an" if k == self.seite else ""))
+                            ui.label(text)
+            attr(v, title="Daten & Import, Inventar, Einstellungen")
+            with ui.element("button").classes("m-navpunkt m-suche") as p:
+                ui.icon("search")
+                ui.label("Suchen")
+                ui.label("Strg K").classes("m-taste")
+            p.on("click", lambda: suche_palette.oeffnen(self))
+
+    # ---- Design ---------------------------------------------------------------------------
+
+    def _design_menue_fuellen(self) -> None:
+        self.design_menue.clear()
+        with self.design_menue:
+            ui.label("Design").classes("m-mgruppe")
+            for k, (name, text) in themes.THEMES.items():
+                with ui.menu_item(on_click=lambda k=k: self.design_wechseln(theme=k)).classes("m-mpunkt"):
+                    ui.icon("radio_button_checked" if k == self.theme else "radio_button_unchecked").classes(
+                        "m-mhaken" + (" an" if k == self.theme else ""))
+                    with ui.element("div"):
+                        ui.label(name)
+                        ui.label(text).classes("m-zweite").style("white-space:normal; max-width:300px")
+            ui.separator()
+            ui.label("Navigation" + (" – in den neuen Designs" if self.theme == "original" else "")).classes("m-mgruppe")
+            for k, name in themes.NAV.items():
+                item = ui.menu_item(on_click=lambda k=k: self.design_wechseln(nav=k)).classes("m-mpunkt")
+                if self.theme == "original":
+                    item.props("disable")
+                with item:
+                    ui.icon("radio_button_checked" if k == self.navmodus else "radio_button_unchecked").classes(
+                        "m-mhaken" + (" an" if k == self.navmodus else ""))
+                    ui.label(name)
+
+    async def design_wechseln(self, theme: str | None = None, nav: str | None = None) -> None:
+        """Design/Navigation sofort umschalten – nur Klassen am <body>, nichts wird neu geladen (keine Eingabe geht
+        verloren). Diagramme bekommen ihre Farben aus Python und werden neu gezeichnet."""
+        alt = self.theme
+        self.theme = theme or self.theme
+        self.navmodus = nav or self.navmodus
+        themes.AKTIV = self.theme
+        ui.query("body").classes(add=" ".join(themes.klassen(self.theme, self.navmodus)) or None,
+                                 remove=" ".join(themes.ALLE_KLASSEN))
+        ui.query("body").classes(add=" ".join(themes.klassen(self.theme, self.navmodus)) or None)
+        self._design_menue_fuellen()
+        self._nav_fuellen()
+        if theme and theme != alt and self.seite == "auswertung":
+            self.zeichnen()
+        try:
+            await run.io_bound(kern.design_setzen, self.theme, self.navmodus)
+        except Exception:                      # noqa: BLE001 – Merken ist Komfort, Umschalten klappt trotzdem
+            log.exception("Design nicht gespeichert")
+        if self.seite == "einstellungen":
+            self.zeichnen()
 
     # ---- Zeichnen ------------------------------------------------------------------------
 
@@ -512,6 +624,8 @@ class Ansicht:
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
             suche_palette.oeffnen(self)
+        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.theme != "original":
+            await self.design_wechseln(nav="seite" if self.navmodus == "schmal" else "schmal")
         elif e.key.name == "Escape" and self.center_offen:
             if self.panel_def is not None:
                 self.panel_zu()
