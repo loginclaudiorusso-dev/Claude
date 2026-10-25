@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.15.0
+# Neue Oberfläche (modern_ui) – Version 0.16.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,20 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Ansicht steuert den Personenkreis, eine Filterleiste (neu in 0.16)
+
+* **„Belegung“ = reine Teilnehmer-Sicht, „Nach Status“ = inklusive UWTler und Mieter.** Die Ansicht am Graph
+  bestimmt jetzt, wer gezählt wird – Kurve, Kennzahlen, Erkenntnisse, Reserve, Vorjahr, Tabelle, Standortvergleich und
+  Exporte folgen ihr (bei Goslar und Gesamt; Bad Pyrmont und Weser-Ems haben keine UWTler und Mieter). Die bisherigen
+  Schalter „UWTler / Mieter einbeziehen“ im Optionen-Menü entfallen. Die Goslar-Detail-Einheit zeigt UWTler, Mieter und
+  Kontingente immer mit echten Zahlen.
+* **Badge über dem Graph:** bei „Nach Status“ **leuchtet** „Ansicht: Inklusive UWTler und Mieter“ (Akzent-Rahmen,
+  leichter Schein), bei „Belegung“ steht gedämpft „Ansicht: Reine Teilnehmer-Sicht“. Der Badge wechselt im selben
+  Moment wie der Graph; die Kennzahlen ziehen ohne Flackern nach.
+* **Eine Filterleiste direkt über dem Graph:** links die Standorte (Gesamt · Bad Pyrmont · Goslar · Weser-Ems),
+  rechts gebündelt Netto/Brutto und der Zeitraum (12M · 24M · 36M). Oben bleiben nur Präsentation und Export.
+  Standorte und Reiter stehen bündig links.
+
 ## Heute als Newsfeed, Briefing, Drawer, Tempo (neu in 0.15)
 
 In allen neuen Layouts (Canvas, Showcase, Grid – jedes Theme); im Layout **Original** bleibt alles 1:1 wie bisher.
@@ -68,8 +82,7 @@ In allen neuen Layouts (Canvas, Showcase, Grid – jedes Theme); im Layout **Ori
   Standort, Netto/Brutto und Zeitraum rechnen nur noch die Seite neu (nicht Zimmerplan und Aufgaben), die Prognose
   wird einmal je Datenstand gerechnet (680 → 46 ms, danach aus dem Zwischenspeicher) und die übrigen Standorte im
   Hintergrund vorbereitet; der Knopf schaltet sofort um (gemessen 0,2–0,3 s bis zum neuen Graph statt 1,2–1,9 s).
-* **Aufgeräumte Kontrollen:** keine Checkboxen mehr über dem Graph. **Backtest**, **95 %-Band**, **UWTler / Mieter
-  einbeziehen** und die Animation stehen im Menü **Optionen**; über dem Graph zeigt ein Status-Badge, was gerade
+* **Aufgeräumte Kontrollen:** keine Checkboxen mehr über dem Graph. **Backtest**, **95 %-Band** und die Animation stehen im Menü **Optionen** (UWTler/Mieter seit 0.16 über die Ansicht); über dem Graph zeigt ein Status-Badge, was gerade
   einbezogen ist („Ansicht: Inklusive UWTler und Mieter“ bzw. „Reine Teilnehmer-Sicht“, dazu „Backtest an“).
 
 ## Geführter Aufbau, Standorte parallel (neu in 0.14)
@@ -243,4 +256,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0` (jeweils auch als Zip in `Sicherung`).
