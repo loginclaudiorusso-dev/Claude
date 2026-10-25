@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.12.0
+# Neue Oberfläche (modern_ui) – Version 0.13.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,24 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## UWTler und Mieter aus echten Daten (neu in 0.13)
+
+* **Der Prognosegraph steht ganz oben.** Darunter folgen Kennzahlen, Erkenntnisse, Szenario und – bei Goslar – die
+  Detail-Einheit „UWTler, Mieter und Kontingente“ (mit den Steppern), danach Standortvergleich, Tabelle, Methodik.
+* **Schalter direkt über dem Graph:** `[✓] UWTler einbeziehen` und `[✓] Mieter einbeziehen`. Sie wirken auf alles:
+  Kurve und Bänder, Kennzahlen (auch „Aktuelle Belegung“ und den Vorjahresvergleich), Reserve, Vorjahr, Tabelle,
+  Standortvergleich, Exporte. Ist ein Schalter aus, wird die Gruppe herausgerechnet (Titel: „ohne UWTler“,
+  Hinweis „reine Teilnehmer-Sicht“) – so lässt sich die reine Teilnehmer-Belegung mit der Gesamtbelegung vergleichen.
+  Bei Bad Pyrmont und Weser-Ems sind die Schalter ausgegraut (dort gibt es keine UWTler und Mieter).
+* **Woher die Zahlen kommen:**
+  * UWTler: die gebuchten UWT-Blöcke (UWT-Listen) – sie waren schon in der Gesamtbelegung enthalten.
+  * Mieter: die **Mietverträge** (Seite „Mieter“) und die Mieter laut **Zimmerplan**, je Person ein Platz von … bis.
+    Stehen Mieter zusätzlich in den Belegungslisten, zählt je Tag die größere Zahl – nichts wird doppelt gezählt.
+    Bisher fehlten Mieter in der Prognose, wenn es keine Mieten-Liste gab; mit eingeschaltetem Schalter sind sie jetzt
+    enthalten. In der Zukunft zählen die Verträge bis zu ihrem Ende (Verlängerungen sind erst nach Eintrag sichtbar).
+* **Keine künstlichen Limits mehr in der Tabelle:** Sie zeigt die echten gebuchten Plätze; das Kontingent steht nur
+  als „Plan …“ im Spaltenkopf, Überschreitungen sind farbig markiert.
+
 ## Prognose für die Geschäftsführung (neu in 0.12)
 
 * **Backtest direkt am Graph:** Schalter „Backtest an/aus“ neben den Reitern *Trend & Prognose · Kapazitätsreserve ·
@@ -61,7 +79,7 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * **Ansicht „Nach Status“** (Schalter neben dem Backtest, im Modus Trend): gestapelte Fläche **UWTler** (Deep Blue) ·
   **Mieter** (Slate) · Teilnehmende & Sonstige. UWT und Mieter stammen aus den Listen (Ist bzw. bereits gebucht), der
   Rest bis zur Gesamtbelegung ist Ist bzw. Prognose – die Unsicherheit liegt also allein bei den übrigen.
-* **Goslar · UWTler und Mieter** (erscheint direkt unter der Standortwahl, sobald *Goslar* gewählt ist): Balken der
+* **Goslar · UWTler und Mieter** (seit 0.13 als Detail unter dem Graph, sobald *Goslar* gewählt ist): Balken der
   Kapazität heute (UWT · Mieter · übrige · frei) mit Zahlen und Anteilen, Aussagen zu fest gebundenen Plätzen und
   Kapazitätsrisiko. Dazu **Kontingente** – eine geplante prozentuale Aufteilung der Kapazität (UWT %, Mieter %, Rest
   für Teilnehmende & Sonstige) mit Steppern. Je Monat wird geprüft, ob die gebuchten UWT-/Mieterplätze und die
@@ -184,4 +202,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0` (jeweils auch als Zip in `Sicherung`).
