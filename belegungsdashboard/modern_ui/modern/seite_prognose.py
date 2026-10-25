@@ -268,7 +268,7 @@ def vergleich_option(sv: list, aktiv: str, hell: bool, animation: bool) -> dict:
                                  "borderRadius": [0, 3, 3, 0]}} for v in sv],
          "label": {"show": True, "position": "right", "formatter": "{c} %", "color": t["text2"], "fontSize": 11},
          "markLine": {"symbol": "none", "silent": True,
-                      "label": {"color": t["text3"], "fontSize": 10, "formatter": "{b}", "position": "end"},
+                      "label": {"color": t["text3"], "fontSize": 10, "formatter": "{b}", "position": "start"},   # y-Achse ist umgedreht → oben
                       "data": [{"xAxis": round(100 * konfig.AMPEL_GELB), "name": "knapp"},
                                {"xAxis": round(100 * konfig.AMPEL_ROT), "name": "kritisch"}, {"xAxis": 100, "name": "voll"}],
                       "lineStyle": {"color": t["text3"], "type": "dashed"}}},

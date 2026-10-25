@@ -676,11 +676,11 @@ CSS += """
   border-radius: 9px; padding: 1px 8px; }
 .m-xs-tab { display: grid; grid-template-columns: minmax(160px, auto) minmax(160px, 1fr) minmax(160px, 1fr); gap: 4px 18px; max-width: 760px;
   padding: 6px 0; border-top: 1px solid var(--rand); }
-.m-xv-raster { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.3fr); gap: 18px; align-items: start; }
+.m-xv-raster { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1.45fr); gap: 18px; align-items: start; }
 .m-xv-raster.kompakt { grid-template-columns: 1fr; }
 .m-xv-chart { height: 210px !important; width: 100%; }
-.m-xv-tab { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(4, minmax(56px, auto)) minmax(140px, auto) minmax(56px, auto);
-  gap: 6px 14px; align-items: center; font-size: 13px; }
+.m-xv-tab { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(4, minmax(64px, auto)) minmax(130px, auto) minmax(52px, auto);
+  gap: 6px 10px; align-items: center; font-size: 13px; min-width: 0; }
 .m-xv-name { font: inherit; color: var(--text); display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 0;
   padding: 3px 6px; margin-left: -6px; border-radius: 6px; cursor: pointer; text-align: left; }
 .m-xv-name:hover { background: color-mix(in srgb, var(--text) 6%, transparent); } .m-xv-name.an { font-weight: 650; }
