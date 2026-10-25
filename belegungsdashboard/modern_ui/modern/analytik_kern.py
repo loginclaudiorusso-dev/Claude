@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from types import SimpleNamespace
 
 from belegung import konfig
 
@@ -90,7 +91,7 @@ def _stufe(anteil: float | None) -> str:
 
 
 def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None = None, offset: float = 0.0,
-              horizont: int = 12) -> Executive:
+              horizont: int = 12, g: Gruppen | None = None) -> Executive:
     """KPI-Karten und priorisierte Erkenntnisse – aus echten Daten; ``kap``/``offset`` nur für ein Szenario."""
     kap_echt = pg.kapazitaet or 0
     kap = kap_echt if kap is None else kap
@@ -106,19 +107,21 @@ def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None 
 
     # 1 Aktuelle Belegung am Stichtag (Fakt) – Vergleich: gleicher Wochentag vor 52 Wochen
     lage = ds.aufschluesselung(standort, stich, brutto)
+    korr = lambda t: ((g.tag(t) or {}).get("delta", 0.0) if g else 0.0)  # noqa: E731 – Gruppen-Schalter (UWT/Mieter)
+    belegt = lage.belegt + korr(stich)
     vorjahr_tag = stich - timedelta(days=364)
     vj = None
     if vorjahr_tag >= ds.erster_tag:
         try:
-            vj = float(ds.verlauf(standort, vorjahr_tag, vorjahr_tag, brutto)["wert"].iloc[0])
+            vj = float(ds.verlauf(standort, vorjahr_tag, vorjahr_tag, brutto)["wert"].iloc[0]) + korr(vorjahr_tag)
         except (IndexError, KeyError, ValueError):
             vj = None
-    d = (lage.belegt - vj) if vj is not None else None
-    kpis.append(Kpi("aktuell", "Aktuelle Belegung", _z(lage.belegt), "Plätze",
-                    f"Stichtag {stich:%d.%m.%Y}" + (f" · {_p(lage.belegt / kap_echt)} von {_z(kap_echt)}" if kap_echt else ""),
+    d = (belegt - vj) if vj is not None else None
+    kpis.append(Kpi("aktuell", "Aktuelle Belegung", _z(belegt), "Plätze",
+                    f"Stichtag {stich:%d.%m.%Y}" + (f" · {_p(belegt / kap_echt)} von {_z(kap_echt)}" if kap_echt else ""),
                     (f"{'+' if d >= 0 else '−'}{_z(abs(d))} ggü. {vorjahr_tag:%d.%m.%Y} (gleicher Wochentag)" if d is not None
                      else "kein Vorjahreswert"), (d > 0) - (d < 0) if d is not None else 0,
-                    _stufe(lage.belegt / kap_echt if kap_echt else None),
+                    _stufe(belegt / kap_echt if kap_echt else None),
                     "Belegte Plätze am letzten Tag mit Ist-Daten (Pivot + Listen)."))
 
     # 2 Prognose Zielmonat (nächster voller Monat) – Vergleich: Ist im Vorjahresmonat
@@ -170,8 +173,8 @@ def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None 
 
     # Ebene B: Erkenntnisse – Fakt / Prognose / Einschätzung / Hinweis
     if vj is not None:
-        er.append(("Fakt", f"Am {stich:%d.%m.%Y} waren {_z(lage.belegt)} Plätze belegt"
-                           + (f" ({_p(lage.belegt / kap_echt)} der Kapazität)" if kap_echt else "")
+        er.append(("Fakt", f"Am {stich:%d.%m.%Y} waren {_z(belegt)} Plätze belegt"
+                           + (f" ({_p(belegt / kap_echt)} der Kapazität)" if kap_echt else "")
                            + f", {'+' if d >= 0 else '−'}{_z(abs(d))} gegenüber dem gleichen Wochentag im Vorjahr."))
     if kuenftig:
         spitze = max(kuenftig, key=lambda z: z.erwartet)
@@ -207,6 +210,8 @@ def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None 
     tage = (date.today() - stich).days
     if tage > 7:
         er.append(("Hinweis", f"Ist-Daten reichen bis {stich:%d.%m.%Y} ({tage} Tage alt) – danach ist alles Prognose."))
+    if g is not None and g.text():
+        er.insert(0, ("Hinweis", f"Gerechnet {g.text()} – diese Gruppe(n) sind aus allen Kurven und Kennzahlen herausgerechnet."))
     if szen:
         er.insert(0, ("Hinweis", "Szenario aktiv – Werte mit angenommener Kapazität "
                                  f"{_z(kap)}" + (f" und Auslastung {offset:+g} %" if offset else "") + ", nicht die echten Daten."))
@@ -234,12 +239,17 @@ class StandortZeile:
     verlauf: list = field(default_factory=list)   # (Monat, Wert, ist?) – für das Vergleichsdiagramm
 
 
-def standort_vergleich(ds, brutto: bool, horizont: int = 12, zurueck: int = 12) -> list[StandortZeile]:
+def standort_vergleich(ds, brutto: bool, horizont: int = 12, zurueck: int = 12, gruppen_fn=None) -> list[StandortZeile]:
+    """gruppen_fn(standort, pg) → Gruppen | None: wendet die UWT-/Mieter-Schalter auch hier an."""
     erg = []
     for s in konfig.STANDORTE:
         lage = ds.aufschluesselung(s, ds.stichtag, brutto)
         kap = ds.kapazitaet(s, brutto)
         pg = ak.prognose(ds, s, brutto, zurueck, horizont)
+        g = gruppen_fn(s, pg) if gruppen_fn and pg and s in GRUPPEN_STANDORTE else None
+        if g is not None:
+            pg = mit_gruppen(pg, g)
+            lage = SimpleNamespace(belegt=lage.belegt + (g.tag(ds.stichtag) or {}).get("delta", 0.0))
         kuenftig = [z for z in (pg.zeilen if pg else []) if z.art != "ist"][:horizont]
         sp = max(kuenftig, key=lambda z: z.erwartet) if kuenftig else None
         erg.append(StandortZeile(
@@ -380,27 +390,113 @@ class StatusMonat:
     gesamt: float            # Ist bzw. erwartete Gesamtbelegung (wie im Graph)
 
 
-def status_monate(ds, standort: str, brutto: bool, pg: ak.Prognose) -> list[StatusMonat]:
-    """Ø-Plätze je Monat nach Status. UWT und Mieter stammen aus den Listen (Ist bzw. bereits gebucht), die übrige
-    Belegung ist der Rest bis zur Gesamtzahl – die Unsicherheit der Prognose liegt damit allein bei den übrigen."""
+# Mieter und UWT stehen nur in Goslar (Gebäudeplan, Mietverträge, UWT-Listen)
+GRUPPEN_STANDORTE = ("BFW GS", konfig.GESAMT)
+
+
+def mieter_zeitraeume(stand=None) -> list[tuple[date, date]]:
+    """Echte Mieter vor Ort: Mietverträge (Seite „Mieter“, mieter.json) und Mieter laut Zimmerplan, die (noch) keinen
+    Vertrag hier haben. Je Person ein Platz von … bis."""
+    from belegung import mieter as mt
+    from belegung import zimmerplan as zp
+
+    zr = [(m.von, m.bis) for m in mt.laden()]
+    if stand is not None and getattr(stand, "lage", None) is not None:
+        for bs in stand.lage.belegungen.values():
+            for b in bs:
+                if (b.art in ("belegt", "geplant") and not b.person.startswith("mv:") and b.name
+                        and b.name != zp.PIVOT_NAME and zp.gruppe_von(b.massnahme, "") == "Mieter"):
+                    zr.append((b.von, b.bis))
+    return zr
+
+
+@dataclass
+class Gruppen:
+    """UWTler und Mieter je Tag/Monat aus echten Daten – und ob sie in die Kurve einfließen.
+
+    * UWT: gebuchte UWT-Blöcke (stecken bereits in der Gesamtbelegung).
+    * Mieter: je Tag das Maximum aus Listen-Einträgen „Mieter“ (in der Gesamtbelegung enthalten) und Mietverträgen bzw.
+      Mietern laut Zimmerplan – was die Verträge darüber hinaus zeigen, kommt hinzu. So wird nichts doppelt gezählt.
+    """
+    tage: object                      # DataFrame: uwt, mieter_liste, mieter
+    uwt_an: bool = True
+    mieter_an: bool = True
+
+    def _delta(self, zeile) -> float:
+        d = 0.0 if self.uwt_an else -float(zeile["uwt"])
+        d += float(zeile["mieter"] - zeile["mieter_liste"]) if self.mieter_an else -float(zeile["mieter_liste"])
+        return d
+
+    def tag(self, t: date) -> dict | None:
+        import pandas as pd
+
+        ts = pd.Timestamp(t)
+        if ts not in self.tage.index:
+            return None
+        z = self.tage.loc[ts]
+        return {"uwt": float(z["uwt"]), "mieter": float(z["mieter"]), "delta": self._delta(z)}
+
+    def monat(self, m: date) -> dict:
+        import pandas as pd
+
+        teil = self.tage[self.tage.index.to_period("M") == pd.Period(m, "M")]
+        if teil.empty:
+            return {"uwt": 0.0, "mieter": 0.0, "delta": 0.0}
+        mittel = teil.mean()
+        return {"uwt": float(mittel["uwt"]), "mieter": float(mittel["mieter"]), "delta": self._delta(mittel)}
+
+    def text(self) -> str:
+        if self.uwt_an and self.mieter_an:
+            return ""
+        weg = [n for n, an in (("UWTler", self.uwt_an), ("Mieter", self.mieter_an)) if not an]
+        return "ohne " + " und ".join(weg)
+
+
+def gruppen(ds, standort: str, brutto: bool, von: date, bis: date, mieter_zr: list[tuple[date, date]],
+            uwt_an: bool = True, mieter_an: bool = True) -> Gruppen:
+    import numpy as np
     import pandas as pd
 
-    if not pg or not pg.zeilen:
-        return []
-    von = pg.zeilen[0].monat
-    bis = (pd.Timestamp(pg.zeilen[-1].monat) + pd.offsets.MonthEnd(0)).date()
-    kat = ds.kategorien(standort, von, bis, brutto)
-    mittel = kat.groupby(kat.index.to_period("M")).mean()
+    tage = pd.date_range(von, bis, freq="D")
+    df = pd.DataFrame(0.0, index=tage, columns=["uwt", "mieter_liste", "mieter"])
+    if standort in GRUPPEN_STANDORTE:
+        kat = ds.kategorien(standort, von, bis, brutto)
+        if "UWT" in kat:
+            df["uwt"] = kat["UWT"].reindex(tage, fill_value=0.0).to_numpy()
+        if "Mieter" in kat:
+            df["mieter_liste"] = kat["Mieter"].reindex(tage, fill_value=0.0).to_numpy()
+        vertrag = np.zeros(len(tage))
+        for a, b in mieter_zr:
+            lo, hi = tage.searchsorted(pd.Timestamp(a)), tage.searchsorted(pd.Timestamp(b), side="right")
+            if lo < hi:
+                vertrag[lo:hi] += 1
+        df["mieter"] = np.maximum(df["mieter_liste"].to_numpy(), vertrag)
+    return Gruppen(df, uwt_an, mieter_an)
 
-    def wert(spalte: str, periode) -> float:
-        if spalte not in mittel.columns or periode not in mittel.index:
-            return 0.0
-        return float(mittel.at[periode, spalte])
+
+def mit_gruppen(pg: ak.Prognose, g: Gruppen) -> ak.Prognose:
+    """Prognose mit den Gruppen-Schaltern: Mieter aus Verträgen ergänzen bzw. UWT/Mieter herausrechnen.
+    Die Verschiebung ist je Monat fest (gebuchte Plätze) – Bänder verschieben sich mit, ihre Breite bleibt."""
+    from dataclasses import replace
+
+    zeilen = []
+    for z in pg.zeilen:
+        d = g.monat(z.monat)["delta"]
+        f = lambda x: None if x is None else max(x + d, 0.0)  # noqa: E731
+        zeilen.append(replace(z, erwartet=f(z.erwartet), lo80=f(z.lo80), hi80=f(z.hi80), lo95=f(z.lo95), hi95=f(z.hi95),
+                              gesichert=f(z.gesichert), ist=f(z.ist), vertraege=z.vertraege + d))
+    return replace(pg, zeilen=zeilen)
+
+
+def status_monate(pg: ak.Prognose, g: Gruppen) -> list[StatusMonat]:
+    """Ø-Plätze je Monat nach Status (pg: bereits mit den Gruppen-Schaltern). Ausgeschaltete Gruppen zählen 0.
+    UWT und Mieter sind Ist bzw. gebucht; die Unsicherheit der Prognose liegt allein beim Rest."""
     erg = []
     for z in pg.zeilen:
-        p = pd.Period(z.monat, "M")
+        m = g.monat(z.monat)
         gesamt = z.ist if z.art == "ist" and z.ist is not None else z.erwartet
-        uwt, mieter = wert("UWT", p), wert("Mieter", p)
+        uwt = m["uwt"] if g.uwt_an else 0.0
+        mieter = m["mieter"] if g.mieter_an else 0.0
         erg.append(StatusMonat(z.monat, z.art, uwt, mieter, max(gesamt - uwt - mieter, 0.0), gesamt))
     return erg
 
@@ -417,12 +513,15 @@ class StatusLage:
     saetze: list[str]        # Aussagen (aus den Zahlen, nichts geschätzt)
 
 
-def status_lage(ds, standort: str, brutto: bool, sm: list[StatusMonat], monate: int = 6) -> StatusLage:
+def status_lage(ds, standort: str, brutto: bool, sm: list[StatusMonat], g: Gruppen, monate: int = 6) -> StatusLage:
     lage = ds.aufschluesselung(standort, ds.stichtag, brutto)
     kap = lage.kapazitaet
-    uwt, mieter = lage.teile.get("UWT", 0.0), lage.teile.get("Mieter", 0.0)
-    heute = {"UWT": uwt, "Mieter": mieter, "uebrige": max(lage.belegt - uwt - mieter, 0.0),
-             "frei": max(kap - lage.belegt, 0.0) if kap else 0.0}
+    t = g.tag(ds.stichtag) or {"uwt": 0.0, "mieter": 0.0, "delta": 0.0}
+    belegt = lage.belegt + t["delta"]
+    uwt = t["uwt"] if g.uwt_an else 0.0
+    mieter = t["mieter"] if g.mieter_an else 0.0
+    heute = {"UWT": uwt, "Mieter": mieter, "uebrige": max(belegt - uwt - mieter, 0.0),
+             "frei": max(kap - belegt, 0.0) if kap else 0.0}
     kommend = [m for m in sm if m.art != "ist"][:monate]
     spitze = max(kommend, key=lambda m: m.uwt + m.mieter, default=None)
     saetze = []

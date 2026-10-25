@@ -138,17 +138,23 @@ class _DsStatus(_Ds):
         return Aufschluesselung({"Reha": 50.0, "UWT": 10.0, "Mieter": 4.0}, 64.0, 80)
 
 
+def _g(uwt=True, mieter=True, vertraege=()):
+    from modern import analytik_kern as an
+
+    return an.gruppen(_DsStatus(), "BFW GS", False, date(2024, 12, 1), date(2027, 12, 31), list(vertraege), uwt, mieter)
+
+
 def test_status_monate_uwt_mieter_rest_ergeben_gesamt():
     from modern import analytik_kern as an
 
     pg = _pg()
-    sm = an.status_monate(_DsStatus(), "BFW GS", False, pg)
+    sm = an.status_monate(pg, _g())
     assert len(sm) == len(pg.zeilen)
     for m, z in zip(sm, pg.zeilen):
         assert abs(m.uwt + m.mieter + m.uebrige - (z.ist if z.art == "ist" else z.erwartet)) < 1e-6
     nov = next(m for m in sm if m.monat == date(2026, 11, 1))
     assert nov.uwt == 0 and nov.mieter == 4 and nov.art == "prognose"           # UWT nur in geraden Monaten gebucht
-    sl = an.status_lage(_DsStatus(), "BFW GS", False, sm)
+    sl = an.status_lage(_DsStatus(), "BFW GS", False, sm, _g())
     assert sl.heute == {"UWT": 10.0, "Mieter": 4.0, "uebrige": 50.0, "frei": 16.0} and sl.fest_max == 14
     assert any("UWTler 10 und Mieter 4" in s for s in sl.saetze)
 
@@ -156,7 +162,7 @@ def test_status_monate_uwt_mieter_rest_ergeben_gesamt():
 def test_kontingente_vorschlag_pruefung_und_saetze():
     from modern import analytik_kern as an
 
-    sm = an.status_monate(_DsStatus(), "BFW GS", False, _pg())
+    sm = an.status_monate(_pg(), _g())
     vorschlag = an.kontingent_vorschlag(sm, 150)
     assert vorschlag == {"UWT": 7.0, "Mieter": 3.0}                               # höchster gebuchter Anteil, aufgerundet
     zeilen = an.kontingent_pruefung(sm, 150, {"UWT": 5, "Mieter": 10})
@@ -214,8 +220,36 @@ def test_szenario_als_schatten_und_status_stapel():
     geist = [v for v in namen["Szenario (Simulation)"]["data"] if v is not None]
     assert echt[-1] == 132.0 and geist[-1] == round(132.0 * 1.1, 1)              # echte Prognose bleibt, Szenario daneben
     assert namen["Kapazität"]["data"][0] == 150 and namen["Kapazität Szenario"]["data"][0] == 140
-    sm = an.status_monate(_DsStatus(), "BFW GS", False, pg)
+    sm = an.status_monate(pg, _g())
     st = sp.option({**basis, "offset": 0.0, "kap": 150, "status": True, "sm": sm, "kontingent": {"UWT": 10, "Mieter": 5}})
     gestapelt = [s for s in st["series"] if s.get("stack") == "status"]
     assert [s["name"] for s in gestapelt] == ["UWTler", "Mieter", "Teilnehmende & Sonstige"]
     assert {s["name"] for s in st["series"]} >= {"Kontingent UWT", "Kontingent UWT + Mieter", "Kapazität"}
+
+
+def test_gruppen_schalter_rechnen_uwt_und_mieter_heraus_bzw_vertraege_hinzu():
+    from modern import analytik_kern as an
+
+    pg = _pg()
+    gleich = an.mit_gruppen(pg, _g())
+    assert [z.erwartet for z in gleich.zeilen] == [z.erwartet for z in pg.zeilen]   # alles an, keine Verträge darüber hinaus
+    ohne = an.mit_gruppen(pg, _g(uwt=False, mieter=False))
+    nov, dez = (next(z for z in ohne.zeilen if z.monat == date(2026, m, 1)) for m in (11, 12))
+    assert nov.erwartet == 121.0 - 4 and dez.erwartet == 122.0 - 10 - 4           # Dez: UWT (gerader Monat) + Mieter weg
+    assert dez.hi80 - dez.lo80 == 10.0                                             # Band verschiebt sich, Breite bleibt
+    assert pg.zeilen[-1].erwartet == 132.0                                         # Original unverändert
+    # 6 Mietverträge im Nov 2026 – 4 davon stehen schon in den Listen → 2 kommen hinzu, nichts doppelt
+    mit = an.mit_gruppen(pg, _g(vertraege=[(date(2026, 11, 1), date(2026, 11, 30))] * 6))
+    assert next(z for z in mit.zeilen if z.monat == date(2026, 11, 1)).erwartet == 123.0
+    assert an.status_monate(ohne, _g(uwt=False, mieter=False))[-1].uwt == 0
+    assert _g(uwt=False).text() == "ohne UWTler" and _g().text() == ""
+
+
+def test_kennzahlen_folgen_den_gruppen_schaltern():
+    from modern import analytik_kern as an
+
+    g = _g(mieter=False)
+    ex = an.executive(_Ds(), "BFW GS", False, an.mit_gruppen(_pg(), g), g=g)
+    k = {x.schluessel: x for x in ex.kpis}
+    assert k["aktuell"].wert == "116"                                              # 120 belegt − 4 Mieter
+    assert any("ohne Mieter" in t for _a, t in ex.erkenntnisse)
