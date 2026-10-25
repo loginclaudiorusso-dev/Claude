@@ -15,9 +15,11 @@ from belegung import konfig
 
 from . import analytik_kern as an
 from . import auswertung_kern as ak
-from . import seiten, themes
+from . import kern, seiten, themes
 from .ui_bausteine import attr, knopf, leer, segmente
 
+GOSLAR = "BFW GS"
+OFFSET_MAX = 25                       # Auslastungs-Annahme im Szenario: ± Prozent
 CHARTS = {"trend": "Trend & Prognose", "reserve": "Kapazitätsreserve", "jahr": "Vorjahresvergleich"}
 SCHRITTE = {1: "Ist-Verlauf", 2: "+ Prognose", 3: "+ Unsicherheit (80/95 %)", 4: "+ Kapazität"}
 TAG = {"Fakt": "fakt", "Prognose": "prognose", "Einschätzung": "einsch", "Hinweis": "hinweis"}
@@ -82,15 +84,42 @@ def option(c: dict) -> dict:
     zs = ak.szenario(pg, kap, offset)
     if c["art"] == "reserve":
         return _reserve(o, t, c, zs, ort, zaehl, szen)
+    if c.get("status") and c.get("sm"):
+        return _status(o, t, c, zs, ort, zaehl, szen)
     return _trend(o, t, c, zs, ort, zaehl, szen)
 
 
-def _formatter(zs, kap: int, t: dict) -> str:
+def _szenario_aktiv(c) -> bool:
+    return c["kap"] != (c["pg"].kapazitaet or 0) or bool(c["offset"])
+
+
+def _geist(t, zs_sz, zs0, li, kap_echt: int, kap: int, zeigen: bool) -> list[dict]:
+    """Szenario als transparente Schattenkurve über der echten Prognose (und ggf. Schatten-Kapazität)."""
+    leer_ = [None] * len(zs_sz)
+    werte = [None if z.art == "ist" else round(z.erwartet, 1) for z in zs_sz]
+    if li is not None and zs0[li].ist is not None and li + 1 < len(zs_sz):
+        werte[li] = round(zs0[li].ist, 1)
+    f = t["orange"]
+    return [
+        {"name": "Szenario (Simulation)", "type": "line", "symbol": "none", "z": 8, "color": _rgba(f, .75),
+         "data": werte if zeigen else leer_, "lineStyle": {"color": _rgba(f, .7), "width": 3.2, "type": [2, 4], "cap": "round"},
+         "areaStyle": {"color": _rgba(f, .06), "origin": "start"} if False else None, "animationDuration": 350},
+        {"name": "Kapazität Szenario", "type": "line", "symbol": "none", "z": 4, "color": _rgba(f, .7),
+         "data": [kap] * len(zs_sz) if zeigen and kap and kap != kap_echt else leer_,
+         "lineStyle": {"color": _rgba(f, .65), "width": 1.4, "type": [2, 4]},
+         "endLabel": {"show": bool(zeigen and kap and kap != kap_echt), "formatter": "Szenario {c}", "color": f, "fontSize": 11},
+         "animationDuration": 350},
+    ]
+
+
+def _formatter(zs, kap: int, t: dict, zs_sz=None, kap_sz: int | None = None) -> str:
     d = [{"m": ak.monat_text(z.monat), "a": z.art, "ist": z.ist, "e": z.erwartet, "l8": z.lo80, "h8": z.hi80,
-          "l9": z.lo95, "h9": z.hi95, "g": z.gesichert, "r": z.reserve, "ru": (kap - z.hi80) if kap and z.art != "ist" else None}
-         for z in zs]
-    c = {"ist": t["text"], "e": t["akzent"], "b": t["text3"], "ok": t["gruen"], "rot": t["rot"], "kap": t["rot"]}
+          "l9": z.lo95, "h9": z.hi95, "g": z.gesichert, "r": z.reserve, "ru": (kap - z.hi80) if kap and z.art != "ist" else None,
+          "se": zs_sz[i].erwartet if zs_sz and z.art != "ist" else None, "sr": zs_sz[i].reserve if zs_sz and z.art != "ist" else None}
+         for i, z in enumerate(zs)]
+    c = {"ist": t["text"], "e": t["akzent"], "b": t["text3"], "ok": t["gruen"], "rot": t["rot"], "kap": t["rot"], "sz": t["orange"]}
     return ("(ps) => { const D = " + json.dumps(d) + "; const C = " + json.dumps(c) + "; const K = " + str(kap or 0) + ";"
+            " const K2 = " + str(kap_sz if kap_sz is not None else (kap or 0)) + ";"
             " const d = D[ps[0].dataIndex]; if (!d) return '';"
             " const f = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
             " const z = (c, t, v, st) => `<div style=\"display:flex;gap:18px;justify-content:space-between;line-height:1.75\">"
@@ -104,17 +133,24 @@ def _formatter(zs, kap: int, t: dict) -> str:
             " h += z(C.b, '95 %-Band', f(d.l9) + ' – ' + f(d.h9), 'dotted'); if (d.g != null) h += z(C.b, 'Gebucht (Untergrenze)', f(d.g), 'dotted'); }"
             " if (K) { h += `<div style=\"border-top:1px solid ${C.b}55;margin:6px 0 2px\"></div>` + z(C.kap, 'Kapazität', f(K), 'dashed')"
             " + z(d.r < 0 ? C.rot : C.ok, 'Reserve (erwartet)', f(d.r)) + (d.ru != null ? z(d.ru < 0 ? C.rot : C.b, 'Reserve ungünstig', f(d.ru)) : ''); }"
+            " if (d.se != null) { h += `<div style=\"border-top:1px dashed ${C.sz}88;margin:6px 0 2px;padding-top:4px;color:${C.sz};font-size:11px;font-weight:600;letter-spacing:.04em\">SZENARIO – SIMULATION</div>`"
+            " + z(C.sz, 'Erwartet (Szenario)', f(d.se), 'dotted') + (K2 != K ? z(C.sz, 'Kapazität (Szenario)', f(K2), 'dotted') : '')"
+            " + z(d.sr < 0 ? C.rot : C.sz, 'Reserve (Szenario)', f(d.sr), 'dotted'); }"
             " return h; }")
 
 
-def _trend(o, t, c, zs, ort, zaehl, szen) -> dict:
-    kap, schritt = c["kap"], c["schritt"]
+def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
+    schritt = c["schritt"]
+    kap_sz = c["kap"]
+    kap = c["pg"].kapazitaet or 0                    # Hauptlinien: immer die echten Werte
+    zs = ak.szenario(c["pg"], kap, 0)
+    aktiv = _szenario_aktiv(c)
     zeig = lambda n: schritt >= n  # noqa: E731
     labels = [ak.monat_text(z.monat) for z in zs]
     o["xAxis"]["data"] = labels
-    _titel(o, t, f"Belegung {ort} · {zaehl}{szen}", f"Ø belegte Plätze je Monat · {_zeitraum(zs)} · Ist bis "
-                                                   f"{c['stichtag']:%d.%m.%Y}, danach Prognose")
-    o["tooltip"][":formatter"] = _formatter(zs, kap, t)
+    _titel(o, t, f"Belegung {ort} · {zaehl}" + (" · mit SZENARIO als Schattenkurve" if aktiv else ""),
+           f"Ø belegte Plätze je Monat · {_zeitraum(zs)} · Ist bis {c['stichtag']:%d.%m.%Y}, danach Prognose")
+    o["tooltip"][":formatter"] = _formatter(zs, kap, t, zs_sz if aktiv else None, kap_sz)
     li = max((i for i, z in enumerate(zs) if z.art == "ist"), default=None)
     leer_ = [None] * len(zs)
 
@@ -159,10 +195,12 @@ def _trend(o, t, c, zs, ort, zaehl, szen) -> dict:
     reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 6, "color": t["orange"],
                    "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in zs] if blind else leer_,
                    "lineStyle": {"color": t["orange"], "width": 1.4, "type": "dotted"}, **d(1600, 500)})
+    reihen += _geist(t, zs_sz, zs, li, kap, kap_sz, aktiv and zeig(2))
     o["series"] = reihen
     # feste Achse über alle Aufbauschritte – sonst „springt“ der Graph, wenn Bänder oder Kapazität dazukommen
     werte = [z.ist for z in zs if z.art == "ist" and z.ist is not None] + [z.lo95 if c["b95"] else z.lo80 for z in zs if z.art != "ist"] \
-        + [z.hi95 if c["b95"] else z.hi80 for z in zs if z.art != "ist"] + ([kap] if kap else []) + list(blind.values())
+        + [z.hi95 if c["b95"] else z.hi80 for z in zs if z.art != "ist"] + ([kap] if kap else []) + list(blind.values()) \
+        + ([z.erwartet for z in zs_sz if z.art != "ist"] + ([kap_sz] if kap_sz else []) if aktiv else [])
     if werte:
         unten, oben = min(werte), max(werte)
         rand = max(2.0, (oben - unten) * .06)
@@ -170,7 +208,73 @@ def _trend(o, t, c, zs, ort, zaehl, szen) -> dict:
         o["yAxis"]["min"] = max(0, int((unten - rand) // schritt_y * schritt_y))
         o["yAxis"]["max"] = int(-(-(oben + rand) // schritt_y) * schritt_y)
     o["legend"]["data"] = ["Ist", "laufender Monat", "Prognose (erwartet)", "80 %-Band"] + (["95 %-Band"] if c["b95"] else []) + \
-        (["Kapazität"] if kap else []) + (["Backtest (1 Monat vorher)"] if blind else [])
+        (["Kapazität"] if kap else []) + (["Backtest (1 Monat vorher)"] if blind else []) + \
+        (["Szenario (Simulation)"] + (["Kapazität Szenario"] if kap_sz != kap else []) if aktiv else [])
+    return o
+
+
+def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
+    """Gestapelte Fläche: UWTler · Mieter · Teilnehmende & Sonstige (Summe = Ist bzw. erwartete Belegung)."""
+    sm = c["sm"]
+    kap = c["pg"].kapazitaet or 0
+    kap_sz = c["kap"]
+    aktiv = _szenario_aktiv(c)
+    fb = an.STATUS_FARBEN[bool(t.get("hell"))]
+    labels = [ak.monat_text(m.monat) for m in sm]
+    li = max((i for i, m in enumerate(sm) if m.art == "ist"), default=None)
+    o["xAxis"]["data"] = labels
+    o["yAxis"]["scale"] = False
+    _titel(o, t, f"Belegung {ort} nach Status · {zaehl}" + (" · mit SZENARIO als Schattenkurve" if aktiv else ""),
+           f"Ø Plätze je Monat · {_zeitraum(sm)} · UWT und Mieter: Ist bzw. gebucht · Rest: Ist bzw. Prognose")
+    reihen = []
+    for schl in ("UWT", "Mieter", "uebrige"):
+        farbe = fb[schl]
+        reihen.append({"name": an.STATUS_NAMEN[schl], "type": "line", "stack": "status", "symbol": "none", "color": farbe,
+                       "data": [round(getattr(m, schl.lower()), 1) for m in sm], "lineStyle": {"width": 1, "color": farbe},
+                       "areaStyle": {"color": _rgba(farbe, .85 if schl != "uebrige" else .28)},
+                       "animationDuration": 900})
+    if li is not None and li + 1 < len(sm):
+        reihen[-1]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
+                                  "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
+                                            "formatter": "Prognose →"},
+                                  "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
+    if kap:
+        reihen.append({"name": "Kapazität", "type": "line", "symbol": "none", "color": t["rot"], "z": 6,
+                       "data": [kap] * len(sm), "lineStyle": {"color": t["rot"], "width": 1.4, "type": [5, 4]},
+                       "endLabel": {"show": True, "formatter": "Kapazität {c}", "color": t["rot"], "fontSize": 11}})
+    kont = c.get("kontingent")
+    if kont and kap:                                    # Kontingentgrenzen: UWT unten, darüber UWT + Mieter
+        for name, wert, farbe in (("Kontingent UWT", kap * kont["UWT"] / 100, fb["UWT"]),
+                                  ("Kontingent UWT + Mieter", kap * (kont["UWT"] + kont["Mieter"]) / 100, fb["Mieter"])):
+            reihen.append({"name": name, "type": "line", "symbol": "none", "z": 6, "color": farbe, "data": [round(wert, 1)] * len(sm),
+                           "lineStyle": {"color": t["text"], "width": 1.1, "type": [6, 3], "opacity": .7},
+                           "endLabel": {"show": True, "formatter": f"{name} {round(wert)}", "color": t["text2"], "fontSize": 10}})
+    zs0 = ak.szenario(c["pg"], kap, 0)
+    if aktiv:
+        reihen += _geist(t, zs_sz, zs0, li, kap, kap_sz, True)
+    o["series"] = reihen
+    o["grid"]["right"] = 150 if kont else 96
+    o["legend"]["data"] = [an.STATUS_NAMEN[k] for k in ("UWT", "Mieter", "uebrige")] + (["Kapazität"] if kap else []) + \
+        (["Szenario (Simulation)"] + (["Kapazität Szenario"] if kap_sz != kap else []) if aktiv else [])
+    d = [{"m": ak.monat_text(m.monat), "a": m.art, "u": m.uwt, "mi": m.mieter, "r": m.uebrige, "g": m.gesamt,
+          "se": zs_sz[i].erwartet if aktiv and m.art != "ist" else None} for i, m in enumerate(sm)]
+    fc = {"u": fb["UWT"], "mi": fb["Mieter"], "r": fb["uebrige"], "sz": t["orange"], "b": t["text3"]}
+    o["tooltip"][":formatter"] = (
+        "(ps) => { const D = " + json.dumps(d) + "; const C = " + json.dumps(fc) + "; const K = " + str(kap or 0) + ";"
+        " const d = D[ps[0].dataIndex]; if (!d) return '';"
+        " const f = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
+        " const p = v => d.g ? ' <span style=\"opacity:.6;font-weight:400;margin-left:6px\">(' + Math.round(100 * v / d.g) + ' %)</span>' : '';"
+        " const z = (c, t, v, extra) => `<div style=\"display:flex;gap:18px;justify-content:space-between;line-height:1.75\">"
+        "<span><span style=\"display:inline-block;width:10px;height:10px;border-radius:2px;background:${c};margin-right:7px;vertical-align:-1px\"></span>${t}</span>"
+        "<b style=\"font-variant-numeric:tabular-nums\">${v}${extra || ''}</b></div>`;"
+        " const art = d.a == 'ist' ? 'Ist' : (d.a == 'laufend' ? 'laufender Monat' : 'Prognose');"
+        " let h = `<div style=\"font-weight:600;margin-bottom:6px\">${d.m} <span style=\"opacity:.65;font-weight:400\">· ${art}</span></div>`;"
+        " h += z(C.u, 'UWTler' + (d.a == 'ist' ? '' : ' (gebucht)'), f(d.u), p(d.u)) + z(C.mi, 'Mieter' + (d.a == 'ist' ? '' : ' (Verträge)'), f(d.mi), p(d.mi))"
+        " + z(C.r, 'Teilnehmende & Sonstige' + (d.a == 'ist' ? '' : ' (Prognose)'), f(d.r), p(d.r));"
+        " h += `<div style=\"border-top:1px solid ${C.b}55;margin:6px 0 2px\"></div>` + z('transparent', 'Gesamt', f(d.g))"
+        " + (K ? z('transparent', 'Auslastung', Math.round(100 * d.g / K) + ' %') : '');"
+        " if (d.se != null) h += z(C.sz, 'Szenario (Simulation)', f(d.se));"
+        " return h; }")
     return o
 
 
@@ -292,6 +396,13 @@ def daten(a, ds) -> None:
                "sv": an.standort_vergleich(ds, a.aw_brutto, min(12, a.aw_horizont))}
     if a.aw_chart == "jahr":
         a.daten["pg_lang"] = ak.prognose(ds, a.aw_standort, a.aw_brutto, 36, a.aw_horizont)
+    goslar = a.aw_standort == GOSLAR
+    if pg and (a.aw_status or goslar):
+        a.daten["sm"] = an.status_monate(ds, a.aw_standort, a.aw_brutto, pg)
+    if pg and goslar:
+        a.daten["sl"] = an.status_lage(ds, a.aw_standort, a.aw_brutto, a.daten["sm"])
+        a.daten["kontingent"] = kern.kontingent_lesen(a.aw_standort)
+    a.daten["sanierung"] = an.sanierung_plaetze(getattr(getattr(a, "stand", None), "lage", None), a.aw_standort)
 
 
 def _praes_klasse(a, an_: bool) -> None:
@@ -335,10 +446,18 @@ def zeichnen(a) -> None:
     zustand = {"kap": a.aw_kap, "offset": a.aw_offset}
     c = lambda anim=False: {"pg": pg, "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,  # noqa: E731
                             "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95, "backtest": a.aw_backtest,
-                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" else 4, "animation": anim,
-                            "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"]}
+                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status else 4, "animation": anim,
+                            "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
+                            "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent()}
     ds = a.daten["ds"]
     box: dict = {}
+    sm = a.daten.get("sm") or []
+
+    def kontingent():
+        """Geplante Aufteilung (gespeichert) oder Vorschlag aus den gebuchten Zahlen – nur Goslar."""
+        if a.aw_standort != GOSLAR or not sm:
+            return None
+        return a.daten.get("kontingent") or an.kontingent_vorschlag(sm, kap_echt)
 
     def ex():
         return an.executive(ds, a.aw_standort, a.aw_brutto, pg, zustand["kap"], zustand["offset"], min(12, a.aw_horizont))
@@ -356,6 +475,22 @@ def zeichnen(a) -> None:
     with wurzel:
         if praes:
             _praes_kopf(a, pg)
+        # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (direkt unter der Standortwahl) ----------
+        if a.aw_standort == GOSLAR and a.daten.get("sl"):
+            gs_box = ui.element("section").classes("m-block m-xgs" + (" kompakt" if praes else ""))
+
+            def goslar_zeichnen():
+                gs_box.clear()
+                with gs_box:
+                    _goslar(a, a.daten["sl"], sm, kap_echt, kontingent(), praes, hell, goslar_neu)
+
+            def goslar_neu(werte):
+                a.daten["kontingent"] = werte
+                kern.kontingent_setzen(GOSLAR, werte)
+                goslar_zeichnen()
+                if a._prognose_chart:
+                    a._prognose_chart()
+            goslar_zeichnen()
         # ---- Ebene A: KPI-Karten ----------------------------------------------------------
         kpi_box = ui.element("div").classes("m-xk")
 
@@ -394,7 +529,17 @@ def zeichnen(a) -> None:
         with ui.element("section").classes("m-block m-xg"):
             with ui.element("div").classes("m-xg-kopf"):
                 segmente(CHARTS, a.aw_chart, lambda k: _chart_art(a, k))
-                if praes and a.aw_chart == "trend":
+                trend = a.aw_chart == "trend"
+                _umschalter("history", "Backtest", a.aw_backtest and trend and not a.aw_status,
+                            lambda: a.setzen(aw_backtest=not a.aw_backtest, laden=False),
+                            "Blind-Prognosen der Vergangenheit (je einen Monat vorher gerechnet) im Graph zeigen"
+                            if pg.rueckblick else "Für diese Auswahl gibt es keinen Backtest-Verlauf",
+                            aus=not (trend and not a.aw_status and pg.rueckblick))
+                with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
+                    attr(ui.label("Ansicht"), title="Gesamtbelegung oder gestapelt nach Status: UWTler · Mieter · übrige")
+                    segmente({False: "Gesamt", True: "Nach Status"}, a.aw_status,
+                             lambda v: a.setzen(aw_status=v, laden=v and "sm" not in a.daten) if trend else None)
+                if praes and a.aw_chart == "trend" and not a.aw_status:
                     with ui.element("div").classes("m-xg-schritte"):
                         knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
                         box["schritt"] = ui.label(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}").classes("m-zweite")
@@ -408,8 +553,6 @@ def zeichnen(a) -> None:
                         with knopf("Optionen", None, "leise", "tune"):
                             with ui.menu().props('dark class="m-menue"'):
                                 _schalter("95 %-Band zeigen", a.aw_95, lambda: a.setzen(aw_95=not a.aw_95, laden=False))
-                                _schalter("Backtest im Graph" + ("" if pg.rueckblick else " (nur je Standort)"), a.aw_backtest,
-                                          lambda: a.setzen(aw_backtest=not a.aw_backtest, laden=False), aus=not pg.rueckblick)
                                 ui.separator()
                                 _schalter("Animation beim Öffnen" + (" (System: weniger Bewegung)" if a.weniger_bewegung else ""),
                                           a.aw_anim and not a.weniger_bewegung, lambda: a.setzen(aw_anim=not a.aw_anim, laden=False),
@@ -417,7 +560,8 @@ def zeichnen(a) -> None:
             chart = ui.echart(option(c(animiert))).classes("m-chart m-xg-chart" + (" gross" if praes else ""))
             box["chart"] = chart
             with ui.element("div").classes("m-xg-fuss"):
-                ui.html(_legende_text(a.aw_chart), sanitize=False)
+                ui.html(_legende_text("status" if a.aw_chart == "trend" and a.aw_status else a.aw_chart,
+                                      kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)
 
         def chart_neu(schritt_animation: bool = False):
             """Optionen ersetzen – ohne erneuten Aufbau; nur ein Präsentationsschritt darf weich einblenden."""
@@ -446,71 +590,78 @@ def zeichnen(a) -> None:
             chart_neu()
             e = kpis_zeichnen()
             erkenntnisse_zeichnen(e)
-            szenario_zeichnen(nur_vergleich=True)
+            szenario_zeichnen()
             tabelle_zeichnen()
 
-        sz_teile: dict = {}
+        sanierung = a.daten.get("sanierung")
 
-        def szenario_zeichnen(nur_vergleich: bool = False):
-            aktiv = zustand["kap"] != kap_echt or bool(zustand["offset"])
-            if nur_vergleich and "vergleich" in sz_teile:
-                sz_box.classes(add="aktiv" if aktiv else "", remove="" if aktiv else "aktiv")
-                sz_teile["banner"].set_visibility(aktiv)
-                sz_teile["vergleich"].clear()
-                with sz_teile["vergleich"]:
-                    _sz_vergleich(pg, zustand)
-                return
+        def setzen(kap=None, offset=None):
+            if kap is not None:
+                zustand["kap"] = a.aw_kap = max(0, int(round(kap)))
+            if offset is not None:
+                zustand["offset"] = a.aw_offset = float(max(-OFFSET_MAX, min(OFFSET_MAX, round(offset))))
+            alles_neu()
+
+        def szenario_zeichnen():
+            """Management-Szenario: Schnell-Pills, Plus/Minus-Stepper, Vergleich Ausgang ↔ Szenario."""
+            kap, off = zustand["kap"], zustand["offset"]
+            aktiv = kap != kap_echt or bool(off)
             sz_box.clear()
             sz_box.classes(add="aktiv" if aktiv else "", remove="" if aktiv else "aktiv")
-            lo, hi = min(400, int(kap_echt * .5) or 400), max(1200, int(kap_echt * 1.5) or 1200)
             with sz_box:
                 with ui.element("div").classes("m-paktionen").style("align-items:center"):
                     ui.icon("science").classes("m-xs-icon")
-                    ui.label("Szenario – was wäre, wenn …").classes("m-btitel")
-                    sz_teile["banner"] = ui.label("SIMULATION – keine echten Daten").classes("m-xs-banner")
-                    sz_teile["banner"].set_visibility(aktiv)
-                    knopf("Zurück zum Ausgangsszenario", lambda: setzen(kap_echt, 0.0, True), "leise", "restart_alt").style("margin-left:auto")
-                with ui.element("div").classes("m-szenario"):
-                    with ui.element("div").classes("m-sz-zeile"):
+                    ui.label("Management-Szenario").classes("m-btitel")
+                    ui.label("Was wäre, wenn … – wirkt nur auf die Prognosemonate; Ist bleibt Ist").classes("m-zweite")
+                    if aktiv:
+                        ui.label("SIMULATION – keine echten Daten").classes("m-xs-banner")
+                # Schnellszenarien
+                with ui.element("div").classes("m-xs-pills"):
+                    _pill("Ausgangslage", "restart_alt", not aktiv, lambda: setzen(kap_echt, 0.0),
+                          "Echte Kapazität, Prognose unverändert")
+                    _pill("+10 % Auslastung", "trending_up", off == 10, lambda: setzen(offset=0.0 if off == 10 else 10.0),
+                          "Erwartete Belegung in allen Prognosemonaten um 10 % höher")
+                    _pill("−10 % Auslastung", "trending_down", off == -10, lambda: setzen(offset=0.0 if off == -10 else -10.0),
+                          "Erwartete Belegung in allen Prognosemonaten um 10 % niedriger")
+                    if sanierung:
+                        _pill(f"Kapazitätskürzung Sanierung (−{sanierung})", "construction", kap == kap_echt - sanierung,
+                              lambda: setzen(kap=kap_echt if kap == kap_echt - sanierung else kap_echt - sanierung),
+                              f"Kapazität um die {sanierung} Betten kürzen, deren Zimmer derzeit wegen eines Mangels unbewohnbar "
+                              "sind (Gebäudeplan Goslar)")
+                    else:
+                        _pill("Kapazitätskürzung Sanierung", "construction", False, None,
+                              "Keine Grundlage: für diese Auswahl sind keine unbewohnbaren Zimmer erfasst (Gebäudeplan nur "
+                              "Goslar) – eine Kürzung lässt sich unten mit dem Stepper einstellen", aus=True)
+                # Feineinstellung
+                with ui.element("div").classes("m-xs-stepper"):
+                    with ui.element("div").classes("m-xs-step"):
                         ui.label("Kapazität").classes("m-name")
-                        regler = ui.slider(min=lo, max=hi, step=1, value=min(max(zustand["kap"], lo), hi)).props("label" + ("" if hell else " dark")).classes("m-sz-regler")
-                        attr(regler, aria_label="Kapazität (Szenario)")
-                        feld = ui.number(value=zustand["kap"], min=0, max=5000, step=1, format="%d").classes("m-feld klein").props(
+                        for d in (-10, -1):
+                            knopf(f"−{-d}", lambda d=d: setzen(kap=zustand["kap"] + d), "leise klein", "", f"Kapazität −{-d} Plätze")
+                        feld = ui.number(value=kap, min=0, max=5000, step=1, format="%d").classes("m-feld klein").props(
                             "dense outlined dark")
-                        ui.label(f"Plätze · echt {_z(kap_echt)}").classes("m-zweite")
-                    with ui.element("div").classes("m-sz-zeile"):
+                        attr(feld, aria_label="Kapazität im Szenario")
+                        feld.on("change", lambda: setzen(kap=feld.value or 0) if int(feld.value or 0) != zustand["kap"] else None)
+                        for d in (1, 10):
+                            knopf(f"+{d}", lambda d=d: setzen(kap=zustand["kap"] + d), "leise klein", "", f"Kapazität +{d} Plätze")
+                        ui.label(f"Plätze · echt {_z(kap_echt)}" + (f" · {kap - kap_echt:+d}" if kap != kap_echt else "")).classes("m-zweite")
+                    with ui.element("div").classes("m-xs-step"):
                         ui.label("Auslastung").classes("m-name")
-                        off = ui.slider(min=-15, max=15, step=1, value=zustand["offset"]).props("label" + ("" if hell else " dark")).classes("m-sz-regler")
-                        attr(off, aria_label="Auslastungs-Annahme in Prozent (Szenario)")
-                        off_feld = ui.number(value=zustand["offset"], min=-15, max=15, step=1, format="%d").classes("m-feld klein").props(
-                            "dense outlined dark suffix=%")
-                        ui.label("% auf die Prognosemonate · Ist bleibt Ist").classes("m-zweite")
-                sz_teile["vergleich"] = ui.element("div").classes("m-xs-vergleich")
-                with sz_teile["vergleich"]:
+                        for d in (-5, -1):
+                            knopf(f"−{-d}", lambda d=d: setzen(offset=zustand["offset"] + d), "leise klein", "", f"Auslastung −{-d} %")
+                        off_feld = ui.number(value=off, min=-OFFSET_MAX, max=OFFSET_MAX, step=1, format="%d").classes(
+                            "m-feld klein").props("dense outlined dark suffix=%")
+                        attr(off_feld, aria_label="Auslastungs-Annahme in Prozent")
+                        off_feld.on("change", lambda: setzen(offset=off_feld.value or 0)
+                                    if float(off_feld.value or 0) != zustand["offset"] else None)
+                        for d in (1, 5):
+                            knopf(f"+{d}", lambda d=d: setzen(offset=zustand["offset"] + d), "leise klein", "", f"Auslastung +{d} %")
+                        ui.label(f"% auf die Prognosemonate · ± {OFFSET_MAX} %").classes("m-zweite")
+                with ui.element("div").classes("m-xs-vergleich"):
                     _sz_vergleich(pg, zustand)
-                ui.label("Nur diese beiden Stellschrauben haben eine belastbare Grundlage im Prognosemodell. Andere Annahmen "
-                         "(z. B. Verweildauer, Anreisezahlen je Maßnahme) bräuchten ein eigenes Modell und werden deshalb nicht "
+                ui.label("Im Graph läuft das Szenario als transparente Schattenkurve über der echten Prognose. Nur Kapazität und "
+                         "Auslastung haben eine belastbare Grundlage im Modell; andere Annahmen (z. B. Verweildauer) werden nicht "
                          "scheinbar genau simuliert. Gespeichert wird nichts.").classes("m-zweite").style("white-space:normal")
-
-            def setzen(kap=None, offset=None, alles=False):
-                if kap is not None:
-                    zustand["kap"] = a.aw_kap = max(0, int(kap))
-                if offset is not None:
-                    zustand["offset"] = a.aw_offset = float(max(-15, min(15, offset)))
-                if alles or (kap is not None and regler.value != zustand["kap"]):
-                    regler.set_value(min(max(zustand["kap"], lo), hi))
-                if alles or (kap is not None and int(feld.value or 0) != zustand["kap"]):
-                    feld.set_value(zustand["kap"])
-                if alles or (offset is not None and off.value != zustand["offset"]):
-                    off.set_value(zustand["offset"])
-                if alles or (offset is not None and (off_feld.value or 0) != zustand["offset"]):
-                    off_feld.set_value(zustand["offset"])
-                alles_neu()
-
-            regler.on("update:model-value", lambda e: setzen(kap=e.args), throttle=0.05, leading_events=False)
-            off.on("update:model-value", lambda e: setzen(offset=e.args), throttle=0.05, leading_events=False)
-            feld.on_value_change(lambda e: setzen(kap=int(e.value or 0)) if int(e.value or 0) != zustand["kap"] else None)
-            off_feld.on_value_change(lambda e: setzen(offset=float(e.value or 0)) if float(e.value or 0) != zustand["offset"] else None)
         szenario_zeichnen()
 
         # ---- Standortvergleich ---------------------------------------------------------------
@@ -551,11 +702,17 @@ def _schalter(text: str, an_: bool, klick, aus: bool = False) -> None:
         ui.label(text)
 
 
-def _legende_text(art: str) -> str:
+def _legende_text(art: str, szenario: bool = False) -> str:
+    sz = "<span><i class='l sz'></i>Szenario (Simulation) – Schattenkurve, keine echten Daten</span>" if szenario else ""
     if art == "trend":
         return ("<span><i class='l ist'></i>Ist (Monatsmittel)</span><span><i class='p hohl'></i>laufender Monat – unvollständig</span>"
                 "<span><i class='l prog'></i>Prognose (erwartet)</span><span><i class='f'></i>80 %- / 95 %-Band: so sicher liegt der "
-                "Wert darin</span><span><i class='l kap'></i>Kapazität</span>")
+                "Wert darin</span><span><i class='l kap'></i>Kapazität</span>" + sz)
+    if art == "status":
+        return ("<span><i class='f uwt'></i>UWTler</span><span><i class='f mieter'></i>Mieter</span>"
+                "<span><i class='f rest'></i>Teilnehmende & Sonstige</span><span><i class='l kap'></i>Kapazität</span>"
+                "<span><i class='l kont'></i>Kontingentgrenzen (Goslar)</span>"
+                "<span>Zukunft: UWT und Mieter wie gebucht, nur der Rest ist Prognose</span>" + sz)
     if art == "reserve":
         return ("<span><i class='f ok'></i>Reserve</span><span><i class='f warn'></i>knapp (≥ 70 % obere 80 %)</span>"
                 "<span><i class='f krit'></i>kritisch / über Kapazität</span><span><i class='l'></i>ungünstiger Fall</span>"
@@ -564,6 +721,104 @@ def _legende_text(art: str) -> str:
             "<span><i class='l vj'></i>Vorjahr</span><span><i class='l vvj'></i>Vorvorjahr</span>"
             "<span>Lücken = keine Daten für diesen Monat</span>")
 
+
+def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
+    b = ui.element("button").classes("m-xs-pill" + (" an" if an_ else "") + (" aus" if aus else ""))
+    attr(b, title=titel, aria_pressed=str(an_).lower(), **({"disabled": True} if aus else {}))
+    with b:
+        ui.icon(icon)
+        ui.label(text)
+    if klick and not aus:
+        b.on("click", klick)
+
+
+def _umschalter(icon: str, text: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
+    """Direkter Ein/Aus-Schalter mit Statusanzeige (z. B. Backtest)."""
+    b = ui.element("button").classes("m-xg-toggle" + (" an" if an_ else "") + (" aus" if aus else ""))
+    attr(b, title=titel, aria_pressed=str(an_).lower(), **({"disabled": True} if aus else {}))
+    with b:
+        ui.icon(icon)
+        ui.label(text)
+        ui.label("an" if an_ else "aus").classes("m-xg-toggle-status")
+    if not aus:
+        b.on("click", klick)
+
+
+def _goslar(a, sl: an.StatusLage, sm, kap: int, kont: dict | None, kompakt: bool, hell: bool, aendern) -> None:
+    """Aufteilung Goslar: heute (UWT · Mieter · übrige · frei), Kontingente in % und Prüfung der nächsten Monate."""
+    fb = an.STATUS_FARBEN[hell]
+    h = sl.heute
+    with ui.element("div").classes("m-paktionen").style("align-items:baseline"):
+        ui.label("Goslar · UWTler und Mieter").classes("m-btitel")
+        ui.label(f"Stichtag {sl.stichtag:%d.%m.%Y} · Kapazität {_z(kap)} Plätze · UWT und Mieter: gebuchte Plätze").classes("m-zweite")
+    # Balken der Kapazität heute
+    with ui.element("div").classes("m-xgs-balken"):
+        for schl, wert in (("UWT", h["UWT"]), ("Mieter", h["Mieter"]), ("uebrige", h["uebrige"]), ("frei", h["frei"])):
+            if kap and wert > 0:
+                farbe = _rgba(fb[schl], .45) if schl == "uebrige" else fb.get(schl, "transparent")
+                teil = ui.element("div").classes(f"m-xgs-teil {schl}").style(f"flex:{wert}; background:{farbe}")
+                attr(teil, title=f"{an.STATUS_NAMEN.get(schl, 'frei')}: {_z(wert)} Plätze ({an._p(wert / kap)})")
+    with ui.element("div").classes("m-xgs-zahlen"):
+        for schl, wert in (("UWT", h["UWT"]), ("Mieter", h["Mieter"]), ("uebrige", h["uebrige"]), ("frei", h["frei"])):
+            with ui.element("div").classes("m-xgs-zahl"):
+                ui.element("span").classes(f"m-xgs-punkt {schl}").style(f"background:{fb.get(schl, 'transparent')}")
+                ui.label(an.STATUS_NAMEN.get(schl, "frei"))
+                ui.label(_z(wert)).classes("m-mono w")
+                ui.label(an._p(wert / kap) if kap else "–").classes("m-zweite")
+    if kompakt:
+        for satz in sl.saetze[:2]:
+            ui.label(satz).classes("m-ptext")
+        return
+    for satz in sl.saetze:
+        ui.label(satz).classes("m-ptext")
+    if not kont or not kap:
+        return
+    # Kontingente: geplante prozentuale Aufteilung der Kapazität
+    zeilen = an.kontingent_pruefung(sm, kap, kont)
+    rest = max(100 - kont["UWT"] - kont["Mieter"], 0)
+    with ui.element("div").classes("m-xgs-kont"):
+        with ui.element("div").classes("m-paktionen").style("align-items:center"):
+            ui.label("Kontingente – geplante Aufteilung der Kapazität").classes("m-name")
+            ui.label("gespeichert" if a.daten.get("kontingent") else "Vorschlag aus den gebuchten Spitzen").classes("m-xgs-herkunft")
+            if a.daten.get("kontingent"):
+                knopf("Vorschlag", lambda: aendern(None), "leise", "auto_fix_high",
+                      "Eigene Aufteilung löschen und wieder den Vorschlag aus den Daten zeigen")
+        with ui.element("div").classes("m-xgs-stepper"):
+            for schl in ("UWT", "Mieter"):
+                with ui.element("div").classes("m-xgs-step"):
+                    ui.element("span").classes("m-xgs-punkt").style(f"background:{fb[schl]}")
+                    ui.label(an.STATUS_NAMEN[schl])
+                    for d in (-5, -1):
+                        knopf(f"−{-d}", lambda d=d, schl=schl: aendern(_kont_neu(kont, schl, d)), "leise klein")
+                    ui.label(f"{kont[schl]:g} %").classes("m-mono w")
+                    for d in (1, 5):
+                        knopf(f"+{d}", lambda d=d, schl=schl: aendern(_kont_neu(kont, schl, d)), "leise klein")
+                    ui.label(f"= {_z(kap * kont[schl] / 100)} Plätze").classes("m-zweite")
+            with ui.element("div").classes("m-xgs-step"):
+                ui.element("span").classes("m-xgs-punkt").style(f"background:{fb['uebrige']}")
+                ui.label("Teilnehmende & Sonstige")
+                ui.label(f"{rest:g} %").classes("m-mono w")
+                ui.label(f"= {_z(kap * rest / 100)} Plätze (Rest)").classes("m-zweite")
+        st = {"ok": "", "knapp": " warn", "ueber": " krit"}
+        with ui.element("div").classes("m-xgs-tab"):
+            for t in ("Monat", "UWT gebucht", "Mieter gebucht", "Übrige (Prognose)", "Gesamt"):
+                ui.label(t).classes("m-zweite")
+            for z in zeilen[:6]:
+                ui.label(ak.monat_text(z.monat) + (" · laufend" if z.art == "laufend" else "")).classes("m-name")
+                for wert, grenze, schl in ((z.uwt, z.k_uwt, "UWT"), (z.mieter, z.k_mieter, "Mieter"), (z.uebrige, z.k_uebrige, "uebrige")):
+                    ui.label(f"{_z(wert)} / {_z(grenze)}").classes("m-mono" + st[z.stufe[schl]])
+                ui.label(f"{_z(z.uwt + z.mieter + z.uebrige)} / {_z(kap)}").classes("m-mono")
+        for satz in an.kontingent_saetze(zeilen, kont):
+            ui.label(satz).classes("m-ptext")
+        ui.label("Kontingente sind eine Planungsannahme der neuen Oberfläche (gespeichert in modern_ui.json). "
+                 "Sie ändern weder Kapazität noch Belegungsdaten.").classes("m-zweite").style("white-space:normal")
+
+
+def _kont_neu(kont: dict, schl: str, d: float) -> dict:
+    neu = dict(kont)
+    andere = neu["Mieter" if schl == "UWT" else "UWT"]
+    neu[schl] = float(max(0, min(100 - andere, neu[schl] + d)))
+    return neu
 
 def _kpi_karte(k: an.Kpi) -> None:
     with ui.element("article").classes(f"m-xk-karte {k.stufe}") as karte:

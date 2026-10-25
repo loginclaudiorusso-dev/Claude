@@ -698,3 +698,56 @@ body.praesentation .m-kopf, body.praesentation .m-leiste { display: none !import
 .m-xp-titel { font-size: 22px; font-weight: 650; color: var(--text); letter-spacing: -.01em; }
 .m-xp-aktionen { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 """
+CSS += """
+/* 0.12 – Prognose: Backtest-/Status-Schalter, Management-Szenario, Goslar-Aufteilung */
+.m-xg-toggle { --c: var(--text3); font: inherit; font-size: 13px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 6px 0 11px; border-radius: 9px; border: 1px solid var(--rand2); background: var(--fl); cursor: pointer; }
+.m-xg-toggle .q-icon { font-size: 18px; color: var(--c); }
+.m-xg-toggle-status { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px;
+  border-radius: 7px; background: color-mix(in srgb, var(--text3) 18%, transparent); color: var(--text3); }
+.m-xg-toggle.an { --c: var(--orange); border-color: color-mix(in srgb, var(--orange) 60%, transparent); color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orange) 30%, transparent); }
+.m-xg-toggle.an .m-xg-toggle-status { background: var(--orange); color: #fff; }
+.m-xg-toggle:hover:not(.aus) { background: color-mix(in srgb, var(--text) 5%, var(--fl)); }
+.m-xg-toggle.aus, .m-xg-status.aus { opacity: .45; cursor: not-allowed; }
+.m-xg-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
+.m-xg-status.aus .m-segm { pointer-events: none; }
+.m-xg-fuss i.l.sz { border-top: 3px dotted var(--orange); opacity: .8; } .m-xg-fuss i.l.kont { border-top: 1.5px dashed var(--text2); }
+.m-xg-fuss i.f.uwt { background: #3B5BDB; } .m-xg-fuss i.f.mieter { background: #64748B; } .m-xg-fuss i.f.rest { background: #94A3B8; opacity: .55; }
+.m-xs-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 4px; }
+.m-xs-pill { font: inherit; font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 7px; height: 34px;
+  padding: 0 14px 0 11px; border-radius: 17px; border: 1px solid var(--rand2); background: var(--fl); cursor: pointer;
+  transition: background .15s, border-color .15s; }
+.m-xs-pill .q-icon { font-size: 17px; color: var(--text3); }
+.m-xs-pill:hover:not(.aus) { border-color: var(--orange); }
+.m-xs-pill.an { background: color-mix(in srgb, var(--orange) 16%, var(--fl)); border-color: var(--orange); font-weight: 600; }
+.m-xs-pill.an .q-icon { color: var(--orange); }
+.m-xs-pill.aus { opacity: .45; cursor: not-allowed; }
+.m-xs-stepper { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px; }
+.m-xs-step { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.m-xs-step > .m-name { width: 100px; }
+.m-xs-step .m-feld.klein { width: 96px; }
+.m-knopf.klein { height: 30px; min-width: 40px; padding: 0 8px; justify-content: center; font-variant-numeric: tabular-nums; }
+.m-xgs { gap: 10px; }
+.m-xgs-balken { display: flex; height: 16px; border-radius: 6px; overflow: hidden; border: 1px solid var(--rand2); background: var(--fl2); }
+.m-xgs-teil { min-width: 3px; } .m-xgs-teil.frei { background: transparent !important; }
+.m-xgs-zahlen { display: flex; flex-wrap: wrap; gap: 6px 26px; }
+.m-xgs-zahl { display: inline-flex; align-items: baseline; gap: 7px; font-size: 13px; color: var(--text2); }
+.m-xgs-zahl .w { font-size: 18px; font-weight: 650; color: var(--text); }
+.m-xgs-punkt { width: 10px; height: 10px; border-radius: 3px; flex: none; align-self: center; }
+.m-xgs-punkt.frei { border: 1px dashed var(--text3); }
+.m-xgs-kont { border-top: 1px solid var(--rand); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.m-xgs-herkunft { font-size: 11px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--rand2); color: var(--text3); }
+.m-xgs-stepper { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.m-xgs-step { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.m-xgs-step .w { min-width: 46px; text-align: center; font-weight: 650; color: var(--text); }
+.m-xgs-tab { display: grid; grid-template-columns: minmax(120px, auto) repeat(4, minmax(110px, auto)); gap: 4px 18px; max-width: 780px;
+  font-size: 13px; }
+.m-xgs-tab .warn { color: var(--orange) !important; } .m-xgs-tab .krit { color: var(--rot) !important; font-weight: 650; }
+.m-xgs.kompakt .m-xgs-zahl .w { font-size: 22px; }
+"""
+CSS += """
+body .m-xs-step .m-knopf.klein, body .m-xgs-step .m-knopf.klein { border: 1px solid var(--rand2) !important;
+  background: var(--fl) !important; color: var(--text) !important; box-shadow: none !important; }
+body .m-xs-step .m-knopf.klein:hover, body .m-xgs-step .m-knopf.klein:hover { border-color: var(--akzent) !important; }
+"""

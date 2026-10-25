@@ -89,6 +89,7 @@ class Ansicht:
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
         self.aw_modus, self.aw_schritt = "analyse", 4                     # Prognose: Analyse/Präsentation, Aufbauschritt
         self.aw_anim, self.aw_anim_gezeigt, self._anim_jetzt = True, False, False   # Aufbau-Animation nur beim ersten Öffnen
+        self.aw_status = False                 # Prognosegraph: Gesamt oder gestapelt nach Status (UWTler · Mieter · übrige)
         self.aw_details, self.aw_vergleich_praes = False, False           # Tabelle ausführlich, Standorte in der Präsentation
         self.weniger_bewegung = False          # System-Einstellung „Bewegung reduzieren“ (prefers-reduced-motion)
         self._prognose_chart = None
