@@ -55,12 +55,14 @@ SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "hande
            "mail": "mail", "weitere": "apartment", "neu": "fiber_new", 3: "report", 2: "priority_high", 1: "info"}
 
 
-def badge(zustand: str, text: str | None = None) -> None:
-    """Farbiges Zustands-Badge mit Symbol (frei, belegt, geplant, gesperrt, Mängel, unbewohnbar)."""
+def badge(zustand: str, text: str | None = None, zahl: int | None = None) -> None:
+    """Farbiges Zustands-Badge mit Symbol (frei, belegt, geplant, gesperrt, Mängel, unbewohnbar) – optional mit Anzahl."""
     farbe, icon, standard = ZUSTAND.get(zustand, ("neutral", "help", zustand))
     with ui.element("span").classes(f"m-badge {farbe}"):
         ui.icon(icon)
         ui.label(text or standard)
+        if zahl is not None:
+            ui.label(str(zahl)).classes("m-badge-n")
 
 
 def badge_neu(seit) -> None:

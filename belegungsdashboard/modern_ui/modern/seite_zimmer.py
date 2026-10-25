@@ -534,9 +534,10 @@ def _uebersicht(a) -> None:
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
         tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
         tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+        anzahl = {**n, "maengel": defekt, "unbewohnbar": sum(1 for k in alle if k.unbewohnbar)}
         with ui.element("span").classes("m-legende").style("margin-left:auto"):
             for z_ in ("frei", "teilweise", "belegt", "geplant", "gesperrt", "maengel", "unbewohnbar"):
-                badge(z_)
+                badge(z_, zahl=anzahl[z_])
     with a.inhalt:
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
