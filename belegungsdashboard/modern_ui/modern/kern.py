@@ -504,16 +504,17 @@ def neue_personen(stand: zp.Planstand, heute: date | None = None, tage: int = NE
 # Design (Theme) und Navigation – gespeichert in der eigenen Datei, wirkt nach dem Neustart weiter
 # ---------------------------------------------------------------------------------------
 
-def design_lesen() -> tuple[str, str]:
-    from .themes import NAV, THEMES
+def design_lesen() -> dict:
+    """Layout, Theme, Hell/Dunkel, Dichte, schmale Leiste, Vollbild, Notiz – geprüft (Unbekanntes → Original)."""
+    from .themes import bereinigen
 
-    d = speicher.lesen(ZUSTAND, {}).get("design", {})
-    theme = d.get("theme") if d.get("theme") in THEMES else "original"
-    nav = d.get("nav") if d.get("nav") in NAV else "seite"
-    return theme, nav
+    return bereinigen(speicher.lesen(ZUSTAND, {}).get("design", {}))
 
 
-def design_setzen(theme: str, nav: str) -> None:
+def design_setzen(d: dict) -> dict:
+    from .themes import bereinigen
+
     roh = speicher.lesen(ZUSTAND, {})
-    roh["design"] = {"theme": theme, "nav": nav}
+    roh["design"] = bereinigen(d)
     speicher.schreiben(ZUSTAND, roh)
+    return roh["design"]

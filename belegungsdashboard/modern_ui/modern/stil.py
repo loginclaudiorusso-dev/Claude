@@ -607,8 +607,13 @@ CSS += """
 .m-design-muster i:nth-child(1) { grid-row: 1 / span 2; border-radius: 3px; }
 .m-design-muster i { border-radius: 3px; }
 .d-original .m-design-muster { background: #0E0F12; } .d-original i { background: #262A33; } .d-original i:nth-child(3) { background: linear-gradient(90deg, #9333EA, #4F46E5); }
-.d-corporate .m-design-muster { background: #f3f5f9; } .d-corporate i:nth-child(1) { background: #183861; } .d-corporate i { background: #ffffff; border: 1px solid #dde3ec; }
+.d-inn .m-design-muster { background: #f3f5f9; } .d-inn i:nth-child(1) { background: #183861; } .d-inn i { background: #ffffff; border: 1px solid #dde3ec; }
 .d-linear .m-design-muster { background: #0a0a0b; } .d-linear i { background: #18181b; border: 1px solid #2e2e33; border-radius: 1px; }
-.d-bento .m-design-muster { background: radial-gradient(circle at 80% 0, rgba(124,196,250,.25), #0d0f13 60%); } .d-bento i { background: rgba(255,255,255,.08); border-radius: 6px; }
-.d-editorial .m-design-muster { background: #f6f2ea; } .d-editorial i:nth-child(1) { background: #efe8da; border-right: 2px solid #1a1714; } .d-editorial i { background: #fffdf8; border: 1.5px solid #1a1714; }
+.d-obsidian .m-design-muster { background: #0c0b0a; } .d-obsidian i { background: #1d1b18; border: 1px solid #3a352f; } .d-obsidian i:nth-child(3) { background: linear-gradient(90deg, #e2c99a, #9c7a45); }
+.d-nordic .m-design-muster { background: #f3efe7; } .d-nordic i:nth-child(1) { background: #e9e2d5; } .d-nordic i { background: #fbf9f5; border: 1px solid #ddd5c6; } .d-nordic i:nth-child(3) { background: #4a6878; }
+"""
+CSS += """
+.m-badge .m-badge-n { margin-left: 3px; padding-left: 6px; border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent); font-variant-numeric: tabular-nums;
+  font-weight: 700; opacity: .95; }
+.m-legende .m-badge { height: 24px; }
 """

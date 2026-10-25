@@ -48,10 +48,12 @@ class Ansicht:
         self.zeilen: list[kern.Zeile] = []
         self.neu: dict = {}                    # neue Personen (Schlüssel → erstmals gesehen)
         try:
-            self.theme, self.navmodus = kern.design_lesen()
-        except Exception:                      # noqa: BLE001 – im Zweifel das bisherige Design
-            self.theme, self.navmodus = "original", "seite"
-        themes.AKTIV = self.theme
+            self.design = kern.design_lesen()
+        except Exception:                      # noqa: BLE001 – im Zweifel der Original-Zustand
+            self.design = dict(themes.STANDARD)
+        themes.AKTIV = self.design
+        self.prompt = ""                       # AI-Canvas: aktuelle Eingabe
+        self._antwort = None
         self.filter = "alle"
         self.karten: list[kern.Karte] = []
         self.daten = None                      # Daten der aktuellen Seite (außer Anreisen)
@@ -167,8 +169,8 @@ class Ansicht:
 
     def aufbauen(self) -> None:
         ui.add_css(CSS)
-        ui.add_css(themes.CSS)                 # greift nur mit body.pro / body.th-… – „original“ bleibt unberührt
-        ui.query("body").classes(" ".join(["dark"] + themes.klassen(self.theme, self.navmodus)))
+        ui.add_css(themes.CSS)                 # greift nur mit body.pro – im Original-Zustand gilt allein das bisherige CSS
+        ui.query("body").classes(" ".join(["dark"] + themes.klassen(self.design)))
         with ui.element("div").classes("m-app"):
             with ui.element("nav").classes("m-nav"):
                 with ui.element("div").classes("m-marke"):
@@ -178,7 +180,8 @@ class Ansicht:
                 ui.label(f"Neue Oberfläche {__version__}\nDaten und Regeln: Belegung {haupt_version}").classes(
                     "m-navfuss").style("white-space: pre-line")
             with ui.element("div").classes("m-haupt"):
-                self.topnav = ui.element("nav").classes("m-topnav")     # nur sichtbar in neuen Designs mit „Navigation oben“
+                self.topnav = ui.element("nav").classes("m-topnav")     # Showcase: schwebendes Dock
+                self._prompt_bauen()                                    # AI-Canvas: zentrale Eingabe
                 with ui.element("header").classes("m-kopf"):
                     self.titel = ui.label("Anreisen").classes("m-titel")
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
@@ -187,22 +190,26 @@ class Ansicht:
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf")
                     attr(self.aufgaben_knopf, title="Aufgaben-Center (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
-                    with knopf("", None, "leise", "palette", "Design und Navigation"):
-                        self.design_menue = ui.menu().props('dark class="m-menue"')
-                    self._design_menue_fuellen()
                 self.leiste = ui.element("div").classes("m-leiste")
                 self.inhalt = ui.element("div").classes("m-inhalt")
             self.schleier = ui.element("div").classes("m-schleier")
             self.schleier.on("click", self._schliessen)
             self.center = ui.element("aside").classes("m-center")
             attr(self.center, aria_label="Aufgaben")
+        self.toolbar = ui.element("div").classes("m-tb")
+        attr(self.toolbar, role="toolbar", aria_label="Darstellung")
+        self._toolbar_fuellen()
+        ui.add_body_html(_TOOLBAR_JS)
         self.toast_box = ui.element("div")
         ui.keyboard(self._taste, ignore=["input", "select", "textarea"])   # Esc auch, wenn ein Knopf den Fokus hat
         ui.timer(PRUEF_S, self.pruefen)
+        if self.design["vollbild"]:
+            ui.timer(1.0, lambda: self._vollbild_nativ(True), once=True)
 
     def _nav_fuellen(self) -> None:
         self.nav.clear()
         dringend = sum(1 for k in self.karten if k.stufe == "dringend")
+        pro = self.design["layout"] != "original"
         with self.nav:
             gruppe = None
             for k, text, icon, g in register.NAV:
@@ -210,6 +217,8 @@ class Ansicht:
                     ui.label(g).classes("m-navgruppe")
                 gruppe = g
                 p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
+                if pro:
+                    attr(p, title=text)                                  # Tooltip für die schmale Leiste
                 with p:
                     ui.icon(icon)
                     ui.label(text)
@@ -221,25 +230,22 @@ class Ansicht:
                 ui.icon("search")
                 ui.label("Suchen")
                 ui.label("Strg K").classes("m-taste").style("margin-left:auto")
-            p.on("click", lambda: suche_palette.oeffnen(self))
-            if self.theme != "original":
-                for el in self.nav.default_slot.children:          # Tooltips für die schmale Leiste
-                    if "m-navpunkt" in el.classes:
-                        texte = [c.text for c in el.default_slot.children if hasattr(c, "text") and "m-zahl" not in c.classes]
-                        if texte:
-                            attr(el, title=texte[0])
-                schmal = self.navmodus == "schmal"
+            if pro:
+                attr(p, title="Suchen (Strg+K)")
+            p.on("click", self.suchen)
+            if self.design["layout"] == "grid":
+                schmal = self.design["schmal"]
                 with ui.element("button").classes("m-navpunkt m-navklapp") as k:
                     ui.icon("keyboard_double_arrow_left")
                     ui.label("Leiste einklappen")
                 attr(k, title="Leiste ausklappen (Strg+B)" if schmal else "Leiste einklappen (Strg+B)")
-                k.on("click", lambda: self.design_wechseln(nav="seite" if schmal else "schmal"))
+                k.on("click", lambda: self.design_setzen(schmal=not schmal))
         self._topnav_fuellen(dringend)
 
     def _topnav_fuellen(self, dringend: int) -> None:
-        """Navigation oben: alle Punkte direkt sichtbar, „Verwalten“ als Dropdown – kein Punkt fällt weg."""
+        """Showcase-Dock: alle Seiten direkt sichtbar, „Verwalten“ als Dropdown – kein Menüpunkt fällt weg."""
         self.topnav.clear()
-        if self.theme == "original" or self.navmodus != "oben":
+        if self.design["layout"] != "showcase":
             return
         with self.topnav:
             with ui.element("div").classes("m-marke"):
@@ -278,52 +284,278 @@ class Ansicht:
                 ui.icon("search")
                 ui.label("Suchen")
                 ui.label("Strg K").classes("m-taste")
-            p.on("click", lambda: suche_palette.oeffnen(self))
+            p.on("click", self.suchen)
 
-    # ---- Design ---------------------------------------------------------------------------
+    # ---- AI-Canvas: Prompt-Bar ------------------------------------------------------------
 
-    def _design_menue_fuellen(self) -> None:
-        self.design_menue.clear()
-        with self.design_menue:
-            ui.label("Design").classes("m-mgruppe")
-            for k, (name, text) in themes.THEMES.items():
-                with ui.menu_item(on_click=lambda k=k: self.design_wechseln(theme=k)).classes("m-mpunkt"):
-                    ui.icon("radio_button_checked" if k == self.theme else "radio_button_unchecked").classes(
-                        "m-mhaken" + (" an" if k == self.theme else ""))
-                    with ui.element("div"):
-                        ui.label(name)
-                        ui.label(text).classes("m-zweite").style("white-space:normal; max-width:300px")
-            ui.separator()
-            ui.label("Navigation" + (" – in den neuen Designs" if self.theme == "original" else "")).classes("m-mgruppe")
-            for k, name in themes.NAV.items():
-                item = ui.menu_item(on_click=lambda k=k: self.design_wechseln(nav=k)).classes("m-mpunkt")
-                if self.theme == "original":
-                    item.props("disable")
-                with item:
-                    ui.icon("radio_button_checked" if k == self.navmodus else "radio_button_unchecked").classes(
-                        "m-mhaken" + (" an" if k == self.navmodus else ""))
-                    ui.label(name)
+    def _prompt_bauen(self) -> None:
+        from .canvas_kern import VORSCHLAEGE
 
-    async def design_wechseln(self, theme: str | None = None, nav: str | None = None) -> None:
-        """Design/Navigation sofort umschalten – nur Klassen am <body>, nichts wird neu geladen (keine Eingabe geht
-        verloren). Diagramme bekommen ihre Farben aus Python und werden neu gezeichnet."""
-        alt = self.theme
-        self.theme = theme or self.theme
-        self.navmodus = nav or self.navmodus
-        themes.AKTIV = self.theme
-        ui.query("body").classes(add=" ".join(themes.klassen(self.theme, self.navmodus)) or None,
-                                 remove=" ".join(themes.ALLE_KLASSEN))
-        ui.query("body").classes(add=" ".join(themes.klassen(self.theme, self.navmodus)) or None)
-        self._design_menue_fuellen()
-        self._nav_fuellen()
-        if theme and theme != alt and self.seite == "auswertung":
+        with ui.element("div").classes("m-prompt-zeile"):
+            with ui.element("div").classes("m-prompt"):
+                ui.icon("auto_awesome")
+                self.prompt_eingabe = ui.input(placeholder="Frag oder filtere … z. B. „freie Zimmer Haus 2“, „ohne Zimmer“, "
+                                                           "„neu“, „Abreisen diese Woche“, ein Name").props("dense borderless dark")
+                self.prompt_eingabe.on("update:model-value", self._prompt_geaendert, throttle=0.3, leading_events=False)
+                self.prompt_eingabe.on("keydown.esc", self._prompt_leeren)
+                ui.label("Strg K  ·  /").classes("m-taste")
+            with ui.element("div").classes("m-vorschlaege"):
+                for v in VORSCHLAEGE:
+                    b = ui.element("button").classes("m-vorschlag")
+                    with b:
+                        ui.label(v)
+                    b.on("click", lambda v=v: self._prompt_setzen(v))
+
+    def _prompt_fokus(self) -> None:
+        ui.run_javascript("document.querySelector('.m-prompt input')?.focus()")
+
+    def _prompt_setzen(self, text: str) -> None:
+        self.prompt_eingabe.set_value(text)
+        self._prompt_fokus()
+
+    async def _prompt_leeren(self) -> None:
+        self.prompt_eingabe.set_value("")
+        ui.run_javascript("document.querySelector('.m-prompt input')?.blur()")
+        self.prompt, self._antwort = "", None
+        self.zeichnen()
+
+    async def _prompt_geaendert(self) -> None:
+        self.prompt = self.prompt_eingabe.value or ""
+        if self.design["layout"] != "canvas":
+            return
+        if not self.prompt.strip():
+            self._antwort = None
             self.zeichnen()
+            return
+        from . import canvas_kern
+
+        text = self.prompt
         try:
-            await run.io_bound(kern.design_setzen, self.theme, self.navmodus)
-        except Exception:                      # noqa: BLE001 – Merken ist Komfort, Umschalten klappt trotzdem
-            log.exception("Design nicht gespeichert")
-        if self.seite == "einstellungen":
+            antwort = await run.io_bound(canvas_kern.antwort, self.stand, text, self.heute, self.neu)
+        except Exception as exc:               # noqa: BLE001 – eine Eingabe darf nie die Seite blockieren
+            log.exception("Canvas")
+            self.toast(f"Nicht verstanden: {exc}", fehler=True)
+            return
+        if text == self.prompt:                # inzwischen weitergetippt → die neuere Antwort gewinnt
+            self._antwort = antwort
             self.zeichnen()
+
+    async def suchen(self) -> None:
+        """Strg+K: im AI-Canvas die zentrale Eingabe, sonst die Suchpalette."""
+        if self.design["layout"] == "canvas":
+            self._prompt_fokus()
+        else:
+            suche_palette.oeffnen(self)
+
+    async def _canvas_ziel(self, seite: str, zustand: dict) -> None:
+        self.prompt_eingabe.set_value("")
+        self.prompt, self._antwort = "", None
+        await self.oeffnen(seite, **zustand)
+
+    def _canvas_zeichnen(self) -> None:
+        from .ui_bausteine import badge
+
+        a = self._antwort
+        self.titel.set_text("Antwort")
+        with self.inhalt, ui.element("div").classes("m-cv"):
+            with ui.element("div").classes("m-cv-verstanden"):
+                ui.label("Verstanden:" if a.verstanden else "Überblick")
+                for t in a.verstanden:
+                    ui.label(t).classes("m-cv-tag")
+                knopf("Eingabe leeren (Esc)", self._prompt_leeren, "leise", "close").style("margin-left:auto")
+            with ui.element("div").classes("m-cv-raster zahlen"):
+                for z in a.zahlen:
+                    k = ui.element("button").classes("m-cv-karte")
+                    with k:
+                        ui.label(z.titel).classes("m-zweite")
+                        ui.label(str(z.wert)).classes("z")
+                        ui.label(z.unter).classes("m-zweite")
+                    k.on("click", lambda z=z: self._canvas_ziel(*z.ziel))
+            if a.seiten:
+                ui.label("Seiten").classes("m-btitel")
+                with ui.element("div").classes("m-cv-raster"):
+                    for titel, key in a.seiten:
+                        k = ui.element("button").classes("m-cv-karte")
+                        with k, ui.element("div").classes("k"):
+                            ui.icon("arrow_forward")
+                            ui.label(titel).classes("m-name")
+                        k.on("click", lambda key=key: self._canvas_ziel(key, {}))
+            if a.personen:
+                with ui.element("div").classes("m-cv-gruppe"):
+                    ui.label(f"Personen · {a.personen_gesamt}").classes("m-btitel")
+                    if a.alle_personen:
+                        knopf("Alle als Liste", lambda: self._canvas_ziel(*a.alle_personen), "leise", "list")
+                with ui.element("div").classes("m-cv-raster"):
+                    for p in a.personen:
+                        k = ui.element("button").classes("m-cv-karte")
+                        with k:
+                            with ui.element("div").classes("k"):
+                                ui.label(p.name).classes("m-name")
+                                if p.neu_seit:
+                                    badge_neu(p.neu_seit)
+                            ui.label(p.zweite).classes("m-zweite")
+                            badge("belegt", p.zimmer) if p.zimmer else badge("ohne")
+                        if p.zimmer_id:
+                            k.on("click", lambda p=p: self._canvas_ziel("zimmer", {"karte": p.zimmer_id}))
+                        else:
+                            k.on("click", lambda p=p: self._canvas_ziel("anreisen", {"ansicht": "zuteilen", "kennung": p.kennung}))
+            if a.zimmer:
+                with ui.element("div").classes("m-cv-gruppe"):
+                    ui.label(f"Zimmer · {a.zimmer_gesamt}").classes("m-btitel")
+                    if a.alle_zimmer:
+                        knopf("Alle als Liste", lambda: self._canvas_ziel(*a.alle_zimmer), "leise", "list")
+                with ui.element("div").classes("m-cv-raster"):
+                    for z in a.zimmer:
+                        k = ui.element("button").classes("m-cv-karte")
+                        with k:
+                            with ui.element("div").classes("k"):
+                                ui.label(z.kurz).classes("m-name m-mono")
+                                badge(z.status)
+                            ui.label(f"{z.lage} · {z.heute}").classes("m-zweite")
+                            if z.maengel:
+                                ui.label(z.maengel).classes("m-zweite " + ("m-krit" if z.stufe == 3 else "m-warn"))
+                        k.on("click", lambda z=z: self._canvas_ziel("zimmer", {"karte": z.zimmer}))
+            if a.abreisen:
+                ui.label(f"Abreisen · {len(a.abreisen)}").classes("m-btitel")
+                with ui.element("div").classes("m-cv-raster"):
+                    for x in a.abreisen:
+                        k = ui.element("button").classes("m-cv-karte")
+                        with k:
+                            with ui.element("div").classes("k"):
+                                ui.label(x.name).classes("m-name")
+                                ui.label(x.zimmer).classes("m-mono")
+                            ui.label(f"{x.tag} · {x.massnahme}").classes("m-zweite")
+                        if x.zimmer_id:
+                            k.on("click", lambda x=x: self._canvas_ziel("zimmer", {"karte": x.zimmer_id}))
+            if not (a.personen or a.zimmer or a.abreisen or a.seiten) and a.verstanden:
+                ui.label("Keine Treffer – andere Wörter probieren, z. B. „frei“, „Haus 3.1“, „ohne Zimmer“, einen Namen.").classes(
+                    "m-cv-leer")
+
+    # ---- Darstellung: Layout, Theme, Hell/Dunkel, Dichte, Vollbild, Notiz -----------------
+
+    def _toolbar_fuellen(self) -> None:
+        d = self.design
+        original = d["layout"] == "original"
+        self.toolbar.clear()
+
+        def k(icon: str, titel: str, klick=None, extra: str = ""):
+            b = ui.element("button").classes(f"m-tb-k {extra}".strip())
+            attr(b, title=titel, aria_label=titel)
+            with b:
+                ui.icon(icon)
+            if klick:
+                b.on("click", klick)
+            return b
+
+        def punkt(text: str, unter: str, an: bool, klick, aus: bool = False):
+            item = ui.menu_item(on_click=klick).classes("m-mpunkt")
+            if aus:
+                item.props("disable")
+            with item:
+                ui.icon("radio_button_checked" if an else "radio_button_unchecked").classes("m-mhaken" + (" an" if an else ""))
+                with ui.element("div"):
+                    ui.label(text)
+                    if unter:
+                        ui.label(unter).classes("m-zweite").style("white-space:normal; max-width:280px")
+
+        with self.toolbar:
+            griff = k("tune", "Darstellung – Leiste anheften/lösen", extra="m-tb-griff")
+            griff.on("click", js_handler="() => document.querySelector('.m-tb')?.classList.toggle('fest')")
+            with k("space_dashboard", "Layout"):
+                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
+                    ui.label("Layout").classes("m-mgruppe")
+                    for key, (name, text, _i) in themes.LAYOUTS.items():
+                        punkt(name, text, d["layout"] == key, lambda key=key: self.design_setzen(layout=key))
+            with k("palette", "Theme (Farben)"):
+                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
+                    ui.label("Theme" + (" – wechselt ins Classic Grid" if original else "")).classes("m-mgruppe")
+                    for key, (name, text, _m) in themes.THEMES.items():
+                        punkt(name, text, not original and d["theme"] == key, lambda key=key: self.design_setzen(theme=key))
+            zwei = len(themes.modi(d["theme"])) > 1 and not original
+            k("dark_mode" if d["modus"] == "hell" else "light_mode",
+              ("Dunkel" if d["modus"] == "hell" else "Hell") if zwei else "Hell/Dunkel – im Original bzw. Original-Theme nicht verfügbar",
+              (lambda: self.design_setzen(modus="dunkel" if d["modus"] == "hell" else "hell")) if zwei else None,
+              "" if zwei else "aus")
+            k("density_small" if d["dichte"] == "normal" else "density_medium",
+              ("Kompakt (mehr Zeilen)" if d["dichte"] == "normal" else "Normale Dichte") if not original else "Dichte – im Original nicht verfügbar",
+              (lambda: self.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal")) if not original else None,
+              ("an" if d["dichte"] == "kompakt" else "") if not original else "aus")
+            ui.element("div").classes("m-tb-t")
+            k("search", "Suchen / Prompt (Strg+K)", self.suchen)
+            k("fullscreen_exit" if d["vollbild"] else "fullscreen", "Vollbild beenden" if d["vollbild"] else "Vollbild",
+              self.vollbild_umschalten, "an" if d["vollbild"] else "")
+            with k("sticky_note_2", "Notiz", extra="an" if d["notiz"].strip() else ""):
+                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
+                    with ui.element("div").classes("m-tb-notiz"):
+                        ui.label("Schnelle Notiz – bleibt gespeichert").classes("m-mgruppe").style("padding:0")
+                        notiz = ui.textarea(value=d["notiz"], placeholder="z. B. Rückruf Hausmeister wegen 2-408 …").props(
+                            "dark outlined autogrow")
+                        notiz.on("blur", lambda: self._notiz_speichern(notiz.value or ""))
+            ui.element("div").classes("m-tb-t")
+            k("restart_alt", "Original-Zustand – bisheriges Design und Layout (1 Klick)",
+              lambda: self.design_setzen(**{**themes.STANDARD, "notiz": self.design["notiz"]}), "reset" + (" aus" if original else ""))
+
+    async def _notiz_speichern(self, text: str) -> None:
+        if text == self.design["notiz"]:
+            return
+        self.design["notiz"] = text
+        try:
+            await run.io_bound(kern.design_setzen, self.design)
+        except Exception:                      # noqa: BLE001
+            log.exception("Notiz nicht gespeichert")
+
+    def _vollbild_nativ(self, an: bool) -> bool:
+        """Vollbild im eigenen Fenster (pywebview). False = kein natives Fenster (dann der Browser)."""
+        fenster = getattr(app.native, "main_window", None)
+        if fenster is None:
+            return False
+        try:
+            fenster.toggle_fullscreen()
+            return True
+        except Exception:                      # noqa: BLE001
+            return False
+
+    async def vollbild_umschalten(self) -> None:
+        an = not self.design["vollbild"]
+        if not self._vollbild_nativ(an):
+            ui.run_javascript("document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()")
+        await self.design_setzen(vollbild=an)
+
+    async def design_setzen(self, **aenderung) -> None:
+        """Layout/Theme/Hell-Dunkel/Dichte/schmale Leiste sofort umschalten – nur Klassen am <body>, nichts wird neu
+        geladen (keine Eingabe geht verloren). Diagramme und Canvas werden neu gezeichnet."""
+        alt = dict(self.design)
+        neu = {**self.design, **aenderung}
+        if "theme" in aenderung and aenderung.get("layout") != "original":
+            if neu["layout"] == "original":
+                neu["layout"] = "grid"             # ein Theme gibt es nur in den neuen Layouts
+            if "modus" not in aenderung:
+                neu["modus"] = themes.THEMES[aenderung["theme"]][2]
+        if "layout" in aenderung and aenderung["layout"] != "original" and alt["layout"] == "original" and "theme" not in aenderung:
+            neu["theme"] = "original"
+        if aenderung.get("layout") == "original":
+            neu["theme"] = "original"
+            if alt["vollbild"] and "vollbild" in aenderung and not aenderung["vollbild"]:
+                if not self._vollbild_nativ(False):
+                    ui.run_javascript("document.fullscreenElement && document.exitFullscreen()")
+        self.design = themes.bereinigen(neu)
+        themes.AKTIV = self.design
+        ui.query("body").classes(remove=" ".join(themes.ALLE_KLASSEN))
+        if themes.klassen(self.design):
+            ui.query("body").classes(add=" ".join(themes.klassen(self.design)))
+        self._toolbar_fuellen()
+        if self.design["layout"] != "canvas" and self.prompt:
+            self.prompt_eingabe.set_value("")
+            self.prompt, self._antwort = "", None
+        farben_neu = (alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
+        if alt["layout"] != self.design["layout"] or (farben_neu and self.seite == "auswertung") or self.seite == "einstellungen":
+            self.zeichnen()
+        else:
+            self._nav_fuellen()
+        try:
+            await run.io_bound(kern.design_setzen, self.design)
+        except Exception:                      # noqa: BLE001 – Merken ist Komfort, Umschalten klappt trotzdem
+            log.exception("Darstellung nicht gespeichert")
 
     # ---- Zeichnen ------------------------------------------------------------------------
 
@@ -334,7 +566,9 @@ class Ansicht:
             c.clear()
         titel = register.TITEL[self.seite]
         self.titel.set_text(titel)
-        if self.fehler:
+        if self.design["layout"] == "canvas" and self.prompt.strip() and self._antwort is not None:
+            self._canvas_zeichnen()
+        elif self.fehler:
             with self.inhalt:
                 leer(self.fehler)
         elif self.stand is None or (self.daten is None and (self.seite != "anreisen"
@@ -623,9 +857,11 @@ class Ansicht:
         if e.modifiers.ctrl and e.key.name.lower() == "z":
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
-            suche_palette.oeffnen(self)
-        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.theme != "original":
-            await self.design_wechseln(nav="seite" if self.navmodus == "schmal" else "schmal")
+            await self.suchen()
+        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "grid":
+            await self.design_setzen(schmal=not self.design["schmal"])
+        elif e.key.name == "/" and self.design["layout"] == "canvas":
+            self._prompt_fokus()
         elif e.key.name == "Escape" and self.center_offen:
             if self.panel_def is not None:
                 self.panel_zu()
@@ -633,6 +869,16 @@ class Ansicht:
                 self.center_umschalten(False)
         elif e.key.name.lower() == "a" and not e.modifiers.ctrl and self.panel_def is None:
             self.center_umschalten()
+
+
+_TOOLBAR_JS = """<script>
+(() => {   // Werkzeugleiste: nach 3,5 s ohne Bewegung zurücknehmen (nur der Griff bleibt), bei Bewegung wieder zeigen
+  let t = null;
+  const wach = () => { const tb = document.querySelector('.m-tb'); if (!tb) return; tb.classList.add('wach');
+    clearTimeout(t); t = setTimeout(() => tb.classList.remove('wach'), 3500); };
+  ['mousemove', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, wach, { passive: true }));
+})();
+</script>"""
 
 
 @app.get("/druck/{name}")

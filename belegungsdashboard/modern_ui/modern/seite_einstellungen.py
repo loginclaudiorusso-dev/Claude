@@ -291,26 +291,45 @@ async def _ki_testen(a) -> None:
 
 
 def _darstellung(a) -> None:
-    """Design und Navigation – dasselbe wie das Paletten-Symbol oben rechts."""
+    """Layout und Theme – dasselbe wie die schwebende Werkzeugleiste unten rechts."""
     from . import themes
 
+    d = a.design
+    original = d["layout"] == "original"
     with ui.element("section").classes("m-block m-breit"):
         ui.label("Darstellung").classes("m-btitel")
-        ui.label("Wirkt sofort und bleibt gespeichert. „Original“ ist das bisherige Design – jederzeit zurück per Klick. "
-                 "Die Navigation lässt sich in den neuen Designs schmal (nur Symbole, Strg+B) oder oben anzeigen.").classes("m-ptext")
+        ui.label("Zwei Ebenen: das Layout (Aufbau) und das Theme (Farben). Wirkt sofort und bleibt gespeichert. "
+                 "„Original-Zustand“ setzt beides auf das bisherige Design zurück – auch über den roten Knopf in der "
+                 "Werkzeugleiste unten rechts.").classes("m-ptext")
+        ui.label("Layout").classes("m-ktitel")
         with ui.element("div").classes("m-designs"):
-            for k, (name, text) in themes.THEMES.items():
-                b = ui.element("button").classes(f"m-design d-{k}" + (" an" if k == a.theme else ""))
-                attr(b, aria_pressed=str(k == a.theme).lower())
+            for k, (name, text, icon) in themes.LAYOUTS.items():
+                b = ui.element("button").classes("m-design" + (" an" if k == d["layout"] else ""))
+                attr(b, aria_pressed=str(k == d["layout"]).lower())
+                with b:
+                    with ui.element("div").classes("m-name").style("display:flex; gap:8px; align-items:center"):
+                        ui.icon(icon)
+                        ui.label(name)
+                    ui.label(text).classes("m-zweite").style("white-space:normal")
+                b.on("click", lambda k=k: a.design_setzen(layout=k))
+        ui.label("Theme" + (" – wechselt ins Classic Grid" if original else "")).classes("m-ktitel")
+        with ui.element("div").classes("m-designs"):
+            for k, (name, text, _m) in themes.THEMES.items():
+                an = not original and k == d["theme"]
+                b = ui.element("button").classes(f"m-design d-{k}" + (" an" if an else ""))
+                attr(b, aria_pressed=str(an).lower())
                 with b:
                     with ui.element("div").classes("m-design-muster"):
                         for _i in range(3):
                             ui.element("i")
                     ui.label(name).classes("m-name")
                     ui.label(text).classes("m-zweite").style("white-space:normal")
-                b.on("click", lambda k=k: a.design_wechseln(theme=k))
-        if a.theme == "original":
-            ui.label("Navigation: im Original immer die Seitenleiste.").classes("m-zweite")
-        else:
-            segmente(themes.NAV, a.navmodus, lambda n: a.design_wechseln(nav=n))
+                b.on("click", lambda k=k: a.design_setzen(theme=k))
+        if not original:
+            with ui.element("div").classes("m-paktionen"):
+                if len(themes.modi(d["theme"])) > 1:
+                    segmente({"hell": "Hell", "dunkel": "Dunkel"}, d["modus"], lambda m: a.design_setzen(modus=m))
+                segmente({"normal": "Normale Dichte", "kompakt": "Kompakt"}, d["dichte"], lambda x: a.design_setzen(dichte=x))
+                if d["layout"] == "grid":
+                    segmente({False: "Seitenleiste", True: "Schmale Leiste"}, d["schmal"], lambda x: a.design_setzen(schmal=x))
 
