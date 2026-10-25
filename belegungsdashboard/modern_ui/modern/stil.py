@@ -777,3 +777,20 @@ CSS += """
 .m-ex.m-wechselt { opacity: .45; transition: opacity .12s ease-out; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .m-ex { animation: none; } .m-ex.m-wechselt { transition: none; } }
 """
+CSS += """
+/* 0.16 – eine Filterleiste über dem Prognosegraph, leuchtendes Ansicht-Badge */
+.m-xg-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--rand); }
+.m-xg-filter-rechts { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.m-xg-filter-rechts .m-segm button { padding-left: 11px; padding-right: 11px; }
+.m-xg-ansicht { transition: color .25s, background .25s, border-color .25s, box-shadow .25s; }
+.m-xg-ansicht.leuchtet { color: var(--text); font-weight: 700; border-color: var(--akzent);
+  background: color-mix(in srgb, var(--akzent) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--akzent) 45%, transparent), 0 0 14px color-mix(in srgb, var(--akzent) 45%, transparent); }
+.m-xg-ansicht.rein { color: var(--text3); font-weight: 600; border-color: var(--rand2); background: transparent; box-shadow: none; }
+.m-ex.still, .m-ex.still .m-xg-chart { animation: none; }
+@media (prefers-reduced-motion: reduce) { .m-xg-ansicht { transition: none; } }
+"""
+CSS += """
+.m-xg-filter .m-segm, .m-xg-kopf .m-segm { margin-left: 0; }    /* Standorte und Reiter bündig links */
+"""

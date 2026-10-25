@@ -501,7 +501,10 @@ def daten(a, ds) -> None:
     """Prognose laden und die Schalter „UWTler / Mieter einbeziehen“ einrechnen (echte Listen, Verträge, Zimmerplan).
     Ergebnisse werden je Auswahl zwischengespeichert; die anderen Standorte rechnet ``vorrechnen`` im Hintergrund."""
     stand = getattr(a, "stand", None)
-    a.daten = dict(_daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter))
+    mit = bool(a.aw_status)                 # „Nach Status“ = inklusive UWTler und Mieter, sonst reine Teilnehmer-Sicht
+    a.aw_uwt = a.aw_mieter = mit
+    a.daten = dict(_daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, mit, mit))
+    a.daten["alt"] = _daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, not mit, not mit)
     if a.aw_standort == GOSLAR:
         a.daten["kontingent"] = kern.kontingent_lesen(a.aw_standort)     # Planung kann sich ändern – immer frisch
 
@@ -512,7 +515,8 @@ def vorrechnen(a) -> None:
     if ds is None:
         return
     for standort in ak.STANDORTE:
-        _daten_fuer(ds, stand, standort, a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter)
+        for mit in (False, True):
+            _daten_fuer(ds, stand, standort, a.aw_brutto, a.aw_horizont, mit, mit)
     _daten_fuer(ds, stand, a.aw_standort, not a.aw_brutto, a.aw_horizont, a.aw_uwt, a.aw_mieter)
 
 
@@ -627,25 +631,28 @@ def zeichnen(a) -> None:
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
     if not praes:
         with a.leiste:
-            segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, a.aw_horizont, lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
             knopf("Präsentation", lambda: _modus(a, "praes"), "primaer", "slideshow",
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")
             _export_menue(a, pg, zustand, box, ex)
 
     with a.inhalt:
-        wurzel = ui.element("div").classes("m-ex" + (" praes" if praes else ""))
+        wurzel = ui.element("div").classes("m-ex" + (" praes" if praes else "") + (" still" if getattr(a, "_still", False) else ""))
+    a._still = False
     with wurzel:
         if praes:
             _praes_kopf(a, pg)
         # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (Detail – steht unter dem Graph) ----------
         gs_box = None
-        if a.aw_standort == GOSLAR and a.daten.get("sl"):
+        gs = a.daten if a.aw_status else (a.daten.get("alt") or {})   # Goslar-Detail zeigt immer UWTler und Mieter
+        gs_sm = gs.get("sm") or []
+        if a.aw_standort == GOSLAR and gs.get("sl"):
             gs_box = ui.element("section").classes("m-block m-xgs" + (" kompakt" if praes else ""))
 
             def goslar_zeichnen():
                 gs_box.clear()
                 with gs_box:
-                    _goslar(a, a.daten["sl"], sm, kap_echt, kontingent(), praes, hell, goslar_neu)
+                    _goslar(a, gs["sl"], gs_sm, kap_echt,
+                            a.daten.get("kontingent") or an.kontingent_vorschlag(gs_sm, kap_echt), praes, hell, goslar_neu)
 
             def goslar_neu(werte):
                 a.daten["kontingent"] = werte
@@ -691,15 +698,28 @@ def zeichnen(a) -> None:
         # ---- Hauptgraph (wird bei Reiter-/Ansichtswechsel allein neu gebaut – ohne Neuladen, ohne Seitenaufbau) ----
         graph_box = ui.element("section").classes("m-block m-xg")
 
+        def variante(mit: bool) -> dict:
+            """Daten der Ansicht „Belegung“ (ohne UWTler/Mieter) bzw. „Nach Status“ (mit) – eine liegt immer vor."""
+            if not a.daten.get("gruppen_da"):
+                return {}
+            d = a.daten if bool(a.aw_status) == mit else (a.daten.get("alt") or a.daten)
+            g = d.get("gruppen")
+            kont = None
+            if mit and a.aw_standort == GOSLAR and d.get("sm"):
+                kont = a.daten.get("kontingent") or an.kontingent_vorschlag(d["sm"], kap_echt)
+            return {"pg": d["pg"], "pg_lang": d.get("pg_lang"), "sm": d.get("sm"), "sv": d.get("sv"),
+                    "gruppen_text": g.text() if g else "", "kontingent": kont}
+
         def modi() -> dict:
             """Fertige Diagramm-Optionen aller Ansichten – der Browser schaltet damit ohne Rückfrage um (< 50 ms)."""
             anim = a.aw_anim and not a.weniger_bewegung
+            ohne, mit_ = variante(False), variante(True)
             d = {"reserve": option(c(anim, art="reserve")), "jahr": option(c(anim, art="jahr")),
-                 "kurve": option(c(anim, art="trend", status=False, parallel=False))}
+                 "kurve": option(c(anim, art="trend", status=False, parallel=False, **ohne))}
             if anim and not praes:
-                d["kurve_start"] = option(c(True, "start", art="trend", status=False, parallel=False))
-            if a.daten.get("sm"):
-                d["status"] = option(c(anim, art="trend", status=True, parallel=False))
+                d["kurve_start"] = option(c(True, "start", art="trend", status=False, parallel=False, **ohne))
+            if mit_.get("sm"):
+                d["status"] = option(c(anim, art="trend", status=True, parallel=False, **mit_))
             if a.aw_standort == konfig.GESAMT and a.daten.get("sv"):
                 d["standorte"] = option(c(anim, art="trend", status=False, parallel=True))
             return d
@@ -709,12 +729,16 @@ def zeichnen(a) -> None:
                 box["daten"]._props["data-modi"] = json.dumps(modi())
                 box["daten"].update()
 
-        def graph_sync(e):
-            """Der Browser hat umgeschaltet – Zustand nachziehen (ohne neu zu zeichnen)."""
+        async def graph_sync(e):
+            """Der Browser hat umgeschaltet – Zustand nachziehen (der Graph ist schon richtig)."""
             d = (e.args or {}).get("detail") or {}
+            war_mit = bool(a.aw_status)
             a.aw_chart = d.get("tab", a.aw_chart)
             a.aw_status, a.aw_parallel = d.get("ansicht") == "status", d.get("ansicht") == "standorte"
-            if praes:
+            if a.daten.get("gruppen_da") and bool(a.aw_status) != war_mit:
+                a._still = True                      # Kennzahlen, Tabelle, Goslar folgen dem Personenkreis – ohne Einblenden
+                await a.setzen(nur_seite=True)
+            elif praes:
                 graph_zeichnen(False)                # Schrittsteuerung der Präsentation hängt am Modus
             elif "chart" in box:
                 box["chart"].options.clear()
@@ -735,6 +759,14 @@ def zeichnen(a) -> None:
             jetzt = "standorte" if parallel else "status" if a.aw_status else "kurve"
             attr(graph_box, data_tab=a.aw_chart, data_ansicht=jetzt, data_anim="1" if a.aw_anim and not a.weniger_bewegung else "0")
             with graph_box:
+                if not praes:                        # eine Filterleiste: Standort links, Netto/Brutto und Zeitraum rechts
+                    with ui.element("div").classes("m-xg-filter").props('role="toolbar" aria-label="Filter der Prognose"'):
+                        segmente(ak.STANDORTE, a.aw_standort, lambda s_: a.setzen(aw_standort=s_, nur_seite=True), sofort=True)
+                        with ui.element("div").classes("m-xg-filter-rechts"):
+                            segmente({False: "Netto", True: "Brutto"}, a.aw_brutto,
+                                     lambda b_: a.setzen(aw_brutto=b_, nur_seite=True), sofort=True)
+                            segmente({12: "12M", 24: "24M", 36: "36M"}, a.aw_horizont,
+                                     lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
                 with ui.element("div").classes("m-xg-kopf"):
                     _js_segmente(CHARTS, a.aw_chart, "tab")
                     with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
@@ -1021,6 +1053,9 @@ window.mGraph = {   // Prognosegraph: Reiter und Ansichten im Browser umschalten
     const sa = box.querySelector('.m-xg-status'); if (sa) sa.classList.toggle('aus', tab !== 'trend');
     box.querySelectorAll('[data-legende]').forEach(l => l.style.display = l.dataset.legende === key ? '' : 'none');
     box.querySelectorAll('[data-nur]').forEach(l => l.style.display = l.dataset.nur === key ? '' : 'none');
+    const badge = box.querySelector('.m-xg-ansicht');
+    if (badge && (ansicht === 'status' || ansicht === 'kurve')) { const mit = ansicht === 'status';
+      badge.textContent = mit ? badge.dataset.mit : badge.dataset.ohne; badge.classList.toggle('leuchtet', mit); badge.classList.toggle('rein', !mit); }
     const m = box.querySelector('.m-xg-melder');
     if (m) m.dispatchEvent(new CustomEvent('mgraph', { detail: { tab, ansicht } }));
   },
@@ -1031,8 +1066,11 @@ window.mGraph = {   // Prognosegraph: Reiter und Ansichten im Browser umschalten
 def _status_badge(a, pg, backtest_moeglich: bool) -> None:
     """Kompakter Status statt Checkboxen: welche Gruppen in der Kurve stecken, ob der Backtest läuft."""
     if a.daten.get("gruppen_da"):
-        ui.label(_ansicht_text(a.aw_uwt, a.aw_mieter)).classes(
-            "m-xg-gruppen-hinweis" + ("" if a.aw_uwt or a.aw_mieter else " rein"))
+        mit = bool(a.aw_status)
+        b = ui.label(_ansicht_text(mit, mit)).classes("m-xg-gruppen-hinweis m-xg-ansicht " + ("leuchtet" if mit else "rein"))
+        attr(b, data_mit=_ansicht_text(True, True), data_ohne=_ansicht_text(False, False),
+             title="„Nach Status“ rechnet UWTler und Mieter ein (gestapelt), „Belegung“ zeigt nur die Teilnehmenden – "
+                   "Kennzahlen und Tabellen folgen der Ansicht")
     if a.aw_backtest and backtest_moeglich and pg.rueckblick:
         b = ui.label("Backtest an").classes("m-xg-gruppen-hinweis bt")
         attr(b, data_nur="kurve")
@@ -1042,7 +1080,6 @@ def _status_badge(a, pg, backtest_moeglich: bool) -> None:
 
 def _optionen(a, pg, backtest_moeglich: bool, graph_wechsel) -> None:
     """Erweiterte Optionen im Menü: Backtest, Bänder, UWTler/Mieter einbeziehen, Animation."""
-    da = a.daten.get("gruppen_da")
     with knopf("Optionen", None, "leise", "tune"):
         with ui.menu().props('dark class="m-menue m-optionen"'):
             ui.label("Graph").classes("m-menue-kopf")
@@ -1050,10 +1087,6 @@ def _optionen(a, pg, backtest_moeglich: bool, graph_wechsel) -> None:
                       a.aw_backtest and backtest_moeglich, lambda: graph_wechsel(aw_backtest=not a.aw_backtest),
                       aus=not (backtest_moeglich and pg.rueckblick))
             _schalter("95 %-Band zeigen", a.aw_95, lambda: graph_wechsel(aw_95=not a.aw_95))
-            ui.separator()
-            ui.label("Personenkreis" + ("" if da else " – nur Goslar / Gesamt")).classes("m-menue-kopf")
-            _schalter("UWTler einbeziehen", a.aw_uwt, lambda: _gruppe_umschalten(a, "aw_uwt"), aus=not da)
-            _schalter("Mieter einbeziehen", a.aw_mieter, lambda: _gruppe_umschalten(a, "aw_mieter"), aus=not da)
             ui.separator()
             _schalter("Animation beim Öffnen" + (" (System: weniger Bewegung)" if a.weniger_bewegung else ""),
                       a.aw_anim and not a.weniger_bewegung, lambda: graph_wechsel(aw_anim=not a.aw_anim), aus=a.weniger_bewegung)
@@ -1063,11 +1096,6 @@ def _ansicht_text(uwt: bool, mieter: bool) -> str:
     if not uwt and not mieter:
         return "Ansicht: Reine Teilnehmer-Sicht"
     return "Ansicht: Inklusive " + " und ".join(n for n, an_ in (("UWTler", uwt), ("Mieter", mieter)) if an_)
-
-
-async def _gruppe_umschalten(a, feld: str) -> None:
-    """UWTler/Mieter ein- oder ausrechnen: betrifft alle Kennzahlen → neu rechnen (aus dem Zwischenspeicher schnell)."""
-    await a.setzen(nur_seite=True, **{feld: not getattr(a, feld)})
 
 
 def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False) -> None:
