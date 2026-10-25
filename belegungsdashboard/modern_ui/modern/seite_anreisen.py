@@ -10,9 +10,9 @@ from nicegui import run, ui
 
 from . import anreisen_kern as ank
 from . import seiten
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, badge, badge_neu, kennzahlen, knopf, leer, segmente
 
-ANSICHTEN = {"zuteilen": "Zuteilen", "abreisen": "Abreisen", "eintragen": "Firmenprogramm"}
+ANSICHTEN = {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": "Abreisen", "eintragen": "Firmenprogramm"}
 
 
 def daten(a) -> None:
@@ -23,6 +23,8 @@ def daten(a) -> None:
         a.daten = {"zeilen": ank.abreisen(a.stand, von, bis), "von": von, "bis": bis}
     elif ansicht == "eintragen":
         a.daten = {"zeilen": ank.eintragen_liste(a.stand, a.heute, a.ein_tage)}
+    elif ansicht == "personen":
+        a.daten = {"zeilen": ank.personen_liste(a.stand, a.heute, a.neu)}
 
 
 def werkzeuge(a) -> None:
@@ -39,6 +41,10 @@ def mehr_menue(a) -> None:
                 ui.menu_item("Anreiseliste drucken", lambda: _drucken(a, "anreise"))
                 ui.menu_item("Schlüsselliste drucken", lambda: _drucken(a, "schluessel"))
                 ui.menu_item("Zimmerschilder drucken", lambda: _drucken(a, "schilder"))
+                ui.menu_item("Zimmerliste als Excel …", lambda: _excel(a))
+                ui.separator()
+                ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen",
+                             lambda: a.setzen(zu_vergangene=not a.zu_vergangene))
                 ui.separator()
                 ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
                 ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
@@ -106,6 +112,7 @@ def eintragen_zeichnen(a) -> None:
                 f'<b>{len(zs) - len(offen)}</b> erledigt<span class="m-punktt">·</span>Anreisen der nächsten '
                 f'{a.ein_tage} Tage</span>', sanitize=False)
         segmente({14: "14 Tage", 30: "30 Tage", 90: "90 Tage"}, a.ein_tage, lambda t: a.setzen(ein_tage=t))
+        segmente({False: "Abgehakte ausblenden", True: "Alle zeigen"}, a.ein_alle, lambda x: a.setzen(ein_alle=x, laden=False))
         if offen:
             knopf("Offene kopieren", lambda: _kopieren(a), "gruen", "content_copy")
             knopf("Alle als eingetragen markieren", lambda: a.aendern(ank.eintragen_setzen, [z.schluessel for z in offen],
@@ -121,7 +128,7 @@ def eintragen_zeichnen(a) -> None:
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
             for t in ("", "Anreise", "Name", "Maßnahme", "Zimmer", "Zeitraum"):
                 ui.label(t)
-        for z in zs:
+        for z in (zs if a.ein_alle else offen):
             with ui.element("div").classes("m-raster m-zeile" + (" fertig" if z.haken else "")).style(f"grid-template-columns:{sp}"):
                 with ui.element("div"):
                     b = ui.element("button").classes("m-haken" + (" an" if z.haken else ""))
@@ -158,9 +165,15 @@ async def person_panel(a, schluessel: str) -> None:
                       label="Geschlecht" + (" (aus dem Vornamen geschätzt)" if p.geschlecht_geschaetzt else "")).classes(
             "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
         tier = ui.switch("kommt mit Tier", value=p.tier).props("dense color=indigo-4")
+        gr = ui.select(ank.GRUPPEN, value=p.gruppe if p.gruppe in ank.GRUPPEN else None, label="Gruppe").classes(
+            "m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        attr(gr, title="Bestimmt Zeitraum und erlaubte Zimmer (z. B. EMR nur Haus 2, Etage 1–2)")
 
         async def angaben():
-            if await a.aendern(ank.angaben_setzen, p.schluessel, g.value or "", bool(tier.value)):
+            ok = await a.aendern(ank.angaben_setzen, p.schluessel, g.value or "", bool(tier.value))
+            if ok and gr.value and gr.value != p.gruppe:
+                ok = await a.aendern(ank.gruppe_setzen, p.schluessel, gr.value)
+            if ok:
                 await person_panel(a, schluessel)
 
         with ui.element("div").classes("m-paktionen"):
@@ -179,6 +192,20 @@ async def person_panel(a, schluessel: str) -> None:
             with ui.element("div").classes("m-paktionen"):
                 knopf("Speichern", aufenthalt, "", "check")
                 knopf("Person entfernen", lambda: _entfernen(a, p), "leise", "delete")
+            ui.label("Erinnerung an die Abreise").classes("m-ktitel")
+            kan = ank.kanaele()
+            er_an = ui.switch("erinnern", value=p.erinnerung_tage is not None).props("dense color=indigo-4")
+            with ui.element("div").classes("m-zweispaltig"):
+                er_tage = ui.number("Tage vorher (0 = am Abreisetag)", value=p.erinnerung_tage if p.erinnerung_tage is not None else 2,
+                                    min=0, max=60, step=1, format="%d").classes("m-feld").props("dense outlined dark")
+                er_kanal = ui.select(kan, value=p.erinnerung_kanal if p.erinnerung_kanal in kan else "app", label="Wie").classes(
+                    "m-feld").props('dense outlined dark popup-content-class="m-popup"')
+
+            async def erinnern():
+                await a.aendern(ank.erinnerung_setzen, p.schluessel, bool(er_an.value), int(er_tage.value or 0),
+                                er_kanal.value or "app")
+
+            knopf("Erinnerung speichern", erinnern, "", "notifications")
         else:
             ui.label("Aus UWT-Liste bzw. Gebäudeplan – Zeitraum dort ändern.").classes("m-ptext")
 
@@ -256,3 +283,74 @@ def optimieren_panel(a) -> None:
         ui.timer(0.05, lambda: bauen_async(box), once=True)
 
     a.panel("Belegung optimieren", bauen, breit=True)
+
+
+# =======================================================================================
+# Personen: alle kommenden Anreisen auf einer Liste – Filter „neu (7 Tage)“, „ohne Zimmer“
+# =======================================================================================
+
+PS_FILTER = {"alle": "alle Personen", "neu": "neu (7 Tage)", "ohne": "ohne Zimmer", "mit": "mit Zimmer"}
+
+
+def _ps_passt(z, f: str) -> bool:
+    return (f == "alle" or (f == "neu" and z.neu_seit is not None) or (f == "ohne" and not z.zimmer)
+            or (f == "mit" and bool(z.zimmer)))
+
+
+def personen_zeichnen(a) -> None:
+    zs = a.daten["zeilen"]
+    f = a.ps_filter
+    with a.leiste:
+        kennzahlen([(k, sum(1 for z in zs if _ps_passt(z, k)), t, {"alle": "neutral", "neu": "blau", "ohne": "akzent",
+                                                                   "mit": "ok"}[k]) for k, t in PS_FILTER.items()],
+                   f, lambda k: a.setzen(ps_filter="alle" if k == f else k),
+                   {"neu": "Erstmals in den letzten 7 Tagen in den Listen (Anreiseliste, UWT, von Hand)"})
+        suche = ui.input(placeholder="Name, Gruppe, Zimmer …", value=a.ps_text).classes("m-feld m-sucheingabe").props(
+            "dense outlined dark clearable")
+        suche.on("keydown.enter", lambda: a.setzen(ps_text=suche.value or ""))
+        suche.on("clear", lambda: a.setzen(ps_text=""))
+        knopf("Person hinzufügen", lambda: person_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
+    text = (a.ps_text or "").lower()
+    sichtbar = [z for z in zs if _ps_passt(z, f) and (not text or text in f"{z.name} {z.gruppe} {z.zimmer}".lower())]
+    if f == "neu":
+        sichtbar.sort(key=lambda z: (z.neu_seit, z.anreise), reverse=True)
+    sp = "minmax(200px, 1.4fr) 110px 150px 120px 120px minmax(120px, 1fr)"
+    with a.inhalt:
+        if not sichtbar:
+            leer("Keine neuen Personen in den letzten 7 Tagen." if f == "neu" else "Keine Personen in diesem Filter.")
+            return
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("Name", "Gruppe", "Zeitraum", "Zimmer", "In den Listen", ""):
+                ui.label(t)
+        for z in sichtbar:
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                with ui.element("div").classes("m-namezeile"):
+                    n = ui.label(z.name).classes("m-name m-link")
+                    n.on("click", lambda z=z: person_panel(a, z.schluessel))
+                    if z.neu_seit:
+                        badge_neu(z.neu_seit)
+                ui.label(z.gruppe).classes("m-mono")
+                ui.label(z.zeitraum).classes("m-mono")
+                with ui.element("div"):
+                    if z.zimmer:
+                        st = {"ok": "belegt", "maengel": "maengel"}.get(z.status, "pruefen")
+                        badge(st, z.zimmer)
+                    else:
+                        badge("ohne")
+                ui.label(f"seit {z.neu_seit:%d.%m.}" if z.neu_seit else "länger").classes("m-zweite")
+                knopf("Zuteilen", lambda z=z: a.oeffnen("anreisen", ansicht="zuteilen", kennung=z.kennung), "leise",
+                      "meeting_room", "Zur Anreise – Zimmer wählen")
+
+
+async def _excel(a) -> None:
+    titel = next((x.titel for x in a.anreisen if x.kennung == a.kennung), "")
+    try:
+        text, pfad = await run.io_bound(ank.anreise_excel, a.stand, a.kennung, titel)
+    except PermissionError:
+        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+        return
+    except ValueError as exc:
+        a.toast(str(exc), fehler=True)
+        return
+    a.toast(text if seiten._datei_oeffnen(pfad) else f"{text} – {pfad}", rueck=False)
+

@@ -43,9 +43,10 @@ class Anreise:
         return f"{WT[self.tag.weekday()]} {self.tag:%d.%m.%Y} · {self.titel} · {stand}"
 
 
-def anreisen(stand: zp.Planstand, heute: date) -> list[Anreise]:
+def anreisen(stand: zp.Planstand, heute: date, vergangene: bool = False) -> list[Anreise]:
+    ab = heute - timedelta(days=365 if vergangene else 3)
     return [Anreise(k, tag, titel, len(bs), sum(1 for b in bs if stand.zugewiesen(b.schluessel)))
-            for k, tag, titel, bs in stand.anreisen(heute - timedelta(days=3))]
+            for k, tag, titel, bs in stand.anreisen(ab)]
 
 
 def erste_offene(liste: list[Anreise]) -> str | None:
@@ -81,9 +82,11 @@ class Zeile:
     def zeitraum(self) -> str:
         return f"{self.von:%d.%m.}–{self.bis:%d.%m.%y}"
 
-    def filter(self, f: str) -> bool:
+    def filter(self, f: str, neu: dict | None = None) -> bool:
         if f == "alle":
             return True
+        if f == "neu":
+            return self.schluessel in (neu or {})
         if f == "maengel":
             return bool(self.maengel)
         return self.status == f
@@ -450,4 +453,48 @@ def willkommen_weg() -> None:
     roh = speicher.lesen(ZUSTAND, {})
     roh["willkommen_gesehen"] = True
     speicher.schreiben(ZUSTAND, roh)
+
+
+# ---------------------------------------------------------------------------------------
+# Neue Personen: Das Hauptprogramm speichert kein Anlagedatum – die neue Oberfläche merkt sich daher selbst, wann
+# eine Person zum ersten Mal in den Listen stand (eigene Datei, die alten Dateien bleiben unberührt).
+# ---------------------------------------------------------------------------------------
+
+NEU_DATEI = "modern_ui_neu.json"
+NEU_TAGE = 7
+
+
+def neue_personen(stand: zp.Planstand, heute: date | None = None, tage: int = NEU_TAGE) -> dict[str, date]:
+    """Schlüssel → Tag, an dem die Person zuerst auftauchte – nur die der letzten ``tage`` Tage.
+
+    Beim allerersten Aufruf gilt für Personen aus einer Anreiseliste deren Importdatum (sonst „schon länger da“),
+    danach zählt der Tag, an dem die neue Oberfläche die Person zum ersten Mal sieht."""
+    from belegung import anreiseliste
+
+    heute = heute or date.today()
+    roh = speicher.lesen(NEU_DATEI, {})
+    gesehen: dict[str, str] = roh.get("gesehen", {})
+    schluessel = {b.schluessel for b in stand.bedarf}
+    neu = schluessel - set(gesehen)
+    if neu:
+        if not gesehen:                      # erster Start: Importdatum der Liste, sonst „alt“
+            personen, listen = anreiseliste.laden()
+            liste_von = {p.schluessel: p.liste for p in personen}
+            for k in neu:
+                am = (listen.get(liste_von.get(k, ""), {}) or {}).get("importiert_am", "")
+                gesehen[k] = am[:10] if am else "2000-01-01"
+        else:
+            for k in neu:
+                gesehen[k] = heute.isoformat()
+        speicher.schreiben(NEU_DATEI, {"gesehen": gesehen})
+    grenze = heute - timedelta(days=tage - 1)
+    erg = {}
+    for k in schluessel:
+        try:
+            tag = date.fromisoformat(gesehen.get(k, "2000-01-01"))
+        except ValueError:
+            continue
+        if tag >= grenze:
+            erg[k] = tag
+    return erg
 

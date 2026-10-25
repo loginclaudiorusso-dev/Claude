@@ -47,11 +47,12 @@ ZUSTAND = {
     "frei": ("ok", "check_circle", "frei"), "teilweise": ("ok", "adjust", "1 Bett frei"),
     "belegt": ("blau", "person", "belegt"), "geplant": ("akzent", "schedule", "geplant"),
     "gesperrt": ("neutral", "block", "gesperrt"), "maengel": ("warn", "priority_high", "Mängel"),
-    "unbewohnbar": ("krit", "report", "unbewohnbar"),
+    "unbewohnbar": ("krit", "report", "unbewohnbar"), "pruefen": ("warn", "warning", "prüfen"),
+    "ohne": ("krit", "person_off", "ohne Zimmer"),
 }
 SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "handeln": "error", "alle": "groups",
            "np": "trending_flat", "offen": "pending", "eilig": "bolt", "erledigt": "task_alt", "laufend": "key",
-           "mail": "mail", "weitere": "apartment", 3: "report", 2: "priority_high", 1: "info"}
+           "mail": "mail", "weitere": "apartment", "neu": "fiber_new", 3: "report", 2: "priority_high", 1: "info"}
 
 
 def badge(zustand: str, text: str | None = None) -> None:
@@ -60,6 +61,15 @@ def badge(zustand: str, text: str | None = None) -> None:
     with ui.element("span").classes(f"m-badge {farbe}"):
         ui.icon(icon)
         ui.label(text or standard)
+
+
+def badge_neu(seit) -> None:
+    """Kleines „NEU“-Badge – seit wann die Person in den Listen steht."""
+    from datetime import date
+
+    tage = (date.today() - seit).days
+    attr(ui.label("NEU").classes("m-neu-badge"),
+         title="heute neu in den Listen" if tage <= 0 else f"neu seit {seit:%d.%m.} ({tage} Tag{'e' if tage > 1 else ''})")
 
 
 def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | None = None) -> None:

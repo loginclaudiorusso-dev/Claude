@@ -70,6 +70,8 @@ def zeichnen(a) -> None:
             text, frei, stufe = np_.tiefst
             werte.append(("np", frei, f"frei nach Planung · {text.split(' · ')[0]}", STUFE[stufe]))
         werte.append(("maengel", sum(1 for _ in _defekte(a)), "Zimmer mit Mängeln", "warn"))
+        if a.neu:
+            werte.append(("neu", len(a.neu), "neue Personen (7 Tage)", "blau"))
 
         def sprung(k):
             if k == "ohne":
@@ -78,12 +80,15 @@ def zeichnen(a) -> None:
                 return a.oeffnen("auswertung", ansicht="zimmer")
             if k == "maengel":
                 return a.oeffnen("zimmer", ansicht="maengel")
+            if k == "neu":
+                return a.oeffnen("anreisen", ansicht="personen", ps_filter="neu")
             return a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=k)
 
         kennzahlen(werte, None, sprung, {"ohne": "Anreisen der nächsten 8 Wochen ohne Zimmer – Klick: zuteilen",
                                          "np": "Mindestens so viele Zimmer bleiben frei, wenn alle bekannten Anreisen ein Zimmer "
                                                "hätten – Klick: alle Wochen",
-                                         "maengel": "Klick: defekte Zimmer", "frei": "Klick: Zimmer-Übersicht",
+                                         "maengel": "Klick: defekte Zimmer",
+                                         "neu": "Neu in den Listen – Klick: Liste der neuen Personen", "frei": "Klick: Zimmer-Übersicht",
                                          "belegt": "Klick: Zimmer-Übersicht", "gesperrt": "Klick: Zimmer-Übersicht"})
         ui.label(f"{wt}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
     with a.inhalt:

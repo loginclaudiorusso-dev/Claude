@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
-from belegung import anreiseliste, cockpit, drucklisten, eintragen
+from belegung import anreiseliste, cockpit, drucklisten, eintragen, speicher
 from belegung import termine as tm
 from belegung import umzug as um
 from belegung import zimmerplan as zp
@@ -165,6 +165,9 @@ class PersonInfo:
     bemerkung: str
     aus_liste: bool            # Anreiseliste (änderbar) – sonst UWT/Gebäudeplan
     tn_id: str = ""
+    gruppe: str = ""
+    erinnerung_tage: int | None = None
+    erinnerung_kanal: str = ""
 
 
 def person(stand: zp.Planstand, schluessel: str) -> PersonInfo:
@@ -175,7 +178,7 @@ def person(stand: zp.Planstand, schluessel: str) -> PersonInfo:
     p = next((x for x in personen if x.schluessel == schluessel), None)
     return PersonInfo(schluessel, b.name, b.massnahme, b.liste_anreise or b.von, p.abreise if p else b.abreise_liste,
                       b.geschlecht, b.geschlecht_geschaetzt, b.tier, p.bemerkung if p else b.bemerkung, p is not None,
-                      p.tn_id if p else "")
+                      p.tn_id if p else "", b.gruppe, p.erinnerung_tage if p else None, p.erinnerung_kanal if p else "")
 
 
 def angaben_setzen(schluessel: str, geschlecht: str, tier: bool) -> str:
@@ -232,3 +235,132 @@ def person_anlegen(name: str, massnahme: str, anreise: date, abreise: date | Non
                             geschlecht=geschlecht, abreise_quelle="hand" if abreise else "")
     _schritt(f"{name} angelegt", lambda: anreiseliste.person_speichern(p), [anreiseliste.DATEI])
     return f"{name} angelegt – Anreise {anreise:%d.%m.%Y}"
+
+
+# ---------------------------------------------------------------------------------------
+# Alle Personen der kommenden Anreisen – mit „neu“ (erstmals in den Listen) und Zimmer
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class PZeile:
+    schluessel: str
+    name: str
+    gruppe: str
+    zeitraum: str
+    kennung: str          # Anreise (für „Zuteilen“)
+    anreise: date
+    zimmer: str           # Kurzname oder ""
+    neu_seit: date | None
+    status: str           # ok | handeln | ohne | maengel
+
+
+def personen_liste(stand: zp.Planstand, heute: date, neu: dict) -> list[PZeile]:
+    from .kern import anreisen, kurz, zeilen
+
+    erg = []
+    for an in anreisen(stand, heute):
+        for z in zeilen(stand, an.kennung, heute):
+            erg.append(PZeile(z.schluessel, z.name, z.gruppe, z.zeitraum, an.kennung, an.tag,
+                              kurz(z.gespeichert) if z.gespeichert else "", neu.get(z.schluessel), z.status))
+    return erg
+
+
+def anreise_excel(stand: zp.Planstand, kennung: str, titel: str = ""):
+    """Zimmerliste einer Anreise als Excel (Zimmer, Etagen, freie Zimmer) – wie „Als Excel-Liste speichern“."""
+    from pathlib import Path
+
+    from belegung import speicher, zimmerexport
+
+    zts = _zuteilungen(stand, kennung)
+    if not zts:
+        raise ValueError("Für diese Anreise ist noch nichts geplant.")
+    tag = zts[0].bedarf.von
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / f"Zimmerliste_{tag:%Y-%m-%d}.xlsx"
+    zimmerexport.exportieren(pfad, f"Zimmerliste Anreise {tag:%d.%m.%Y}" + (f" – {titel}" if titel else ""), zts, stand.lage, tag)
+    return f"Excel gespeichert: {pfad.name}", str(pfad)
+
+
+# ---------------------------------------------------------------------------------------
+# Gruppe und Abreise-Erinnerung einer Person (wie im Personen-Dialog des Hauptprogramms)
+# ---------------------------------------------------------------------------------------
+
+GRUPPEN = {"EMR": "EMR", "ASS": "Assessment", "RVL": "RVL", "RVT": "RVT", "Reha": "Reha-Maßnahme"}
+
+
+def gruppe_setzen(schluessel: str, gruppe: str) -> str:
+    if gruppe not in zp.GRUPPEN:
+        raise ValueError("Unbekannte Gruppe.")
+    _schritt("Gruppe geändert", lambda: zp.angabe_setzen(schluessel, gruppe=gruppe), [zp.PERSONEN_ANGABEN])
+    return f"Gruppe: {zp.GRUPPE_LABEL.get(gruppe, gruppe)} – Zeitraum und erlaubte Zimmer richten sich danach"
+
+
+def kanaele() -> dict[str, str]:
+    from belegung import erinnerung
+
+    return {k: t for k, t in erinnerung.KANAELE.items() if k not in ("outlook", "mail") or erinnerung.outlook_moeglich()}
+
+
+def _erinnerung_abgleichen(alt, neu) -> str:
+    """Outlook-Termin/Mail bzw. .ics an den neuen Stand anpassen (wie ``erinnerung_abgleichen`` im Hauptprogramm,
+    hier ohne Fenster – Outlook wird im Hintergrund-Thread über COM angesprochen)."""
+    from belegung import erinnerung
+
+    com = False
+    if (alt.erinnerung_kanal in ("outlook", "mail") or neu.erinnerung_kanal in ("outlook", "mail")):
+        try:
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            com = True
+        except ImportError:
+            pass
+    try:
+        if alt.erinnerung_id and alt.erinnerung_kanal in ("outlook", "mail"):
+            erinnerung.outlook_entfernen(alt.erinnerung_id)
+        neu.erinnerung_id = ""
+        if neu.erinnerung_tage is None or neu.abreise is None:
+            return "Keine Erinnerung"
+        titel = erinnerung.betreff(neu.name, neu.abreise)
+        text = (f"{neu.name} ({neu.massnahme or neu.gruppe}) reist am {neu.abreise:%d.%m.%Y} ab "
+                f"(Anreise {neu.anreise:%d.%m.%Y}, Internat Goslar).\n\nEingetragen im Belegungsdashboard.")
+        am = neu.erinnerung_am
+        try:
+            if neu.erinnerung_kanal == "outlook":
+                neu.erinnerung_id = erinnerung.outlook_termin(titel, neu.abreise, neu.erinnerung_tage, text)
+                return f"Outlook-Termin am {neu.abreise:%d.%m.%Y}, Erinnerung am {am:%d.%m.%Y}"
+            if neu.erinnerung_kanal == "mail":
+                empfaenger = speicher.einstellungen().get("erinnerung", {}).get("empfaenger", "")
+                neu.erinnerung_id = erinnerung.outlook_mail(titel, am, text, empfaenger)
+                return f"Erinnerungs-Mail wird am {am:%d.%m.%Y} um 8 Uhr verschickt"
+            if neu.erinnerung_kanal == "ics":
+                pfad = erinnerung.ics_speichern(titel, neu.abreise, neu.erinnerung_tage, text, f"abreise_{neu.schluessel}")
+                erinnerung.ics_oeffnen(pfad)
+                return f"Kalenderdatei erstellt: {pfad.name}"
+        except Exception as exc:              # noqa: BLE001 – Outlook fehlt/blockiert: dann im Dashboard
+            neu.erinnerung_kanal, neu.erinnerung_id = "app", ""
+            return f"Outlook nicht erreichbar ({exc}) – die Erinnerung erscheint stattdessen unter Termine"
+        return f"Erinnerung am {am:%d.%m.%Y} unter Termine"
+    finally:
+        if com:
+            import pythoncom
+
+            pythoncom.CoUninitialize()
+
+
+def erinnerung_setzen(schluessel: str, an: bool, tage: int, kanal: str) -> str:
+    personen, _ = anreiseliste.laden()
+    p = next((x for x in personen if x.schluessel == schluessel), None)
+    if p is None:
+        raise ValueError("Nur Personen aus der Anreiseliste haben eine Abreise-Erinnerung.")
+    if an and p.abreise is None:
+        raise ValueError("Erst eine Abreise eintragen – dann lässt sich daran erinnern.")
+    neu = replace(p, erinnerung_tage=int(tage) if an else None, erinnerung_kanal=kanal if an else "")
+    if (neu.erinnerung_tage, neu.erinnerung_kanal) == (p.erinnerung_tage, p.erinnerung_kanal):
+        raise ValueError("Die Erinnerung ist schon so eingestellt – nichts geändert.")
+    neu.erledigt = False
+    meldung = _erinnerung_abgleichen(p, neu)
+    _schritt("Abreise-Erinnerung", lambda: anreiseliste.person_speichern(neu, p.schluessel), [anreiseliste.DATEI])
+    return meldung
+

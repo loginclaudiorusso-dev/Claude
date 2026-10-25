@@ -12,7 +12,7 @@ from belegung import __version__ as haupt_version
 
 from . import __version__, kern, register, seite_anreisen, suche_palette
 from .stil import CSS
-from .ui_bausteine import attr, kennzahlen, knopf, leer
+from .ui_bausteine import attr, badge_neu, kennzahlen, knopf, leer
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class Ansicht:
         self.anreisen: list[kern.Anreise] = []
         self.kennung: str | None = None
         self.zeilen: list[kern.Zeile] = []
+        self.neu: dict = {}                    # neue Personen (Schlüssel → erstmals gesehen)
         self.filter = "alle"
         self.karten: list[kern.Karte] = []
         self.daten = None                      # Daten der aktuellen Seite (außer Anreisen)
@@ -61,6 +62,12 @@ class Ansicht:
         self.rg_von = self.rg_bis = self.heute
         self.zl_haus, self.zl_status, self.zl_text = "", "", ""
         self.zl_schnell: set[str] = set()
+        self.zl_mehr: dict = {}                # seltenere Zimmerfilter (Boden, Mangel, Renovierung, Gruppe …)
+        self.zk_auswahl: set[str] = set()      # markierte Zimmer in der Liste (für „Eigenschaften setzen“)
+        self.ps_filter, self.ps_text = "alle", ""
+        self.iv_haus, self.iv_text, self.iv_ohne = "", "", False
+        self.zu_vergangene = False             # Zuteilen: auch vergangene Anreisen (letztes Jahr) zur Auswahl
+        self.ein_alle = False                  # Firmenprogramm: auch abgehakte zeigen
         self.ab_zeitraum, self.ein_tage = "heute", 14
         self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
         self.as_text, self.as_verstanden, self.as_chat = "", [], []
@@ -81,10 +88,14 @@ class Ansicht:
         self.stand = zp.laden()
         self.ohne_daten = self.stand.plan is None and not self.stand.bedarf
         self.karten = kern.karten(self.stand, self.heute)
+        try:
+            self.neu = kern.neue_personen(self.stand, self.heute)
+        except Exception:                      # noqa: BLE001 – Merkhilfe darf nie das Laden verhindern
+            self.neu = {}
         if self.seite == "anreisen" and self.ansicht_von("anreisen", "zuteilen") != "zuteilen":
             seite_anreisen.daten(self)
         elif self.seite == "anreisen":
-            self.anreisen = kern.anreisen(self.stand, self.heute)
+            self.anreisen = kern.anreisen(self.stand, self.heute, self.zu_vergangene)
             if self.kennung not in {a.kennung for a in self.anreisen}:
                 self.kennung = kern.erste_offene(self.anreisen)
             self.zeilen = kern.zeilen(self.stand, self.kennung, self.heute)
@@ -176,7 +187,7 @@ class Ansicht:
             self.center = ui.element("aside").classes("m-center")
             attr(self.center, aria_label="Aufgaben")
         self.toast_box = ui.element("div")
-        ui.keyboard(self._taste)
+        ui.keyboard(self._taste, ignore=["input", "select", "textarea"])   # Esc auch, wenn ein Knopf den Fokus hat
         ui.timer(PRUEF_S, self.pruefen)
 
     def _nav_fuellen(self) -> None:
@@ -243,6 +254,8 @@ class Ansicht:
             return seite_anreisen.abreisen_zeichnen(self)
         if ansicht == "eintragen":
             return seite_anreisen.eintragen_zeichnen(self)
+        if ansicht == "personen":
+            return seite_anreisen.personen_zeichnen(self)
         with self.werkzeuge:
             wahl = ui.select({a.kennung: a.text for a in self.anreisen}, value=self.kennung,
                              on_change=self._anreise_gewaehlt).classes("m-zimmer").props(
@@ -265,9 +278,12 @@ class Ansicht:
             n = kern.zaehlen(self.zeilen)
             with self.leiste:
                 # links: die Personen dieser Anreise (Filter) – rechts: Zimmer am Anreisetag (Sprung zur Übersicht)
+                n_neu = sum(1 for z in self.zeilen if z.schluessel in self.neu)
                 kennzahlen([("alle", n["alle"], "Personen", "neutral"), ("handeln", n["handeln"], "Handlungsbedarf", "krit"),
-                            ("ohne", n["ohne"], "ohne Zimmer", "akzent"), ("maengel", n["maengel"], "Mängel", "warn")],
-                           self.filter, lambda f: self._filtern("alle" if f == self.filter else f))
+                            ("ohne", n["ohne"], "ohne Zimmer", "akzent"), ("maengel", n["maengel"], "Mängel", "warn"),
+                            ("neu", n_neu, "neu (7 Tage)", "blau")],
+                           self.filter, lambda f: self._filtern("alle" if f == self.filter else f),
+                           {"neu": "Personen, die in den letzten 7 Tagen in die Listen gekommen sind"})
                 ui.element("div").classes("m-trennlinie")
                 zimmer = [("frei", k["frei"], f"frei am {tag:%d.%m.}", "ok"), ("belegt", k["belegt"], "belegt", "blau"),
                           ("gesperrt", k["gesperrt"], "gesperrt", "neutral")]
@@ -292,7 +308,7 @@ class Ansicht:
             with ui.element("div").classes("m-raster m-tkopf"):
                 for t in ("", "Name", "Gruppe", "Zeitraum", "Zimmer", "Hinweis"):
                     ui.label(t)
-            sichtbar = [z for z in self.zeilen if z.filter(self.filter)]
+            sichtbar = [z for z in self.zeilen if z.filter(self.filter, self.neu)]
             if not sichtbar:
                 leer("Nichts in diesem Filter – alles in Ordnung.")
             for z in sichtbar:
@@ -303,8 +319,11 @@ class Ansicht:
             with ui.element("div"):
                 ui.element("div").classes(f"m-ampel {z.stufe}")
             with ui.element("div"):
-                n = attr(ui.label(z.name).classes("m-name m-link"), title="Angaben zur Person (Geschlecht, Tier, Abreise …)")
-                n.on("click", lambda z=z: seite_anreisen.person_panel(self, z.schluessel))
+                with ui.element("div").classes("m-namezeile"):
+                    n = attr(ui.label(z.name).classes("m-name m-link"), title="Angaben zur Person (Geschlecht, Tier, Abreise …)")
+                    n.on("click", lambda z=z: seite_anreisen.person_panel(self, z.schluessel))
+                    if z.schluessel in self.neu:
+                        badge_neu(self.neu[z.schluessel])
                 if z.zweite:
                     ui.label(z.zweite).classes("m-zweite")
             ui.label(z.gruppe).classes("m-mono")
