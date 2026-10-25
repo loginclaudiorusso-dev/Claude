@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.11.0
+# Neue Oberfläche (modern_ui) – Version 0.12.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,28 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Prognose für die Geschäftsführung (neu in 0.12)
+
+* **Backtest direkt am Graph:** Schalter „Backtest an/aus“ neben den Reitern *Trend & Prognose · Kapazitätsreserve ·
+  Vorjahresvergleich* (nicht mehr im Menü „Optionen“). Jetzt auch für **Gesamt** – als Summe der Standort-Backtests,
+  so wie die Gesamtprognose die Summe der Standortprognosen ist.
+* **Management-Szenario** statt Schieberegler: Schnell-Pills *Ausgangslage*, *+10 % Auslastung*, *−10 % Auslastung*,
+  *Kapazitätskürzung Sanierung* (zieht die Betten der Zimmer ab, die ein offener Mangel derzeit **unbewohnbar** macht –
+  Gebäudeplan Goslar; ohne solche Zimmer ist die Pill ausgegraut) und Plus/Minus-Stepper (Kapazität ±1/±10,
+  Auslastung ±1/±5 %, bis ± 25 %). Im Graph bleibt die echte Prognose stehen; das Szenario läuft als **orange
+  gepunktete Schattenkurve** mit (ggf. mit Schatten-Kapazitätslinie), im Tooltip als „Szenario – Simulation“.
+* **Ansicht „Nach Status“** (Schalter neben dem Backtest, im Modus Trend): gestapelte Fläche **UWTler** (Deep Blue) ·
+  **Mieter** (Slate) · Teilnehmende & Sonstige. UWT und Mieter stammen aus den Listen (Ist bzw. bereits gebucht), der
+  Rest bis zur Gesamtbelegung ist Ist bzw. Prognose – die Unsicherheit liegt also allein bei den übrigen.
+* **Goslar · UWTler und Mieter** (erscheint direkt unter der Standortwahl, sobald *Goslar* gewählt ist): Balken der
+  Kapazität heute (UWT · Mieter · übrige · frei) mit Zahlen und Anteilen, Aussagen zu fest gebundenen Plätzen und
+  Kapazitätsrisiko. Dazu **Kontingente** – eine geplante prozentuale Aufteilung der Kapazität (UWT %, Mieter %, Rest
+  für Teilnehmende & Sonstige) mit Steppern. Je Monat wird geprüft, ob die gebuchten UWT-/Mieterplätze und die
+  Prognose der übrigen in ihr Kontingent passen (orange ≥ 90 %, rot überschritten). Ohne eigene Eingabe gilt ein
+  Vorschlag aus den Daten (höchster gebuchter Anteil der nächsten 12 Monate). Die Kontingentgrenzen erscheinen auch
+  im Status-Graph. Kontingente sind eine Planungsannahme, gespeichert in `modern_ui.json` – Kapazität und Belegungsdaten
+  bleiben unverändert. In der Präsentation erscheint eine Kurzfassung.
+
 ## Prognose als Executive-Ansicht (neu in 0.11, ersetzt die Prognose-Ansicht aus 0.10)
 
 *Auswertung → Prognose* ist jetzt von oben nach unten nach Wichtigkeit aufgebaut:
@@ -70,7 +92,7 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
      Monate ein und zwei Jahre früher (Ist); Abweichung im Tooltip; fehlende Monate bleiben Lücken.
    Der Graph baut sich **nur beim ersten Öffnen** auf (nicht bei jedem Filterwechsel), *Aufbau abspielen* wiederholt das
    bewusst; unter *Optionen* abschaltbar. Ist im System „Bewegung reduzieren“ eingestellt, gibt es keine Animation.
-4. **Szenario (Simulation)** – Kapazität per Regler oder Zahl, Auslastung ±15 %. Daneben **Ausgang gegen Szenario**
+4. **Szenario (Simulation)** – seit 0.12 als Management-Szenario (siehe oben): Pills und Stepper, Auslastung ± 25 %. Daneben **Ausgang gegen Szenario**
    (Kapazität, Höchststand, kleinste Reserve, Risikomonate). Ein aktives Szenario ist orange schraffiert und mit
    „SIMULATION – keine echten Daten“ markiert, ebenso Graphtitel, KPIs und Tabelle. Es wird nichts gespeichert,
    die echten Daten bleiben unberührt. Weitere Stellschrauben (z. B. Verweildauer) gibt es bewusst nicht – dafür fehlt
@@ -162,4 +184,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0` (jeweils auch als Zip in `Sicherung`).
