@@ -87,6 +87,11 @@ class Ansicht:
         self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
         self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
+        self.aw_modus, self.aw_schritt = "analyse", 4                     # Prognose: Analyse/Präsentation, Aufbauschritt
+        self.aw_anim, self.aw_anim_gezeigt, self._anim_jetzt = True, False, False   # Aufbau-Animation nur beim ersten Öffnen
+        self.aw_details, self.aw_vergleich_praes = False, False           # Tabelle ausführlich, Standorte in der Präsentation
+        self.weniger_bewegung = False          # System-Einstellung „Bewegung reduzieren“ (prefers-reduced-motion)
+        self._prognose_chart = None
 
     # ---- Daten ---------------------------------------------------------------------------
 
@@ -172,7 +177,8 @@ class Ansicht:
     def aufbauen(self) -> None:
         ui.add_css(CSS)
         ui.add_css(themes.CSS)                 # greift nur mit body.pro – im Original-Zustand gilt allein das bisherige CSS
-        ui.query("body").classes(" ".join(["dark"] + themes.klassen(self.design)))
+        self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
+        self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         with ui.element("div").classes("m-app"):
             with ui.element("nav").classes("m-nav"):
                 with ui.element("div").classes("m-marke"):
@@ -542,9 +548,9 @@ class Ansicht:
                     ui.run_javascript("document.fullscreenElement && document.exitFullscreen()")
         self.design = themes.bereinigen(neu)
         themes.AKTIV = self.design
-        ui.query("body").classes(remove=" ".join(themes.ALLE_KLASSEN))
+        self.body.classes(remove=" ".join(themes.ALLE_KLASSEN))
         if themes.klassen(self.design):
-            ui.query("body").classes(add=" ".join(themes.klassen(self.design)))
+            self.body.classes(add=" ".join(themes.klassen(self.design)))
         self._toolbar_fuellen()
         if self.design["layout"] != "canvas" and self.prompt:
             self.prompt_eingabe.set_value("")
@@ -561,7 +567,13 @@ class Ansicht:
 
     # ---- Zeichnen ------------------------------------------------------------------------
 
+    def _praesentation(self) -> bool:
+        return self.aw_modus == "praes" and self.seite == "auswertung" and self.ansicht_von("auswertung", "lage") == "prognose"
+
     def zeichnen(self) -> None:
+        if self.aw_modus == "praes" and not self._praesentation():   # Seite verlassen → Präsentation endet
+            self.aw_modus = "analyse"
+            self.body.classes(remove="praesentation")
         self._nav_fuellen()
         self._aufgaben_knopf()
         for c in (self.werkzeuge, self.leiste, self.inhalt):
@@ -605,7 +617,9 @@ class Ansicht:
         if ansicht == "personen":
             return seite_anreisen.personen_zeichnen(self)
         with self.werkzeuge:
-            wahl = ui.select({a.kennung: a.text for a in self.anreisen}, value=self.kennung,
+            optionen = {a.kennung: a.text for a in self.anreisen}
+            # Sprung mit neuer Anreise (z. B. aus dem Canvas): vor dem Laden ist sie evtl. noch nicht in der Liste
+            wahl = ui.select(optionen, value=self.kennung if self.kennung in optionen else None,
                              on_change=self._anreise_gewaehlt).classes("m-zimmer").props(
                 'dense outlined dark options-dense popup-content-class="m-popup"')
             wahl.style("min-width: 220px; width: 400px; flex: 0 1 auto")
@@ -864,6 +878,18 @@ class Ansicht:
             await self.design_setzen(schmal=not self.design["schmal"])
         elif e.key.name == "/" and self.design["layout"] == "canvas":
             self._prompt_fokus()
+        elif self._praesentation() and e.key.name in ("Escape", "ArrowLeft", "ArrowRight"):
+            from . import seite_prognose
+
+            if e.key.name == "Escape":
+                seite_prognose.praes_beenden(self)
+            else:
+                seite_prognose.praes_schritt(self, 1 if e.key.name == "ArrowRight" else -1)
+        elif (e.key.name.lower() == "p" and not e.modifiers.ctrl and self.panel_def is None and self.seite == "auswertung"
+              and self.ansicht_von("auswertung", "lage") == "prognose" and self.daten and self.daten.get("pg")):
+            from . import seite_prognose
+
+            seite_prognose.praes_umschalten(self)
         elif e.key.name == "Escape" and self.center_offen:
             if self.panel_def is not None:
                 self.panel_zu()
@@ -903,6 +929,10 @@ async def startseite() -> None:
     a.aufbauen()
     a.zeichnen()                               # sofort Rahmen zeigen („Lädt …“), dann Daten
     await ui.context.client.connected()
+    try:
+        a.weniger_bewegung = bool(await ui.run_javascript("matchMedia('(prefers-reduced-motion: reduce)').matches", timeout=3))
+    except Exception:                          # noqa: BLE001 – ohne Antwort: Animation wie gewohnt
+        pass
     await a.laden()
     if await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute) and a.seite != "heute":
         a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist (Heute zeigt sie schon)
