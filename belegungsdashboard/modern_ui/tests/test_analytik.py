@@ -123,3 +123,99 @@ def test_diagramm_optionen_drei_modi_und_feste_achse():
     assert [s["name"] for s in j["series"]] == ["Vorvorjahr (Ist)", "Vorjahr (Ist)", "Aktuell (Ist)", "Aktuell (Prognose)"]
     sz = sp.option({**basis, "art": "trend", "schritt": 4, "kap": 120})
     assert "SZENARIO" in sz["title"]["text"]
+
+
+class _DsStatus(_Ds):
+    """Wie _Ds, dazu Tageswerte je Kategorie: UWT 10 Plätze (nur gerade Monate), Mieter 4 Plätze."""
+
+    def kategorien(self, standort, von, bis, brutto=False):
+        tage = pd.date_range(von, bis, freq="D")
+        return pd.DataFrame({"Reha": 50.0, "UWT": [10.0 if t.month % 2 == 0 else 0.0 for t in tage], "Mieter": 4.0}, index=tage)
+
+    def aufschluesselung(self, standort, tag, brutto):
+        from belegung.datenstand import Aufschluesselung
+
+        return Aufschluesselung({"Reha": 50.0, "UWT": 10.0, "Mieter": 4.0}, 64.0, 80)
+
+
+def test_status_monate_uwt_mieter_rest_ergeben_gesamt():
+    from modern import analytik_kern as an
+
+    pg = _pg()
+    sm = an.status_monate(_DsStatus(), "BFW GS", False, pg)
+    assert len(sm) == len(pg.zeilen)
+    for m, z in zip(sm, pg.zeilen):
+        assert abs(m.uwt + m.mieter + m.uebrige - (z.ist if z.art == "ist" else z.erwartet)) < 1e-6
+    nov = next(m for m in sm if m.monat == date(2026, 11, 1))
+    assert nov.uwt == 0 and nov.mieter == 4 and nov.art == "prognose"           # UWT nur in geraden Monaten gebucht
+    sl = an.status_lage(_DsStatus(), "BFW GS", False, sm)
+    assert sl.heute == {"UWT": 10.0, "Mieter": 4.0, "uebrige": 50.0, "frei": 16.0} and sl.fest_max == 14
+    assert any("UWTler 10 und Mieter 4" in s for s in sl.saetze)
+
+
+def test_kontingente_vorschlag_pruefung_und_saetze():
+    from modern import analytik_kern as an
+
+    sm = an.status_monate(_DsStatus(), "BFW GS", False, _pg())
+    vorschlag = an.kontingent_vorschlag(sm, 150)
+    assert vorschlag == {"UWT": 7.0, "Mieter": 3.0}                               # höchster gebuchter Anteil, aufgerundet
+    zeilen = an.kontingent_pruefung(sm, 150, {"UWT": 5, "Mieter": 10})
+    assert len(zeilen) == 12 and zeilen[0].k_uwt == 7.5 and zeilen[0].k_uebrige == 127.5
+    assert any(z.stufe["UWT"] == "ueber" for z in zeilen) and all(z.stufe["Mieter"] == "ok" for z in zeilen)
+    assert an.kontingent_saetze(zeilen, {"UWT": 5, "Mieter": 10})[0].startswith("UWT: Kontingent in")
+    assert "innerhalb" in an.kontingent_saetze(an.kontingent_pruefung(sm, 150, vorschlag), vorschlag)[0]
+
+
+def test_kontingent_speichern_nur_in_eigener_datei(tmp_path, monkeypatch):
+    monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
+    from modern import kern
+
+    assert kern.kontingent_lesen("BFW GS") is None
+    kern.kontingent_setzen("BFW GS", {"UWT": 20, "Mieter": 10})
+    assert kern.kontingent_lesen("BFW GS") == {"UWT": 20.0, "Mieter": 10.0}
+    assert [p.name for p in tmp_path.iterdir()] == ["modern_ui.json"]
+    kern.kontingent_setzen("BFW GS", None)
+    assert kern.kontingent_lesen("BFW GS") is None
+
+
+def test_sanierung_nur_mit_grundlage():
+    from types import SimpleNamespace as N
+
+    from modern import analytik_kern as an
+
+    lage = N(zimmer={"a": N(betten=2, aktiv=True), "b": N(betten=1, aktiv=False), "c": N(betten=1, aktiv=True)},
+             unbewohnbar={"a": "Schimmel", "b": "Lager"})
+    assert an.sanierung_plaetze(lage, "BFW GS") == 2 and an.sanierung_plaetze(lage, "Gesamt") == 2
+    assert an.sanierung_plaetze(lage, "BFW BP") is None and an.sanierung_plaetze(None, "BFW GS") is None
+
+
+def test_backtest_gesamt_ist_summe_der_standorte():
+    from types import SimpleNamespace as N
+
+    from modern import auswertung_kern as ak
+
+    m = lambda r: N(rueckblick=r)  # noqa: E731
+    ds = N(prognose=N(modelle={"BFW BP": m([(date(2026, 8, 1), 10, 11), (date(2026, 9, 1), 12, 12)]),
+                               "BFW GS": m([(date(2026, 9, 1), 20, 19)]),
+                               "BFW WE": m([(date(2026, 9, 1), 30, 33), (date(2026, 7, 1), 1, 1)])}))
+    assert ak._rueckblick_summe(ds) == [(date(2026, 9, 1), 62.0, 64.0)]          # nur gemeinsame Monate
+
+
+def test_szenario_als_schatten_und_status_stapel():
+    from modern import analytik_kern as an
+    from modern import seite_prognose as sp
+
+    pg = _pg()
+    basis = {"pg": pg, "kap": 140, "offset": 10.0, "standort": "BFW GS", "brutto": False, "b95": True, "backtest": False,
+             "animation": False, "pg_lang": None, "stichtag": date(2026, 10, 25), "art": "trend", "schritt": 4}
+    o = sp.option(basis)
+    namen = {s["name"]: s for s in o["series"]}
+    echt = [v for v in namen["Prognose (erwartet)"]["data"] if v is not None]
+    geist = [v for v in namen["Szenario (Simulation)"]["data"] if v is not None]
+    assert echt[-1] == 132.0 and geist[-1] == round(132.0 * 1.1, 1)              # echte Prognose bleibt, Szenario daneben
+    assert namen["Kapazität"]["data"][0] == 150 and namen["Kapazität Szenario"]["data"][0] == 140
+    sm = an.status_monate(_DsStatus(), "BFW GS", False, pg)
+    st = sp.option({**basis, "offset": 0.0, "kap": 150, "status": True, "sm": sm, "kontingent": {"UWT": 10, "Mieter": 5}})
+    gestapelt = [s for s in st["series"] if s.get("stack") == "status"]
+    assert [s["name"] for s in gestapelt] == ["UWTler", "Mieter", "Teilnehmende & Sonstige"]
+    assert {s["name"] for s in st["series"]} >= {"Kontingent UWT", "Kontingent UWT + Mieter", "Kapazität"}

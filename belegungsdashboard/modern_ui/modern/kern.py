@@ -518,3 +518,19 @@ def design_setzen(d: dict) -> dict:
     roh["design"] = bereinigen(d)
     speicher.schreiben(ZUSTAND, roh)
     return roh["design"]
+
+
+def kontingent_lesen(standort: str) -> dict | None:
+    """Geplante Aufteilung der Kapazität in % ({"UWT": 20, "Mieter": 10}) – Planungsannahme, keine Belegungsdaten."""
+    k = speicher.lesen(ZUSTAND, {}).get("kontingente", {}).get(standort)
+    return {"UWT": float(k.get("UWT", 0)), "Mieter": float(k.get("Mieter", 0))} if isinstance(k, dict) else None
+
+
+def kontingent_setzen(standort: str, werte: dict | None) -> None:
+    roh = speicher.lesen(ZUSTAND, {})
+    alle = roh.setdefault("kontingente", {})
+    if werte is None:
+        alle.pop(standort, None)
+    else:
+        alle[standort] = {"UWT": float(werte["UWT"]), "Mieter": float(werte["Mieter"])}
+    speicher.schreiben(ZUSTAND, roh)

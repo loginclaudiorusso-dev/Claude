@@ -28,11 +28,18 @@ STANDORT_FARBEN = {
     True: {"BFW BP": "#00908F", "BFW GS": "#D4700A", "BFW WE": "#5646C0", konfig.GESAMT: "#344054"},
 }
 
+# Status-Aufteilung: UWTler (Deep Blue), Mieter (Slate), übrige Belegung neutral – hell / dunkel
+STATUS_FARBEN = {
+    False: {"UWT": "#4F6FE8", "Mieter": "#A3B1C6", "uebrige": "#6B7280"},
+    True: {"UWT": "#1E3A8A", "Mieter": "#64748B", "uebrige": "#CBD5E1"},
+}
+STATUS_NAMEN = {"UWT": "UWTler", "Mieter": "Mieter", "uebrige": "Teilnehmende & Sonstige"}
+
 
 def _z(x: float | None) -> str:
     if x is None:
         return "–"
-    return f"{x:,.0f}".replace(",", ".")
+    return f"{x:,.0f}".replace(",", ".").replace("-", "−")
 
 
 def _z1(x: float | None) -> str:
@@ -357,3 +364,146 @@ Modell: {escape(pg.modell or '–')} · erstellt {date.today():%d.%m.%Y}</p>{sze
 <p class="u" style="margin-top:14px">Erwartet = Ø belegte Plätze (Modell + Verträge, nie unter dem gebuchten Bestand) · Gebucht =
 bereits bekannter Bestand · Reserve = Kapazität − Erwartet · Einschätzung nach oberer 80 %-Grenze (≥ 70 % knapp, ≥ 85 % kritisch).</p>
 </html>"""
+
+
+# ---------------------------------------------------------------------------------------
+# Status-Aufteilung: UWTler und Mieter gegenüber der übrigen Belegung
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class StatusMonat:
+    monat: date
+    art: str                 # ist | laufend | prognose
+    uwt: float               # Ø Plätze UWT (Ist bzw. gebucht – UWT-Blöcke sind vertraglich fest)
+    mieter: float            # Ø Plätze Mieter (Ist bzw. laufende Mietverträge)
+    uebrige: float           # Gesamt − UWT − Mieter (Teilnehmende, Gäste, DRK …; in der Zukunft: Prognose)
+    gesamt: float            # Ist bzw. erwartete Gesamtbelegung (wie im Graph)
+
+
+def status_monate(ds, standort: str, brutto: bool, pg: ak.Prognose) -> list[StatusMonat]:
+    """Ø-Plätze je Monat nach Status. UWT und Mieter stammen aus den Listen (Ist bzw. bereits gebucht), die übrige
+    Belegung ist der Rest bis zur Gesamtzahl – die Unsicherheit der Prognose liegt damit allein bei den übrigen."""
+    import pandas as pd
+
+    if not pg or not pg.zeilen:
+        return []
+    von = pg.zeilen[0].monat
+    bis = (pd.Timestamp(pg.zeilen[-1].monat) + pd.offsets.MonthEnd(0)).date()
+    kat = ds.kategorien(standort, von, bis, brutto)
+    mittel = kat.groupby(kat.index.to_period("M")).mean()
+
+    def wert(spalte: str, periode) -> float:
+        if spalte not in mittel.columns or periode not in mittel.index:
+            return 0.0
+        return float(mittel.at[periode, spalte])
+    erg = []
+    for z in pg.zeilen:
+        p = pd.Period(z.monat, "M")
+        gesamt = z.ist if z.art == "ist" and z.ist is not None else z.erwartet
+        uwt, mieter = wert("UWT", p), wert("Mieter", p)
+        erg.append(StatusMonat(z.monat, z.art, uwt, mieter, max(gesamt - uwt - mieter, 0.0), gesamt))
+    return erg
+
+
+@dataclass
+class StatusLage:
+    """Kompakte Aufteilung für einen Standort: heute und die nächsten Monate."""
+    stichtag: date
+    kapazitaet: int
+    heute: dict              # UWT / Mieter / uebrige / frei → Plätze am Stichtag
+    monate: list[StatusMonat]   # nächste Monate (laufend + Prognose)
+    fest_max: float          # höchste Summe UWT + Mieter in diesen Monaten
+    fest_max_monat: date | None
+    saetze: list[str]        # Aussagen (aus den Zahlen, nichts geschätzt)
+
+
+def status_lage(ds, standort: str, brutto: bool, sm: list[StatusMonat], monate: int = 6) -> StatusLage:
+    lage = ds.aufschluesselung(standort, ds.stichtag, brutto)
+    kap = lage.kapazitaet
+    uwt, mieter = lage.teile.get("UWT", 0.0), lage.teile.get("Mieter", 0.0)
+    heute = {"UWT": uwt, "Mieter": mieter, "uebrige": max(lage.belegt - uwt - mieter, 0.0),
+             "frei": max(kap - lage.belegt, 0.0) if kap else 0.0}
+    kommend = [m for m in sm if m.art != "ist"][:monate]
+    spitze = max(kommend, key=lambda m: m.uwt + m.mieter, default=None)
+    saetze = []
+    if kap:
+        saetze.append(f"Heute binden UWTler {_z(uwt)} und Mieter {_z(mieter)} Plätze – zusammen {_p((uwt + mieter) / kap)} "
+                      f"der Kapazität von {_z(kap)}.")
+    if spitze is not None and kap:
+        saetze.append(f"Fest gebucht (UWT + Mieter) höchstens {_z(spitze.uwt + spitze.mieter)} Plätze im "
+                      f"{ak.monat_text(spitze.monat)} ({_p((spitze.uwt + spitze.mieter) / kap)}); für Teilnehmende "
+                      f"und Sonstige bleiben dann {_z(kap - spitze.uwt - spitze.mieter)}.")
+        eng = [m for m in kommend if m.gesamt > kap * konfig.AMPEL_ROT]
+        if eng:
+            saetze.append(f"In {len(eng)} Monat(en) liegt die erwartete Gesamtbelegung über {round(100 * konfig.AMPEL_ROT)} % – "
+                          f"zuerst {ak.monat_text(eng[0].monat)}; davon UWT + Mieter {_z(eng[0].uwt + eng[0].mieter)}.")
+    return StatusLage(ds.stichtag, kap, heute, kommend, (spitze.uwt + spitze.mieter) if spitze else 0.0,
+                      spitze.monat if spitze else None, saetze)
+
+
+def sanierung_plaetze(lage, standort: str) -> int | None:
+    """Betten in Zimmern, die ein offener Mangel unbewohnbar macht (Gebäudeplan, nur Goslar). None = keine Grundlage."""
+    if lage is None or standort not in ("BFW GS", konfig.GESAMT):
+        return None
+    zimmer = getattr(lage, "zimmer", {}) or {}
+    return sum(zimmer[z].betten for z in (getattr(lage, "unbewohnbar", {}) or {}) if z in zimmer and zimmer[z].aktiv)
+
+
+# ---------------------------------------------------------------------------------------
+# Kontingente: geplante prozentuale Aufteilung der Kapazität (UWT / Mieter / Teilnehmende & Sonstige)
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class KZeile:
+    monat: date
+    art: str
+    uwt: float
+    mieter: float
+    uebrige: float
+    k_uwt: float             # Kontingent in Plätzen
+    k_mieter: float
+    k_uebrige: float
+    stufe: dict              # Schlüssel → ok | knapp | ueber  (Belegung gegenüber dem eigenen Kontingent)
+
+
+def kontingent_vorschlag(sm: list[StatusMonat], kap: int, monate: int = 12) -> dict:
+    """Ausgangsvorschlag aus den Daten: höchster gebuchter Anteil von UWT bzw. Mietern an der Kapazität in den nächsten
+    Monaten, auf ganze Prozent aufgerundet – so passen die gebuchten Spitzen hinein."""
+    import math
+
+    kommend = [m for m in sm if m.art != "ist"][:monate]
+    if not kap or not kommend:
+        return {"UWT": 0.0, "Mieter": 0.0}
+    return {"UWT": float(math.ceil(100 * max(m.uwt for m in kommend) / kap)),
+            "Mieter": float(math.ceil(100 * max(m.mieter for m in kommend) / kap))}
+
+
+def kontingent_pruefung(sm: list[StatusMonat], kap: int, anteile: dict, monate: int = 12) -> list[KZeile]:
+    """Je Monat: Belegung je Gruppe gegen ihr Kontingent. knapp = ≥ 90 % des Kontingents, ueber = mehr als das Kontingent."""
+    k_u = kap * anteile.get("UWT", 0) / 100
+    k_m = kap * anteile.get("Mieter", 0) / 100
+    k_r = max(kap - k_u - k_m, 0.0)
+
+    def st(wert: float, grenze: float) -> str:
+        if wert > grenze + 0.05:
+            return "ueber"
+        return "knapp" if grenze and wert >= .9 * grenze else "ok"
+    return [KZeile(m.monat, m.art, m.uwt, m.mieter, m.uebrige, k_u, k_m, k_r,
+                   {"UWT": st(m.uwt, k_u), "Mieter": st(m.mieter, k_m), "uebrige": st(m.uebrige, k_r)})
+            for m in [x for x in sm if x.art != "ist"][:monate]]
+
+
+def kontingent_saetze(zeilen: list[KZeile], anteile: dict) -> list[str]:
+    erg = []
+    namen = {"UWT": "UWT", "Mieter": "Mieter", "uebrige": "Teilnehmende & Sonstige"}
+    for schl in ("UWT", "Mieter", "uebrige"):
+        feld = schl.lower()
+        ueber = [z for z in zeilen if z.stufe[schl] == "ueber"]
+        if ueber:
+            groesst = max(ueber, key=lambda z: getattr(z, feld) - getattr(z, "k_" + feld))
+            erg.append(f"{namen[schl]}: Kontingent in {len(ueber)} von {len(zeilen)} Monaten überschritten – am stärksten "
+                       f"{ak.monat_text(groesst.monat)} ({_z(getattr(groesst, feld))} statt {_z(getattr(groesst, 'k_' + feld))} Plätze).")
+    if not erg and zeilen:
+        erg.append(f"Alle Gruppen bleiben in den nächsten {len(zeilen)} Monaten innerhalb ihres Kontingents "
+                   f"(UWT {anteile.get('UWT', 0):g} %, Mieter {anteile.get('Mieter', 0):g} %).")
+    return erg

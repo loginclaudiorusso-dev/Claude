@@ -177,8 +177,23 @@ def prognose(ds, standort: str, brutto: bool, zurueck: int = 24, vor: int = 24) 
     if m is None:
         return Prognose(zeilen, ds.kapazitaet(standort, brutto), "", "", None, None, None, [], [])
     rueck = [(mon, float(ist), float(p)) for mon, ist, p in (m.rueckblick or [])]
+    if not rueck and standort == konfig.GESAMT:
+        rueck = _rueckblick_summe(ds)
     return Prognose(zeilen, ds.kapazitaet(standort, brutto), m.name, m.beschreibung, m.mae_1m, m.mae, m.abdeckung80,
                     list(m.kandidaten or []), rueck, getattr(m, "monate_historie", 0) or 0)
+
+
+def _rueckblick_summe(ds) -> list:
+    """Backtest für „Gesamt“: Summe der Blind-Prognosen der Standorte (die Gesamtprognose ist deren Summe) –
+    nur für Monate, die alle Standorte haben."""
+    teile = []
+    for s in konfig.STANDORTE:
+        m = ds.prognose.modelle.get(s)
+        if m is None or not m.rueckblick:
+            return []
+        teile.append({mon: (float(ist), float(p)) for mon, ist, p in m.rueckblick})
+    gemeinsam = sorted(set.intersection(*(set(t) for t in teile)))
+    return [(mon, sum(t[mon][0] for t in teile), sum(t[mon][1] for t in teile)) for mon in gemeinsam]
 
 
 def einschaetzung(hi80: float, kapazitaet: int) -> tuple[str, str]:
