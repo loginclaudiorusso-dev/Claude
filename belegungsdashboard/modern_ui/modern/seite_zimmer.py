@@ -10,7 +10,8 @@ from nicegui import run, ui
 from . import seiten, zimmer_kern as zk
 from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 
-ANSICHTEN = {"uebersicht": "Übersicht", "zeitstrahl": "Zeitstrahl", "liste": "Liste", "maengel": "Defekte Zimmer"}
+ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
+             "maengel": "Defekte Zimmer"}
 
 
 def daten(a) -> None:
@@ -23,9 +24,15 @@ def daten(a) -> None:
         return
     if ansicht == "zeitstrahl":
         seiten.zs_daten(a)
+        return
+    f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr)
+    tag = a.zu_tag
+    a.daten = {"n": zk.zaehler(a.stand, a.zl_haus, tag, bool(a.zl_mehr.get("alle"))),
+               "kpi": zk.kennzahl_text(zk._sortiert(a.stand, f, tag))}
+    if ansicht == "karten":
+        a.daten["haeuser"], a.daten["hinweis"] = zk.karten(a.stand, f, tag)
     else:
-        f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text)
-        a.daten = zk.liste(a.stand, f, a.heute)
+        a.daten["zeilen"] = zk.liste(a.stand, f, tag)
 
 
 def zeichnen(a) -> None:
@@ -39,6 +46,8 @@ def zeichnen(a) -> None:
     elif ansicht == "zeitstrahl":
         seiten.zs_zeichnen(a)
         _klickbar(a)
+    elif ansicht == "karten":
+        _karten(a)
     else:
         _liste(a)
 
@@ -50,19 +59,19 @@ def _klickbar(a) -> None:
               js_handler="(e) => { const t = e.target.closest('[data-z]'); emit(t ? t.dataset.z : null); }")
 
 
-def _liste(a) -> None:
-    from .kern import WT  # noqa: F401
-
+def _filterleiste(a, ansicht: str) -> None:
+    """Gemeinsame Such- und Filterleiste für Karten und Liste (wie „Zimmer finden“ im bisherigen Programm)."""
     with a.werkzeuge:
         segmente({"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}, a.zl_haus,
                  lambda h: a.setzen(zl_haus=h))
-    zs = a.daten
+    n = a.daten["n"]
     with a.leiste:
         suche = ui.input(placeholder="Zimmer, Name, Hinweis …", value=a.zl_text).classes("m-feld m-sucheingabe").props(
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(zl_text=suche.value or ""))
         suche.on("clear", lambda: a.setzen(zl_text=""))
-        segmente(zk.STATUS, a.zl_status, lambda s: a.setzen(zl_status=s))
+        segmente({s: (t if not s else f"{t} {n.get(s, 0)}") for s, t in zk.STATUS.items()}, a.zl_status,
+                 lambda s: a.setzen(zl_status=s))
         with ui.element("div").classes("m-segm").props('role="group"'):
             for k, text in zk.MERKMALE.items():
                 an = k in a.zl_schnell
@@ -71,21 +80,95 @@ def _liste(a) -> None:
                 with b:
                     ui.label(text)
                 b.on("click", lambda k=k: a.setzen(zl_schnell=a.zl_schnell ^ {k}))
-        ui.label(f"{len(zs)} Zimmer").classes("m-kpi")
-        knopf("Liste drucken", lambda: _drucken(a, "liste"), "", "print")
-        knopf("FM-Mängelbericht", lambda: _drucken(a, "fm"), "", "build")
-    spalten = "104px 76px minmax(110px, .9fr) 90px minmax(80px, .6fr) minmax(90px, .7fr) minmax(160px, 1.6fr) minmax(120px, 1.2fr)"
+        _filter_menue(a)
+        if a.zl_schnell or a.zl_status or a.zl_text or zk.mehr_aktiv(a.zl_mehr):
+            knopf("Zurücksetzen", lambda: a.setzen(zl_schnell=set(), zl_status="", zl_text="", zl_mehr={}), "leise", "close")
+    with a.leiste:
+        tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
+        attr(tag, title="Stichtag – Status und Bewohner an diesem Tag")
+        tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+        if a.zu_tag != a.heute:
+            knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
+        ui.label(a.daten["kpi"]).classes("m-kpi m-mono")
+        with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
+            with ui.menu().props('dark class="m-menue"'):
+                ui.menu_item("Zimmerliste drucken (mit Bewohnern)", lambda: _drucken(a, "liste"))
+                ui.menu_item("Zimmerliste drucken (ohne Namen)", lambda: _drucken(a, "liste_ohne"))
+                ui.menu_item("Kopieren (für Excel)", lambda: _kopieren(a))
+                ui.menu_item("Belegung am Tag als Excel …", lambda: _excel(a))
+                ui.separator()
+                ui.menu_item("FM-Mängelbericht drucken", lambda: _drucken(a, "fm"))
+        if ansicht == "liste":
+            with knopf("Bearbeiten", None, "", "edit"):
+                with ui.menu().props('dark class="m-menue"'):
+                    ui.menu_item("Eigenschaften der markierten Zimmer …", lambda: _eigenschaften_panel(a))
+                    ui.menu_item("Renovierungsliste einfügen …", lambda: _renovierungen_panel(a))
+
+
+def _filter_menue(a) -> None:
+    """Seltenere Filter – Boden, Mangel, Renovierung, Gäste/Bad über Flur, Personengruppe, außer Betrieb."""
+    m = {**zk.MEHR_LEER, **a.zl_mehr}
+    opt = zk.filter_optionen(a.heute)
+    n = zk.mehr_aktiv(a.zl_mehr)
+
+    def umschalten(art: str, wert: str):
+        return a.setzen(zl_mehr={**m, art: sorted(set(m[art]) ^ {wert})})
+
+    def setzen(art: str, wert):
+        return a.setzen(zl_mehr={**m, art: wert})
+
+    def eintrag(text: str, an: bool, fn):
+        with ui.menu_item(on_click=fn, auto_close=False).classes("m-mpunkt"):
+            ui.icon("check_box" if an else "check_box_outline_blank").classes("m-mhaken" + (" an" if an else ""))
+            ui.label(text)
+
+    with knopf(f"Filter · {n}" if n else "Filter", None, "akzent" if n else "", "filter_list"):
+        with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
+            ui.label("Boden").classes("m-mgruppe")
+            for k, t in opt["boeden"].items():
+                eintrag(t, k in m["boeden"], lambda k=k: umschalten("boeden", k))
+            ui.label("Mangel").classes("m-mgruppe")
+            for k, t in opt["maengel"].items():
+                eintrag(t, k in m["maengel"], lambda k=k: umschalten("maengel", k))
+            ui.label("Renovierung").classes("m-mgruppe")
+            for k, t in opt["renoviert"].items():
+                eintrag(t, m["renoviert"] == k, lambda k=k: setzen("renoviert", k))
+            ui.label("Merkmale").classes("m-mgruppe")
+            for k, t in opt["merkmale"].items():
+                eintrag(t, k in m["merkmale"], lambda k=k: umschalten("merkmale", k))
+            ui.label("Personengruppe").classes("m-mgruppe")
+            for k, t in opt["modus"].items():
+                eintrag(t, m["modus"] == k, lambda k=k: setzen("modus", k))
+            for k, t in opt["gruppen"].items():
+                eintrag(t, k in m["gruppen"], lambda k=k: umschalten("gruppen", k))
+            ui.separator()
+            eintrag("Auch Zimmer außer Betrieb (Lager, Jugendhilfe …)", bool(m["alle"]), lambda: setzen("alle", not m["alle"]))
+
+
+def _liste(a) -> None:
+    _filterleiste(a, "liste")
+    zs = a.daten["zeilen"]
+    sichtbar = {z.zimmer for z in zs}
+    a.zk_auswahl &= sichtbar
+    spalten = ("34px 104px 76px minmax(110px, .9fr) 90px minmax(80px, .6fr) minmax(90px, .7fr) minmax(160px, 1.6fr) "
+               "minmax(120px, 1.2fr)")
     with a.inhalt:
         if not zs:
-            leer("Keine Zimmer mit diesen Filtern.")
+            leer("Keine Zimmer mit diesen Filtern – Filter lockern oder „Zurücksetzen“.")
             return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{spalten}"):
-            for t in ("Zustand", "Zimmer", "Lage", "Merkmale", "Renoviert", "Boden", "Heute", "Mängel / Hinweis"):
+            alle = ui.checkbox(value=bool(zs) and a.zk_auswahl == sichtbar).props("dense dark size=xs")
+            attr(alle, title="Alle markieren (für „Bearbeiten“)")
+            for t in ("Zustand", "Zimmer", "Lage", "Merkmale", "Renoviert", "Boden", "Am Tag", "Mängel / Hinweis"):
                 ui.label(t)
+        boxen = []
         for r in zs:
             stufe = {0: "", 1: "warn", 2: "warn", 3: "krit"}[r.stufe]
             z = ui.element("div").classes("m-raster m-zeile m-klick").style(f"grid-template-columns:{spalten}")
             with z:
+                cb = ui.checkbox(value=r.zimmer in a.zk_auswahl).props("dense dark size=xs")
+                cb.on_value_change(lambda e, zid=r.zimmer: a.zk_auswahl.add(zid) if e.value else a.zk_auswahl.discard(zid))
+                boxen.append(cb)
                 with ui.element("div"):
                     badge(r.status)
                 ui.label(r.kurz).classes("m-name m-mono")
@@ -96,7 +179,151 @@ def _liste(a) -> None:
                 attr(ui.label(r.heute).classes("m-zweite"), title=r.heute)
                 text = r.maengel or r.notiz
                 attr(ui.label(text).classes(f"m-zweite {'m-' + stufe if stufe else ''}"), title=text)
-            z.on("click", lambda r=r: karte_oeffnen(a, r.zimmer))
+            z.on("click", lambda e, r=r: karte_oeffnen(a, r.zimmer),
+                 js_handler="(e) => { if (!e.target.closest('.q-checkbox')) emit(); }")
+
+        def alle_umschalten(e):
+            a.zk_auswahl.clear()
+            if e.value:
+                a.zk_auswahl.update(sichtbar)
+            for cb in boxen:
+                cb.set_value(e.value)
+        alle.on_value_change(alle_umschalten)
+
+
+def _karten(a) -> None:
+    """Je Haus und Etage eine Spalte, je Zimmer eine Karte mit Zustand, Merkmalen, Mängeln und Bewohnern."""
+    _filterleiste(a, "karten")
+    haeuser = a.daten["haeuser"]
+    with a.inhalt:
+        if a.daten["hinweis"]:
+            ui.label(a.daten["hinweis"]).classes("m-hinweisbox")
+        if not haeuser:
+            leer("Keine Zimmer mit diesen Filtern – Filter lockern oder „Zurücksetzen“.")
+            return
+        for h in haeuser:
+            with ui.element("section").classes("m-khaus"):
+                with ui.element("div").classes("m-khaus-kopf"):
+                    ui.icon("apartment")
+                    ui.label(f"Haus {h.haus}").classes("m-btitel")
+                    ui.label(h.unter).classes("m-kpi m-mono")
+                with ui.element("div").classes("m-ketagen"):
+                    for e in h.etagen:
+                        with ui.element("div").classes("m-ketage"):
+                            with ui.element("div").classes("m-ketage-kopf"):
+                                ui.label(e.titel).classes("m-name")
+                                ui.label(e.unter).classes("m-zweite")
+                            for k in e.karten:
+                                _zkarte(a, k)
+
+
+def _zkarte(a, k) -> None:
+    kl = "m-zkarte" + (" unbew" if k.unbewohnbar else "")
+    el = ui.element("button").classes(kl)
+    attr(el, title=f"Zimmer {k.kurz} – Klick: Zimmerkarte")
+    with el:
+        with ui.element("div").classes("m-zk-kopf"):
+            ui.label(k.kurz).classes("m-zk-nr m-mono")
+            ui.label(f"{k.betten} Bett{'en' if k.betten > 1 else ''}").classes("m-zweite")
+            with ui.element("span").style("margin-left:auto"):
+                badge(k.status)
+        if k.merkmale:
+            ui.label(k.merkmale).classes("m-zweite")
+        if k.maengel:
+            with ui.element("div").classes("m-zk-mangel " + ("krit" if k.stufe == 3 else "warn" if k.stufe == 2 else "")):
+                ui.icon("priority_high")
+                ui.label(k.maengel)
+        for b in k.belegungen:
+            with ui.element("div").classes(f"m-zk-bel {b.art}"):
+                ui.icon({"gesperrt": "block", "geplant": "schedule"}.get(b.art, "person"))
+                with ui.element("div"):
+                    ui.label(b.titel).classes("m-zk-name")
+                    ui.label(b.zeit + (" · geplant" if b.art == "geplant" else "")).classes("m-zweite m-mono")
+        if k.frei_bis:
+            ui.label(k.frei_bis).classes("m-zweite").style("color:var(--gruen)")
+    el.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
+
+
+async def _kopieren(a) -> None:
+    import json
+
+    f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr)
+    text, n = await run.io_bound(zk.liste_tsv, a.stand, f, a.zu_tag)
+    ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(text)})")
+    a.toast(f"{n} Zimmer kopiert – in Excel einfügen (Strg+V)", rueck=False)
+
+
+async def _excel(a) -> None:
+    try:
+        text, pfad = await run.io_bound(zk.belegung_excel, a.stand, a.zu_tag)
+    except PermissionError:
+        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+        return
+    except Exception as exc:                # noqa: BLE001
+        a.toast(f"Nicht gespeichert: {exc}", fehler=True)
+        return
+    a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text} – {pfad}", rueck=False)
+
+
+def _eigenschaften_panel(a) -> None:
+    from .kern import kurz
+
+    gewaehlt = sorted(a.zk_auswahl)
+    if not gewaehlt:
+        a.toast("Bitte zuerst in der Liste Zimmer markieren (Kästchen links).", fehler=True)
+        return
+    namen = ", ".join(kurz(z) for z in gewaehlt[:12])
+
+    def bauen():
+        ui.label(f"{len(gewaehlt)} Zimmer: {namen}" + (" …" if len(gewaehlt) > 12 else "")).classes("m-ptext")
+        reno = ui.select({"gleich": "Renovierung: nicht ändern", "datum": "renoviert am …", "entfernen": "Renovierung entfernen"},
+                         value="gleich").classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        datum = ui.input("Renoviert am", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+        datum.bind_visibility_from(reno, "value", value="datum")
+        boden = ui.select({"-": "Boden: nicht ändern", **{b: b for b in zk.boeden()}, "": "Boden entfernen (unbekannt)"},
+                          value="-").classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        vermutet = ui.checkbox("nur vermutet („ziemlich sicher“)").props("dark dense")
+
+        async def speichern():
+            d = date.fromisoformat(datum.value) if reno.value == "datum" and datum.value else None
+            if await a.aendern(zk.eigenschaften_setzen, gewaehlt, reno.value, d,
+                               None if boden.value == "-" else boden.value, vermutet.value):
+                a.zk_auswahl.clear()
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Eigenschaften setzen", bauen)
+
+
+def _renovierungen_panel(a) -> None:
+    def bauen():
+        ui.label("In Excel die Spalten Haus, Zimmer, (Notiz,) Datum markieren, kopieren (Strg+C) und hier einfügen "
+                 "(Strg+V). Es gilt das neuere Datum; ein sicher eingetragener Boden bleibt.").classes("m-ptext")
+        text = ui.textarea(placeholder="3.1\tE20\t\t27.09.2019\n2\t402\tfertigstellung\t07.01.2026").classes(
+            "m-feld").props("outlined dark autogrow").style("min-height:180px")
+        info = ui.label("").classes("m-zweite")
+        boden = ui.select({"": "Boden nicht setzen", **{b: f"Boden: {b}" for b in zk.boeden()}}, value=zk.boeden()[0]
+                          ).classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        vermutet = ui.checkbox("nur vermutet („ziemlich sicher“)", value=True).props("dark dense")
+
+        async def pruefen():
+            n, fehler = await run.io_bound(zk.renovierungen_pruefen, a.stand, text.value or "")
+            info.text = f"{n} Zimmer erkannt" + (f" · nicht zugeordnet: {', '.join(fehler[:6])}" if fehler else "")
+        text.on("blur", pruefen)
+
+        async def uebernehmen():
+            if await a.aendern(zk.renovierungen_uebernehmen, text.value or "", boden.value, vermutet.value):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Übernehmen", uebernehmen, "primaer", "check")
+            knopf("Prüfen", pruefen, "leise", "fact_check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Renovierungsliste einfügen", bauen, breit=True)
 
 
 async def _drucken(a, art: str) -> None:
@@ -104,8 +331,8 @@ async def _drucken(a, art: str) -> None:
         text = await run.io_bound(zk.fm_bericht)
         name = "Maengelbericht"
     else:
-        f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text)
-        text = await run.io_bound(zk.liste_druck, a.stand, f, a.heute)
+        f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr)
+        text = await run.io_bound(zk.liste_druck, a.stand, f, a.zu_tag, art != "liste_ohne")
         name = "Zimmerliste"
     seiten.html_drucken(a, text, name)
 
@@ -135,7 +362,9 @@ def _karte(a, k: zk.Karte) -> None:
     if k.unbewohnbar:
         badge("unbewohnbar", f"unbewohnbar: {k.unbewohnbar}")
     # Bewohner
-    ui.label("Bewohner").classes("m-ktitel")
+    with ui.element("div").classes("m-ktitelzeile"):
+        ui.label("Bewohner").classes("m-ktitel")
+        knopf("Person hinzufügen", lambda: person_hinzu_panel(a, k), "primaer", "person_add")
     if not k.personen:
         ui.label("Frei – niemand wohnt hier oder kommt.").classes("m-ptext")
     for p in k.personen:
@@ -424,3 +653,81 @@ async def _fm_zurueck(a, dateien) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Erledigte aus der FM-Liste", bauen)
+
+
+# =======================================================================================
+# Person in dieses Zimmer: aus den Anreisen ohne Zimmer wählen oder neu anlegen
+# =======================================================================================
+
+GRUPPEN = {"Reha": "Reha-Maßnahme", "RVL": "RVL", "RVT": "RVT", "ASS": "Assessment", "EMR": "EMR"}
+GESCHLECHT = {"": "unbekannt", "m": "männlich", "w": "weiblich", "d": "divers"}
+
+
+async def person_hinzu_panel(a, k: zk.Karte) -> None:
+    from . import anreisen_kern as ank
+
+    kandidaten = await run.io_bound(zk.kandidaten, a.stand, k.zimmer, a.heute)
+    massnahmen = await run.io_bound(ank.massnahmen)
+
+    def bauen():
+        knopf("Zurück zur Zimmerkarte", lambda: karte_oeffnen(a, k.zimmer), "leise", "arrow_back")
+        if kandidaten:
+            ui.label("Aus den Anreisen – noch ohne Zimmer").classes("m-ktitel")
+            ui.label("Diese Personen dürfen hier wohnen und das Zimmer ist in ihrem Zeitraum frei.").classes("m-ptext")
+            for c in kandidaten[:12]:
+                with ui.element("div").classes("m-kandidat"):
+                    with ui.element("div"):
+                        with ui.element("div").classes("m-namezeile"):
+                            ui.label(c.name).classes("m-name")
+                            if c.schluessel in a.neu:
+                                from .ui_bausteine import badge_neu
+
+                                badge_neu(a.neu[c.schluessel])
+                        ui.label(f"{c.zweite} · {c.zeit}" + (" · passt am besten" if c.vorschlag else "")).classes("m-zweite")
+                    knopf("Hier einziehen", lambda c=c: _nach(a, _zuweisen, c.schluessel, k.zimmer, zimmer=k.zimmer),
+                          "gruen" if c.vorschlag else "", "login")
+            if len(kandidaten) > 12:
+                ui.label(f"… und {len(kandidaten) - 12} weitere – unter Anreisen → Zuteilen.").classes("m-zweite")
+        ui.label("Neue Person anlegen").classes("m-ktitel")
+        ui.label("Für Nachmeldungen, Gäste oder Mieter: die Person wird angelegt und gleich in dieses Zimmer geplant "
+                 "(Rückgängig nimmt beides zurück).").classes("m-ptext")
+        name = ui.input("Name (Nachname, Vorname)").classes("m-feld").props("dense outlined dark autofocus")
+        mn = ui.select(massnahmen, label="Maßnahme", new_value_mode="add-unique", with_input=True).classes(
+            "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
+        gr = ui.select(GRUPPEN, value="Reha", label="Gruppe").classes("m-feld").props(
+            'dense outlined dark popup-content-class="m-popup"')
+        attr(gr, title="Bestimmt, welche Zimmer erlaubt sind (z. B. EMR nur Haus 2, Etage 1–2)")
+        with ui.element("div").classes("m-zweispaltig"):
+            von = ui.input("Anreise", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            bis = ui.input("Abreise", value=(a.heute + timedelta(days=28)).isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+        with ui.element("div").classes("m-zweispaltig"):
+            ge = ui.select(GESCHLECHT, value="", label="Geschlecht").classes("m-feld").props(
+                'dense outlined dark popup-content-class="m-popup"')
+            tier = ui.checkbox("kommt mit Tier").props("dark dense")
+        bem = ui.input("Bemerkung (optional)", placeholder="z. B. barrierefrei, kommt einen Tag später").classes(
+            "m-feld").props("dense outlined dark")
+        tn = ui.input("TN-ID (optional)").classes("m-feld").props("dense outlined dark")
+
+        async def speichern():
+            try:
+                d_von, d_bis = date.fromisoformat(von.value), date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte An- und Abreise wählen.", fehler=True)
+                return
+            if await a.aendern(zk.person_ins_zimmer, k.zimmer, name.value or "", mn.value or "", gr.value or "",
+                               d_von, d_bis, ge.value or "", bool(tier.value), bem.value or "", tn.value or ""):
+                await karte_oeffnen(a, k.zimmer)
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf(f"Anlegen und in {k.kurz} einplanen", speichern, "primaer", "person_add")
+            knopf("Abbrechen", lambda: karte_oeffnen(a, k.zimmer), "leise")
+
+    a.panel(f"Person in Zimmer {k.kurz}", bauen, breit=True)
+
+
+def _zuweisen(schluessel: str, zimmer: str) -> str:
+    from . import kern
+
+    return kern.zuweisen(schluessel, zimmer)
+

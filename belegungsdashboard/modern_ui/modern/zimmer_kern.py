@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from belegung import maengel as mg
 from belegung import termine as tm
@@ -15,7 +15,10 @@ from belegung import zimmerplan as zp
 from .kern import _schritt, kurz
 
 STATUS = {"": "Alle", "frei": "Frei", "belegt": "Belegt", "geplant": "Geplant", "gesperrt": "Gesperrt"}
-MERKMALE = {"maengel": "Mängel", "reno": "Renoviert", "tiere": "Tier", "doppel": "Doppelzimmer", "maenner": "Bad über Flur"}
+MERKMALE = {"maengel": "Mängel", "reno": "Renoviert", "Vinyl": "Vinyl", "Teppich": "Teppich", "tiere": "Tier",
+            "doppel": "Doppelzimmer", "maenner": "Bad über Flur"}
+# Seltenere Filter (wie „Filter ▾“ im bisherigen Programm)
+MEHR_LEER = {"boeden": [], "merkmale": [], "renoviert": "alle", "gruppen": [], "modus": "wohnt", "alle": False, "maengel": []}
 
 
 # ---------------------------------------------------------------------------------------
@@ -37,17 +40,66 @@ class LZeile:
     notiz: str
 
 
-def filter_bauen(haus: str = "", status: str = "", schnell: set[str] | None = None, text: str = "") -> zl.Filter:
+def filter_bauen(haus: str = "", status: str = "", schnell: set[str] | None = None, text: str = "",
+                 mehr: dict | None = None) -> zl.Filter:
     schnell = schnell or set()
-    return zl.Filter(haus=haus, status=status, text=text.strip(), renoviert="ja" if "reno" in schnell else "alle",
-                     merkmale={m for m in schnell if m in ("tiere", "doppel", "maenner")},
-                     maengel={"*"} if "maengel" in schnell else set())
+    m = {**MEHR_LEER, **(mehr or {})}
+    return zl.Filter(haus=haus, status=status, text=text.strip(),
+                     renoviert="ja" if "reno" in schnell else m["renoviert"],
+                     boeden=set(m["boeden"]) | ({"Vinyl", "Teppich"} & schnell),
+                     merkmale=set(m["merkmale"]) | {x for x in schnell if x in ("tiere", "doppel", "maenner")},
+                     nur_internat=not m["alle"], gruppen=set(m["gruppen"]), gruppen_modus=m["modus"],
+                     maengel=set(m["maengel"]) | ({"*"} if "maengel" in schnell else set()))
+
+
+def mehr_aktiv(mehr: dict | None) -> int:
+    """Wie viele der selteneren Filter gesetzt sind (für die Zahl am Knopf „Filter“)."""
+    m = {**MEHR_LEER, **(mehr or {})}
+    return (len(m["boeden"]) + len(m["merkmale"]) + len(m["gruppen"]) + len(m["maengel"])
+            + (m["renoviert"] != "alle") + bool(m["alle"]))
+
+
+def filter_optionen(heute: date) -> dict:
+    """Auswahl für „Filter“: Boden, Mangel (Stufe/Art), Renovierung, Merkmale, Personengruppe."""
+    return {
+        "boeden": {b: ("Boden unbekannt" if b == "unbekannt" else b)
+                   for b in [x for x in zl.BOEDEN if x not in ("Vinyl", "Teppich")] + ["unbekannt"]},
+        "maengel": {**{f"stufe:{st}": f"{mg.STUFEN[st][3].capitalize()} – {mg.STUFEN[st][0]}" for st in (3, 2, 1)},
+                    **dict(mg.KATALOG)},
+        "renoviert": {"alle": "egal", "nein": "nicht renoviert / unbekannt",
+                      **{f"seit:{j}": f"renoviert seit {j}" for j in range(heute.year - 1, heute.year - 6, -1)}},
+        "merkmale": {"maenner": "Bad über den Flur (nur Männer)", "gaeste": "Gästezimmer"},
+        "gruppen": {g: zp.GRUPPE_LABEL.get(g, g) for g in zp.GRUPPEN},
+        "modus": {"wohnt": "… wohnt dort", "darf": "… darf dort wohnen (Regeln)"},
+    }
+
+
+def zaehler(stand: zp.Planstand, haus: str, tag: date, alle: bool = False) -> dict[str, int]:
+    """Zahlen an den Status-Knöpfen (für das gewählte Haus)."""
+    zs = zl.filtern(stand, zl.Filter(nur_internat=not alle, haus=haus), tag)
+    n = {s: sum(1 for r in zs if r.status == s or (s == "frei" and r.status == "teilweise"))
+         for s in ("frei", "belegt", "geplant", "gesperrt")}
+    n[""] = len(zs)
+    return n
+
+
+def kennzahl_text(zs: list) -> str:
+    """„335 Zimmer · 120 belegt/geplant · 215 frei · Auslastung 36 %“ – wie im Gebäudeplan."""
+    bel = sum(1 for r in zs if r.status in ("belegt", "geplant"))
+    frei = sum(1 for r in zs if r.status in ("frei", "teilweise"))
+    nutzbar = sum(1 for r in zs if r.status != "gesperrt")
+    return (f"{len(zs)} Zimmer · {bel} belegt/geplant · {frei} frei"
+            + (f" · Auslastung {bel / nutzbar:.0%}".replace("%", " %") if nutzbar else ""))
+
+
+def _sortiert(stand: zp.Planstand, f: zl.Filter, tag: date) -> list:
+    return sorted(zl.filtern(stand, f, tag), key=lambda r: (zp._haus_sort(r.zimmer.haus), zp._etage_sort(r.zimmer.etage),
+                                                            r.zimmer.nummer))
 
 
 def liste(stand: zp.Planstand, f: zl.Filter, tag: date) -> list[LZeile]:
     erg = []
-    for r in sorted(zl.filtern(stand, f, tag), key=lambda r: (zp._haus_sort(r.zimmer.haus), zp._etage_sort(r.zimmer.etage),
-                                                              r.zimmer.nummer)):
+    for r in _sortiert(stand, f, tag):
         z = r.zimmer
         st = mg.stufe(r.maengel)
         erg.append(LZeile(z.id, z.kurz, zp.flur_text(z).split(" · ", 1)[-1], zl.merkmal_kurz(z), zl.reno_text(z) or "",
@@ -58,6 +110,225 @@ def liste(stand: zp.Planstand, f: zl.Filter, tag: date) -> list[LZeile]:
 
 def liste_druck(stand: zp.Planstand, f: zl.Filter, tag: date, namen: bool = True) -> str:
     return zl.liste_html(zl.filtern(stand, f, tag), f, namen)
+
+
+def liste_tsv(stand: zp.Planstand, f: zl.Filter, tag: date) -> tuple[str, int]:
+    """Die angezeigten Zimmer als Tabulator-Text – in Excel einfügen (Strg+V)."""
+    zeilen = ["Zimmer\tEtage\tMerkmale\tRenoviert\tBoden\tAm Tag\tNotiz"]
+    for r in _sortiert(stand, f, tag):
+        z = r.zimmer
+        zeilen.append("\t".join([z.kurz, zp.flur_text(z), zl.merkmal_kurz(z), zl.reno_text(z), r.boden, r.heute, z.notiz]))
+    return "\n".join(zeilen), len(zeilen) - 1
+
+
+def belegung_excel(stand: zp.Planstand, tag: date):
+    """Excel-Liste (Zimmer, Etagen, freie Zimmer) am Stichtag – wie „Belegung am Tag als Excel“."""
+    from pathlib import Path
+
+    from belegung import speicher, zimmerexport
+
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / f"Freie_Zimmer_{tag:%Y-%m-%d}.xlsx"
+    zimmerexport.exportieren(pfad, f"Belegung am {tag:%d.%m.%Y}", [], stand.lage, tag)
+    return f"Excel gespeichert: {pfad.name}", pfad
+
+
+# ---------------------------------------------------------------------------------------
+# Karten: je Haus und Etage, je Zimmer Status, Merkmale, Mängel, Bewohner mit Zeitraum (wie der Gebäudeplan)
+# ---------------------------------------------------------------------------------------
+
+KARTEN_MAX = 120          # mehr Karten auf einmal werden träge – dann hausweise
+
+
+@dataclass
+class KBelegung:
+    art: str              # belegt | geplant | gesperrt
+    titel: str
+    zeit: str
+
+
+@dataclass
+class KKarte:
+    zimmer: str
+    kurz: str
+    betten: int
+    status: str
+    merkmale: str
+    stufe: int            # höchste Mängelstufe
+    maengel: str
+    unbewohnbar: bool
+    belegungen: list[KBelegung] = field(default_factory=list)
+    frei_bis: str = ""
+
+
+@dataclass
+class KEtage:
+    titel: str
+    unter: str
+    karten: list[KKarte]
+
+
+@dataclass
+class KHaus:
+    haus: str
+    unter: str
+    etagen: list[KEtage]
+
+
+def karten(stand: zp.Planstand, f: zl.Filter, tag: date) -> tuple[list[KHaus], str]:
+    zs = _sortiert(stand, f, tag)
+    haeuser: dict[str, list] = {}
+    for r in zs:
+        haeuser.setdefault(r.zimmer.haus, []).append(r)
+    hinweis = ""
+    if not f.haus and len(zs) > KARTEN_MAX and len(haeuser) > 1:
+        erstes = next(iter(haeuser))
+        hinweis = (f"Bei vielen Zimmern zeigen die Karten ein Haus auf einmal – hier Haus {erstes}. "
+                   "Oben ein Haus wählen oder mit Filtern eingrenzen.")
+        haeuser = {erstes: haeuser[erstes]}
+    erg = []
+    for haus, zeilen in haeuser.items():
+        bel = sum(1 for r in zeilen if r.status in ("belegt", "geplant"))
+        nutzbar = sum(1 for r in zeilen if r.status != "gesperrt")
+        unter = f"{len(zeilen)} Zimmer · {bel} belegt · " + (f"{bel / nutzbar:.0%}".replace("%", " %") if nutzbar else "–") \
+            + " Auslastung"
+        etagen = []
+        for e in sorted({r.zimmer.etage for r in zeilen}, key=zp._etage_sort):
+            ez = [r for r in zeilen if r.zimmer.etage == e]
+            e_bel = sum(1 for r in ez if r.status in ("belegt", "geplant"))
+            etagen.append(KEtage(zp.etage_text(e), f"{len(ez)} Zimmer · {e_bel} belegt", [_kkarte(stand, r, tag) for r in ez]))
+        erg.append(KHaus(haus, unter, etagen))
+    return erg, hinweis
+
+
+def _kkarte(stand: zp.Planstand, r, tag: date) -> KKarte:
+    z = r.zimmer
+    merkmale = [x for x in (f"renoviert {zl.reno_text(z)}" if z.renoviert else "", r.boden, "Tier" if z.tiere else "",
+                            "Bad über den Flur" if z.nur_maenner else "", "Gäste" if z.gaeste else "") if x]
+    st = mg.stufe(r.maengel)
+    k = KKarte(z.id, z.kurz, z.betten, r.status, " · ".join(merkmale), st,
+               " · ".join(m.text for m in sorted(r.maengel, key=lambda m: -m.stufe)),
+               any(getattr(m, "unbewohnbar", False) for m in r.maengel))
+    for b in r.belegungen:
+        if b.art == "gesperrt":
+            titel = b.grund or "gesperrt"
+        else:
+            titel = (zp.anzeige_name(b.name) if b.name != zp.PIVOT_NAME else "gebucht (Zimmer-Pivot)") \
+                + (f" ({b.massnahme})" if b.massnahme else "")
+        k.belegungen.append(KBelegung(b.art, titel, f"{b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y}"))
+    if r.status in ("frei", "teilweise"):
+        bis = stand.lage.frei_bis(z.id, tag)
+        k.frei_bis = f"frei bis {bis:%d.%m.%Y}" if bis else "frei ohne Folgebelegung"
+    return k
+
+
+# ---------------------------------------------------------------------------------------
+# Eigenschaften mehrerer Zimmer, Renovierungsliste
+# ---------------------------------------------------------------------------------------
+
+def boeden() -> list[str]:
+    return list(zl.BOEDEN)
+
+
+def eigenschaften_setzen(zimmer: list[str], reno: str, reno_datum: date | None, boden: str | None,
+                         vermutet: bool) -> str:
+    """reno: „gleich“ | „datum“ | „entfernen“ · boden: None = nicht ändern, "" = entfernen, sonst Belag."""
+    if not zimmer:
+        raise ValueError("Bitte zuerst Zimmer markieren.")
+    if reno == "gleich" and boden is None:
+        raise ValueError("Es ist nichts zum Ändern gewählt.")
+
+    def aktion():
+        st = zp.laden()
+        gewaehlt = set(zimmer)
+        for z in st.zimmer:
+            if z.id not in gewaehlt:
+                continue
+            if reno == "datum" and reno_datum:
+                z.renoviert = reno_datum.isoformat()
+            elif reno == "entfernen":
+                z.renoviert = ""
+            if boden is not None:
+                z.boden, z.boden_vermutet = boden, bool(boden) and vermutet
+        zp.stammdaten_speichern(st.zimmer, st.plan)
+    _schritt(f"Eigenschaften für {len(zimmer)} Zimmer", aktion, [zp.STAMM_DATEI])
+    return f"Eigenschaften für {len(zimmer)} Zimmer gespeichert"
+
+
+def renovierungen_pruefen(stand: zp.Planstand, text: str) -> tuple[int, list[str]]:
+    eintraege, fehler = zl.renovierungen_lesen(text, {z.id for z in stand.zimmer})
+    return len(eintraege), fehler
+
+
+def renovierungen_uebernehmen(text: str, boden: str, vermutet: bool) -> str:
+    def aktion():
+        st = zp.laden()
+        eintraege, _f = zl.renovierungen_lesen(text, {z.id for z in st.zimmer})
+        if not eintraege:
+            raise ValueError("Keine Zimmer erkannt – Spalten Haus, Zimmer, (Notiz,) Datum einfügen.")
+        return zl.renovierungen_anwenden(st, eintraege, boden, vermutet)
+    n = _schritt("Renovierungsliste übernommen", aktion, [zp.STAMM_DATEI])
+    return f"Renovierungen übernommen: {n} Zimmer geändert"
+
+
+# ---------------------------------------------------------------------------------------
+# Person direkt in ein Zimmer: neu anlegen oder aus den Anreisen ohne Zimmer
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class Kandidat:
+    schluessel: str
+    name: str
+    zweite: str
+    zeit: str
+    vorschlag: bool       # dieses Zimmer ist der grüne Vorschlag
+
+
+def kandidaten(stand: zp.Planstand, zid: str, heute: date, wochen: int = 8) -> list[Kandidat]:
+    """Personen der nächsten Wochen ohne Zimmer, denen dieses Zimmer angeboten wird (frei, passt zu den Regeln)."""
+    from . import kern
+
+    erg = []
+    for an in kern.anreisen(stand, heute):
+        if an.tag > heute + timedelta(weeks=wochen):
+            continue
+        for z in kern.zeilen(stand, an.kennung, heute):
+            if z.gespeichert or zid not in {o.zimmer for o in z.optionen}:
+                continue
+            erg.append(Kandidat(z.schluessel, z.name, z.gruppe, z.zeitraum, z.vorschlag == zid))
+    return erg
+
+
+def person_ins_zimmer(zid: str, name: str, massnahme: str, gruppe: str, anreise: date, abreise: date,
+                      geschlecht: str = "", tier: bool = False, bemerkung: str = "", tn_id: str = "") -> str:
+    """Neue Person anlegen und gleich in dieses Zimmer setzen – ein Schritt (Rückgängig nimmt beides zurück)."""
+    from belegung import anreiseliste
+
+    from . import kern
+
+    name = " ".join(name.split())
+    if "," not in name or len(name) < 4:
+        raise ValueError("Bitte den Namen als „Nachname, Vorname“ eingeben.")
+    if not massnahme.strip():
+        raise ValueError("Bitte eine Maßnahme angeben (z. B. „GS RVL“).")
+    if abreise is None or abreise <= anreise:
+        raise ValueError("Bitte eine Abreise nach der Anreise angeben – sonst lässt sich nicht prüfen, ob das Zimmer frei ist.")
+    p = anreiseliste.Person(name, massnahme.strip(), anreise, True, tn_id=tn_id.strip(), abreise=abreise,
+                            geschlecht=geschlecht, tier=tier, bemerkung=bemerkung.strip(), abreise_quelle="hand")
+
+    def aktion():
+        anreiseliste.person_speichern(p)
+        if gruppe:
+            zp.angabe_setzen(p.schluessel, gruppe=gruppe)
+        werte = {k: v for k, v in (("geschlecht", geschlecht), ("tier", tier)) if v}
+        if werte:
+            zp.angabe_setzen(p.schluessel, **werte)
+        st = zp.laden()
+        zt = kern._zuteilung(st, p.schluessel, zid)
+        zp.zuweisungen_speichern([zt], "Neue Oberfläche")
+    _schritt(f"{name} → {kurz(zid)}", aktion, [anreiseliste.DATEI, zp.PERSONEN_ANGABEN])
+    return f"{name} angelegt und in {kurz(zid)} eingeplant ({anreise:%d.%m.} – {abreise:%d.%m.%Y})"
 
 
 def fm_bericht() -> str:
