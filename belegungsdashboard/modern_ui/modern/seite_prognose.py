@@ -49,7 +49,7 @@ def _basis(t: dict, animation: bool) -> dict:
              "splitLine": {"lineStyle": {"color": t["rand"], "type": [3, 3]}}}
     return {"backgroundColor": "transparent", "textStyle": {"color": t["text2"], "fontFamily": "Segoe UI, Inter, sans-serif"},
             "grid": {"left": 52, "right": 96, "top": 56, "bottom": 36},
-            "tooltip": {"trigger": "axis", "backgroundColor": _rgba(t.get("fls", "#15171C"), .86), "borderColor": t["rand2"],
+            "tooltip": {"trigger": "axis", "confine": True, "transitionDuration": 0.2, "backgroundColor": _rgba(t.get("fls", "#15171C"), .86), "borderColor": t["rand2"],
                         "borderWidth": 1, "padding": [10, 12], "textStyle": {"color": t["text"], "fontSize": 12},
                         "axisPointer": {"type": "line", "lineStyle": {"color": t["text3"], "type": "dashed"}},
                         "extraCssText": "backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 10px; "
@@ -84,6 +84,8 @@ def option(c: dict) -> dict:
     zs = ak.szenario(pg, kap, offset)
     if c["art"] == "reserve":
         return _reserve(o, t, c, zs, ort, zaehl, szen)
+    if c.get("parallel") and c.get("sv"):
+        return _parallel(o, t, c, zaehl)
     if c.get("status") and c.get("sm"):
         return _status(o, t, c, zs, ort, zaehl, szen)
     return _trend(o, t, c, zs, ort, zaehl, szen)
@@ -110,6 +112,90 @@ def _geist(t, zs_sz, zs0, li, kap_echt: int, kap: int, zeigen: bool) -> list[dic
          "endLabel": {"show": bool(zeigen and kap and kap != kap_echt), "formatter": "Szenario {c}", "color": f, "fontSize": 11},
          "animationDuration": 350},
     ]
+
+
+def _spotlights(t, zs, labels, kap: int) -> dict:
+    """Dezente Badges an den entscheidenden Punkten der nächsten 12 Monate: Höchststand, erster Engpass bzw. Tiefpunkt."""
+    kommend = [(i, z) for i, z in enumerate(zs) if z.art != "ist"][:12]
+    if not kommend:
+        return {}
+    quote = lambda z: f" · {round(100 * z.erwartet / kap)} %" if kap else ""  # noqa: E731
+    punkte = []
+    i_max, z_max = max(kommend, key=lambda p: p[1].erwartet)
+    punkte.append((i_max, z_max.erwartet, f"Höchststand {labels[i_max]}: {_z(z_max.erwartet)}{quote(z_max)}", t["akzent"], "top"))
+    eng = next(((i, z) for i, z in kommend if z.stufe in ("kritisch", "ueber")), None)
+    if eng and eng[0] != i_max:
+        punkte.append((eng[0], eng[1].erwartet, f"Engpass ab {labels[eng[0]]}{quote(eng[1])}", t["rot"], "top"))
+    elif not eng:
+        i_min, z_min = min(kommend, key=lambda p: p[1].erwartet)
+        if i_min != i_max:
+            punkte.append((i_min, z_min.erwartet, f"Tiefpunkt {labels[i_min]}: {_z(z_min.erwartet)}{quote(z_min)}", t["text2"],
+                           "bottom"))
+    return {"symbol": "circle", "symbolSize": 9, "animationDuration": 450, "animationEasing": "backOut", "silent": True,
+            "data": [{"coord": [labels[i], round(w, 1)], "itemStyle": {"color": farbe, "borderColor": t.get("fls", "#111"),
+                                                                         "borderWidth": 2},
+                      "label": {"show": True, "formatter": text, "position": pos, "distance": 10, "color": t["text"],
+                                "fontSize": 11, "fontWeight": 600, "padding": [4, 8], "borderRadius": 9,
+                                "backgroundColor": _rgba(t.get("fls", "#15171C"), .92), "borderColor": farbe, "borderWidth": 1}}
+                     for i, w, text, farbe, pos in punkte]}
+
+
+def _parallel(o, t, c, zaehl) -> dict:
+    """Gesamt: Auslastung der drei Standorte parallel (Ist durchgezogen, Prognose gestrichelt, Standortfarben)."""
+    sv = c["sv"]
+    farben = an.STANDORT_FARBEN[bool(t.get("hell"))]
+    monate = sorted({m for v in sv for m, _w, _i in v.verlauf})
+    labels = [ak.monat_text(m) for m in monate]
+    o["xAxis"]["data"] = labels
+    o["yAxis"].update({"scale": False, "min": 0, "axisLabel": {"color": t["text3"], "formatter": "{value} %"}})
+    _titel(o, t, f"Auslastung je Standort · {zaehl}", "Ø belegte Plätze ÷ Kapazität je Monat · Ist durchgezogen, Prognose "
+           "gestrichelt · Linien: knapp 70 %, kritisch 85 %, voll 100 %")
+    li = max((i for i, m in enumerate(monate) if any(mm == m and ist for v in sv for mm, _w, ist in v.verlauf)), default=None)
+    reihen, tip = [], {}
+    for n, v in enumerate(sv):
+        if not v.kapazitaet:
+            continue
+        werte = {m: (100 * w / v.kapazitaet, ist) for m, w, ist in v.verlauf}
+        ist_ = [round(werte[m][0], 1) if m in werte and werte[m][1] else None for m in monate]
+        prog = [round(werte[m][0], 1) if m in werte and not werte[m][1] else None for m in monate]
+        if li is not None and ist_[li] is not None and li + 1 < len(monate):
+            prog[li] = ist_[li]
+        f = farben[v.standort]
+        verz = 250 * n
+        reihen.append({"name": v.name, "type": "line", "data": ist_, "symbol": "circle", "symbolSize": 4, "color": f,
+                       "lineStyle": {"color": f, "width": 2.4}, "animationDelay": verz, "animationDuration": 1200,
+                       "animationEasing": "cubicOut"})
+        reihen.append({"name": v.name + " (Prognose)", "type": "line", "data": prog, "symbol": "none", "color": f,
+                       "lineStyle": {"color": f, "width": 2.2, "type": [7, 5]}, "animationDelay": 1300 + verz,
+                       "animationDuration": 900, "animationEasing": "cubicOut",
+                       "endLabel": {"show": True, "formatter": v.name, "color": f, "fontSize": 11, "fontWeight": 600}})
+        for i, m in enumerate(monate):
+            if m in werte:
+                tip.setdefault(i, []).append([v.name, f, round(werte[m][0]), round(werte[m][0] * v.kapazitaet / 100),
+                                              v.kapazitaet, werte[m][1]])
+    if reihen:
+        reihen[0]["markLine"] = {"silent": True, "symbol": "none", "animationDelay": 1200,
+                                 "lineStyle": {"color": t["text3"], "type": "dashed", "width": 1},
+                                 "label": {"color": t["text3"], "fontSize": 10, "formatter": "{b}", "position": "insideEndTop"},
+                                 "data": [{"yAxis": round(100 * konfig.AMPEL_GELB), "name": "knapp"},
+                                          {"yAxis": round(100 * konfig.AMPEL_ROT), "name": "kritisch",
+                                           "lineStyle": {"color": t["orange"]}},
+                                          {"yAxis": 100, "name": "voll", "lineStyle": {"color": t["rot"]}}]
+                                 + ([{"xAxis": labels[li + 1], "name": f"Stichtag {c['stichtag']:%d.%m.}",
+                                      "lineStyle": {"color": t["text2"], "type": [2, 3]}}] if li is not None and li + 1 < len(labels) else [])}
+    o["series"] = reihen
+    o["grid"]["right"] = 110
+    o["legend"]["data"] = [v.name for v in sv if v.kapazitaet]
+    d = [{"m": labels[i], "z": sorted(tip.get(i, []), key=lambda x: -x[2])} for i in range(len(labels))]
+    o["tooltip"][":formatter"] = (
+        "(ps) => { const D = " + json.dumps(d) + "; const d = D[ps[0].dataIndex]; if (!d) return '';"
+        " let h = `<div style=\"font-weight:600;margin-bottom:6px\">${d.m}</div>`;"
+        " for (const [n, f, p, w, k, ist] of d.z) h += `<div style=\"display:flex;gap:18px;justify-content:space-between;line-height:1.75\">"
+        "<span><span style=\"display:inline-block;width:10px;height:10px;border-radius:3px;background:${f};margin-right:7px\"></span>${n}"
+        "<span style=\"opacity:.6\"> · ${ist ? 'Ist' : 'Prognose'}</span></span>"
+        "<b style=\"font-variant-numeric:tabular-nums\">${p} % <span style=\"opacity:.6;font-weight:400\">(${w} von ${k})</span></b></div>`;"
+        " return h; }")
+    return o
 
 
 def _formatter(zs, kap: int, t: dict, zs_sz=None, kap_sz: int | None = None) -> str:
@@ -162,34 +248,47 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     u80, o80, u95, o95 = prog("lo80"), prog("hi80"), prog("lo95"), prog("hi95")
     breite = lambda u, ob: [None if x is None or y is None else round(y - x, 1) for x, y in zip(u, ob)]  # noqa: E731
     b95 = c["b95"] and zeig(3)
-    d = lambda n, s: {"animationDelay": n, "animationDuration": s}  # noqa: E731
+    start = c.get("phase") == "start"           # Story-Aufbau, 1. Teil: Bänder noch auf dem Prognosestrich zusammengelegt
+    if start:
+        e_ = prog("erwartet")
+        u80 = u95 = e_
+        o80 = o95 = e_
+    d = lambda n, s: {"animationDelay": n, "animationDuration": s, "animationEasing": "cubicOut"}  # noqa: E731
     reihen = [
         {"name": "u95", "type": "line", "data": u95 if b95 else leer_, "stack": "b95", "symbol": "none", "lineStyle": {"opacity": 0},
-         "tooltip": {"show": False}, "silent": True, **d(1300, 500)},
+         "tooltip": {"show": False}, "silent": True, **d(1700, 1000)},
         {"name": "95 %-Band", "type": "line", "data": breite(u95, o95) if b95 else leer_, "stack": "b95", "symbol": "none",
-         "color": t["text3"], "lineStyle": {"opacity": 0}, "areaStyle": {"color": _rgba(t["akzent"], .07)}, **d(1300, 500)},
+         "color": t["text3"], "lineStyle": {"opacity": 0}, "areaStyle": {"color": _rgba(t["akzent"], .07)}, **d(1700, 1000)},
         {"name": "u80", "type": "line", "data": u80 if zeig(3) else leer_, "stack": "b80", "symbol": "none", "lineStyle": {"opacity": 0},
-         "tooltip": {"show": False}, "silent": True, **d(1200, 500)},
+         "tooltip": {"show": False}, "silent": True, **d(1700, 1000)},
         {"name": "80 %-Band", "type": "line", "data": breite(u80, o80) if zeig(3) else leer_, "stack": "b80", "symbol": "none",
-         "color": t["akzent"], "lineStyle": {"opacity": 0}, "areaStyle": {"color": _rgba(t["akzent"], .17)}, **d(1200, 500)},
+         "color": t["akzent"], "lineStyle": {"opacity": 0}, "areaStyle": {"color": _rgba(t["akzent"], .17)}, **d(1700, 1000)},
         {"name": "Ist", "type": "line", "color": t["text"], "symbol": "circle", "symbolSize": 4, "z": 5,
          "data": [round(z.ist, 1) if z.art == "ist" and z.ist is not None else None for z in zs],
-         "lineStyle": {"color": t["text"], "width": 2.4}, "itemStyle": {"color": t["text"]}, **d(0, 900)},
+         "lineStyle": {"color": t["text"], "width": 2.4}, "itemStyle": {"color": t["text"]}, **d(0, 1400)},
         {"name": "laufender Monat", "type": "line", "color": t["text"], "symbol": "emptyCircle", "symbolSize": 10, "z": 7,
          "data": [round(z.erwartet, 1) if z.art == "laufend" else None for z in zs] if zeig(2) else leer_,
-         "itemStyle": {"color": t["text"], "borderWidth": 2}, "lineStyle": {"opacity": 0}, **d(850, 300)},
+         "itemStyle": {"color": t["text"], "borderWidth": 2}, "lineStyle": {"opacity": 0}, **d(1450, 350)},
         {"name": "Prognose (erwartet)", "type": "line", "color": t["akzent"], "symbol": "none", "z": 6,
          "data": prog("erwartet") if zeig(2) else leer_, "lineStyle": {"color": t["akzent"], "width": 2.4, "type": [7, 5]},
-         **d(900, 700)},
+         **d(1700, 1000)},
         {"name": "Kapazität", "type": "line", "symbol": "none", "color": t["rot"], "z": 4,
          "data": [kap] * len(zs) if kap and zeig(4) else leer_, "lineStyle": {"color": t["rot"], "width": 1.4, "type": [5, 4]},
-         "endLabel": {"show": bool(kap and zeig(4)), "formatter": "Kapazität {c}", "color": t["rot"], "fontSize": 11}, **d(0, 500)},
+         "endLabel": {"show": bool(kap and zeig(4)), "formatter": "Kapazität {c}", "color": t["rot"], "fontSize": 11}, **d(0, 700)},
     ]
     if li is not None and li + 1 < len(zs) and zeig(2):
         reihen[6]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
                                  "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
                                            "formatter": "Prognose →"},
                                  "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
+    if li is not None and li + 1 < len(zs) and zeig(2):  # Stichtag-Marker trennt Vergangenheit und Zukunft
+        reihen[4]["markLine"] = {"silent": True, "symbol": "none", "animationDelay": 1400, "animationDuration": 500,
+                                 "lineStyle": {"color": t["text2"], "type": [2, 3], "width": 1.2},
+                                 "label": {"formatter": f"Stichtag {c['stichtag']:%d.%m.}", "color": t["text2"], "fontSize": 11,
+                                           "position": "insideEndTop"},
+                                 "data": [{"xAxis": labels[li + 1]}]}
+    if zeig(2) and not start:
+        reihen[6]["markPoint"] = _spotlights(t, zs, labels, kap)
     zusatz = {z.monat: z.vertraege for z in c["pg"].zeilen}
     blind = {mon: p + zusatz.get(mon, 0.0) for mon, _i, p in c["pg"].rueckblick} if c["backtest"] else {}
     reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 6, "color": t["orange"],
@@ -197,6 +296,8 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
                    "lineStyle": {"color": t["orange"], "width": 1.4, "type": "dotted"}, **d(1600, 500)})
     reihen += _geist(t, zs_sz, zs, li, kap, kap_sz, aktiv and zeig(2))
     o["series"] = reihen
+    if c.get("phase") == "voll" and c["animation"]:      # Story-Aufbau, 2. Teil: Bänder fächern sich auf, Badges erscheinen
+        o["animationDurationUpdate"], o["animationEasingUpdate"] = 1100, "cubicOut"
     # feste Achse über alle Aufbauschritte – sonst „springt“ der Graph, wenn Bänder oder Kapazität dazukommen
     werte = [z.ist for z in zs if z.art == "ist" and z.ist is not None] + [z.lo95 if c["b95"] else z.lo80 for z in zs if z.art != "ist"] \
         + [z.hi95 if c["b95"] else z.hi80 for z in zs if z.art != "ist"] + ([kap] if kap else []) + list(blind.values()) \
@@ -464,9 +565,10 @@ def zeichnen(a) -> None:
     a.aw_anim_gezeigt, a._anim_jetzt = True, False
     hell = bool(_t().get("hell"))
     zustand = {"kap": a.aw_kap, "offset": a.aw_offset}
-    c = lambda anim=False: {"pg": pg, "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,  # noqa: E731
+    parallel = a.aw_parallel and a.aw_standort == konfig.GESAMT
+    c = lambda anim=False, phase="voll": {"pg": pg, "phase": phase, "parallel": parallel, "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,  # noqa: E731
                             "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95, "backtest": a.aw_backtest,
-                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status else 4, "animation": anim,
+                            "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not parallel else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
                             "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else ""}
@@ -560,10 +662,14 @@ def zeichnen(a) -> None:
                             if pg.rueckblick else "Für diese Auswahl gibt es keinen Backtest-Verlauf",
                             aus=not (trend and not a.aw_status and pg.rueckblick))
                 with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
-                    attr(ui.label("Ansicht"), title="Gesamtbelegung oder gestapelt nach Status: UWTler · Mieter · übrige")
-                    segmente({False: "Gesamt", True: "Nach Status"}, a.aw_status,
-                             lambda v: a.setzen(aw_status=v, laden=v and "sm" not in a.daten) if trend else None)
-                if praes and a.aw_chart == "trend" and not a.aw_status:
+                    attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · übrige) oder – "
+                                                    "bei „Gesamt“ – die drei Standorte parallel")
+                    ansichten = {"kurve": "Belegung", "status": "Nach Status"}
+                    if a.aw_standort == konfig.GESAMT:
+                        ansichten["standorte"] = "Standorte parallel"
+                    jetzt = "standorte" if parallel else "status" if a.aw_status else "kurve"
+                    segmente(ansichten, jetzt, lambda v: _ansicht(a, v) if trend else None)
+                if praes and a.aw_chart == "trend" and not a.aw_status and not parallel:
                     with ui.element("div").classes("m-xg-schritte"):
                         knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
                         box["schritt"] = ui.label(f"{a.aw_schritt}/4 · {SCHRITTE[a.aw_schritt]}").classes("m-zweite")
@@ -582,10 +688,17 @@ def zeichnen(a) -> None:
                                           a.aw_anim and not a.weniger_bewegung, lambda: a.setzen(aw_anim=not a.aw_anim, laden=False),
                                           aus=a.weniger_bewegung)
             _gruppen_schalter(a)
-            chart = ui.echart(option(c(animiert))).classes("m-chart m-xg-chart" + (" gross" if praes else ""))
+            # Geführter Aufbau (Story): Ist → Stichtag → Prognose, dann fächern die Bänder auf und die Badges erscheinen
+            story = (animiert and a.aw_chart == "trend" and not a.aw_status and not parallel
+                     and (not praes or a.aw_schritt == 4))
+            chart = ui.echart(option(c(animiert, "start" if story else "voll"))).classes(
+                "m-chart m-xg-chart" + (" gross" if praes else ""))
             box["chart"] = chart
+            if story:
+                ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
             with ui.element("div").classes("m-xg-fuss"):
-                ui.html(_legende_text("status" if a.aw_chart == "trend" and a.aw_status else a.aw_chart,
+                ui.html(_legende_text("standorte" if a.aw_chart == "trend" and parallel else
+                                      "status" if a.aw_chart == "trend" and a.aw_status else a.aw_chart,
                                       kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)
 
         def chart_neu(schritt_animation: bool = False):
@@ -712,7 +825,24 @@ def _modus(a, modus: str) -> None:
 
 
 def _chart_art(a, k: str):
+    if k != a.aw_chart:
+        a._anim_jetzt = True                 # Wechsel des Reiters: Graph baut sich (wenn erlaubt) neu auf
     return a.setzen(aw_chart=k, laden=k == "jahr" or a.aw_chart == "jahr")
+
+
+def _ansicht(a, v: str):
+    a._anim_jetzt = True
+    return a.setzen(aw_status=v == "status", aw_parallel=v == "standorte",
+                    laden=v == "status" and "sm" not in (a.daten or {}))
+
+
+def _story_weiter(chart, neu: dict) -> None:
+    """2. Teil des geführten Aufbaus: Optionen weich ersetzen (Bänder fächern auf, Spotlights erscheinen)."""
+    if chart.is_deleted:
+        return
+    chart.options.clear()
+    chart.options.update(neu)
+    chart.update()
 
 
 async def _abspielen(a) -> None:
@@ -738,6 +868,10 @@ def _legende_text(art: str, szenario: bool = False) -> str:
         return ("<span><i class='l ist'></i>Ist (Monatsmittel)</span><span><i class='p hohl'></i>laufender Monat – unvollständig</span>"
                 "<span><i class='l prog'></i>Prognose (erwartet)</span><span><i class='f'></i>80 %- / 95 %-Band: so sicher liegt der "
                 "Wert darin</span><span><i class='l kap'></i>Kapazität</span>" + sz)
+    if art == "standorte":
+        return ("<span><i class='l ist'></i>Ist (durchgezogen)</span><span><i class='l prog'></i>Prognose (gestrichelt)</span>"
+                "<span>Farbe = Standort (wie überall)</span><span><i class='l kont'></i>knapp 70 % · kritisch 85 % · voll 100 %</span>"
+                "<span>Prozent = Ø belegte Plätze ÷ Kapazität – so sind unterschiedlich große Standorte vergleichbar</span>")
     if art == "status":
         return ("<span><i class='f uwt'></i>UWTler</span><span><i class='f mieter'></i>Mieter</span>"
                 "<span><i class='f rest'></i>Teilnehmende & Sonstige</span><span><i class='l kap'></i>Kapazität</span>"
@@ -768,10 +902,23 @@ def _gruppen_schalter(a) -> None:
                 ui.icon("check_box" if an_ else "check_box_outline_blank")
                 ui.label(text)
             if da:
-                b.on("click", lambda feld=feld: a.setzen(**{feld: not getattr(a, feld)}))
-        g = a.daten.get("gruppen")
-        if da and g is not None and g.text():
-            ui.label(f"Kurve {g.text()} – reine Teilnehmer-Sicht").classes("m-xg-gruppen-hinweis")
+                b.on("click", lambda feld=feld: _gruppe_umschalten(a, feld, hinweis))
+        hinweis = ui.label(_ansicht_text(a.aw_uwt, a.aw_mieter)).classes(
+            "m-xg-gruppen-hinweis" + ("" if a.aw_uwt or a.aw_mieter else " rein"))
+        hinweis.set_visibility(bool(da))
+
+
+def _ansicht_text(uwt: bool, mieter: bool) -> str:
+    if not uwt and not mieter:
+        return "Ansicht: Reine Teilnehmer-Sicht"
+    return "Ansicht: Inklusive " + " und ".join(n for n, an_ in (("UWTler", uwt), ("Mieter", mieter)) if an_)
+
+
+async def _gruppe_umschalten(a, feld: str, hinweis) -> None:
+    setattr(a, feld, not getattr(a, feld))
+    hinweis.set_text(_ansicht_text(a.aw_uwt, a.aw_mieter))        # sofort – die Neuberechnung folgt
+    hinweis.classes(add="rein" if not (a.aw_uwt or a.aw_mieter) else "", remove="" if not (a.aw_uwt or a.aw_mieter) else "rein")
+    await a.setzen()
 
 
 def _pill(text: str, icon: str, an_: bool, klick, titel: str, aus: bool = False) -> None:

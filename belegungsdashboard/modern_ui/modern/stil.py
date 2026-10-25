@@ -763,3 +763,14 @@ CSS += """
 .m-xg-gruppen-hinweis { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--blau); border: 1px solid var(--blau);
   border-radius: 9px; padding: 1px 8px; text-transform: uppercase; }
 """
+CSS += """
+/* 0.14 – Ansicht-Badge, weicher Diagrammwechsel */
+.m-xg-gruppen-hinweis { text-transform: none; letter-spacing: .01em; font-size: 12px; font-weight: 600; padding: 3px 10px;
+  border-radius: 11px; color: var(--akzent); border-color: color-mix(in srgb, var(--akzent) 55%, transparent);
+  background: color-mix(in srgb, var(--akzent) 10%, transparent); transition: color .2s, background .2s, border-color .2s; }
+.m-xg-gruppen-hinweis.rein { color: var(--blau); border-color: var(--blau); background: color-mix(in srgb, var(--blau) 10%, transparent); }
+.m-xg-chart { animation: m-xg-ein .35s cubic-bezier(.22, .61, .36, 1) both; }
+@keyframes m-xg-ein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .m-xg-chart { animation: none; } .m-xg-gruppen-hinweis { transition: none; } }
+.m-xg-kopf { row-gap: 8px; }
+"""

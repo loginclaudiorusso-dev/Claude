@@ -253,3 +253,47 @@ def test_kennzahlen_folgen_den_gruppen_schaltern():
     k = {x.schluessel: x for x in ex.kpis}
     assert k["aktuell"].wert == "116"                                              # 120 belegt − 4 Mieter
     assert any("ohne Mieter" in t for _a, t in ex.erkenntnisse)
+
+
+def test_story_aufbau_baender_erst_zu_dann_auf_und_spotlights():
+    from modern import seite_prognose as sp
+
+    pg = _pg()
+    basis = {"pg": pg, "kap": 150, "offset": 0.0, "standort": "BFW GS", "brutto": False, "b95": True, "backtest": False,
+             "animation": True, "pg_lang": None, "stichtag": date(2026, 10, 25), "art": "trend", "schritt": 4}
+    start, voll = sp.option({**basis, "phase": "start"}), sp.option({**basis, "phase": "voll"})
+    band = lambda o: [v for v in next(s for s in o["series"] if s["name"] == "80 %-Band")["data"] if v is not None]  # noqa: E731
+    reihe = lambda o, n: next(s for s in o["series"] if s["name"] == n)  # noqa: E731
+    assert max(band(start)) == 0 and max(band(voll)) == 10.0                       # Bänder fächern im 2. Teil auf
+    assert "markPoint" not in reihe(start, "Prognose (erwartet)")
+    badges = [d["label"]["formatter"] for d in reihe(voll, "Prognose (erwartet)")["markPoint"]["data"]]
+    assert badges[0] == "Höchststand Sep 2027: 131 · 87 %" and badges[1].startswith("Engpass ab")
+    assert reihe(start, "Ist")["markLine"]["label"]["formatter"] == "Stichtag 25.10."
+    assert reihe(start, "Ist")["animationDelay"] < reihe(start, "Prognose (erwartet)")["animationDelay"]
+    assert voll["animationEasingUpdate"] == "cubicOut" and start["yAxis"]["max"] == voll["yAxis"]["max"]
+
+
+def test_standorte_parallel_in_prozent():
+    from types import SimpleNamespace as N
+
+    from modern import seite_prognose as sp
+
+    m = [date(2026, 9, 1), date(2026, 10, 1), date(2026, 11, 1)]
+    sv = [N(standort="BFW BP", name="Bad Pyrmont", kapazitaet=100, verlauf=[(m[0], 50, True), (m[1], 60, False), (m[2], 70, False)]),
+          N(standort="BFW GS", name="Goslar", kapazitaet=80, verlauf=[(m[0], 40, True), (m[1], 72, False), (m[2], 80, False)])]
+    o = sp.option({"pg": _pg(), "kap": 150, "offset": 0.0, "standort": "Gesamt", "brutto": False, "b95": True, "backtest": False,
+                   "animation": False, "pg_lang": None, "stichtag": date(2026, 10, 25), "art": "trend", "schritt": 4,
+                   "parallel": True, "sv": sv})
+    namen = [s["name"] for s in o["series"]]
+    assert namen == ["Bad Pyrmont", "Bad Pyrmont (Prognose)", "Goslar", "Goslar (Prognose)"]
+    assert o["series"][2]["data"] == [50.0, None, None] and o["series"][3]["data"] == [50.0, 90.0, 100.0]
+    assert o["series"][0]["color"] != o["series"][2]["color"]                     # feste Standortfarben
+
+
+def test_ansicht_text_dynamisch():
+    from modern import seite_prognose as sp
+
+    assert sp._ansicht_text(False, False) == "Ansicht: Reine Teilnehmer-Sicht"
+    assert sp._ansicht_text(True, False) == "Ansicht: Inklusive UWTler"
+    assert sp._ansicht_text(False, True) == "Ansicht: Inklusive Mieter"
+    assert sp._ansicht_text(True, True) == "Ansicht: Inklusive UWTler und Mieter"
