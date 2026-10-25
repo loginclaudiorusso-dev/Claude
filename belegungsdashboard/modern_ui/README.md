@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.6.0
+# Neue Oberfläche (modern_ui) – Version 0.7.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -18,17 +18,17 @@ Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\S
 
 | Seite | Ansichten und Funktionen |
 |---|---|
-| **Heute** | alles, was zu tun ist (Karten mit 1-Klick-Lösung), **frei nach Planung** (5 Wochen, gesamt/EMR/Doppel mit Ampel), Anreisen der nächsten 7 Tage, Abreisen, Reinigung, Neuigkeiten |
-| **Anreisen** | *Zuteilen* (oben „nach Planung mind. … frei“, Zimmer in der Zeile, grüner Vorschlag, Filter, Personenangaben per Klick auf den Namen) · *Abreisen* (heute/morgen/Woche, drucken) · *Firmenprogramm* (was noch einzutragen ist, kopieren, abhaken) · Menü *Mehr*: Anreise-/Schlüsselliste, Zimmerschilder, Person hinzufügen, Planung zurücknehmen, Belegung optimieren, UWT automatisch zuteilen/zurücknehmen |
-| **Zimmer** | *Übersicht* (alle Zimmer als Kacheln je Haus und Etage, Tag wählbar, Mängel-Marke, unbewohnbar rot) · *Zeitstrahl* (Haus, 2/4/8 Wochen, Klick öffnet die Zimmerkarte) · *Liste* (Suche, Status, Mängel, Renoviert, Tier …, drucken, FM-Mängelbericht) · *Zimmerkarte*: Bewohner, Zimmer ändern, fest/geplant, Umzug planen/zurücknehmen, Mängel melden/beheben/unbewohnbar, Hinweis, Notizen mit Wiedervorlage, zur Reinigung · *Defekte Zimmer* (nach Dringlichkeit, „behoben“ je Mangel, nächste Anreise, FM-Bericht, FM-Excel, Erledigte aus der FM-Liste übernehmen, für Mail kopieren) |
-| **Reinigung** | *Reinigungsliste* (heute/Woche, abhaken, eilige auf einmal, Zimmer hinzufügen, drucken) · *Facility-Checks* |
+| **Heute** | alles, was zu tun ist (Karten mit 1-Klick-Lösung), **frei nach Planung** (5 Wochen, gesamt/EMR/Doppel mit Ampel), **neue Personen (7 Tage)**, Anreisen der nächsten 7 Tage, Abreisen, Reinigung, Neuigkeiten |
+| **Anreisen** | *Zuteilen* (oben „nach Planung mind. … frei“, Zimmer in der Zeile, grüner Vorschlag, Filter inkl. **neu (7 Tage)**, NEU-Marke, Personenangaben per Klick auf den Namen: Geschlecht, Tier, **Gruppe**, Abreise, Bemerkung, **Abreise-Erinnerung** über Termine/Kalenderdatei/Outlook) · *Personen* (alle kommenden Anreisen auf einer Liste, Filter neu/ohne/mit Zimmer, Suche) · *Abreisen* (heute/morgen/Woche, drucken) · *Firmenprogramm* (was noch einzutragen ist, kopieren, abhaken) · Menü *Mehr*: Anreise-/Schlüsselliste, Zimmerschilder, Person hinzufügen, Planung zurücknehmen, Belegung optimieren, UWT automatisch zuteilen/zurücknehmen, **Zimmerliste als Excel**, **auch vergangene Anreisen** · Firmenprogramm: **Abgehakte ausblenden** |
+| **Zimmer** | *Übersicht* (alle Zimmer als Kacheln je Haus und Etage, Tag wählbar, Mängel-Marke, unbewohnbar rot) · ***Karten*** (je Etage eine Spalte, je Zimmer Zustand, Merkmale, Mängel, Bewohner mit Zeitraum, frei bis …) · *Zeitstrahl* (Haus, 2/4/8 Wochen, Klick öffnet die Zimmerkarte) · *Liste* (Suche, Status mit Zahlen, Mängel, Renoviert, Vinyl, Teppich, Tier …, **Filter-Menü**: Boden, Mangel-Stufe/-Art, Renovierung seit, Gästezimmer, Personengruppe, außer Betrieb · **Stichtag** · drucken mit/ohne Namen, **Kopieren für Excel**, **Belegung am Tag als Excel** · Zimmer markieren → **Eigenschaften setzen** (Renovierung, Boden) · **Renovierungsliste einfügen**) · *Zimmerkarte*: **Person hinzufügen** (aus den Anreisen ohne Zimmer oder neu anlegen und gleich einplanen), Bewohner, Zimmer ändern, fest/geplant, Umzug planen/zurücknehmen, Mängel melden/beheben/unbewohnbar, Hinweis, Notizen mit Wiedervorlage, zur Reinigung · *Defekte Zimmer* (nach Dringlichkeit, „behoben“ je Mangel, nächste Anreise, FM-Bericht, FM-Excel, Erledigte aus der FM-Liste übernehmen, für Mail kopieren) |
+| **Reinigung** | *Reinigungsliste* (heute/Woche, abhaken, eilige auf einmal, Zimmer hinzufügen, drucken) · **Wochenblatt** zum Aushängen (Woche wählbar, mit/ohne Namen) · *Facility-Checks* |
 | **Termine** | *Liste* (fällig, demnächst, erledigt) · *Monat* · eigene Termine anlegen/ändern/löschen |
 | **Assistenz** | *Aufträge* in normalen Sätzen (verstehen → prüfen → ausführen, Rückgängig je Auftrag) · *Mails* (einfügen oder aus Outlook, erkennen, Person zuordnen, umsetzen, Posteingang) · *Fragen & Zahlen* (aus den Daten, optional KI) |
 | **Mieter** | Verträge, Mail zum Vertragsende (Outlook-Entwurf), *Neuer Mieter* (alle Unterlagen als PDF), *Verlängern* (Nebenabrede Word + PDF), Unterlagen neu erstellen |
-| **Auswertung** | *Lage* (heute, Verlauf mit Prognose) · *Belegung* (Zeitraum, Personentage) · *Prognose* (Monate, 80/95 %-Spannen, **Backtest im Diagramm**, Was-wäre-wenn, Modell, Blind-Prognosen) · *Zimmer & Engpässe* (frei jetzt und nach Planung, EMR/Doppel mit Ampel, Lage) · Standort und Netto/Brutto |
+| **Auswertung** | *Lage* (heute, Verlauf mit Prognose, **anstehende Anreisen 21 Tage**) · *Belegung* (Zeitraum, Personentage, Ø/Höchst/**Tiefst**, **Ø Auslastung**, **Tagesverlauf nach Belegungsart**, **Personentage je Monat**, **Häuser**, **Wochentags- und Saisonmuster**) · *Prognose* (Monate, 80/95 %-Spannen, **Backtest im Diagramm**, Was-wäre-wenn, Modell, Blind-Prognosen) · *Zimmer & Engpässe* (frei jetzt und nach Planung, EMR/Doppel mit Ampel, Lage) · Standort und Netto/Brutto |
 | **Daten & Import** | Anreiselisten, UWT, Gebäudeplan (prüfen und übernehmen), ZKL mit Abgleich, Zimmer-Pivot, Belegungs-Pivot (auch vom Server), Kapazitäten, Mieten/Anreisen für die Statistik, manuelle Einträge |
-| **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen) · *Zimmer* (Ausstattung ändern, kopieren) · Inventarliste drucken |
-| **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
+| **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen, **wo steht das?** je Haus) · *Zimmer* (Haus, Suche, **nur ohne Ausstattung**, Ausstattung ändern, kopieren) · ***Übersicht je Haus*** · Inventarliste drucken (alle oder je Haus), **Excel** |
+| **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI mit **Verbindung testen**) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
 
 **Kennzahlen sind Knöpfe** (neu in 0.5): Ein Klick filtert (z. B. Zimmer-Übersicht „frei“, Reinigung „erledigt“,
 defekte Zimmer „dringend“, Anreise „ohne Zimmer“, Mieter „Mail offen“) oder springt an die passende Stelle (auf
@@ -48,6 +48,12 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+**Neu in 0.7:** Zimmer-*Karten* mit allen Details, Person direkt im Zimmer hinzufügen, Filter „neu (7 Tage)“ und
+die restlichen Funktionen des bisherigen Programms (fett in der Tabelle oben).
+*Neu* heißt: zum ersten Mal in den Listen. Das Hauptprogramm speichert dafür kein Datum – die neue Oberfläche merkt
+es sich ab jetzt selbst (`modern_ui_neu.json` im Datenordner). Beim allerersten Start gelten Personen aus Listen als
+neu, die in den letzten 7 Tagen importiert wurden.
+
 ### Gegenüber dem bisherigen Programm
 
 * PDFs (Mietunterlagen, Nebenabrede) erstellt hier Microsoft Edge im Hintergrund; ohne Edge wird der Mietvertrag als
@@ -55,6 +61,10 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Drucken öffnet eine Druckansicht im Browser (drucken oder als PDF speichern).
 * Statistik-Listen (Mieten/Anreisen) werden mit automatischer Spaltenzuordnung gelesen; passt sie nicht, bitte
   einmal im Hauptprogramm mit Spaltenwahl importieren – danach merkt sich das Programm die Zuordnung.
+* „Neu vorschlagen (eigene Änderungen verwerfen)“ entfällt: Hier wird jede Zuteilung sofort gespeichert – zurück
+  geht es mit „Rückgängig“ bzw. Strg+Z.
+* Nicht übernommen (gehört zum Fenster des Hauptprogramms): Tabs/neues Fenster, Start mit Windows im Infobereich,
+  Name des Dashboards.
 * Darstellung (Designs, hell/dunkel) gibt es hier nicht – die neue Oberfläche ist bewusst ein ruhiges dunkles Design.
 
 ## Aufbau
@@ -72,4 +82,4 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0` (jeweils auch als Zip in `Sicherung`).
