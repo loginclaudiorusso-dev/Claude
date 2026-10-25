@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.16.0
+# Neue Oberfläche (modern_ui) – Version 0.17.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,22 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Prognose in drei Bereichen – Dashboard ohne Scrollen (neu in 0.17)
+
+Oben links wählt man den Bereich (die Leiste mit Präsentation und Export):
+
+* **Dashboard** – nur das Wesentliche, passt ohne Scrollen auf einen Laptop-Bildschirm (geprüft 1440×900 und
+  1366×768, auch in den Layouts Canvas und Showcase): Filterleiste, der Graph (er nimmt den verbleibenden Platz ein),
+  fünf kompakte Kennzahlen und die drei wichtigsten Erkenntnisse als schmale Badges (ganzer Text beim Überfahren,
+  „+N“ führt zu allen). Läuft eine Simulation, erscheint „Szenario aktiv“ als Sprung zum Szenario.
+  „Aufbau abspielen“ und „Optionen“ stehen als Symbole rechts in der Filterleiste.
+* **Szenarien & Simulation** – links der Graph mit der Schattenkurve, rechts das Management-Szenario (Pills, Stepper,
+  Ausgang ↔ Szenario); bei Goslar darunter UWTler, Mieter und die Kontingent-Planung.
+* **Details & Protokoll** – aufklappbare Abschnitte: *Monate im Detail* (offen), *Erkenntnisse – vollständig*,
+  *Standortvergleich*, *So wurde gerechnet & Backtest*.
+
+Die Präsentation (Taste P) bleibt wie bisher. Die Legende des Graphen bleibt einzeilig (blättert bei Platzmangel).
 
 ## Ansicht steuert den Personenkreis, eine Filterleiste (neu in 0.16)
 
@@ -256,4 +272,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0` (jeweils auch als Zip in `Sicherung`).
