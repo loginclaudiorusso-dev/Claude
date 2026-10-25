@@ -617,3 +617,20 @@ CSS += """
   font-weight: 700; opacity: .95; }
 .m-legende .m-badge { height: 24px; }
 """
+CSS += """
+.m-badge { gap: 5px; } .m-badge .nicegui-label, .m-badge > div { line-height: 1; }
+"""
+CSS += """
+/* Prognose: Kernaussagen, großes Diagramm, Szenario-Regler */
+.m-takeaways { margin: 20px 20px 0; border: 1px solid var(--rand); border-radius: 12px; background: var(--fl); overflow: hidden; }
+.m-tk-kopf { font: inherit; color: var(--text); width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  background: transparent; border: 0; cursor: pointer; text-align: left; }
+.m-tk-kopf .q-icon { color: var(--akzent); font-size: 20px; }
+.m-tk-kopf:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.m-tk-liste { margin: 0; padding: 0 22px 14px 44px; display: flex; flex-direction: column; gap: 6px; color: var(--text2); line-height: 1.5; }
+.m-tk-liste li::marker { color: var(--akzent); }
+.m-chart.m-chart-gross { height: 400px !important; }
+.m-szenario { display: flex; flex-direction: column; gap: 6px; padding: 4px 0 10px; }
+.m-sz-zeile { display: grid; grid-template-columns: 100px minmax(200px, 1fr) 96px minmax(140px, auto); gap: 14px; align-items: center; }
+.m-sz-regler { min-width: 200px; }
+"""

@@ -166,11 +166,11 @@ def farben(d: dict | str) -> dict:
         d = {"layout": "grid" if d != "original" else "original", "theme": d}
     d = bereinigen(d)
     if d["layout"] == "original":
-        return dict(_ORIGINAL)
+        return {**_ORIGINAL, "fls": _ORIGINAL["fl"], "hell": False}
     v = P[(d["theme"], d["modus"])]
     return {"text": v["text"], "text2": v["text2"], "text3": v["text3"], "rand": v["rand"], "rand2": v["rand2"],
             "fl2": v["fl2"], "akzent": v["akzent_hell"], "blau": v["blau"], "gruen": v["gruen"], "orange": v["orange"],
-            "rot": v["rot"]}
+            "rot": v["rot"], "bg": v["bg"], "fls": v["fls"], "hell": d["modus"] == "hell"}
 
 
 AKTIV: dict = dict(STANDARD)      # aktueller Zustand (eine Oberfläche je Programm – reicht als Modulwert)

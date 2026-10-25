@@ -84,6 +84,8 @@ class Ansicht:
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
         self.aw_95, self.aw_backtest = True, False
+        self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
+        self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
 
     # ---- Daten ---------------------------------------------------------------------------
