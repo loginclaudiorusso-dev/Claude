@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.10.0
+# Neue Oberfläche (modern_ui) – Version 0.11.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,21 +48,52 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
-## Prognose für Präsentationen (neu in 0.10)
+## Prognose als Executive-Ansicht (neu in 0.11, ersetzt die Prognose-Ansicht aus 0.10)
 
-*Auswertung → Prognose*:
-* **Kernaussagen** (einklappbar) – Höchststand mit Auslastung, Engpass-Monate bzw. knappste Reserve, ruhigster Monat,
-  Trefferquote des Backtests; passen sich dem Szenario an.
-* **Drei Diagramme** (Umschalter über dem Diagramm): *Trend & Spanne* (Ist durchgezogen mit Punkten, Prognose
-  gestrichelt, 80/95 %-Spannen als Verlaufsflächen, Marke „Prognose →“), *Kapazitäts-Reserve* (belegt / freie Reserve /
-  über Kapazität gestapelt), *Vorjahresvergleich* (Jahre übereinander, Jan–Dez). Aufbau-Animation von links nach rechts.
-* **Tooltip** mit Glas-Effekt: Ist, Erwartet, 80/95 %-Spanne und Rest-Kapazität, farbig geordnet.
-* **Was wäre, wenn**: Regler und Feld für die Kapazität (400–1.200 bzw. ±50 %) und Regler für die Auslastung (±15 %) –
-  Kapazitätslinie, Tabelle („Reserve vorhanden“ / „Engpass!“, Reserve je Monat) und Kernaussagen ändern sich sofort.
-  „Zurücksetzen“ stellt die echten Werte wieder her. Nur testweise – gespeichert wird nichts.
-* **Export** oben rechts: *Chart als PNG* (ohne Bedienelemente, doppelte Auflösung – für PowerPoint) und *Daten
-  exportieren* als Excel (mit Blatt „Info“: Standort, Netto/Brutto, Szenario, Modell) oder CSV. Ablage im Export-Ordner.
-* Standort, Netto/Brutto, Zeitraum, 95 %-Spanne und Backtest wirken wie bisher; Farben folgen dem gewählten Theme.
+*Auswertung → Prognose* ist jetzt von oben nach unten nach Wichtigkeit aufgebaut:
+
+1. **Fünf KPI-Karten** – jede mit Wert, Einheit, Bezugszeitraum, Vergleich und Ampel (Mauszeiger: Erklärung):
+   *Aktuelle Belegung* (Stichtag, Vergleich: gleicher Wochentag vor 52 Wochen), *Prognose Belegung* (nächster voller
+   Monat, 80 %-Band, Vergleich: Ist desselben Monats im Vorjahr), *Freie Reserve* (Kapazität − erwartet, dazu der
+   ungünstige Fall und der knappste Monat), *Kapazitätsrisiko* (Monate, deren obere 80 %-Grenze „kritisch“ erreicht),
+   *Prognosegüte* (Ø-Fehler im Backtest, Trefferquote des 80 %-Bands).
+2. **Erkenntnisse** – automatisch aus den Daten, jede Zeile markiert als **Fakt** (gemessen), **Prognose** (Modell),
+   **Einschätzung** (Ampel-Regel) oder **Hinweis**. Es wird nichts erfunden: fehlt ein Vorjahreswert, entfällt die Aussage.
+3. **Prognosegraph** mit drei Modi für drei Fragen:
+   * *Trend & Prognose* – „Wohin entwickelt sich die Belegung?“ Ist durchgezogen, laufender Monat als hohler Punkt
+     (unvollständig), Prognose gestrichelt, 80/95 %-Band dezent, Kapazität rot gestrichelt, Übergang „Prognose →“.
+     Die Achse bleibt fest, damit nichts springt.
+   * *Kapazitätsreserve* – „Wie viel Luft bleibt?“ Balken = Kapazität − erwartet (grün / orange knapp / rot kritisch;
+     Ist-Monate blass), Linie = ungünstiger Fall (Kapazität − obere 80 %). Negative Werte liegen sichtbar unter der
+     Nulllinie „Kapazitätsgrenze“.
+   * *Vorjahresvergleich* – „Wie steht es gegenüber dem Vorjahr?“ 12 Kalendermonate (6 zurück, 6 voraus) gegen dieselben
+     Monate ein und zwei Jahre früher (Ist); Abweichung im Tooltip; fehlende Monate bleiben Lücken.
+   Der Graph baut sich **nur beim ersten Öffnen** auf (nicht bei jedem Filterwechsel), *Aufbau abspielen* wiederholt das
+   bewusst; unter *Optionen* abschaltbar. Ist im System „Bewegung reduzieren“ eingestellt, gibt es keine Animation.
+4. **Szenario (Simulation)** – Kapazität per Regler oder Zahl, Auslastung ±15 %. Daneben **Ausgang gegen Szenario**
+   (Kapazität, Höchststand, kleinste Reserve, Risikomonate). Ein aktives Szenario ist orange schraffiert und mit
+   „SIMULATION – keine echten Daten“ markiert, ebenso Graphtitel, KPIs und Tabelle. Es wird nichts gespeichert,
+   die echten Daten bleiben unberührt. Weitere Stellschrauben (z. B. Verweildauer) gibt es bewusst nicht – dafür fehlt
+   ein belastbares Modell.
+5. **Standortvergleich** – Auslastung heute und Spitze der nächsten 12 Monate je Standort in festen Standortfarben
+   (wie im Hauptprogramm), Tabelle mit Reserve und Ø-Fehler; Klick auf einen Standort zeigt ihn im Graph.
+6. **Monate im Detail** – *Kompakt* (Monat, Erwartet, 80 %-Band, Reserve, Einschätzung) oder *Alle Spalten*
+   (+ 95 %-Band, Gebucht, Reserve ungünstig). Die Spaltenköpfe erklären sich beim Überfahren.
+7. *So wurde gerechnet* und *Backtest* wie bisher.
+
+**Begriffe:** *Gebucht* (im Hauptprogramm „gesichert“) ist der heute schon bekannte Bestand: Teilnehmende mit geplantem
+Ende + Verträge; die Prognose fällt nie darunter. Im laufenden Monat gilt *Gebucht* nur für die restlichen Tage
+(markiert mit *), *Erwartet* für den ganzen Monat. *Reserve* = Kapazität − erwartet; *Reserve ungünstig* =
+Kapazität − obere 80 %-Grenze.
+
+**Präsentation** (Knopf oben rechts oder Taste **P**): Navigation, Leisten und Werkzeugleiste verschwinden; vier große
+KPIs, der Graph groß, Datenstand und Netto/Brutto im Kopf, Standort umschaltbar, Standortvergleich zuschaltbar,
+Vollbild. Im Trend-Modus **schrittweiser Aufbau** mit ← / →: 1 Ist · 2 Prognose · 3 Unsicherheit · 4 Kapazität.
+**Esc** beendet.
+
+**Export** (oben rechts): *Diagramm als PNG* (hochauflösend, mit Titel, Zeitraum und Stand), *Executive Summary* als
+Druckansicht / PDF (KPIs, Erkenntnisse, Monate, Standorte), *Prognosedaten* als Excel oder CSV – jeweils mit dem
+gewählten Standort, Netto/Brutto, Zeitraum und Szenario.
 
 **Zimmer-Übersicht:** Die Legende ist entfallen – die Kacheln oben tragen dieselben Symbole und Farben wie die Zimmer
 und zählen: frei (Zimmer mit mindestens einem freien Bett; Doppelzimmer mit nur einem freien Bett sind grün umrandet
@@ -124,10 +155,11 @@ neu, die in den letzten 7 Tagen importiert wurden.
 | `modern/register.py` | Gliederung: Seiten, Reihenfolge, Gruppen |
 | `modern/seite_*.py`, `modern/seiten.py` | die Seiten |
 | `modern/*_kern.py`, `modern/kern.py` | Daten und Änderungen über das Hauptprogramm, ohne Oberfläche – testbar |
+| `modern/seite_prognose.py`, `modern/analytik_kern.py` | Prognose als Executive-Ansicht: Darstellung bzw. KPIs, Erkenntnisse, Vergleiche (ohne Oberfläche, testbar) |
 | `modern/stil.py` | Farben und Stil, alle Farbwerte nur hier |
 | `tests/` | Tests mit erfundenen Namen: `python -m pytest modern_ui/tests` |
 
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0` (jeweils auch als Zip in `Sicherung`).
