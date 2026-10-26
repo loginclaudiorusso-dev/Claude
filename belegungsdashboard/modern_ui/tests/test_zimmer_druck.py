@@ -66,7 +66,7 @@ def test_druck_html(stand):
     zeilen = zk.druck_zeilen(st, heute, kachel="frei")
     html = zk.druck_html(zeilen, heute, kachel="frei")
     assert "frei bis" in html and "offen" in html
-    assert f"Stand {heute:%d.%m.%Y}" in html and "frei (mindestens ein Bett)" in html
+    assert f"Stand {heute:%d.%m.%Y}" in html and "alle Häuser · frei" in html
     ohne = zk.druck_html(zk.druck_zeilen(st, heute, namen=False), heute, namen=False)
     assert "Muster" not in ohne and "<th>Bewohner</th>" not in ohne
     assert "Muster, Max" in zk.druck_html(zk.druck_zeilen(st, heute), heute)
@@ -92,3 +92,39 @@ def test_druck_excel(stand, tmp_path):
     _t, pfad2 = zk.druck_excel(zk.druck_zeilen(st, heute, kachel="frei", namen=False), heute, kachel="frei", namen=False)
     assert "frei" in pfad2.name and "ohne_Namen" in pfad2.name
     assert "Bewohner" not in [c.value for c in load_workbook(pfad2).active[4]]
+
+
+def test_kachel_mehrfach_und_mangelart():
+    """0.19: mehrere Kacheln – Status mit „oder“, Mängel/unbewohnbar schränken ein; Mangelart gilt zusätzlich."""
+    from modern import zimmer_kern as zk
+
+    assert zk.kacheln(None) == frozenset() and zk.kacheln("frei") == {"frei"} and zk.kacheln(["frei", "geplant"]) == {"frei", "geplant"}
+    p = zk.kachel_passt
+    assert p("frei", 0, False, set(), frozenset())                                  # nichts gewählt = alles
+    assert p("geplant", 0, False, set(), {"frei", "geplant"}) and p("teilweise", 0, False, set(), {"frei", "geplant"})
+    assert not p("belegt", 0, False, set(), {"frei", "geplant"})
+    assert p("frei", 2, False, {"heizung"}, {"frei", "maengel"}) and not p("frei", 0, False, set(), {"frei", "maengel"})
+    assert not p("belegt", 2, False, {"heizung"}, {"frei", "maengel"})
+    assert p("belegt", 2, False, {"heizung"}, frozenset(), ["heizung"]) and not p("belegt", 2, False, {"wand"}, frozenset(), ["heizung"])
+    assert p("frei", 3, True, {"schimmel"}, {"frei"}, ["stufe:3"]) and not p("frei", 2, False, {"heizung"}, {"frei"}, ["stufe:3"])
+    assert not p("frei", 2, False, {"heizung"}, {"frei"}, ["stufe:3", "heizung"])       # Stufe und Art: beides muss passen
+    assert zk.kachel_text({"geplant", "frei", "maengel"}, ["heizung"]) == "frei oder geplant · mit Mängeln · Mangel: Heizung defekt"
+
+
+def test_druck_mit_mangelart(stand):
+    from belegung import maengel as mg
+    from modern import zimmer_kern as zk
+
+    st, heute, (za, zb, zc) = stand
+    mg.setzen(zb.id, "heizung", True, heute)
+    mg.setzen(za.id, "wand", True, heute)
+    assert [z.zimmer for z in zk.druck_zeilen(st, heute, maengel=["heizung"])] == [zb.kurz]
+    assert {z.zimmer for z in zk.druck_zeilen(st, heute, kachel={"belegt", "maengel"})} == {za.kurz}
+    assert {z.zimmer for z in zk.druck_zeilen(st, heute, kachel={"belegt", "gesperrt"})} == {za.kurz, zc.kurz}
+    zeilen = zk.druck_zeilen(st, heute, kachel={"frei"}, maengel=["heizung"])
+    html = zk.druck_html(zeilen, heute, kachel={"frei"}, maengel=["heizung"])
+    assert "frei · Mangel: Heizung defekt" in html and zb.kurz in html and za.kurz not in html
+    _t, pfad = zk.druck_excel(zeilen, heute, kachel={"frei"}, maengel=["heizung"])
+    assert pfad.name.startswith("Zimmer_frei_Maengelart_")
+    karten = {k.zimmer: k for ks in zk.uebersicht(st, heute)[zb.haus].values() for k in ks}
+    assert karten[zb.id].arten == {"heizung"}

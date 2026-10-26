@@ -583,6 +583,7 @@ class Kachel:
     stufe: int                    # Mängelstufe (0 = keine)
     unbewohnbar: bool
     titel: str
+    arten: frozenset = frozenset()   # Arten der offenen Mängel (für den Mangelart-Filter)
 
 
 def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kachel]]]:
@@ -596,15 +597,65 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
         titel = f"{z.kurz} · {status}" + (f" · {namen}" if namen else "") + \
             ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "")
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
-            Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel))
+            Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel,
+                   frozenset(m.art for m in ms)))
     return erg
+
+
+# Kachel-Auswahl der Übersicht: mehrere Kacheln gleichzeitig. Status-Kacheln schließen sich gegenseitig aus und werden
+# deshalb mit „oder“ verknüpft (frei oder geplant), Mängel/unbewohnbar sind Eigenschaften und schränken zusätzlich ein
+# (frei + mit Mängeln = freie Zimmer mit Mängeln). Der Mangelart-Filter (Stufe/Art) gilt immer zusätzlich.
+KACHEL_STATUS = ("frei", "belegt", "geplant", "gesperrt")
+KACHEL_EIGENSCHAFT = ("maengel", "unbewohnbar")
+
+
+def kacheln(wert) -> frozenset:
+    """Kachel-Auswahl vereinheitlichen – andere Seiten springen noch mit einem einzelnen Schlüssel („frei“) hierher."""
+    if not wert:
+        return frozenset()
+    return frozenset({wert} if isinstance(wert, str) else wert)
+
+
+def mangel_passt(stufe: int, arten, filt) -> bool:
+    """Mangelart-Filter wie in der Liste: Stufen (rot/orange/gelb) und Arten, beides gesetzt = beides muss passen."""
+    if not filt:
+        return True
+    stufen = {int(t[6:]) for t in filt if t.startswith("stufe:")}
+    gesucht = {t for t in filt if not t.startswith("stufe:")}
+    if stufen and stufe not in stufen:
+        return False
+    return not gesucht or bool(("*" in gesucht and stufe) or set(arten) & gesucht)
+
+
+def kachel_passt(status: str, stufe: int, unbewohnbar: bool, arten, auswahl, filt=None) -> bool:
+    st = auswahl & set(KACHEL_STATUS)
+    ei = auswahl & set(KACHEL_EIGENSCHAFT)
+    if st and not (status in st or ("frei" in st and status == "teilweise")):
+        return False
+    if ei and not (("maengel" in ei and stufe) or ("unbewohnbar" in ei and unbewohnbar)):
+        return False
+    return mangel_passt(stufe, arten, filt)
+
+
+def kachel_text(auswahl, filt=None) -> str:
+    """„frei oder geplant · mit Mängeln · Mangel: Heizung defekt“ – für Überschrift, Menü und Dateiname."""
+    teile = []
+    st = [KACHEL_TEXT[k] for k in KACHEL_STATUS if k in auswahl]
+    if st:
+        teile.append(" oder ".join(st))
+    ei = [KACHEL_TEXT[k] for k in KACHEL_EIGENSCHAFT if k in auswahl]
+    if ei:
+        teile.append(" oder ".join(ei))
+    if filt:
+        teile.append(zl.Filter(maengel=set(filt)).beschreibung().split(" · ", 1)[1])
+    return " · ".join(teile)
 
 
 # ---------------------------------------------------------------------------------------
 # Drucken & Excel: Zimmer nach Filter (Liste/Karten) bzw. Kachel (Übersicht) – mit „frei ab“ / „frei bis“
 # ---------------------------------------------------------------------------------------
 
-KACHEL_TEXT = {"frei": "frei (mindestens ein Bett)", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt",
+KACHEL_TEXT = {"frei": "frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt",
                "maengel": "mit Mängeln", "unbewohnbar": "unbewohnbar"}
 STATUS_TEXT = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt"}
 
@@ -628,16 +679,17 @@ class DZeile:
     notiz: str
 
 
-def druck_zeilen(stand: zp.Planstand, tag: date, f: zl.Filter | None = None, kachel: str | None = None,
-                 namen: bool = True) -> list[DZeile]:
-    """Die Zimmer der aktuellen Auswahl mit Status am Stichtag und der freien Zeit (frei ab … bis …)."""
+def druck_zeilen(stand: zp.Planstand, tag: date, f: zl.Filter | None = None, kachel=None,
+                 namen: bool = True, maengel=None) -> list[DZeile]:
+    """Die Zimmer der aktuellen Auswahl mit Status am Stichtag und der freien Zeit (frei ab … bis …).
+    ``kachel`` = Kachel-Auswahl der Übersicht (ein Schlüssel oder mehrere), ``maengel`` = Mangelart-Filter."""
     lage = stand.lage
+    auswahl = kacheln(kachel)
     erg = []
     for r in _sortiert(stand, f or zl.Filter(nur_internat=True), tag):
         z = r.zimmer
-        if kachel == "frei" and r.status not in ("frei", "teilweise") or kachel == "maengel" and not r.maengel \
-                or kachel == "unbewohnbar" and z.id not in lage.unbewohnbar \
-                or kachel in ("belegt", "geplant", "gesperrt") and r.status != kachel:
+        if (auswahl or maengel) and not kachel_passt(r.status, mg.stufe(r.maengel), z.id in lage.unbewohnbar,
+                                                     {m.art for m in r.maengel}, auswahl, maengel):
             continue
         personen = [b for b in r.belegungen if b.art in ("belegt", "geplant")]
         belegt_bis = max((b.bis for b in personen), default=None)
@@ -660,9 +712,9 @@ def druck_zeilen(stand: zp.Planstand, tag: date, f: zl.Filter | None = None, kac
     return erg
 
 
-def _auswahl_text(f: zl.Filter | None, kachel: str | None) -> str:
-    if kachel:
-        return f"alle Häuser · {KACHEL_TEXT.get(kachel, kachel)}"
+def _auswahl_text(f: zl.Filter | None, kachel, maengel=None) -> str:
+    if f is None and (kachel or maengel):
+        return f"alle Häuser · {kachel_text(kacheln(kachel), maengel)}"
     return f.beschreibung() if f else "alle Häuser"
 
 
@@ -672,8 +724,8 @@ def _frei_bis_text(z: DZeile) -> str:
     return f"{z.frei_bis:%d.%m.%Y}" if z.frei_bis else "offen"
 
 
-def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel: str | None = None,
-               namen: bool = True) -> str:
+def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel=None,
+               namen: bool = True, maengel=None) -> str:
     """Zimmerliste zum Drucken: je Haus, mit Status am Stichtag und „frei ab / frei bis“."""
     from html import escape
 
@@ -684,7 +736,7 @@ def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kach
              " td.r{text-align:right} td.frei{color:#0a7a3e;font-weight:600} td.fb{font-weight:600}"
              " tr.gesperrt td{color:#888} h2{font-size:11.5pt;margin:12px 0 4px}</style>",
              "<h1>Zimmer</h1>",
-             f"<div class='klein'>Internat Goslar · {escape(_auswahl_text(f, kachel))} · Stand {tag:%d.%m.%Y} · "
+             f"<div class='klein'>Internat Goslar · {escape(_auswahl_text(f, kachel, maengel))} · Stand {tag:%d.%m.%Y} · "
              f"{len(zeilen)} Zimmer · {n['frei'] + n['teilweise']} frei · {n['belegt']} belegt · {n['geplant']} geplant · "
              f"{n['gesperrt']} gesperrt</div>"]
     kopf = ["Zimmer", "Etage", "Status"] + (["Bewohner"] if namen else []) + ["belegt bis", "frei ab", "frei bis",
@@ -711,8 +763,8 @@ def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kach
     return "".join(teile)
 
 
-def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel: str | None = None,
-                namen: bool = True):
+def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel=None,
+                namen: bool = True, maengel=None):
     """Dieselbe Auswahl als Excel-Tabelle (sortier- und filterbar), mit den Spalten „frei ab“, „frei bis“, „freie Tage“."""
     from pathlib import Path
 
@@ -735,10 +787,11 @@ def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kac
     ws.title = "Zimmer"
     n_frei = sum(1 for z in zeilen if z.status in ("frei", "teilweise"))
     zimmerexport._tabelle(ws, f"Zimmer am {tag:%d.%m.%Y}",
-                          f"{_auswahl_text(f, kachel)} · {len(zeilen)} Zimmer · {n_frei} frei · „frei bis“ = letzter freier "
+                          f"{_auswahl_text(f, kachel, maengel)} · {len(zeilen)} Zimmer · {n_frei} frei · „frei bis“ = letzter freier "
                           "Tag vor der nächsten bekannten Belegung (offen = keine bekannt)", kopf, daten, breiten, markierung)
     ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
     ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / f"Zimmer_{kachel or 'Auswahl'}_{tag:%Y-%m-%d}{'' if namen else '_ohne_Namen'}.xlsx"
+    teil = "_".join(k for k in KACHEL_STATUS + KACHEL_EIGENSCHAFT if k in kacheln(kachel)) or "Auswahl"
+    pfad = ziel / f"Zimmer_{teil}{'_Maengelart' if maengel else ''}_{tag:%Y-%m-%d}{'' if namen else '_ohne_Namen'}.xlsx"
     wb.save(pfad)
     return f"Excel gespeichert: {pfad.name} ({len(zeilen)} Zimmer)", pfad
