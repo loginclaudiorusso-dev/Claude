@@ -94,6 +94,9 @@ def _filterleiste(a, ansicht: str) -> None:
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("Zimmerliste drucken (mit Bewohnern)", lambda: _drucken(a, "liste"))
                 ui.menu_item("Zimmerliste drucken (ohne Namen)", lambda: _drucken(a, "liste_ohne"))
+                ui.menu_item("Als Excel – diese Auswahl mit „frei bis“", lambda: _auswahl_excel(a, True))
+                ui.menu_item("Als Excel – ohne Namen", lambda: _auswahl_excel(a, False))
+                ui.separator()
                 ui.menu_item("Kopieren (für Excel)", lambda: _kopieren(a))
                 ui.menu_item("Belegung am Tag als Excel …", lambda: _excel(a))
                 ui.separator()
@@ -331,10 +334,33 @@ async def _drucken(a, art: str) -> None:
         text = await run.io_bound(zk.fm_bericht)
         name = "Maengelbericht"
     else:
-        f = zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr)
-        text = await run.io_bound(zk.liste_druck, a.stand, f, a.zu_tag, art != "liste_ohne")
+        f, kachel = _auswahl(a, art.startswith("kachel"))
+        namen = not art.endswith("_ohne")
+        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, kachel, namen)
+        text = zk.druck_html(zeilen, a.zu_tag, f, kachel, namen)
         name = "Zimmerliste"
     seiten.html_drucken(a, text, name)
+
+
+def _auswahl(a, kachel: bool):
+    """(Filter, Kachel) der sichtbaren Auswahl – Übersicht: die angeklickte Kachel, Liste/Karten: die Filterleiste."""
+    if kachel:
+        return None, a.zu_filter
+    return zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr), None
+
+
+async def _auswahl_excel(a, namen: bool, kachel: bool = False) -> None:
+    f, k = _auswahl(a, kachel)
+    try:
+        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, k, namen)
+        text, pfad = await run.io_bound(zk.druck_excel, zeilen, a.zu_tag, f, k, namen)
+    except PermissionError:
+        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+        return
+    except Exception as exc:                # noqa: BLE001
+        a.toast(f"Nicht gespeichert: {exc}", fehler=True)
+        return
+    a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text} – {pfad}", rueck=False)
 
 
 # =======================================================================================
@@ -543,6 +569,13 @@ def _uebersicht(a) -> None:
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
         tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
         tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+        with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
+            with ui.menu().props('dark class="m-menue"'):
+                was = f"nur „{zk.KACHEL_TEXT[f].split(' (')[0]}“" if f else "alle Zimmer"
+                ui.menu_item(f"Drucken – {was} (mit Bewohnern)", lambda: _drucken(a, "kachel"))
+                ui.menu_item(f"Drucken – {was} (ohne Namen)", lambda: _drucken(a, "kachel_ohne"))
+                ui.menu_item(f"Als Excel – {was} mit „frei bis“", lambda: _auswahl_excel(a, True, kachel=True))
+                ui.menu_item("Als Excel – ohne Namen", lambda: _auswahl_excel(a, False, kachel=True))
     with a.inhalt:
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
