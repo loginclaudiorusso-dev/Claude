@@ -598,3 +598,147 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
             Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel))
     return erg
+
+
+# ---------------------------------------------------------------------------------------
+# Drucken & Excel: Zimmer nach Filter (Liste/Karten) bzw. Kachel (Übersicht) – mit „frei ab“ / „frei bis“
+# ---------------------------------------------------------------------------------------
+
+KACHEL_TEXT = {"frei": "frei (mindestens ein Bett)", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt",
+               "maengel": "mit Mängeln", "unbewohnbar": "unbewohnbar"}
+STATUS_TEXT = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt"}
+
+
+@dataclass
+class DZeile:
+    haus: str
+    etage: str
+    zimmer: str
+    betten: int
+    status: str                   # frei | teilweise | belegt | geplant | gesperrt (am Stichtag)
+    bewohner: str                 # Namen am Stichtag ("" ohne Namen)
+    belegt_bis: date | None       # Ende der aktuellen Belegung
+    frei_ab: date | None          # ab wann (wieder) frei – Stichtag, wenn schon frei
+    frei_bis: date | None         # letzter freier Tag vor der nächsten Belegung (None = offen)
+    frei_tage: int | None         # Länge der freien Zeit (None = offen bzw. nicht frei)
+    merkmale: str
+    boden: str
+    renoviert: str
+    maengel: str
+    notiz: str
+
+
+def druck_zeilen(stand: zp.Planstand, tag: date, f: zl.Filter | None = None, kachel: str | None = None,
+                 namen: bool = True) -> list[DZeile]:
+    """Die Zimmer der aktuellen Auswahl mit Status am Stichtag und der freien Zeit (frei ab … bis …)."""
+    lage = stand.lage
+    erg = []
+    for r in _sortiert(stand, f or zl.Filter(nur_internat=True), tag):
+        z = r.zimmer
+        if kachel == "frei" and r.status not in ("frei", "teilweise") or kachel == "maengel" and not r.maengel \
+                or kachel == "unbewohnbar" and z.id not in lage.unbewohnbar \
+                or kachel in ("belegt", "geplant", "gesperrt") and r.status != kachel:
+            continue
+        personen = [b for b in r.belegungen if b.art in ("belegt", "geplant")]
+        belegt_bis = max((b.bis for b in personen), default=None)
+        if r.status in ("frei", "teilweise"):
+            frei_ab = tag
+        elif r.status in ("belegt", "geplant") and belegt_bis:
+            frei_ab = belegt_bis + timedelta(days=max(lage.puffer, 1))
+        else:
+            frei_ab = None
+        frei_bis = lage.frei_bis(z.id, frei_ab - timedelta(days=1)) if frei_ab else None
+        if frei_ab and frei_bis and frei_bis < frei_ab:          # Folgebelegung schließt direkt an
+            frei_bis = frei_ab - timedelta(days=1)
+        tage = (frei_bis - frei_ab).days + 1 if frei_ab and frei_bis else None
+        bewohner = ", ".join(zp.anzeige_name(b.name) for b in personen if b.name and b.name != zp.PIVOT_NAME) if namen else ""
+        if r.status == "gesperrt":
+            bewohner = r.heute
+        erg.append(DZeile(z.haus, zp.flur_text(z).removeprefix(f"Haus {z.haus} · "), z.kurz, z.betten, r.status, bewohner, belegt_bis, frei_ab, frei_bis,
+                          tage if tage is None or tage > 0 else 0, zl.merkmal_kurz(z), r.boden or "", zl.reno_text(z) or "",
+                          ", ".join(sorted({mg.NAMEN.get(m.art, m.art) for m in r.maengel})), z.notiz))
+    return erg
+
+
+def _auswahl_text(f: zl.Filter | None, kachel: str | None) -> str:
+    if kachel:
+        return f"alle Häuser · {KACHEL_TEXT.get(kachel, kachel)}"
+    return f.beschreibung() if f else "alle Häuser"
+
+
+def _frei_bis_text(z: DZeile) -> str:
+    if z.frei_ab is None:
+        return ""
+    return f"{z.frei_bis:%d.%m.%Y}" if z.frei_bis else "offen"
+
+
+def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel: str | None = None,
+               namen: bool = True) -> str:
+    """Zimmerliste zum Drucken: je Haus, mit Status am Stichtag und „frei ab / frei bis“."""
+    from html import escape
+
+    from belegung.drucklisten import _STIL
+
+    n = {s: sum(1 for z in zeilen if z.status == s) for s in STATUS_TEXT}
+    teile = [_STIL, "<style>th,td{padding:2px 7px;text-align:left;white-space:nowrap} td:last-child{white-space:normal}"
+             " td.r{text-align:right} td.frei{color:#0a7a3e;font-weight:600} td.fb{font-weight:600}"
+             " tr.gesperrt td{color:#888} h2{font-size:11.5pt;margin:12px 0 4px}</style>",
+             "<h1>Zimmer</h1>",
+             f"<div class='klein'>Internat Goslar · {escape(_auswahl_text(f, kachel))} · Stand {tag:%d.%m.%Y} · "
+             f"{len(zeilen)} Zimmer · {n['frei'] + n['teilweise']} frei · {n['belegt']} belegt · {n['geplant']} geplant · "
+             f"{n['gesperrt']} gesperrt</div>"]
+    kopf = ["Zimmer", "Etage", "Status"] + (["Bewohner"] if namen else []) + ["belegt bis", "frei ab", "frei bis",
+                                                                               "freie Tage", "Merkmale", "Mängel"]
+    haus = None
+    for z in zeilen:
+        if z.haus != haus:
+            if haus is not None:
+                teile.append("</table>")
+            haus = z.haus
+            teile.append(f"<h2>Haus {escape(haus)}</h2><table><tr>" + "".join(f"<th>{k}</th>" for k in kopf) + "</tr>")
+        frei = z.status in ("frei", "teilweise")
+        zellen = [escape(z.zimmer), escape(z.etage), escape(STATUS_TEXT.get(z.status, z.status))] + \
+            ([escape(z.bewohner)] if namen else []) + \
+            [f"{z.belegt_bis:%d.%m.%Y}" if z.belegt_bis else "", f"{z.frei_ab:%d.%m.%Y}" if z.frei_ab else "",
+             _frei_bis_text(z), "" if z.frei_tage is None else str(z.frei_tage), escape(z.merkmale), escape(z.maengel)]
+        teile.append(f"<tr class='{z.status}'>" + "".join(
+            f"<td class='{'frei' if frei and i == 2 else ''}{' r' if i == len(zellen) - 3 else ''}{' fb' if i == len(zellen) - 4 else ''}'>{c}</td>"
+            for i, c in enumerate(zellen)) + "</tr>")
+    if haus is not None:
+        teile.append("</table>")
+    teile.append("<div class='klein' style='margin-top:10px'>„frei bis“ = letzter freier Tag vor der nächsten bekannten "
+                 "Belegung (offen = keine Folgebelegung bekannt). Bei belegten Zimmern: frei ab dem Tag nach dem Auszug.</div>")
+    return "".join(teile)
+
+
+def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel: str | None = None,
+                namen: bool = True):
+    """Dieselbe Auswahl als Excel-Tabelle (sortier- und filterbar), mit den Spalten „frei ab“, „frei bis“, „freie Tage“."""
+    from pathlib import Path
+
+    from openpyxl import Workbook
+
+    from belegung import speicher, zimmerexport
+
+    kopf = ["Haus", "Etage", "Zimmer", "Betten", "Status"] + (["Bewohner"] if namen else []) + \
+        ["belegt bis", "frei ab", "frei bis", "freie Tage", "Merkmale", "Boden", "Renoviert", "Mängel", "Notiz"]
+    breiten = [7, 22, 10, 7, 12] + ([30] if namen else []) + [12, 12, 12, 10, 14, 14, 14, 26, 30]
+    daten, markierung = [], {}
+    for i, z in enumerate(zeilen):
+        frei_bis = z.frei_bis if z.frei_bis else ("offen" if z.frei_ab else None)
+        daten.append([z.haus, z.etage, z.zimmer, z.betten, STATUS_TEXT.get(z.status, z.status)] + ([z.bewohner] if namen else [])
+                     + [z.belegt_bis, z.frei_ab, frei_bis, z.frei_tage, z.merkmale, z.boden, z.renoviert, z.maengel, z.notiz])
+        if z.status in ("frei", "teilweise"):
+            markierung[i] = "E6F4EA"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Zimmer"
+    n_frei = sum(1 for z in zeilen if z.status in ("frei", "teilweise"))
+    zimmerexport._tabelle(ws, f"Zimmer am {tag:%d.%m.%Y}",
+                          f"{_auswahl_text(f, kachel)} · {len(zeilen)} Zimmer · {n_frei} frei · „frei bis“ = letzter freier "
+                          "Tag vor der nächsten bekannten Belegung (offen = keine bekannt)", kopf, daten, breiten, markierung)
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / f"Zimmer_{kachel or 'Auswahl'}_{tag:%Y-%m-%d}{'' if namen else '_ohne_Namen'}.xlsx"
+    wb.save(pfad)
+    return f"Excel gespeichert: {pfad.name} ({len(zeilen)} Zimmer)", pfad
