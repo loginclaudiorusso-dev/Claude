@@ -148,6 +148,31 @@ def _filter_menue(a) -> None:
             eintrag("Auch Zimmer außer Betrieb (Lager, Jugendhilfe …)", bool(m["alle"]), lambda: setzen("alle", not m["alle"]))
 
 
+def _mangel_menue(a) -> None:
+    """Filter nach Mangelart/-stufe. Derselbe Zustand wie „Filter → Mangel“ in Karten und Liste – die Auswahl gilt also
+    in allen Zimmer-Ansichten."""
+    gewaehlt = list(a.zl_mehr.get("maengel") or [])
+    opt = zk.filter_optionen(a.heute)["maengel"]
+
+    def umschalten(k: str):
+        return a.setzen(zl_mehr={**a.zl_mehr, "maengel": sorted(set(gewaehlt) ^ {k})}, laden=False)
+
+    titel = "Mangelart" + (f" · {len(gewaehlt)}" if gewaehlt else "")
+    with knopf(titel, None, "akzent" if gewaehlt else "", "construction"):
+        with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
+            ui.label("Stufe").classes("m-mgruppe")
+            for k, t in opt.items():
+                if k == next((x for x in opt if not x.startswith("stufe:")), None):
+                    ui.label("Mangelart").classes("m-mgruppe")
+                an = k in gewaehlt
+                with ui.menu_item(on_click=lambda k=k: umschalten(k), auto_close=False).classes("m-mpunkt"):
+                    ui.icon("check_box" if an else "check_box_outline_blank").classes("m-mhaken" + (" an" if an else ""))
+                    ui.label(t)
+            if gewaehlt:
+                ui.separator()
+                ui.menu_item("Mangelart-Filter aufheben", lambda: a.setzen(zl_mehr={**a.zl_mehr, "maengel": []}, laden=False))
+
+
 def _liste(a) -> None:
     _filterleiste(a, "liste")
     zs = a.daten["zeilen"]
@@ -334,26 +359,27 @@ async def _drucken(a, art: str) -> None:
         text = await run.io_bound(zk.fm_bericht)
         name = "Maengelbericht"
     else:
-        f, kachel = _auswahl(a, art.startswith("kachel"))
+        f, kachel, mf = _auswahl(a, art.startswith("kachel"))
         namen = not art.endswith("_ohne")
-        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, kachel, namen)
-        text = zk.druck_html(zeilen, a.zu_tag, f, kachel, namen)
+        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, kachel, namen, mf)
+        text = zk.druck_html(zeilen, a.zu_tag, f, kachel, namen, mf)
         name = "Zimmerliste"
     seiten.html_drucken(a, text, name)
 
 
 def _auswahl(a, kachel: bool):
-    """(Filter, Kachel) der sichtbaren Auswahl – Übersicht: die angeklickte Kachel, Liste/Karten: die Filterleiste."""
+    """(Filter, Kacheln, Mangelart) der sichtbaren Auswahl – Übersicht: die angeklickten Kacheln und die Mangelart,
+    Liste/Karten: die Filterleiste (dort steckt die Mangelart schon im Filter)."""
     if kachel:
-        return None, a.zu_filter
-    return zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr), None
+        return None, zk.kacheln(a.zu_filter), list(a.zl_mehr.get("maengel") or [])
+    return zk.filter_bauen(a.zl_haus, a.zl_status, a.zl_schnell, a.zl_text, a.zl_mehr), None, None
 
 
 async def _auswahl_excel(a, namen: bool, kachel: bool = False) -> None:
-    f, k = _auswahl(a, kachel)
+    f, k, mf = _auswahl(a, kachel)
     try:
-        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, k, namen)
-        text, pfad = await run.io_bound(zk.druck_excel, zeilen, a.zu_tag, f, k, namen)
+        zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, k, namen, mf)
+        text, pfad = await run.io_bound(zk.druck_excel, zeilen, a.zu_tag, f, k, namen, mf)
     except PermissionError:
         a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
         return
@@ -548,7 +574,8 @@ def _uebersicht(a) -> None:
     alle = [k for et in haeuser.values() for ks in et.values() for k in ks]
     n = {s: sum(1 for k in alle if k.status == s) for s in ("frei", "teilweise", "belegt", "geplant", "gesperrt")}
     defekt = sum(1 for k in alle if k.stufe)
-    f = a.zu_filter
+    f = zk.kacheln(a.zu_filter)
+    mf = a.zl_mehr.get("maengel") or []
     with a.leiste:
         unbew = sum(1 for k in alle if k.unbewohnbar)
         # Die Kacheln sind zugleich die Legende: gleiche Symbole und Farben wie die Zimmer darunter
@@ -556,13 +583,17 @@ def _uebersicht(a) -> None:
                     ("belegt", n["belegt"], "belegt", "blau"), ("geplant", n["geplant"], "geplant", "akzent"),
                     ("gesperrt", n["gesperrt"], "gesperrt", "neutral"), ("maengel", defekt, "mit Mängeln", "warn"),
                     ("unbewohnbar", unbew, "unbewohnbar", "krit")], f,
-                   lambda k: a.setzen(zu_filter=None if k == a.zu_filter else k, laden=False),
-                   {"frei": f"Mindestens ein Bett frei: {n['frei']} ganz leer, {n['teilweise']} Doppelzimmer mit einem freien "
-                            "Bett (grün umrandet) – Klick: nur diese zeigen",
-                    "belegt": "Alle Betten belegt (blau) – Klick: nur diese", "geplant": "Nur geplant, noch nicht eingezogen "
-                    "(violett) – Klick: nur diese", "gesperrt": "Gesperrt (gestreift) – Klick: nur diese",
-                    "maengel": "Offene Mängel (Marke „!“ an der Kachel) – Klick: nur diese",
-                    "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen) – Klick: nur diese"})
+                   lambda k: a.setzen(zu_filter=f ^ {k}, laden=False),
+                   {k: t + " – Klick: dazunehmen/wegnehmen (mehrere möglich)" for k, t in {
+                       "frei": f"Mindestens ein Bett frei: {n['frei']} ganz leer, {n['teilweise']} Doppelzimmer mit einem freien "
+                               "Bett (grün umrandet)",
+                       "belegt": "Alle Betten belegt (blau)", "geplant": "Nur geplant, noch nicht eingezogen (violett)",
+                       "gesperrt": "Gesperrt (gestreift)", "maengel": "Offene Mängel (Marke „!“ an der Kachel)",
+                       "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen)"}.items()})
+        _mangel_menue(a)
+        if f or mf:
+            knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
+                  "leise", "close")
         ui.label(f"am {a.zu_tag:%d.%m.%Y}").classes("m-kpi")
         knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
         knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
@@ -571,7 +602,7 @@ def _uebersicht(a) -> None:
         tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
         with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
             with ui.menu().props('dark class="m-menue"'):
-                was = f"nur „{zk.KACHEL_TEXT[f].split(' (')[0]}“" if f else "alle Zimmer"
+                was = f"nur „{zk.kachel_text(f, mf)}“" if f or mf else "alle Zimmer"
                 ui.menu_item(f"Drucken – {was} (mit Bewohnern)", lambda: _drucken(a, "kachel"))
                 ui.menu_item(f"Drucken – {was} (ohne Namen)", lambda: _drucken(a, "kachel_ohne"))
                 ui.menu_item(f"Als Excel – {was} mit „frei bis“", lambda: _auswahl_excel(a, True, kachel=True))
@@ -586,8 +617,7 @@ def _uebersicht(a) -> None:
                             ui.label(etage).classes("m-zweite m-etage-titel")
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
-                                    passt = (f is None or (f == "maengel" and k.stufe) or (f == "unbewohnbar" and k.unbewohnbar) or k.status == f
-                                             or (f == "frei" and k.status == "teilweise"))
+                                    passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf)
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=k.titel)
@@ -600,11 +630,13 @@ def _uebersicht(a) -> None:
 
 def _maengel(a) -> None:
     zs: list[zk.MZeile] = a.daten
+    mf = a.zl_mehr.get("maengel") or []
     with a.leiste:
         n = {st: sum(1 for z in zs if z.stufe == st) for st in (3, 2, 1)}
         kennzahlen([(3, n[3], "nicht bewohnbar", "krit"), (2, n[2], "dringend", "warn"), (1, n[1], "leicht", "neutral")],
                    a.dz_filter, lambda k: a.setzen(dz_filter=None if k == a.dz_filter else k, laden=False))
         ui.label(f"{sum(len(z.maengel) for z in zs)} offene Mängel").classes("m-kpi")
+        _mangel_menue(a)
         knopf("FM-Bericht drucken", lambda: _fm(a, "druck"), "", "print").style("margin-left:auto")
         knopf("FM-Liste (Excel)", lambda: _fm(a, "excel"), "", "table_view")
         knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "leise", "content_copy")
@@ -616,8 +648,11 @@ def _maengel(a) -> None:
         if not zs:
             leer("Keine offenen Mängel – alle Zimmer in Ordnung.")
             return
+        if mf and not any(zk.mangel_passt(z.stufe, {m[0] for m in z.maengel}, mf) for z in zs):
+            leer("Kein Zimmer mit dieser Mangelart – Auswahl unter „Mangelart“ ändern.")
         for st, titel in zk.STUFEN.items():
-            gruppe = [z for z in zs if z.stufe == st and (a.dz_filter is None or a.dz_filter == st)]
+            gruppe = [z for z in zs if z.stufe == st and (a.dz_filter is None or a.dz_filter == st)
+                      and zk.mangel_passt(z.stufe, {m[0] for m in z.maengel}, mf)]
             if not gruppe:
                 continue
             ui.label(f"{titel} ({len(gruppe)})").classes("m-abschnitt")

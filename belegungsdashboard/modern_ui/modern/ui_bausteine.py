@@ -80,10 +80,10 @@ def badge_neu(seit) -> None:
 
 def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | None = None) -> None:
     """Klickbare Kennzahl-Kacheln: (Schlüssel, Zahl, Text, Farbe ok|warn|krit|akzent|neutral|blau).
-    Die aktive Kachel ist hervorgehoben; ein Klick ruft ``bei_klick(Schlüssel)`` (Filter oder Sprung)."""
+    Die aktive Kachel (oder bei einer Menge: alle darin) ist hervorgehoben; ein Klick ruft ``bei_klick(Schlüssel)`` (Filter oder Sprung)."""
     with ui.element("div").classes("m-stats").props('role="group"'):
         for schluessel, zahl, text, farbe in werte:
-            an = aktiv is not None and schluessel == aktiv
+            an = aktiv is not None and (schluessel in aktiv if isinstance(aktiv, (set, frozenset)) else schluessel == aktiv)
             b = ui.element("button").classes(f"m-stat {farbe}" + (" an" if an else ""))
             attr(b, aria_pressed=str(an).lower(), title=(titel or {}).get(schluessel, "Klick: filtern" if bei_klick else ""))
             with b:
