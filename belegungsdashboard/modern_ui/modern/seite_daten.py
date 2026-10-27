@@ -9,7 +9,8 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from nicegui import run, ui
+from fastapi import Request
+from nicegui import app, run, ui
 
 from belegung import importe, konfig
 
@@ -18,6 +19,19 @@ from . import seiten
 from .ui_bausteine import knopf, leer
 
 UPLOAD = Path(tempfile.gettempdir()) / "belegung_uploads"
+EINGEFUEGT: dict[str, dict] = {}          # Kennung → {"text", "html"} (eingefügter Gebäudeplan, kurz zwischengelagert)
+
+
+@app.post("/einfuegen")
+async def _einfuegen_empfangen(request: Request) -> dict:
+    """Eingefügter Inhalt kommt per POST (kann größer sein als eine Socket-Nachricht); nur vom eigenen Rechner."""
+    if request.client is None or request.client.host not in ("127.0.0.1", "::1", "localhost"):
+        return {"id": ""}
+    daten = await request.json()
+    kennung = uuid.uuid4().hex
+    EINGEFUEGT.clear()
+    EINGEFUEGT[kennung] = {"text": str(daten.get("text") or ""), "html": str(daten.get("html") or "")}
+    return {"id": kennung}
 
 
 def daten(a) -> None:
@@ -68,6 +82,8 @@ def zeichnen(a) -> None:
                          "Unterschieden wählen Sie, was gilt.").classes("m-ptext")
                 with ui.element("div").classes("m-paktionen"):
                     _hochladen(a, "Gebäudeplan hochladen", ".docx", lambda f: _plan_lesen(a, f), art="primaer")
+                    knopf("Aus Zwischenablage einfügen …", lambda: _plan_einfuegen(a), "leise", "content_paste",
+                          "Gebäudeansicht im Belegungssystem markieren (Strg+A), kopieren (Strg+C) und hier einfügen")
                     if d["plan"] is not None:
                         plan, kennung, unterschiede = d["plan"]
                         knopf(f"Neu im Ordner: {plan.datei} prüfen …", lambda: seiten._plan_panel(a, plan, kennung, unterschiede)
@@ -88,6 +104,8 @@ def zeichnen(a) -> None:
                 with ui.element("div").classes("m-paktionen"):
                     _hochladen(a, "Andere Pivot-Datei …", ".xlsx,.xlsm", lambda f: _pivot(a, f))
                     knopf("Vom Server aktualisieren", lambda: a.aendern(dk.pivot_vom_server), "leise", "cloud_download")
+                    knopf("Pivot-Struktur …", lambda: _pivot_struktur(a), "leise", "table_chart",
+                          "Nur nötig, wenn eine Datei anders aufgebaut ist als üblich")
                 ui.label("Kapazitäten (Plätze)").classes("m-ktitel")
                 felder = {}
                 with ui.element("div").classes("m-kap"):
@@ -287,6 +305,43 @@ async def _plan_lesen(a, dateien) -> None:
     seiten._plan_panel(a, plan, kennung, unterschiede)
 
 
+def _plan_einfuegen(a) -> None:
+    """Gebäudeplan aus der Zwischenablage: Feld anklicken, Strg+V – der Browser liest Text und HTML."""
+    def bauen():
+        ui.label("Im Belegungssystem die Gebäudeansicht öffnen, alles markieren (Strg+A) und kopieren (Strg+C). "
+                 "Dann hier in das Feld klicken und Strg+V drücken. Danach wird wie beim Hochladen mit dem Zimmerplan "
+                 "verglichen.").classes("m-ptext")
+        feld = ui.element("div").classes("m-einfuegen").props('tabindex="0" contenteditable="true"')
+        with feld:
+            ui.label("Hier klicken und Strg+V").classes("m-zweite")
+        feld.on("paste", lambda e: _plan_eingefuegt(a, e.args), js_handler=(
+            "async (e) => { e.preventDefault(); const t = e.clipboardData.getData('text/plain'); "
+            "const h = e.clipboardData.getData('text/html'); e.target.closest('.m-einfuegen').classList.add('liest'); "
+            "const r = await fetch('/einfuegen', {method: 'POST', headers: {'Content-Type': 'application/json'}, "
+            "body: JSON.stringify({text: t, html: h})}); emit((await r.json()).id); }"))
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Gebäudeplan einfügen", bauen)
+
+
+async def _plan_eingefuegt(a, kennung) -> None:
+    daten = EINGEFUEGT.pop(kennung, None) if isinstance(kennung, str) else None
+    if not daten or not (daten["text"].strip() or daten["html"].strip()):
+        a.toast("Die Zwischenablage war leer – bitte erst im Belegungssystem kopieren.", fehler=True, rueck=False)
+        return
+    try:
+        plan, unterschiede, quelle = await run.io_bound(dk.gebaeudeplan_aus_zwischenablage, daten["text"], daten["html"])
+    except ValueError as exc:
+        a.toast(str(exc), fehler=True, rueck=False)
+        return
+    a.panel_zu()
+    if not unterschiede:
+        await a.aendern(seiten.sk.plan_uebernehmen, plan, [], quelle)
+        return
+    seiten._plan_panel(a, plan, quelle, unterschiede)
+
+
 async def _einfach(a, aktion, dateien, zkl: bool = False) -> None:
     if await a.aendern(aktion, dateien[0][0]) and zkl:
         _zkl_panel(a)
@@ -297,6 +352,69 @@ async def _pivot(a, dateien) -> None:
 
     if await a.aendern(dk.pivot_setzen, dateien[0][0], dateien[0][1]):
         await run.io_bound(ak.datenstand, True)
+
+
+async def _pivot_struktur(a) -> None:
+    """Aufbau der Pivot-Datei festlegen – mit Vorschau, die sofort zeigt, ob die Einstellungen passen."""
+    try:
+        st = await run.io_bound(dk.pivot_struktur)
+    except ValueError as exc:
+        a.toast(str(exc), fehler=True, rueck=False)
+        return
+    felder = dict(st["profil"])
+    pfad = st["pfad"]
+    zustand = {"ok": False, "text": "Datei wird gelesen …"}
+
+    @ui.refreshable
+    def ergebnis():
+        ui.label(zustand["text"]).classes("m-ptext").style(
+            "white-space:normal;" + ("" if zustand["ok"] else "color:var(--orange)"))
+
+    async def pruefen():
+        zustand["ok"], zustand["text"] = await run.io_bound(dk.pivot_vorschau, pfad, dict(felder))
+        ergebnis.refresh()
+
+    def setzen(k, v):
+        felder[k] = v
+        return pruefen()
+
+    def bauen():
+        ui.label(f"{pfad.name} – nur nötig, wenn eine Datei anders aufgebaut ist als üblich. Die Vorschau zeigt sofort, "
+                 "ob die Einstellungen passen.").classes("m-ptext")
+        props = 'dense outlined dark options-dense popup-content-class="m-popup"'
+        ui.input("Profilname", value=felder["name"]).classes("m-feld").props("dense outlined dark").on_value_change(
+            lambda e: felder.__setitem__("name", e.value))
+        ui.select(dk.PIVOT_MODUS, value=felder["sheet_modus"], label="Tabellenblatt").classes("m-feld").props(
+            props).on_value_change(lambda e: setzen("sheet_modus", e.value))
+        if st["blaetter"]:
+            ui.select(st["blaetter"], value=felder["sheet_name"] if felder["sheet_name"] in st["blaetter"] else None,
+                      label="Blattname (bei festem Tabellenblatt)").classes("m-feld").props(props).on_value_change(
+                lambda e: setzen("sheet_name", e.value))
+        ui.select(dk.PIVOT_AUSRICHTUNG, value=felder["ausrichtung"], label="Ausrichtung").classes("m-feld").props(
+            props).on_value_change(lambda e: setzen("ausrichtung", e.value))
+        ui.select(dk.PIVOT_EBENEN, value=int(felder["hierarchie_ebenen"]), label="Ebenen").classes("m-feld").props(
+            props).on_value_change(lambda e: setzen("hierarchie_ebenen", e.value))
+        for k, t in (("kopfzeilen_marker", "Kopfzeilen-Text"), ("zwischensummen_suffix", "Zwischensummen-Endung"),
+                     ("datumsformat", "Datumsformat")):
+            i = ui.input(t, value=felder[k]).classes("m-feld").props("dense outlined dark")
+            i.on("blur", lambda e, k=k, i=i: setzen(k, i.value))
+            i.on("keydown.enter", lambda e, k=k, i=i: setzen(k, i.value))
+        ui.label("Vorschau").classes("m-ktitel")
+        ergebnis()
+
+        async def speichern():
+            from . import auswertung_kern as ak
+
+            if await a.aendern(dk.pivot_struktur_speichern, pfad, dict(felder)):
+                await run.io_bound(ak.datenstand, True)
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern und anwenden", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Pivot-Struktur", bauen)
+    await pruefen()
 
 
 def _zkl_panel(a) -> None:

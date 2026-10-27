@@ -230,6 +230,17 @@ def gebaeudeplan_lesen(pfad: Path):
     return plan, pa.vergleichen(plan, zp.laden())
 
 
+def gebaeudeplan_aus_zwischenablage(text: str, html: str):
+    """Kopierte Gebäudeansicht aus dem Belegungssystem (Strg+A, Strg+C) – (Plan, Unterschiede, Kennung).
+    Die Rohdaten bleiben zur Nachkontrolle im Datenordner liegen (wie im Hauptprogramm)."""
+    from belegung import gebaeudeplan
+    from belegung import planabgleich as pa
+
+    plan = gebaeudeplan.aus_zwischenablage(text or "", html or "")
+    speicher.schreiben(f"{speicher.IMPORT_ORDNER}/gebaeudeplan_eingefuegt.json", {"text": text, "html": (html or "")[:2_000_000]})
+    return plan, pa.vergleichen(plan, zp.laden()), {"pfad": "Zwischenablage", "geaendert": 0}
+
+
 def gebaeudeplan_ablegen(pfad: Path, name: str) -> dict:
     """Wie im Hauptprogramm: die Datei in den Ordner „Gebaeudeplan“ legen (Kennung für „schon übernommen“)."""
     from belegung import gebaeudeplan
@@ -291,6 +302,77 @@ def pivot_setzen(pfad: Path, name: str) -> str:
     laden.lade(ziel)                          # prüft, ob sie sich lesen lässt (Fehler → ValueError o. ä.)
     _schritt("Pivot-Datei", lambda: speicher.einstellung_setzen("quelle", str(ziel)), [speicher.EINSTELLUNGEN])
     return f"Pivot-Datei „{name}“ eingelesen"
+
+
+# ---- Pivot-Struktur (nur nötig, wenn eine Datei anders aufgebaut ist als üblich) -------------------------
+
+PIVOT_MODUS = {"auto": "Automatisch (erste echte Pivot-Tabelle)", "manuell": "Festes Tabellenblatt (Kreuztabelle)"}
+PIVOT_AUSRICHTUNG = {"standard": "Standorte/Häuser in Spalten, Tage in Zeilen",
+                     "transponiert": "Gespiegelt: Standorte/Häuser in Zeilen, Tage in Spalten"}
+PIVOT_EBENEN = {2: "Standort und Haus", 1: "Nur Standort"}
+_MATRIX: dict = {}
+
+
+def pivot_struktur() -> dict:
+    """Aktuelle Pivot-Datei, ihr Profil (Felder) und die Tabellenblätter für das Formular."""
+    from belegung import pivot
+
+    quelle = laden.excel_suchen()
+    if quelle is None or not quelle.exists():
+        raise ValueError("Keine Pivot-Datei gewählt – erst unter „Pivot“ eine Datei einlesen.")
+    try:
+        blaetter = pivot.sheet_namen_datei(quelle)
+    except Exception:                      # noqa: BLE001 – z. B. .xls: dann nur „automatisch“
+        blaetter = []
+    return {"pfad": quelle, "profil": pivot.profil_fuer_datei(quelle.name).to_dict(), "blaetter": blaetter}
+
+
+def _profil(felder: dict):
+    from belegung import pivot
+
+    return pivot.PivotProfil(
+        name=(felder.get("name") or "").strip() or "Profil", sheet_modus=felder.get("sheet_modus") or "auto",
+        sheet_name=felder.get("sheet_name") or None, ausrichtung=felder.get("ausrichtung") or "standard",
+        hierarchie_ebenen=int(felder.get("hierarchie_ebenen") or 2),
+        kopfzeilen_marker=felder.get("kopfzeilen_marker") or "Zeilenbeschriftungen",
+        zwischensummen_suffix=felder.get("zwischensummen_suffix") or "", datumsformat=felder.get("datumsformat") or "%d.%m.%Y")
+
+
+def pivot_vorschau(pfad: Path, felder: dict) -> tuple[bool, str]:
+    """Trockenlauf: (passt, Text) – zeigt sofort, ob die Einstellungen zur Datei passen."""
+    from belegung import konfig, pivot
+
+    p = _profil(felder)
+    schluessel = (str(pfad), pfad.stat().st_mtime, p.sheet_modus, p.sheet_name)
+    try:
+        if schluessel not in _MATRIX:                 # Datei nur neu lesen, wenn sich Blatt/Modus ändert
+            _MATRIX.clear()
+            _MATRIX[schluessel] = pivot.lese_matrix_datei(pfad, p)[0]
+        r = pivot.vorschau(_MATRIX[schluessel], p)
+    except Exception as exc:                   # noqa: BLE001
+        return False, f"Die Datei konnte so nicht gelesen werden: {exc}"
+    if not r["erfolg"]:
+        return False, f"Passt nicht: {r['fehler']}"
+    haeuser = " · ".join(f"{konfig.STANDORT_LABEL.get(s, s)}: {', '.join(h) or '—'}" for s, h in r["haeuser_je_standort"].items())
+    return True, f"✓ {r['anzahl_tage']} Tage vom {r['erster_tag']:%d.%m.%Y} bis {r['letzter_tag']:%d.%m.%Y} · {haeuser}"
+
+
+def pivot_struktur_speichern(pfad: Path, felder: dict) -> str:
+    from belegung import pivot
+
+    ok, text = pivot_vorschau(pfad, felder)
+    if not ok:
+        raise ValueError(text)
+    p = _profil(felder)
+
+    def aktion():
+        profile, zuordnung = pivot.lade_profile()
+        profile[p.name] = p
+        zuordnung[pfad.name.lower()] = p.name
+        pivot.speichere_profile(profile, zuordnung)
+
+    _schritt("Pivot-Struktur", aktion, [speicher.PIVOT_PROFILE])
+    return f"Pivot-Struktur „{p.name}“ für {pfad.name} gespeichert"
 
 
 def pivot_vom_server() -> str:

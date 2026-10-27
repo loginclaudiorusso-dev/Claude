@@ -302,6 +302,10 @@ CSS += """
 .m-zs-b.zieh { cursor: grab; } .m-zs-b.zieh:active { cursor: grabbing; }
 body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%, transparent); outline: 1px dashed var(--akzent); outline-offset: -1px; }
 .m-wechsel { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.m-einfuegen { border: 1.5px dashed var(--rand2, var(--rand)); border-radius: 10px; min-height: 120px; padding: 14px; display: flex; align-items: center; justify-content: center; cursor: text; outline: none; overflow: hidden; margin: 10px 0; }
+.m-einfuegen:focus { border-color: var(--akzent); background: color-mix(in srgb, var(--akzent) 6%, transparent); }
+.m-einfuegen.liest { opacity: .6; }
+.m-schalter { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
 .m-klassen { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .m-chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--fl2); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .m-chip.warn { background: color-mix(in srgb, var(--orange) 18%, transparent); }
