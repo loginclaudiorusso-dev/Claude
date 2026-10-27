@@ -30,6 +30,7 @@ class Balken:
     tage: int
     offen_links: bool = False
     offen_rechts: bool = False
+    person: str = ""      # gesetzt = per Ziehen in ein anderes Zimmer verschiebbar (geplant, noch nicht eingezogen)
 
 
 @dataclass
@@ -79,7 +80,11 @@ def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heut
                 {"geplant": " · im Programm geplant", "konflikt": f" · {probleme.get(b.person, '')}",
                  "gesperrt": " · gesperrt"}.get(art, "") + (" · Umzug" if b.umzug else "")
             a, e = max(b.von, start), min(b.bis, ende)
-            zeile.balken.append(Balken(art, text, titel, (a - start).days, (e - a).days + 1, b.von < start, b.bis > ende))
+            ziehbar = b.art == "geplant" and b.person and not b.umzug and stand.zugewiesen(b.person) is not None
+            if ziehbar:
+                titel += "\nZiehen: in ein anderes Zimmer verschieben"
+            zeile.balken.append(Balken(art, text, titel, (a - start).days, (e - a).days + 1, b.von < start, b.bis > ende,
+                                       b.person if ziehbar else ""))
         erg.append(zeile)
     return erg
 

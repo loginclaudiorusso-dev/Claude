@@ -82,11 +82,12 @@ def _zs_html(a) -> str:
         hintergrund += f'<div class="m-zs-jetzt" style="left:calc({(a.heute - a.zs_start).days + .5} * 100% / var(--tage))"></div>'
     for z in a.daten:
         hinweis = f'<span class="m-zs-h" title="{E(z.hinweis)}">●</span>' if z.hinweis else ""
-        teile.append(f'<div class="m-zs-zeile"><div class="m-zs-lab" data-z="{E(z.zimmer)}" title="{E(z.lage)} – Klick öffnet die Zimmerkarte">'
+        teile.append(f'<div class="m-zs-zeile" data-zd="{E(z.zimmer)}"><div class="m-zs-lab" data-z="{E(z.zimmer)}" title="{E(z.lage)} – Klick öffnet die Zimmerkarte">'
                      f'<b>{E(z.kurz)}</b>{" · DZ" if z.betten > 1 else ""}{hinweis}</div><div class="m-zs-spur">{hintergrund}')
         for b in z.balken:
-            kl = f"m-zs-b {b.art}" + (" ol" if b.offen_links else "") + (" or" if b.offen_rechts else "")
-            teile.append(f'<div class="{kl}" data-z="{E(z.zimmer)}" title="{E(b.titel)}" style="left:calc({b.start} * 100% / var(--tage));'
+            kl = f"m-zs-b {b.art}" + (" ol" if b.offen_links else "") + (" or" if b.offen_rechts else "") + (" zieh" if b.person else "")
+            zieh = f' draggable="true" data-p="{E(b.person)}"' if b.person else ""
+            teile.append(f'<div class="{kl}" data-z="{E(z.zimmer)}"{zieh} title="{E(b.titel)}" style="left:calc({b.start} * 100% / var(--tage));'
                          f'width:calc({b.tage} * 100% / var(--tage) - 2px)"><span>{E(b.text)}</span></div>')
         teile.append("</div></div>")
     teile.append("</div>")

@@ -52,11 +52,65 @@ def zeichnen(a) -> None:
         _liste(a)
 
 
+_ZIEL_WEG = "document.querySelectorAll('.m-zs-zeile.ziel').forEach(x => x.classList.remove('ziel'))"
+
+
 def _klickbar(a) -> None:
-    """Klick auf Zimmer oder Belegung im Zeitstrahl öffnet die Zimmerkarte."""
+    """Klick auf Zimmer oder Belegung im Zeitstrahl öffnet die Zimmerkarte. Geplante Personen lassen sich per Ziehen
+    in eine andere Zimmerzeile verschieben (Prüfung und Bestätigung wie im Hauptprogramm)."""
     for el in a.inhalt.default_slot.children:
         el.on("click", lambda e: karte_oeffnen(a, e.args) if e.args else None,
               js_handler="(e) => { const t = e.target.closest('[data-z]'); emit(t ? t.dataset.z : null); }")
+        el.on("dragstart", js_handler="(e) => { const b = e.target.closest('[data-p]'); if (!b) return; "
+              "e.dataTransfer.setData('text/plain', b.dataset.p + '|' + b.dataset.z); e.dataTransfer.effectAllowed = 'move'; "
+              "document.body.classList.add('m-zieht'); }")
+        el.on("dragover", js_handler="(e) => { if (!document.body.classList.contains('m-zieht')) return; "
+              "const z = e.target.closest('[data-zd]'); if (!z) return; e.preventDefault(); "
+              f"if (!z.classList.contains('ziel')) {{ {_ZIEL_WEG}; z.classList.add('ziel'); }} }}")
+        el.on("dragend", js_handler=f"(e) => {{ document.body.classList.remove('m-zieht'); {_ZIEL_WEG}; }}")
+        el.on("drop", lambda e: _gezogen(a, e.args), js_handler="(e) => { const z = e.target.closest('[data-zd]'); "
+              "const d = (e.dataTransfer.getData('text/plain') || '').split('|'); e.preventDefault(); "
+              f"document.body.classList.remove('m-zieht'); {_ZIEL_WEG}; "
+              "if (z && d[0] && d[1] !== z.dataset.zd) emit({p: d[0], z: z.dataset.zd}); }")
+
+
+async def _gezogen(a, args) -> None:
+    if not isinstance(args, dict) or not args.get("p") or not args.get("z"):
+        return
+    w = await run.io_bound(zk.wechsel_pruefen, args["p"], args["z"])
+    if w.fehler:
+        a.toast(f"Zimmerwechsel nicht möglich: {w.fehler}", fehler=True, rueck=False)
+        return
+
+    def bauen():
+        ui.label(f"{w.name} ({w.zeitraum})").classes("m-name")
+        with ui.element("div").classes("m-wechsel"):
+            ui.label(w.vorher).classes("m-pille neutral")
+            ui.icon("arrow_forward")
+            ui.label(w.nach_kurz).classes("m-pille ok")
+        ui.label(f"{w.vorher} wird dafür frei.").classes("m-ptext")
+        if w.war_fest:
+            ui.label("Die Planung war „fest“ – im neuen Zimmer gilt sie wieder als geplant.").classes("m-ptext")
+        if w.hinweis:
+            ui.label(f"Achtung – Ausnahme: {w.hinweis}").classes("m-ptext").style("color:var(--orange)")
+        if w.partner:
+            ui.label(f"DZ-Partner laut Liste: {', '.join(n for _, n in w.partner)}."
+                     + ("" if w.partner_passt else " Für beide ist dort kein Platz.")).classes("m-ptext")
+        ui.label("Danach im Belegungssystem umbuchen (steht unter Anreisen → Firmenprogramm).").classes("m-zweite")
+
+        async def los(mit: bool):
+            if await a.aendern(zk.wechseln, w.person, w.nach, mit):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            if w.partner and w.partner_passt:
+                knopf("Beide wechseln", lambda: los(True), "primaer", "check")
+                knopf(f"Nur {w.name.split(',')[0]}", lambda: los(False), "", "person")
+            else:
+                knopf("Zimmer wechseln", lambda: los(False), "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Zimmer wechseln", bauen)
 
 
 def _filterleiste(a, ansicht: str) -> None:

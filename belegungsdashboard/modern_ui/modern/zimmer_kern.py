@@ -456,6 +456,61 @@ def zimmer_setzen(person: str, zimmer: str) -> str:
     return f"Zimmer {kurz(zimmer)} gespeichert" if zimmer else "Planung entfernt"
 
 
+# ---- Zimmer wechseln per Ziehen im Zeitstrahl (wie im Hauptprogramm: nur geplante Personen; wer eingezogen ist,
+# zieht über „Umzug planen“ um) --------------------------------------------------------------------------------
+
+@dataclass
+class Wechsel:
+    person: str
+    name: str
+    zeitraum: str
+    vorher: str           # Zimmer bisher (kurz)
+    nach: str             # Zimmer-ID
+    nach_kurz: str
+    fehler: str = ""      # geht nicht (belegt, gesperrt, fremder Mitbewohner …)
+    hinweis: str = ""     # geht, ist aber eine Ausnahme
+    war_fest: bool = False
+    partner: list[tuple[str, str]] = field(default_factory=list)   # DZ-Partner im selben Zimmer (Schlüssel, Name)
+    partner_passt: bool = False
+
+
+def wechsel_pruefen(person: str, nach: str) -> Wechsel:
+    stand = zp.laden()
+    fehler, hinweis, partner = zp.verschieben_pruefen(stand, person, nach)
+    b = next((x for x in stand.bedarf if x.schluessel == person), None)
+    zw = stand.zugewiesen(person) or {}
+    z = stand.lage.zimmer.get(nach)
+    w = Wechsel(person, b.name if b else person, f"{b.von:%d.%m.} – {b.bis:%d.%m.%Y}" if b else "",
+                kurz(zw.get("zimmer", "")) if zw.get("zimmer") else "–", nach, z.kurz if z else kurz(nach),
+                fehler or "", hinweis or "", zw.get("status") == "belegt", [(x.schluessel, x.name) for x in partner])
+    if not fehler and zw.get("zimmer") == nach:
+        w.fehler = f"{w.name} ist schon in {w.nach_kurz} geplant."
+    if partner and b is not None and not w.fehler:
+        ohne = frozenset({person} | {x.schluessel for x in partner})
+        w.partner_passt = stand.lage.freie_betten(nach, b.von, b.bis, ohne) >= 1 + len(partner)
+    return w
+
+
+def wechseln(person: str, nach: str, mit_partner: bool = False) -> str:
+    """Prüft gegen den frischen Stand (inzwischen woanders geändert? dann nichts überschreiben) und speichert."""
+    from belegung import aenderungen
+
+    stand = zp.laden()
+    fehler, _hinweis, partner = zp.verschieben_pruefen(stand, person, nach)
+    if fehler:
+        raise ValueError(fehler)
+    b = next(x for x in stand.bedarf if x.schluessel == person)
+    alt = kurz((stand.zugewiesen(person) or {}).get("zimmer", "")) or "–"
+    z = stand.lage.zimmer[nach]
+    zts = [zp.Zuteilung(x, z) for x in [b] + (partner if mit_partner else [])]
+    v = aenderungen.zuweisungen_vorschau(stand, zts, gesehen=stand.zuweisungen)
+    if v.konflikte:
+        raise ValueError("\n".join(v.konflikte))
+    namen = ", ".join(x.name for x in [b] + (partner if mit_partner else []))
+    _schritt(f"{namen}: {alt} → {z.kurz}", lambda: zp.zuweisungen_speichern(zts, "Zeitstrahl (neue Oberfläche)"))
+    return f"{namen}: {alt} → {z.kurz} – danach im Belegungssystem umbuchen"
+
+
 def fest_setzen(person: str, fest: bool) -> str:
     _schritt("Planung fest" if fest else "Wieder geplant", lambda: zp.status_setzen(person, fest))
     return "Steht fest (gilt als belegt)" if fest else "Wieder als geplant geführt"
