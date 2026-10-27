@@ -31,7 +31,9 @@ def _stempel() -> tuple:
     from belegung import zimmerplan as zp
 
     erg = []
-    for name in aenderungen.dateien_mit_plan() + [rl.DATEI, tm.DATEI, mt.DATEI, zp.REINIGUNG_MANUELL]:
+    from belegung import neuigkeiten as nk
+
+    for name in aenderungen.dateien_mit_plan() + [rl.DATEI, tm.DATEI, mt.DATEI, zp.REINIGUNG_MANUELL, nk.DATEI]:
         p = speicher.pfad(name)
         erg.append(p.stat().st_mtime if p.exists() else 0)
     return tuple(erg)
@@ -56,6 +58,9 @@ class Ansicht:
         self._antwort = None
         self.filter = "alle"
         self.karten: list[kern.Karte] = []
+        self.nav_zahl: dict[str, kern.NavZahl] = {}   # Zähler an den Menüpunkten (Termine, Mieter, Assistenz …)
+        self.neu_liste: list[kern.Neu] = []            # Glocke: letzte Neuigkeiten …
+        self.ungelesen = 0                              # … und wie viele davon ungelesen sind
         self.daten = None                      # Daten der aktuellen Seite (außer Anreisen)
         self.center_offen = False
         self.panel_def = None                  # (Titel, Baufunktion) – Formular im Panel rechts statt Aufgaben
@@ -110,6 +115,11 @@ class Ansicht:
             self.neu = kern.neue_personen(self.stand, self.heute)
         except Exception:                      # noqa: BLE001 – Merkhilfe darf nie das Laden verhindern
             self.neu = {}
+        self.nav_zahl = kern.nav_zahlen(self.stand, self.heute)
+        try:
+            self.neu_liste, self.ungelesen = kern.neuigkeiten()
+        except Exception:                      # noqa: BLE001
+            self.neu_liste, self.ungelesen = [], 0
         if self.seite == "anreisen" and self.ansicht_von("anreisen", "zuteilen") != "zuteilen":
             seite_anreisen.daten(self)
         elif self.seite == "anreisen":
@@ -209,6 +219,9 @@ class Ansicht:
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
                     ui.element("div").style("flex: 1")
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)")
+                    self.glocke = ui.element("button").classes("m-knopf leise m-glocke")
+                    attr(self.glocke, title="Neuigkeiten")
+                    self.glocke.on("click", self._neuigkeiten_panel)
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf")
                     attr(self.aufgaben_knopf, title="Aufgaben-Center (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
@@ -241,10 +254,7 @@ class Ansicht:
         # Knopf, auf den gerade geklickt wird, stehen (z. B. direkt nach dem Start, wenn die Daten ankommen).
         sig = (self.seite, repr(sorted(self.design.items())))
         if sig == getattr(self, "_nav_sig", None):
-            for z in self._nav_zahlen:
-                z.set_text(str(len(self.karten)))
-                z.classes(add="rot") if dringend else z.classes(remove="rot")
-                z.set_visibility(bool(self.karten))
+            self._nav_zahlen_setzen()
             return
         self._nav_sig, self._nav_zahlen = sig, []
         self.nav.clear()
@@ -260,11 +270,7 @@ class Ansicht:
                 with p:
                     ui.icon(icon)
                     ui.label(text)
-                    if k == "heute":
-                        z = ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else "")).style(
-                            "margin-left:auto")
-                        z.set_visibility(bool(self.karten))
-                        self._nav_zahlen.append(z)
+                    self._nav_zahlen.append((k, ui.label("").classes("m-zahl").style("margin-left:auto")))
                 p.on("click", lambda k=k: self.seite_wechseln(k))
             with ui.element("button").classes("m-navpunkt m-suche") as p:
                 ui.icon("search")
@@ -281,6 +287,24 @@ class Ansicht:
                 attr(k, title="Leiste ausklappen (Strg+B)" if schmal else "Leiste einklappen (Strg+B)")
                 k.on("click", lambda: self.design_setzen(schmal=not schmal))
         self._topnav_fuellen(dringend)
+        self._nav_zahlen_setzen()
+
+    def _nav_zahlen_setzen(self) -> None:
+        """Zahlen an den Menüpunkten (Seitenleiste und Dock) – ohne die Knöpfe neu zu bauen."""
+        dringend = any(k.stufe == "dringend" for k in self.karten)
+        for k, z in getattr(self, "_nav_zahlen", []):
+            if k == "heute":
+                n, rot, tipp = len(self.karten), dringend, f"{len(self.karten)} Aufgaben" + (" – davon dringende" if dringend else "")
+            else:
+                w = self.nav_zahl.get(k)
+                n, rot, tipp = (w.n, w.rot, w.tipp) if w else (0, False, "")
+            z.set_text(str(n))
+            z.classes(add="rot") if rot else z.classes(remove="rot")
+            if tipp:
+                z.props(f'title="{tipp}"')
+            else:
+                z.props(remove="title")
+            z.set_visibility(n > 0)
 
     def _topnav_fuellen(self, dringend: int) -> None:
         """Showcase-Dock: alle Seiten direkt sichtbar, „Verwalten“ als Dropdown – kein Menüpunkt fällt weg."""
@@ -304,10 +328,7 @@ class Ansicht:
                     with p:
                         ui.icon(icon)
                         ui.label(text)
-                        if k == "heute":
-                            z = ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else ""))
-                            z.set_visibility(bool(self.karten))
-                            self._nav_zahlen.append(z)
+                        self._nav_zahlen.append((k, ui.label("").classes("m-zahl")))
                     p.on("click", lambda k=k: self.seite_wechseln(k))
             verwalten = [x for x in register.NAV if x[3] == "Verwalten"]
             ui.element("div").classes("m-trenner")
@@ -610,6 +631,7 @@ class Ansicht:
             self.body.classes(remove="praesentation")
         self._nav_fuellen()
         self._aufgaben_knopf()
+        self._glocke_fuellen()
         for c in (self.werkzeuge, self.leiste, self.inhalt):
             c.clear()
         titel = register.TITEL[self.seite]
@@ -630,6 +652,51 @@ class Ansicht:
         self.leiste.set_visibility(bool(self.leiste.default_slot.children))
         if self.panel_def is None:
             self._center()
+
+    def _glocke_fuellen(self) -> None:
+        self.glocke.clear()
+        with self.glocke:
+            ui.icon("notifications" if self.ungelesen else "notifications_none")
+            if self.ungelesen:
+                ui.label(str(self.ungelesen)).classes("m-zahl")
+        attr(self.glocke, title=f"Neuigkeiten – {self.ungelesen} ungelesen" if self.ungelesen else "Neuigkeiten")
+
+    def _neuigkeiten_panel(self) -> None:
+        """Glocke: letzte Neuigkeiten (gemeinsam mit dem Hauptprogramm); ungelesene hervorgehoben, Klick öffnet das Ziel."""
+        async def oeffnen(n: kern.Neu):
+            if not n.gelesen:
+                await run.io_bound(kern.neu_gelesen, n.id)
+            if n.seite:
+                await self.oeffnen(n.seite, n.ansicht or None)
+            else:
+                await self._neu_aktualisieren()
+
+        async def alle_gelesen():
+            await run.io_bound(kern.neu_gelesen, None)
+            await self._neu_aktualisieren()
+
+        def bauen():
+            if not self.neu_liste:
+                leer("Keine Neuigkeiten.")
+                return
+            with ui.element("div").classes("m-paktionen"):
+                if self.ungelesen:
+                    knopf(f"Alle als gelesen markieren ({self.ungelesen})", alle_gelesen, "", "done_all")
+            for n in self.neu_liste:
+                with ui.element("button").classes("m-neu" + ("" if n.gelesen else " ungelesen") + f" {n.art}") as b:
+                    ui.element("span").classes("m-neu-punkt")
+                    with ui.element("div").classes("m-neu-text"):
+                        ui.label(n.text)
+                        ui.label(n.zeit + (" · öffnen" if n.seite else "")).classes("m-zweite")
+                b.on("click", lambda n=n: oeffnen(n))
+
+        self.panel("Neuigkeiten", bauen)
+
+    async def _neu_aktualisieren(self) -> None:
+        self.neu_liste, self.ungelesen = await run.io_bound(kern.neuigkeiten)
+        self._glocke_fuellen()
+        if self.panel_def and self.panel_def[0] == "Neuigkeiten":
+            self._neuigkeiten_panel()
 
     def _aufgaben_knopf(self) -> None:
         self.aufgaben_knopf.clear()
@@ -827,6 +894,8 @@ class Ansicht:
         self.toast_box.clear()
         with self.toast_box:
             with ui.element("div").classes("m-toast" + (" fehler" if fehler else "")).props('role="status"'):
+                if not fehler and self.design.get("layout", "original") != "original":
+                    ui.icon("check_circle").classes("m-toast-ok")      # Haptik: die Bestätigung rastet ein
                 ui.label(text)
                 if rueck and not fehler:
                     knopf("Rückgängig", self.rueckgaengig, icon="undo")
@@ -836,6 +905,13 @@ class Ansicht:
 
     async def aendern(self, aktion, *args) -> bool:
         """Änderung im Hintergrund speichern, neu laden, Hinweis mit Rückgängig. True = gespeichert."""
+        self.body.classes(add="m-arbeitet")       # Haptik: oben läuft ein Balken, bis gespeichert ist (nur in den Layouts)
+        try:
+            return await self._aendern(aktion, *args)
+        finally:
+            self.body.classes(remove="m-arbeitet")
+
+    async def _aendern(self, aktion, *args) -> bool:
         try:
             text = await run.io_bound(aktion, *args)
         except ValueError as exc:

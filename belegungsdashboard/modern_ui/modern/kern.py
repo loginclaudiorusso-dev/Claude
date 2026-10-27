@@ -8,6 +8,7 @@ Gelesen und geschrieben wird ausschließlich über die Funktionen des Hauptprogr
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 from datetime import date, timedelta
 from typing import Callable
 
@@ -540,3 +541,100 @@ def kontingent_setzen(standort: str, werte: dict | None) -> None:
     else:
         alle[standort] = {"UWT": float(werte["UWT"]), "Mieter": float(werte["Mieter"])}
     speicher.schreiben(ZUSTAND, roh)
+
+
+# ---------------------------------------------------------------------------------------
+# Zähler an den Menüpunkten und Glocke (ungelesene Neuigkeiten) – wie in der Seitenleiste des Hauptprogramms
+# ---------------------------------------------------------------------------------------
+
+@dataclass
+class NavZahl:
+    n: int
+    tipp: str
+    rot: bool = False
+
+
+def nav_zahlen(stand: zp.Planstand | None, heute: date | None = None) -> dict[str, NavZahl]:
+    """Seite → Zähler: fällige Termine, bald endende Mietverträge, offene Mails, offene Reinigungen vor einer Anreise,
+    geplante Zimmer, die laut Gebäudeplan inzwischen belegt/gesperrt sind. Jede Quelle für sich – ein Fehler in einer
+    lässt die anderen stehen."""
+    from belegung import mails
+    from belegung import mieter as mt
+
+    log = logging.getLogger(__name__)
+    heute = heute or date.today()
+    erg: dict[str, NavZahl] = {}
+
+    def setzen(seite, fn):
+        try:
+            z = fn()
+        except Exception:                      # noqa: BLE001
+            log.exception("Zähler %s", seite)
+            return
+        if z and z.n:
+            erg[seite] = z
+
+    setzen("termine", lambda: NavZahl(n := sum(1 for t in tm.alle() if t.faellig(heute)),
+                                      f"{n} Erinnerung{'en' if n != 1 else ''} fällig"))
+    setzen("mieter", lambda: NavZahl(n := sum(1 for m in mt.laden() if mt.status(m, heute)[1] == "knapp"),
+                                     f"{n} Mietvertr{'äge enden' if n != 1 else 'ag endet'} in den nächsten "
+                                     f"{mt.BALD_TAGE // 7} Wochen"))
+    setzen("assistenz", lambda: NavZahl(n := mails.offen_anzahl(), f"{n} Mail{'s' if n != 1 else ''} offen oder zu prüfen"))
+    if stand is not None:
+        def reinigung():
+            zpv = stand.zimmer_pivot
+            rs = zp.reinigungen(stand.lage, heute - timedelta(days=14), heute + timedelta(days=1),
+                                zpv.zeitraum[1] if zpv else None, zpv.zeitraum[0] if zpv else None,
+                                bool(speicher.einstellungen().get("reinigung_anreisetag", False)))
+            n = len(rl.konflikte(rs, heute, rl.erledigt()))
+            return NavZahl(n, f"{n} Reinigung{'en' if n != 1 else ''} offen, obwohl jemand einzieht", True)
+
+        setzen("reinigung", reinigung)
+        setzen("anreisen", lambda: NavZahl(n := len(zp.konflikte(stand.lage, heute)),
+                                           f"{n} geplante{'s' if n == 1 else ''} Zimmer laut Gebäudeplan inzwischen "
+                                           "belegt/gesperrt", True))
+    return erg
+
+
+@dataclass
+class Neu:
+    id: str
+    zeit: str
+    text: str
+    art: str
+    gelesen: bool
+    seite: str            # wohin ein Klick führt ("" = nirgends)
+    ansicht: str = ""
+
+
+# Ziele des Hauptprogramms („zimmerplan:Reinigung“ …) → Seiten der neuen Oberfläche
+_NEU_ZIELE = {"zimmerplan:reinigung": ("reinigung", ""), "zimmerplan:aufgaben": ("reinigung", "facility"),
+              "zimmerplan": ("zimmer", ""), "posteingang": ("assistenz", ""), "start": ("heute", ""),
+              "belegung": ("auswertung", ""), "prognose": ("auswertung", "prognose")}
+
+
+def neu_ziel(ziel: str) -> tuple[str, str]:
+    z = (ziel or "").strip().lower()
+    if z in _NEU_ZIELE:
+        return _NEU_ZIELE[z]
+    kopf = z.split(":")[0]
+    if kopf in _NEU_ZIELE:
+        return _NEU_ZIELE[kopf]
+    from .register import TITEL
+
+    return (kopf, "") if kopf in TITEL else ("", "")
+
+
+def neuigkeiten(anzahl: int = 40) -> tuple[list[Neu], int]:
+    """Die letzten Neuigkeiten (gemeinsam mit dem Hauptprogramm) und wie viele davon ungelesen sind."""
+    from belegung import neuigkeiten as nk
+
+    alle = nk.laden()
+    erg = [Neu(n.id, f"{n.zeit:%d.%m. %H:%M}", n.text, n.art, n.gelesen, *neu_ziel(n.ziel)) for n in alle[:anzahl]]
+    return erg, sum(1 for n in alle if not n.gelesen)
+
+
+def neu_gelesen(nid: str | None = None) -> None:
+    from belegung import neuigkeiten as nk
+
+    nk.gelesen_setzen(nid)

@@ -306,6 +306,15 @@ body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%
 .m-einfuegen:focus { border-color: var(--akzent); background: color-mix(in srgb, var(--akzent) 6%, transparent); }
 .m-einfuegen.liest { opacity: .6; }
 .m-schalter { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
+.m-glocke { position: relative; }
+.m-glocke .m-zahl { position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; line-height: 17px; border-radius: 9px; background: var(--akzent); color: var(--akzent-text); }
+.m-neu { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--rand); padding: 10px 4px; color: var(--text2); cursor: pointer; border-radius: 6px; }
+.m-neu:hover { background: color-mix(in srgb, var(--akzent) 8%, transparent); }
+.m-neu .m-neu-punkt { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: transparent; }
+.m-neu.ungelesen { color: var(--text); font-weight: 500; }
+.m-neu.ungelesen .m-neu-punkt { background: var(--akzent); }
+.m-neu.ungelesen.warnung .m-neu-punkt { background: var(--orange); } .m-neu.ungelesen.fehler .m-neu-punkt { background: var(--rot, #ef4444); }
+.m-neu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .m-klassen { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .m-chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--fl2); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .m-chip.warn { background: color-mix(in srgb, var(--orange) 18%, transparent); }
