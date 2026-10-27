@@ -96,3 +96,93 @@ def test_zeitstrahl_ziehen(leer):
     assert zp.laden().zugewiesen(person)["zimmer"] == ziel.id
     aenderungen.rueckgaengig()
     assert zp.laden().zugewiesen(person)["zimmer"] == vorher
+
+
+def _kreuztabelle(pfad):
+    """Kleine erfundene Kreuztabelle (ohne Pivot-Objekt) im üblichen Aufbau."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Daten"
+    ws.append(["Belegungen", "Spaltenbeschriftungen", None, None, None])
+    ws.append([None, "BFW BP", "BFW GS", "BFW WE", "Gesamtergebnis"])
+    ws.append(["Zeilenbeschriftungen", "Haus Test A", "Haus Test B", "Haus Test C", None])
+    for i in range(10):
+        ws.append([f"{i + 1:02d}.03.2030", 10 + i, 20, 30, 60 + i])
+    wb.save(pfad)
+
+
+def test_pivot_struktur(leer):
+    from belegung import aenderungen, pivot
+    from modern import daten_kern as dk
+
+    pfad = leer / "Kreuz_Test.xlsx"
+    _kreuztabelle(pfad)
+    felder = pivot.PivotProfil().to_dict()
+    ok, text = dk.pivot_vorschau(pfad, felder)
+    assert not ok and "Pivot" in text                                     # automatisch: keine Pivot-Tabelle
+    felder.update(name="Kreuz", sheet_modus="manuell", sheet_name="Daten")
+    ok, text = dk.pivot_vorschau(pfad, felder)
+    assert ok and text.startswith("✓ 10 Tage vom 01.03.2030") and "Haus Test B" in text
+    with pytest.raises(ValueError):
+        dk.pivot_struktur_speichern(pfad, {**felder, "datumsformat": "%Y-%m-%d"})   # passt nicht → nichts gespeichert
+    assert dk.pivot_struktur_speichern(pfad, felder).startswith("Pivot-Struktur „Kreuz“")
+    assert pivot.profil_fuer_datei("Kreuz_Test.xlsx").sheet_name == "Daten"
+    aenderungen.rueckgaengig()
+    assert pivot.profil_fuer_datei("Kreuz_Test.xlsx").sheet_name is None
+
+
+def test_gebaeudeplan_aus_zwischenablage(leer):
+    from belegung import speicher
+    from modern import daten_kern as dk
+
+    zeilen = ["Gebäudeplan", "GS-Haus-2", "01. Etage", "GS-2-101", "1 Bett", "Frei",
+              "GS-2-102", "2 Betten", "Beispiel, Bea (GS RVL 2601)", "01.10.2030 - 31.12.2030"]
+    html = "<table>" + "".join(f"<tr><td>{z}</td></tr>" for z in zeilen) + "</table>"
+    plan, unterschiede, quelle = dk.gebaeudeplan_aus_zwischenablage("", html)
+    assert [z.id for z in plan.zimmer] == ["GS-2-101", "GS-2-102"] and quelle["pfad"] == "Zwischenablage"
+    assert isinstance(unterschiede, list)
+    assert speicher.lesen(f"{speicher.IMPORT_ORDNER}/gebaeudeplan_eingefuegt.json", {})["html"] == html
+    with pytest.raises(ValueError):
+        dk.gebaeudeplan_aus_zwischenablage("irgendwas ohne Zimmer", "")
+
+
+def test_meldungen_und_autostart(leer, monkeypatch):
+    from belegung import neuigkeiten
+    from belegung import termine as tm
+    from modern import melder
+
+    heute = date.today()
+    tm.eigenen_speichern(tm.Termin("", heute, "Testtermin <Hausrundgang>", "Notiz", "eigen", vorlauf=0))
+    ms = melder.sammeln(heute)
+    assert [m.ziel for m in ms] == ["termine"] and "Testtermin" in ms[0].titel + ms[0].text
+    assert melder.sammeln(heute) == []                                      # jede Meldung nur einmal am Tag
+    assert any("Testtermin" in n.text for n in neuigkeiten.laden())
+    xml = melder.toast_xml("Titel & mehr", "Zeile <1>\nZeile 2\nZeile 3\nZeile 4")
+    assert "Titel &amp; mehr" in xml and "Zeile &lt;1&gt;" in xml and "Zeile 4" not in xml
+    assert melder.an() and (melder.setzen(False) or not melder.an())
+    if melder.sys.platform != "win32":
+        assert melder.windows_zeigen("x", "y") is False
+        with pytest.raises(OSError):
+            melder.autostart_setzen(True, leer)
+    befehl = melder.autostart_befehl(leer)
+    assert "--minimiert" in befehl and "\r\n" in befehl and str(leer) in befehl and "Start.bat" in befehl
+    (leer / ".venv" / "Scripts").mkdir(parents=True)
+    (leer / ".venv" / "Scripts" / "pythonw.exe").write_text("")
+    assert "pythonw.exe\" app.py --minimiert" in melder.autostart_befehl(leer)
+    monkeypatch.setattr(melder.sys, "platform", "win32")
+    monkeypatch.setenv("APPDATA", str(leer / "appdata"))
+    assert melder.autostart_moeglich() and not melder.autostart_aktiv()
+    melder.autostart_setzen(True, leer)
+    assert melder.autostart_aktiv()
+    melder.autostart_setzen(False, leer)
+    assert not melder.autostart_aktiv()
+
+
+def test_powershell_kodiert():
+    import base64
+
+    from modern import melder
+
+    assert base64.b64decode(melder.ps_kodiert("Größe 'ü'")).decode("utf-16-le") == "Größe 'ü'"

@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.20.0
+# Neue Oberfläche (modern_ui) – Version 0.21.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,23 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Letzte Funktionen aus dem Hauptprogramm: Pivot-Struktur, Einfügen, Windows-Meldungen, Autostart (neu in 0.21)
+
+Damit kann die neue Oberfläche alles, was das bisherige Programm konnte.
+
+* **Pivot-Struktur** (*Daten & Import → Pivot → Pivot-Struktur …*): nur nötig, wenn eine Pivot-Datei anders aufgebaut
+  ist als üblich – Tabellenblatt (automatisch oder fest), Ausrichtung, Ebenen, Kopfzeilen-Text, Zwischensummen-Endung,
+  Datumsformat. Die Vorschau zeigt sofort, ob es passt (Tage, Zeitraum, Häuser je Standort); gespeichert wird nur, was
+  passt. Rückgängig ist möglich. Es ist dieselbe Einstellung wie im Hauptprogramm.
+* **Gebäudeplan aus der Zwischenablage** (*Daten & Import → Gebäudeplan → Aus Zwischenablage einfügen …*): im
+  Belegungssystem die Gebäudeansicht markieren (Strg+A) und kopieren (Strg+C), ins Feld klicken, Strg+V – danach
+  derselbe Abgleich wie beim Hochladen der Word-Datei.
+* **Windows-Meldungen** (*Einstellungen → Allgemein → Erinnerungen*): fällige Termine, offene Reinigung vor einer Anreise
+  und Facility-Checks erscheinen unten rechts als Windows-Meldung und unter Neuigkeiten – beim Start und alle
+  15 Minuten, jede Meldung nur einmal, auch wenn das Hauptprogramm gleichzeitig läuft. Abschaltbar.
+* **Mit Windows starten**: legt eine Verknüpfung im Autostart an; die neue Oberfläche startet dann minimiert und meldet
+  Fälliges, ohne dass man sie öffnen muss. Ausschalten entfernt die Verknüpfung wieder.
 
 ## Kalender zum Anklicken, Ordner-Import, Klassenstärken, Ziehen im Zeitstrahl (neu in 0.20)
 
@@ -315,4 +332,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0` (jeweils auch als Zip in `Sicherung`).
