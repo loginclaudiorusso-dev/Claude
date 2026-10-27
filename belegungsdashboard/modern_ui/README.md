@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.21.0
+# Neue Oberfläche (modern_ui) – Version 0.22.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,21 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Zähler an den Menüpunkten, Glocke, Haptik (neu in 0.22)
+
+* **Zähler an den Menüpunkten** (Seitenleiste und Dock), wie im Hauptprogramm: *Termine* (fällige Erinnerungen),
+  *Mieter* (Verträge, die in den nächsten 6 Wochen enden), *Assistenz* (offene Mails), *Reinigung* (offen, obwohl
+  jemand einzieht – rot), *Anreisen* (geplante Zimmer, die laut Gebäudeplan inzwischen belegt/gesperrt sind – rot).
+  Beim Überfahren steht dran, was gezählt wird.
+* **Glocke** oben neben „Aufgaben“: zählt ungelesene Neuigkeiten (dieselben wie im Hauptprogramm). Klick öffnet die
+  Liste – ungelesene sind markiert; ein Klick auf eine Neuigkeit markiert sie als gelesen und springt dorthin,
+  „Alle als gelesen markieren“ leert den Zähler.
+* **Haptik – Eingaben mit Gewicht** (in den Layouts; der Original-Zustand bleibt wie er war): Knöpfe heben sich beim
+  Überfahren leicht an und geben beim Drücken spürbar nach wie eine Taste; Kacheln, Umschalter und Menüpunkte drücken
+  sich ein. Solange gespeichert wird, läuft oben ein schmaler Balken; danach rastet die Bestätigung mit einem Haken
+  ein. Eingabefelder bekommen beim Hineinklicken einen deutlichen Ring, Schalter federn nach. Ist in Windows
+  „Animationen reduzieren“ an, bleibt es bei Farbwechseln.
 
 ## Letzte Funktionen aus dem Hauptprogramm: Pivot-Struktur, Einfügen, Windows-Meldungen, Autostart (neu in 0.21)
 
@@ -334,4 +349,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0` (jeweils auch als Zip in `Sicherung`).

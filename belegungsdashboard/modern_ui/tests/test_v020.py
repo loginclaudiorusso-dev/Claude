@@ -186,3 +186,26 @@ def test_powershell_kodiert():
     from modern import melder
 
     assert base64.b64decode(melder.ps_kodiert("Größe 'ü'")).decode("utf-16-le") == "Größe 'ü'"
+
+
+def test_zaehler_und_glocke(leer):
+    from belegung import neuigkeiten as nk
+    from belegung import termine as tm
+    from modern import kern
+
+    heute = date.today()
+    assert kern.nav_zahlen(None, heute) == {}
+    tm.eigenen_speichern(tm.Termin("", heute, "Testtermin Zähler", "", "eigen", vorlauf=0))
+    z = kern.nav_zahlen(None, heute)
+    assert z["termine"].n == 1 and "fällig" in z["termine"].tipp and "assistenz" not in z
+    nk.hinzufuegen("Erste Meldung", "info", "zimmerplan:Reinigung")
+    nk.hinzufuegen("Zweite Meldung", "warnung", "unbekannt")
+    liste, ungelesen = kern.neuigkeiten()
+    assert ungelesen == 2 and {(n.text, n.seite, n.ansicht) for n in liste} >= {("Erste Meldung", "reinigung", ""),
+                                                                                ("Zweite Meldung", "", "")}
+    kern.neu_gelesen(next(n.id for n in liste if n.text == "Erste Meldung"))
+    assert kern.neuigkeiten()[1] == 1
+    kern.neu_gelesen(None)
+    assert kern.neuigkeiten()[1] == 0
+    assert kern.neu_ziel("zimmerplan:Aufgaben") == ("reinigung", "facility") and kern.neu_ziel("termine") == ("termine", "")
+    assert kern.neu_ziel("posteingang") == ("assistenz", "")
