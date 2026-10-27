@@ -947,6 +947,27 @@ def druckansicht(name: str):
     return FileResponse(pfad, media_type="text/html")
 
 
+async def _melde_takt() -> None:
+    """Wie im Hauptprogramm: kurz nach dem Start und dann alle 15 Minuten Fälliges als Windows-Meldung zeigen
+    (Termine, offene Reinigung vor Anreise, Facility-Checks) – jede Meldung nur einmal, auch neben dem Hauptprogramm."""
+    import asyncio
+
+    from . import melder
+
+    await asyncio.sleep(3)
+    while True:
+        try:
+            if await run.io_bound(melder.an):
+                for m in await run.io_bound(melder.sammeln):
+                    melder.windows_zeigen(m.titel, m.text)
+        except Exception:                      # noqa: BLE001 – der Takt läuft weiter
+            log.exception("Meldungen konnten nicht geprüft werden")
+        await asyncio.sleep(melder.TAKT_MINUTEN * 60)
+
+
+app.on_startup(_melde_takt)
+
+
 @ui.page("/")
 async def startseite() -> None:
     a = Ansicht()

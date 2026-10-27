@@ -38,10 +38,11 @@ def _freier_port() -> int:
         return s.getsockname()[1]
 
 
-def _fenster_oeffnen(url: str) -> None:
+def _fenster_oeffnen(url: str, minimiert: bool = False) -> None:
     if sys.platform == "win32":
         try:
-            subprocess.Popen(["cmd", "/c", "start", "", "msedge", f"--app={url}"], creationflags=0x08000000)
+            subprocess.Popen(["cmd", "/c", "start", "", *(["/min"] if minimiert else []), "msedge", f"--app={url}"],
+                             creationflags=0x08000000)
             return
         except OSError:
             pass
@@ -67,11 +68,14 @@ def main() -> None:
             nativ = False
     einstellungen = dict(title="Belegung", dark=True, reload=False, language="de",
                          show_welcome_message=False, host="127.0.0.1")
+    minimiert = "--minimiert" in sys.argv          # „Mit Windows starten“: als Symbol in der Taskleiste, meldet Fälliges
     if nativ:
+        if minimiert:
+            app.native.window_args["minimized"] = True
         ui.run(native=True, window_size=(1440, 900), **einstellungen)
     else:
         port = _freier_port()
-        app.on_startup(lambda: _fenster_oeffnen(f"http://127.0.0.1:{port}/"))
+        app.on_startup(lambda: _fenster_oeffnen(f"http://127.0.0.1:{port}/", minimiert))
         _beenden_wenn_zu()
         ui.run(port=port, show=False, **einstellungen)
 

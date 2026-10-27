@@ -33,4 +33,4 @@ if errorlevel 1 (
     copy /y requirements.txt ".venv\requirements.installiert" >nul
 )
 
-start "" ".venv\Scripts\pythonw.exe" app.py
+start "" ".venv\Scripts\pythonw.exe" app.py %*

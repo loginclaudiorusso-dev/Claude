@@ -87,6 +87,50 @@ def _zahlfeld(a, text: str, wert: int, speichern) -> None:
         n.on("blur", lambda: speichern(int(n.value or 0)) if int(n.value or 0) != wert else None)
 
 
+def meldungen_setzen(an: bool) -> str:
+    from . import melder
+
+    melder.setzen(an)
+    return "Windows-Meldungen an" if an else "Windows-Meldungen aus (Fälliges steht weiter unter Heute)"
+
+
+def autostart_setzen(an: bool) -> str:
+    from pathlib import Path
+
+    from . import melder
+
+    return melder.autostart_setzen(an, Path(__file__).resolve().parent.parent)
+
+
+async def _schalten(a, aktion, wert: bool) -> None:
+    """Einstellung ohne Rückgängig-Schritt (betrifft nicht die Planungsdaten)."""
+    from nicegui import run
+
+    try:
+        a.toast(await run.io_bound(aktion, wert), rueck=False)
+    except Exception as exc:                   # noqa: BLE001
+        a.toast(f"Nicht geändert: {exc}", fehler=True, rueck=False)
+
+
+def _windows(a) -> None:
+    """Meldungen unten rechts (Termine, Reinigung vor Anreise, Facility-Checks) und „Mit Windows starten“."""
+    from . import melder
+
+    with ui.element("div").classes("m-schalter"):
+        ui.switch("Windows-Meldungen: fällige Termine, offene Reinigung vor Anreise, Facility-Checks",
+                  value=melder.an(), on_change=lambda e: _schalten(a, meldungen_setzen, e.value)
+                  ).props("dense color=indigo-4")
+    with ui.element("div").classes("m-schalter"):
+        sw = ui.switch("Mit Windows starten (minimiert) – meldet Fälliges, ohne dass man das Programm öffnet",
+                       value=melder.autostart_aktiv(), on_change=lambda e: _schalten(a, autostart_setzen, e.value)
+                       ).props("dense color=indigo-4")
+        if not melder.autostart_moeglich():
+            sw.props("disable")
+            ui.label("Nur unter Windows.").classes("m-zweite")
+    ui.label(f"Geprüft wird beim Start und alle {melder.TAKT_MINUTEN} Minuten, jede Meldung einmal – auch wenn das "
+             "Hauptprogramm gleichzeitig läuft.").classes("m-zweite")
+
+
 def _allgemein(a) -> None:
     d = a.daten
     with a.inhalt:
@@ -104,6 +148,7 @@ def _allgemein(a) -> None:
                 ui.label("Erinnerungen").classes("m-btitel")
                 for k, text in ERINNERUNG.items():
                     _zahlfeld(a, text, d["termine"][k], lambda w, k=k: a.aendern(termin_setzen, k, w))
+                _windows(a)
                 ui.label("Engpass-Grenzen (Auswertung, Heute)").classes("m-btitel").style("margin-top:14px")
                 felder = {}
                 with ui.element("div").classes("m-kap"):
