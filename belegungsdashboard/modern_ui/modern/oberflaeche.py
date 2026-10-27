@@ -235,9 +235,19 @@ class Ansicht:
             ui.timer(1.0, lambda: self._vollbild_nativ(True), once=True)
 
     def _nav_fuellen(self) -> None:
-        self.nav.clear()
         dringend = sum(1 for k in self.karten if k.stufe == "dringend")
         pro = self.design["layout"] != "original"
+        # Nur neu bauen, wenn sich Seite oder Darstellung ändert – sonst nur die Zahl an „Heute“ anpassen. So bleibt ein
+        # Knopf, auf den gerade geklickt wird, stehen (z. B. direkt nach dem Start, wenn die Daten ankommen).
+        sig = (self.seite, repr(sorted(self.design.items())))
+        if sig == getattr(self, "_nav_sig", None):
+            for z in self._nav_zahlen:
+                z.set_text(str(len(self.karten)))
+                z.classes(add="rot") if dringend else z.classes(remove="rot")
+                z.set_visibility(bool(self.karten))
+            return
+        self._nav_sig, self._nav_zahlen = sig, []
+        self.nav.clear()
         with self.nav:
             gruppe = None
             for k, text, icon, g in register.NAV:
@@ -250,9 +260,11 @@ class Ansicht:
                 with p:
                     ui.icon(icon)
                     ui.label(text)
-                    if k == "heute" and self.karten:
-                        ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else "")).style(
+                    if k == "heute":
+                        z = ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else "")).style(
                             "margin-left:auto")
+                        z.set_visibility(bool(self.karten))
+                        self._nav_zahlen.append(z)
                 p.on("click", lambda k=k: self.seite_wechseln(k))
             with ui.element("button").classes("m-navpunkt m-suche") as p:
                 ui.icon("search")
@@ -292,8 +304,10 @@ class Ansicht:
                     with p:
                         ui.icon(icon)
                         ui.label(text)
-                        if k == "heute" and self.karten:
-                            ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else ""))
+                        if k == "heute":
+                            z = ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else ""))
+                            z.set_visibility(bool(self.karten))
+                            self._nav_zahlen.append(z)
                     p.on("click", lambda k=k: self.seite_wechseln(k))
             verwalten = [x for x in register.NAV if x[3] == "Verwalten"]
             ui.element("div").classes("m-trenner")
@@ -948,13 +962,13 @@ def druckansicht(name: str):
 
 
 async def _melde_takt() -> None:
-    """Wie im Hauptprogramm: kurz nach dem Start und dann alle 15 Minuten Fälliges als Windows-Meldung zeigen
+    """Wie im Hauptprogramm: 20 Sekunden nach dem Start und dann alle 15 Minuten Fälliges als Windows-Meldung zeigen
     (Termine, offene Reinigung vor Anreise, Facility-Checks) – jede Meldung nur einmal, auch neben dem Hauptprogramm."""
     import asyncio
 
     from . import melder
 
-    await asyncio.sleep(3)
+    await asyncio.sleep(20)                    # erst wenn der Start fertig ist – nicht mit dem ersten Laden konkurrieren
     while True:
         try:
             if await run.io_bound(melder.an):

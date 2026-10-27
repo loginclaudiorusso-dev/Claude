@@ -60,10 +60,12 @@ Damit kann die neue Oberfläche alles, was das bisherige Programm konnte.
   Belegungssystem die Gebäudeansicht markieren (Strg+A) und kopieren (Strg+C), ins Feld klicken, Strg+V – danach
   derselbe Abgleich wie beim Hochladen der Word-Datei.
 * **Windows-Meldungen** (*Einstellungen → Allgemein → Erinnerungen*): fällige Termine, offene Reinigung vor einer Anreise
-  und Facility-Checks erscheinen unten rechts als Windows-Meldung und unter Neuigkeiten – beim Start und alle
-  15 Minuten, jede Meldung nur einmal, auch wenn das Hauptprogramm gleichzeitig läuft. Abschaltbar.
+  und Facility-Checks erscheinen unten rechts als Windows-Meldung und unter Neuigkeiten – kurz nach dem Start und
+  alle 15 Minuten, jede Meldung nur einmal, auch wenn das Hauptprogramm gleichzeitig läuft. Abschaltbar.
 * **Mit Windows starten**: legt eine Verknüpfung im Autostart an; die neue Oberfläche startet dann minimiert und meldet
   Fälliges, ohne dass man sie öffnen muss. Ausschalten entfernt die Verknüpfung wieder.
+* **Behoben:** Ein Klick in die Navigation direkt nach dem Start (während die Daten noch ankamen) ging manchmal
+  verloren – die Navigation bleibt jetzt stehen und aktualisiert nur noch die Zahl an „Heute“.
 
 ## Kalender zum Anklicken, Ordner-Import, Klassenstärken, Ziehen im Zeitstrahl (neu in 0.20)
 
