@@ -349,7 +349,13 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
             termine = tm.alle()
         except Exception:                  # noqa: BLE001 – Termine sind optional
             termine = []
-        vorgaenge_ = vorgaenge.sammeln(stand, heute, termine)
+        try:
+            from belegung import gebaeudeplan
+
+            neuer_plan = gebaeudeplan.neuer_plan_da()
+        except Exception:                  # noqa: BLE001 – Ordner fehlt o. Ä.
+            neuer_plan = False
+        vorgaenge_ = vorgaenge.sammeln(stand, heute, termine, neuer_plan=neuer_plan)
     weg = spaeter(heute)
     erg = [_karte(v, stand) for v in vorgaenge_ if v.id not in weg]
     if stand is not None and not any(k.id == "konflikte" for k in erg):

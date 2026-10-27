@@ -51,7 +51,10 @@ def zeichnen(a) -> None:
             _karte(a, q["anreisen"], lambda: _hochladen(a, "Anreiselisten hochladen", ".xlsx,.xlsm,.csv",
                                                         lambda f: _anreisen_vorschau(a, f), True, "primaer"),
                    "Je Kurs eine Liste oder die Einheitsliste. Personen werden über die TN-ID wiedererkannt – Abreisen und "
-                   "Erinnerungen bleiben bei einem neuen Upload erhalten.")
+                   "Erinnerungen bleiben bei einem neuen Upload erhalten. Neue Dateien in den Ordnern „Listen“ und „UWT“ "
+                   "werden beim Start automatisch eingelesen.",
+                   lambda: knopf("Ordner jetzt einlesen", lambda: _ordner(a), "leise", "folder_open",
+                                 " · ".join(f"{k}: {v}" for k, v in dk.eingangsordner().items())))
             _karte(a, q["uwt"], lambda: _hochladen(a, "UWT-Plan oder Klassenliste hochladen", ".xlsx,.xlsm,.pdf",
                                                    lambda f: _uwt_vorschau(a, f)),
                    "Blockschulplan (PDF), Anreisekalender (Excel) oder Klassenübersicht mit DZ-Partnern.",
@@ -123,6 +126,15 @@ def _karte(a, q: dk.Quelle, knopf_bauen, text: str, extra=None) -> None:
                 extra()
 
 
+async def _ordner(a) -> None:
+    meldungen = await run.io_bound(dk.ordner_importieren)
+    if not meldungen:
+        a.toast("Keine neuen Dateien in den Ordnern „Listen“ und „UWT“.", rueck=False)
+        return
+    await a.laden()
+    a.toast("Eingelesen – " + " · ".join(meldungen[:3]) + (f" (+{len(meldungen) - 3})" if len(meldungen) > 3 else ""))
+
+
 # ---- Anreiselisten ----------------------------------------------------------------------
 
 async def _anreisen_vorschau(a, dateien) -> None:
@@ -167,6 +179,23 @@ async def _uwt_vorschau(a, dateien) -> None:
         a.toast(f"„{name}“ konnte nicht gelesen werden: {exc}", fehler=True)
         return
 
+    # Blockplan ohne Personenliste: die Anzahl je Klasse kommt aus den Klassenstärken – hier vor dem Import einstellbar
+    staerken = dk.klassen_der_liste(daten_) if art == "bloecke" and not daten_.personen else {}
+
+    @ui.refreshable
+    def bloecke_zeigen():
+        if staerken:
+            dk.klassen_anwenden(daten_, staerken)
+        zaehlen = [b for b in daten_.bloecke if b.anzahl > 0]
+        ui.label(f"{len(zaehlen)} Blöcke zählen · {sum(b.anzahl for b in zaehlen)} Plätze"
+                 + (f" · {len(daten_.bloecke) - len(zaehlen)} ohne Internat" if len(zaehlen) < len(daten_.bloecke) else "")
+                 ).classes("m-name")
+        for b in daten_.bloecke[:30]:
+            ui.label(f"{b.klasse} · {b.anzahl} · {b.anreise:%d.%m.%Y} – {b.abreise:%d.%m.%Y} ({(b.abreise - b.anreise).days} Nächte)"
+                     ).classes("m-zweite" + (" fertig" if b.anzahl <= 0 else ""))
+        if len(daten_.bloecke) > 30:
+            ui.label(f"+{len(daten_.bloecke) - 30} weitere").classes("m-zweite")
+
     def bauen():
         if art == "klassen":
             klassen, hinweise = daten_
@@ -175,14 +204,22 @@ async def _uwt_vorschau(a, dateien) -> None:
                 ui.label(f"{k}: {len(ps)} Teilnehmende, {sum(1 for p in ps if p.partner)} mit DZ-Partner").classes("m-zweite")
         else:
             ui.label(f"{len(daten_.bloecke)} Blöcke" + (f", {len(daten_.personen)} Personen" if daten_.personen else "")).classes("m-ptext")
-            for b in daten_.bloecke[:30]:
-                ui.label(f"{getattr(b, 'klasse', '')}: {getattr(b, 'anreise', '')} – {getattr(b, 'abreise', '')}").classes("m-zweite")
+            if staerken:
+                ui.label("Klassenstärken im Internat").classes("m-abschnitt")
+                ui.label("Wie viele Schüler/-innen je Klasse im Internat wohnen – 0 = Klasse zählt nicht (z. B. Chemikanten). "
+                         "Wird für die nächsten Importe gespeichert.").classes("m-zweite")
+                with ui.element("div").classes("m-klassen"):
+                    for k in staerken:
+                        n = ui.number(k, value=staerken[k], min=0, max=60, step=1, format="%d").classes("m-feld").props(
+                            "dense outlined dark")
+                        n.on_value_change(lambda e, k=k: (staerken.__setitem__(k, int(e.value or 0)), bloecke_zeigen.refresh()))
+            bloecke_zeigen()
             hinweise = daten_.hinweise
         for h in hinweise[:10]:
             ui.label(h).classes("m-zweite").style("color:var(--orange); white-space:normal")
 
         async def los():
-            if await a.aendern(dk.uwt_uebernehmen, art, daten_, name):
+            if await a.aendern(dk.uwt_uebernehmen, art, daten_, name, staerken or None):
                 a.panel_zu()
 
         with ui.element("div").classes("m-paktionen"):
@@ -209,6 +246,29 @@ def _uwt_bloecke(a) -> None:
         a.panel("UWT-Blöcke", bauen)
 
     knopf("Blöcke ansehen", zeigen, "leise", "list")
+    knopf("Klassenstärken …", lambda: _klassen_panel(a), "leise", "groups")
+
+
+def _klassen_panel(a) -> None:
+    werte = dk.klassenstaerken()
+
+    def bauen():
+        ui.label("Wie viele Schüler/-innen je Klasse im Internat wohnen. Gilt beim nächsten Import eines Blockplans "
+                 "(PDF ohne Personenliste); 0 = Klasse zählt nicht.").classes("m-ptext")
+        with ui.element("div").classes("m-klassen"):
+            for k in werte:
+                n = ui.number(k, value=werte[k], min=0, max=60, step=1, format="%d").classes("m-feld").props("dense outlined dark")
+                n.on_value_change(lambda e, k=k: werte.__setitem__(k, int(e.value or 0)))
+
+        async def speichern():
+            if await a.aendern(dk.klassenstaerken_setzen, dict(werte)):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Klassenstärken im Internat", bauen)
 
 
 # ---- Gebäudeplan, ZKL, Pivot, Statistik --------------------------------------------------

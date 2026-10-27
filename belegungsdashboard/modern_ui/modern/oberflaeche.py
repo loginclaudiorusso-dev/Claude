@@ -957,6 +957,11 @@ async def startseite() -> None:
         a.weniger_bewegung = bool(await ui.run_javascript("matchMedia('(prefers-reduced-motion: reduce)').matches", timeout=3))
     except Exception:                          # noqa: BLE001 – ohne Antwort: Animation wie gewohnt
         pass
+    from . import daten_kern
+
+    eingelesen = await run.io_bound(daten_kern.ordner_importieren)   # neue Dateien in „UWT“/„Listen“ (wie das Hauptprogramm)
     await a.laden()
+    if eingelesen:
+        a.toast("Neu eingelesen – " + " · ".join(eingelesen[:3]) + (f" (+{len(eingelesen) - 3})" if len(eingelesen) > 3 else ""))
     if await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute) and a.seite != "heute":
         a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist (Heute zeigt sie schon)

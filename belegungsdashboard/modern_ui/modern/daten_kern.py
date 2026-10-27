@@ -131,7 +131,43 @@ def uwt_lesen(pfad: Path):
     return "bloecke", uwt.lesen(pfad)
 
 
-def uwt_uebernehmen(art: str, daten, datei: str) -> str:
+def klassen_der_liste(liste) -> dict[str, int]:
+    """Klassen eines Blockplans mit der Anzahl, die importiert würde (aus den gespeicherten Klassenstärken)."""
+    erg: dict[str, int] = {}
+    for b in liste.bloecke:
+        erg.setdefault(b.klasse, b.anzahl)
+    return dict(sorted(erg.items()))
+
+
+def klassen_anwenden(liste, staerken: dict[str, int]) -> None:
+    """Anzahl je Block nach den eingestellten Klassenstärken (0 = Klasse wohnt nicht im Internat, zählt nicht)."""
+    for b in liste.bloecke:
+        if b.klasse in staerken:
+            b.anzahl = max(int(staerken[b.klasse]), 0)
+
+
+def klassenstaerken() -> dict[str, int]:
+    return dict(sorted(uwt.klassenstaerken().items()))
+
+
+def klassenstaerken_setzen(werte: dict[str, int]) -> str:
+    """Gespeicherte Klassenstärken ändern – gelten für den nächsten Import eines Blockplans."""
+    werte = {k: max(int(v), 0) for k, v in werte.items()}
+    _schritt("Klassenstärken", lambda: uwt.klassenstaerken_speichern({**uwt.klassenstaerken(), **werte}),
+             [speicher.EINSTELLUNGEN])
+    return f"Klassenstärken gespeichert ({len(werte)} Klassen)"
+
+
+def uwt_uebernehmen(art: str, daten, datei: str, staerken: dict[str, int] | None = None) -> str:
+    if art == "bloecke" and staerken:
+        klassen_anwenden(daten, staerken)
+
+        def mit_staerken():
+            uwt.klassenstaerken_speichern({**uwt.klassenstaerken(), **{k: max(int(v), 0) for k, v in staerken.items()}})
+            return uwt.importieren(daten)
+
+        neu, ersetzt = _schritt("UWT importiert", mit_staerken, _uwt_dateien() + [speicher.EINSTELLUNGEN])
+        return f"UWT importiert: {neu} Blöcke neu, {ersetzt} ersetzt"
     if art == "klassen":
         klassen, hinweise = daten
         if not klassen:
@@ -140,6 +176,29 @@ def uwt_uebernehmen(art: str, daten, datei: str) -> str:
         return f"{len(klassen)} Klassen mit {sum(len(x) for x in klassen.values())} Teilnehmenden übernommen"
     neu, ersetzt = _schritt("UWT importiert", lambda: uwt.importieren(daten), _uwt_dateien())
     return f"UWT importiert: {neu} Blöcke neu, {ersetzt} ersetzt"
+
+
+def ordner_importieren() -> list[str]:
+    """Neue Dateien aus den Ordnern „UWT“ (Blockpläne, Kalender, Klassenübersicht) und „Listen“ (Einheitslisten)
+    übernehmen – wie das Hauptprogramm beim Start. Schon eingelesene Dateien (gleicher Name und Zeitstempel, auch
+    wenn das Hauptprogramm sie gelesen hat) werden übersprungen. Rückgängig gibt es nur, wenn wirklich etwas kam."""
+    from belegung import aenderungen
+
+    namen = list(dict.fromkeys(aenderungen._dateien() + [anreiseliste.DATEI] + _uwt_dateien()))
+    vorher = aenderungen.schnappschuss(namen)
+    meldungen = []
+    for art, fn in (("UWT", uwt.automatisch_importieren), ("Liste", einheitsliste.automatisch_importieren)):
+        try:
+            meldungen += [f"{art}: {m}" for m in fn()]
+        except Exception:                  # noqa: BLE001 – ein kaputter Ordner darf den Start nicht verhindern
+            continue
+    if meldungen:
+        aenderungen.merken("Automatisch eingelesen (Ordner UWT/Listen)", vorher)
+    return meldungen
+
+
+def eingangsordner() -> dict[str, Path]:
+    return {"UWT": uwt.eingangsordner(), "Listen": einheitsliste.eingangsordner()}
 
 
 def _uwt_dateien() -> list[str]:
