@@ -638,5 +638,57 @@ body:has(.m-center.offen) .m-tb { opacity: 0 !important; pointer-events: none !i
 @keyframes m-welle { from { transform: scaleY(.45); } to { transform: scaleY(1); } }
 """
 
+# Haptik (0.22): Eingaben bekommen Gewicht – Knöpfe geben beim Drücken spürbar nach (wie eine Taste), während des
+# Speicherns läuft oben ein schmaler Balken, und die Bestätigung rastet sichtbar ein. Nur in den Layouts (body.pro);
+# bei „Bewegung reduzieren“ (System) bleibt nur der Farbwechsel.
+_HAPTIK = """
+body.pro .m-knopf, body.pro .m-navpunkt, body.pro .m-stat, body.pro .m-segm button, body.pro .m-kachel,
+body.pro .m-chip, body.pro .m-neu, body.pro .m-feed-zeile, body.pro .m-xs-pill, body.pro .m-monat-tag, body.pro .q-btn {
+  transition: transform .14s cubic-bezier(.2,.9,.3,1.25), box-shadow .14s ease, background .12s, border-color .12s, color .12s; }
+body.pro .m-knopf { box-shadow: 0 1px 0 var(--rand2), var(--schatten); }
+body.pro .m-knopf:hover { transform: translateY(-1px); box-shadow: 0 2px 0 var(--rand2), 0 6px 14px -8px rgba(0,0,0,.45); }
+body.pro .m-knopf.primaer { box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 color-mix(in srgb, var(--akzent) 55%, #000),
+  0 6px 16px -8px color-mix(in srgb, var(--akzent) 70%, transparent); }
+body.pro .m-knopf.primaer:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.2),
+  0 3px 0 color-mix(in srgb, var(--akzent) 55%, #000), 0 10px 20px -10px color-mix(in srgb, var(--akzent) 80%, transparent); }
+body.pro .m-knopf.leise, body.pro .m-knopf.leise:hover { box-shadow: none; }
+body.pro .m-toast .m-knopf, body.pro .m-toast .m-knopf:hover { box-shadow: none; transform: none; }
+body.pro .m-glocke .m-zahl { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
+  font-size: 10.5px; line-height: 17px; border-radius: 9px; background: var(--akzent); color: var(--akzent-text); }
+body.pro .m-knopf:active, body.pro .m-knopf.primaer:active { transform: translateY(2px) scale(.97); transition-duration: .05s;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.28); }
+body.pro .m-knopf.leise:active { transform: scale(.94); background: var(--fl2); }
+body.pro .m-navpunkt:active, body.pro .m-segm button:active, body.pro .m-chip:active, body.pro .m-neu:active,
+body.pro .m-feed-zeile:active, body.pro .m-xs-pill:active, body.pro .q-btn:active { transform: scale(.96); transition-duration: .05s; }
+body.pro .m-stat:active, body.pro .m-kachel:active { transform: translateY(1px) scale(.97); transition-duration: .05s;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.25); }
+body.pro .m-monat-tag:active { transform: scale(.985); transition-duration: .05s; }
+body.pro .m-stat.an, body.pro .m-segm button.an { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--akzent) 55%, transparent),
+  0 0 0 3px color-mix(in srgb, var(--akzent) 16%, transparent); }
+/* Eingabefelder: Fokus mit Ring, Schalter mit nachfederndem Knopf */
+body.pro .q-field--outlined .q-field__control { transition: box-shadow .16s ease; }
+body.pro .q-field--outlined.q-field--focused .q-field__control { box-shadow: 0 0 0 3px color-mix(in srgb, var(--akzent) 28%, transparent); }
+body.pro .q-toggle__thumb { transition: left .22s cubic-bezier(.3,1.6,.5,1) !important; }
+body.pro .q-toggle__inner--truthy .q-toggle__thumb:after { box-shadow: 0 0 0 4px color-mix(in srgb, var(--akzent) 22%, transparent); }
+body.pro .q-checkbox__bg { transition: transform .14s cubic-bezier(.3,1.6,.5,1), background .12s; }
+body.pro .q-checkbox:active .q-checkbox__bg { transform: scale(.85); }
+/* Während gespeichert/geladen wird: schmaler Balken oben, Zeiger „arbeitet“ */
+body.pro.m-arbeitet { cursor: progress; }
+body.pro.m-arbeitet::after { content: ""; position: fixed; left: 0; top: 0; height: 3px; width: 100%; z-index: 9999; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--akzent), transparent); background-size: 40% 100%; background-repeat: no-repeat;
+  animation: m-arbeitet 0.9s ease-in-out infinite; }
+@keyframes m-arbeitet { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+/* Bestätigung rastet ein */
+body.pro .m-toast { animation: m-einrasten .38s cubic-bezier(.2,1.4,.4,1); }
+body.pro .m-toast .m-toast-ok { color: var(--gruen); font-size: 20px; animation: m-haken .45s cubic-bezier(.2,1.6,.4,1) .08s both; }
+@keyframes m-einrasten { from { opacity: 0; transform: translate(-50%, 14px) scale(.94); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes m-haken { from { transform: scale(.2) rotate(-25deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  body.pro .m-knopf, body.pro .m-knopf:hover, body.pro .m-knopf:active, body.pro .m-stat:active, body.pro .m-kachel:active,
+  body.pro .m-navpunkt:active, body.pro .m-segm button:active { transform: none; }
+  body.pro .m-toast, body.pro .m-toast .m-toast-ok, body.pro.m-arbeitet::after { animation: none; }
+}
+"""
+
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK])
