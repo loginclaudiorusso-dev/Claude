@@ -14,7 +14,7 @@ from .kern import WT, _schritt
 from .ui_bausteine import attr, knopf, leer, segmente
 
 ANSICHTEN = {"liste": "Liste", "monat": "Monat"}
-FARBE = {"abreise": "warn", "anreise": "ok", "uwt": "akzent", "eigen": "akzent", "notiz": "neutral", "wv": "neutral"}
+FARBE = {"abreise": "warn", "anreise": "ok", "uwt": "akzent", "eigen": "akzent", "notiz": "neutral", "wiedervorlage": "neutral"}
 MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
           "Dezember"]
 
@@ -100,14 +100,18 @@ def _liste(a) -> None:
 
 
 def _monat(a) -> None:
+    """Monatskalender: Klick auf einen Tag legt dort einen Termin an, Klick auf einen Eintrag öffnet ihn,
+    „+N weitere“ zeigt den ganzen Tag."""
     m = a.tm_monat
     with a.leiste:
-        knopf("", lambda: a.setzen(tm_monat=(m.replace(day=1) - timedelta(days=1)).replace(day=1), laden=False), "leise",
-              "chevron_left", "Voriger Monat")
-        ui.label(f"{MONATE[m.month - 1]} {m.year}").classes("m-btitel")
-        knopf("", lambda: a.setzen(tm_monat=(m.replace(day=28) + timedelta(days=4)).replace(day=1), laden=False), "leise",
-              "chevron_right", "Nächster Monat")
-        knopf("Heute", lambda: a.setzen(tm_monat=a.heute.replace(day=1), laden=False), "leise")
+        with ui.element("div").classes("m-monat-nav"):
+            knopf("", lambda: a.setzen(tm_monat=(m.replace(day=1) - timedelta(days=1)).replace(day=1), laden=False), "leise",
+                  "chevron_left", "Voriger Monat")
+            ui.label(f"{MONATE[m.month - 1]} {m.year}").classes("m-btitel")
+            knopf("", lambda: a.setzen(tm_monat=(m.replace(day=28) + timedelta(days=4)).replace(day=1), laden=False), "leise",
+                  "chevron_right", "Nächster Monat")
+            knopf("Heute", lambda: a.setzen(tm_monat=a.heute.replace(day=1), laden=False), "leise")
+        ui.label("Klick auf einen Tag: neuer Termin · Klick auf einen Eintrag: öffnen").classes("m-zweite m-monat-tipp")
     je_tag: dict[date, list] = {}
     for t in a.daten["termine"]:
         je_tag.setdefault(t.datum, []).append(t)
@@ -120,24 +124,71 @@ def _monat(a) -> None:
                     kl = "m-monat-tag" + (" fremd" if d.month != m.month else "") + (" heute" if d == a.heute else "") + \
                          (" we" if d.weekday() >= 5 else "")
                     zelle = ui.element("div").classes(kl)
+                    attr(zelle, title=f"{WT[d.weekday()]} {d:%d.%m.%Y} – Klick: neuer Termin", role="button", tabindex="0")
                     with zelle:
-                        ui.label(str(d.day)).classes("m-monat-nr")
+                        with ui.element("div").classes("m-monat-zk"):
+                            ui.label(str(d.day)).classes("m-monat-nr")
+                            ui.icon("add").classes("m-monat-plus")
                         ts = je_tag.get(d, [])
                         for t in ts[:4]:
                             c = ui.label(t.titel).classes(f"m-chip {FARBE.get(t.art, '')}" + (" fertig" if t.erledigt else ""))
-                            attr(c, title=f"{tm.ARTEN.get(t.art, t.art)}: {t.titel}\n{t.text}")
-                            if t.art == "eigen":
-                                c.on("click", lambda t=t: termin_panel(a, t, t.datum))
+                            attr(c, title=f"{tm.ARTEN.get(t.art, t.art)}: {t.titel}\n{t.text}".strip())
+                            c.on("click.stop", lambda t=t: termin_oeffnen(a, t))
                         if len(ts) > 4:
-                            ui.label(f"+{len(ts) - 4} weitere").classes("m-zweite")
-                    zelle.on("dblclick", lambda d=d: termin_panel(a, None, d))
+                            mehr = ui.label(f"+{len(ts) - 4} weitere").classes("m-zweite m-monat-mehr")
+                            mehr.on("click.stop", lambda d=d: tag_panel(a, d))
+                    zelle.on("click", lambda d=d: termin_panel(a, None, d))
+                    zelle.on("keydown.enter", lambda d=d: termin_panel(a, None, d))
+
+
+def termin_oeffnen(a, t) -> None:
+    """Eigene Termine zum Bearbeiten, alle anderen (Anreise, Abreise, UWT …) zum Ansehen und Abhaken."""
+    if t.art == "eigen":
+        return termin_panel(a, t, t.datum)
+
+    def bauen():
+        ui.label(f"{tm.ARTEN.get(t.art, t.art)} · {WT[t.datum.weekday()]} {t.datum:%d.%m.%Y}").classes("m-zweite")
+        ui.label(t.titel).classes("m-name")
+        if t.text:
+            ui.label(t.text).classes("m-ptext")
+        ui.label("Dieser Eintrag kommt aus Anreiseliste/UWT und wird dort geändert – hier nur abhaken.").classes("m-zweite")
+
+        async def umschalten():
+            if await a.aendern(erledigt_setzen, t.id, not t.erledigt):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Wieder offen" if t.erledigt else "Erledigt", umschalten, "primaer", "check")
+            knopf("Neuer Termin an diesem Tag", lambda: termin_panel(a, None, t.datum), "leise", "add")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel(tm.ARTEN.get(t.art, "Termin"), bauen)
+
+
+def tag_panel(a, d: date) -> None:
+    """Alle Einträge eines Tages (wenn im Kalender nicht alle Platz haben)."""
+    ts = [t for t in a.daten["termine"] if t.datum == d]
+
+    def bauen():
+        for t in ts:
+            with ui.element("div").classes("m-mzeile"):
+                ui.label(tm.ARTEN.get(t.art, t.art)).classes(f"m-pille {FARBE.get(t.art, '')}")
+                c = ui.label(t.titel).classes("m-ptext m-link" + (" fertig" if t.erledigt else ""))
+                c.on("click", lambda t=t: termin_oeffnen(a, t))
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Neuer Termin an diesem Tag", lambda: termin_panel(a, None, d), "primaer", "add")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel(f"{WT[d.weekday()]} {d:%d.%m.%Y} · {len(ts)} Einträge", bauen)
 
 
 def termin_panel(a, t, tag: date) -> None:
     def bauen():
         ui.label("Eigener Termin mit Erinnerung – er erscheint an dem Tag (bzw. so viele Tage vorher) unter Heute."
                  ).classes("m-ptext")
-        titel = ui.input("Titel", value=t.titel if t else "").classes("m-feld").props("dense outlined dark")
+        if not t:
+            ui.label(f"für {WT[tag.weekday()]} {tag:%d.%m.%Y}").classes("m-zweite")
+        titel = ui.input("Titel", value=t.titel if t else "").classes("m-feld").props("dense outlined dark autofocus")
         datum = ui.input("Datum", value=(t.datum if t else tag).isoformat()).classes("m-feld").props("dense outlined dark type=date")
         vorlauf = ui.select({0: "am Tag selbst", 1: "1 Tag vorher", 2: "2 Tage vorher", 3: "3 Tage vorher", 7: "1 Woche vorher",
                              -1: "keine Erinnerung"}, value=t.vorlauf if t else 1, label="Erinnern").classes("m-feld").props(
@@ -156,6 +207,8 @@ def termin_panel(a, t, tag: date) -> None:
         async def loeschen():
             if await a.aendern(eigener_loeschen, t.id):
                 a.panel_zu()
+
+        titel.on("keydown.enter", speichern)
 
         with ui.element("div").classes("m-paktionen"):
             knopf("Speichern", speichern, "primaer", "check")

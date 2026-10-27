@@ -289,6 +289,20 @@ CSS += """
 .m-monat-tag.fremd { opacity: .45; }
 .m-monat-tag.heute .m-monat-nr { background: var(--akzent); color: var(--akzent-text); border-radius: 10px; padding: 0 6px; }
 .m-monat-nr { font-size: 12px; color: var(--text2); align-self: flex-start; font-variant-numeric: tabular-nums; }
+.m-monat-tag { cursor: pointer; transition: background .12s; }
+.m-monat-tag:hover { background: color-mix(in srgb, var(--akzent) 7%, var(--bg)); }
+.m-monat-tag:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.m-monat-zk { display: flex; align-items: center; justify-content: space-between; }
+.m-monat-plus { font-size: 15px; color: var(--akzent); opacity: 0; transition: opacity .12s; }
+.m-monat-tag:hover .m-monat-plus, .m-monat-tag:focus-visible .m-monat-plus { opacity: 1; }
+.m-monat-tag .m-chip { cursor: pointer; }
+.m-monat-mehr { cursor: pointer; } .m-monat-mehr:hover { color: var(--akzent); text-decoration: underline; }
+.m-monat-nav { display: flex; align-items: center; gap: 4px; flex: none; }
+.m-monat-tipp { margin-left: auto; }
+.m-zs-b.zieh { cursor: grab; } .m-zs-b.zieh:active { cursor: grabbing; }
+body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%, transparent); outline: 1px dashed var(--akzent); outline-offset: -1px; }
+.m-wechsel { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.m-klassen { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .m-chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--fl2); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .m-chip.warn { background: color-mix(in srgb, var(--orange) 18%, transparent); }
 .m-chip.ok { background: color-mix(in srgb, var(--gruen) 16%, transparent); }
