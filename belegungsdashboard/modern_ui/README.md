@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.23.0
+# Neue Oberfläche (modern_ui) – Version 0.25.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
