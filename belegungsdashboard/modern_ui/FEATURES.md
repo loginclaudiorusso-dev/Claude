@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.24)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.25)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -44,6 +44,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 ## Mieter
 - Mietverträge, Hinweis auf bald endende Verträge, Mail-Entwurf
 - Unterlagen als PDF/Word: Mietvertrag, Wohnungsgeberbestätigung, SEPA, Nebenabrede zur Verlängerung
+- Vertragsnummern fortlaufend, abgeglichen mit bisherigen Verträgen (Ordner bzw. zuletzt vergebene Nummer); doppelte gesperrt
 
 ## Auswertung
 - Lage, Belegung (Zeitraum, Personentage, Auslastung, Muster nach Wochentag und Saison)

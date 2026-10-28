@@ -48,6 +48,17 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Vertragsnummern der Mieter mit bisherigen Verträgen abgleichen (neu in 0.25)
+
+* Bisher zählte die Nummer nur die Verträge, die mit diesem Programm erstellt wurden – im neuen Jahr also ab
+  „26-001“, obwohl es schon Verträge gab. Jetzt wird abgeglichen mit: der Mieterliste, den Dateien im Ablageordner
+  der Unterlagen, einem **Ordner mit den bisherigen Verträgen** (auch Unterordner; Nummer im Dateinamen, z. B.
+  „MV 26-047 …“, „Mietvertrag_26.047 …“) und einer von Hand festgelegten **zuletzt vergebenen Nummer**. Vorschlag ist
+  die höchste Nummer des Jahres + 1; darunter steht, woher sie stammt.
+* Einstellen unter *Mieter → Neuer Mieter → „Nummern mit bisherigen Verträgen abgleichen“*.
+* Eine schon vergebene Nummer (auch aus einer Datei) lässt sich nicht noch einmal verwenden – die Meldung nennt die
+  nächste freie.
+
 ## Tagesbriefing per Outlook, Allergiker mit Vorrang auf der Allergiker-Etage (neu in 0.24)
 
 * **Tagesbriefing** (*Einstellungen → Allgemein → Erinnerungen*): einmal am Tag ab der eingestellten Uhrzeit die
@@ -384,4 +395,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0` (jeweils auch als Zip in `Sicherung`).
