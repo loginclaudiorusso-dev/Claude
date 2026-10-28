@@ -364,3 +364,28 @@ def test_import_aenderungsbericht_und_bezugsfertig(leer):
     assert zid not in zk.nicht_bezugsfertig(zp.laden(), r.tag)                    # abgehakt → bezugsfertig
     assert zk.kachel_passt("frei", 0, False, set(), {"unfertig"}, None, True)
     assert not zk.kachel_passt("frei", 0, False, set(), {"unfertig"}, None, False)
+
+
+def test_allergiker_etage_bevorzugt_auch_lange_massnahme(leer):
+    from belegung import anreiseliste
+    from belegung import zimmerplan as zp
+    from modern import anreisen_kern as ank
+    from modern import hinweise_kern as hk
+    from modern import kern
+
+    heute = date.today()
+    an = heute + timedelta(days=5)
+    anreiseliste.speichern([anreiseliste.Person("Lang, Lea", "GS RVL", an, True, tn_id="701",
+                                                abreise=an + timedelta(days=200), bemerkung="Allergiker")], {})
+    st = zp.laden()
+    b = st.bedarf[0]
+    assert not b.kurz                                                         # lange Maßnahme: sonst nicht auf 1. OG
+    zimmer = hk.allergie_zimmer(st.lage, b)
+    assert zimmer and all(hk.auf_allergie_etage(z) for z in zimmer) and not zp.nur_emr(zimmer[0])   # EMR-Zimmer zuletzt
+    z = kern.zeilen(st, b.von.isoformat(), heute)[0]
+    assert hk.auf_allergie_etage(st.lage.zimmer[z.vorschlag])
+    kern.zuweisen(z.schluessel, z.vorschlag)
+    st = zp.laden()
+    z = kern.zeilen(st, b.von.isoformat(), heute)[0]
+    assert z.status == "ok" and not z.grund                                   # Etagen-Regel gilt für Allergiker nicht
+    assert not any(b.schluessel in v.personen for v in ank.optimieren_vorschlaege(heute))   # nicht wegoptimieren

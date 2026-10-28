@@ -2,8 +2,8 @@
 
 Die Bemerkung ist Freitext („ev. Anr. 11.10. benötigt Duschhocker“, „Allergiker“ …). Erkannt werden wenige, klar
 umrissene Arten – alles andere bleibt als Text sichtbar, wird aber nicht gedeutet. Allergiker gehören auf die
-Allergiker-Etage (Haus 2, 1. OG): Die Zuteilung schlägt dort ein Zimmer vor, wenn eines frei und nach den Regeln des
-Hauptprogramms zulässig ist; sonst wird gewarnt. Ohne Qt/NiceGUI, damit es testbar bleibt.
+Allergiker-Etage (Haus 2, 1. OG) und werden dort bevorzugt untergebracht – auch mit langer Maßnahme und auch in den
+EMR-Zimmern 101–110 (die Etagen-Regeln des Hauptprogramms gelten für sie nicht); alle anderen Prüfungen bleiben. Ohne Qt/NiceGUI, damit es testbar bleibt.
 """
 
 from __future__ import annotations
@@ -72,12 +72,41 @@ def meiden(offene_maengel: dict) -> set[str]:
     return {zid for zid, ms in offene_maengel.items() if any(m.art in ALLERGIE_MEIDEN for m in ms)}
 
 
-def allergie_vorschlag(zt, vergeben: set[str], nicht: set[str] = frozenset()):
+# Diese Regeln des Hauptprogramms gelten für Allergiker auf der Allergiker-Etage nicht: Die Etage ist für sie da,
+# Allergiker kommen selten – wer kommt, wird dort bevorzugt untergebracht (auch mit langer Maßnahme, auch in 101–110).
+ETAGEN_REGEL = "Haus 2, 1. OG nur für Kurzmaßnahmen"
+
+
+def _etagenregel(grund: str | None, zimmer) -> bool:
+    from belegung import zimmerplan as zp
+
+    return grund == ETAGEN_REGEL or bool(grund and grund.endswith(f" nicht in {zp.flur_text(zimmer)}"))
+
+
+def allergie_zimmer(lage, b, vergeben: set[str] = frozenset(), nicht: set[str] = frozenset()) -> list:
+    """Freie Zimmer auf der Allergiker-Etage für den Bedarf ``b`` – alle Prüfungen des Hauptprogramms (belegt,
+    gesperrt, unbewohnbar, Doppelzimmer, Geschlecht, Tier …) gelten, nur die Etagen-Regeln (Kurzmaßnahmen, EMR-Zimmer)
+    nicht. Reihenfolge: ohne Ausnahme zulässig zuerst, die EMR-Zimmer 101–110 zuletzt."""
+    from belegung import zimmerplan as zp
+
+    erg = []
+    for z in lage.zimmer.values():
+        if not auf_allergie_etage(z) or z.id in vergeben or z.id in nicht:
+            continue
+        grund = zp.passt(lage, z, b, frozenset({b.schluessel}))
+        if grund is None or _etagenregel(grund, z):
+            erg.append((grund is not None, zp.nur_emr(z), z.nummer, z))
+    return [z for *_r, z in sorted(erg, key=lambda x: x[:3])]
+
+
+def allergie_vorschlag(zt, vergeben: set[str], nicht: set[str] = frozenset(), lage=None):
     """Zimmer auf der Allergiker-Etage aus den zulässigen Alternativen des Hauptprogramms (nicht schon an andere
     derselben Anreise vorgeschlagen, ohne Schimmel/Ungeziefer/Geruch/Schmutz). None, wenn der Vorschlag schon dort
     liegt (und unbedenklich ist) oder dort nichts Passendes frei ist."""
     if auf_allergie_etage(zt.zimmer) and zt.zimmer.id not in nicht:
         return None
+    if lage is not None:
+        return next(iter(allergie_zimmer(lage, zt.bedarf, vergeben, nicht)), None)
     return next((z for z in zt.alternativen if auf_allergie_etage(z) and z.id not in vergeben and z.id not in nicht), None)
 
 

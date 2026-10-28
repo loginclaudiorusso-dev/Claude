@@ -133,7 +133,7 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
         neu = zt.zimmer.id if zt.zimmer else None
         hinweise = [h for h in hk.erkennen(b.bemerkung) if not (h.art == "vortag" and b.gruppe == "EMR")]  # EMR: Vortag ist Standard
         allergie = any(h.art == "allergie" for h in hinweise)
-        if allergie and not gespeichert and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+        if allergie and not gespeichert and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht, stand.lage)) is not None:
             vergeben.discard(neu)
             vergeben.add(alt.id)
             neu = alt.id                      # Allergiker: freies, zulässiges Zimmer auf der Allergiker-Etage bevorzugen
@@ -149,13 +149,14 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
             status, stufe = "ohne", "krit"
             vorschlag = neu
             grund = "noch kein Zimmer" + (f" – {zt.grund}" if neu is None and zt.grund else "")
-        elif zt.warnungen:
-            status, stufe, grund = "handeln", "warn", "; ".join(zt.warnungen)
+        elif warnungen := [w for w in zt.warnungen if not (allergie and hk.auf_allergie_etage(zt.zimmer)
+                                                          and hk._etagenregel(w.removeprefix("Regel verletzt: "), zt.zimmer))]:
+            status, stufe, grund = "handeln", "warn", "; ".join(warnungen)    # Allergiker: Etagen-Regeln gelten nicht
         else:
             status, stufe = "ok", "ok"
         zimmer_jetzt = gespeichert or vorschlag
         if allergie and zimmer_jetzt in fuer_allergiker_nicht:
-            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht, stand.lage)) is not None:
                 vorschlag = alt.id
                 vergeben.add(alt.id)
             text = "Allergiker – im Zimmer ist Schimmel, Ungeziefer, Geruch oder Schmutz gemeldet"
@@ -164,7 +165,7 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
                 status, stufe = "handeln", "krit"
         elif allergie and zimmer_jetzt and not hk.auf_allergie_etage(stand.lage.zimmer.get(zimmer_jetzt)):
             frei = any(hk.auf_allergie_etage(z) for z in zt.alternativen)
-            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht, stand.lage)) is not None:
                 vorschlag = alt.id
                 vergeben.add(alt.id)
             text = f"Allergiker – nicht auf der {hk.ALLERGIE_TEXT}" + ("" if frei else ", dort ist für diese Person kein Zimmer frei bzw. zulässig")
@@ -191,6 +192,9 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
             dazu(gespeichert, "aktuell")
         for z in zt.alternativen:
             dazu(z.id, "frei")
+        if allergie:
+            for z in hk.allergie_zimmer(stand.lage, b, set(), fuer_allergiker_nicht)[:8]:
+                dazu(z.id, "frei", f"{_bezeichnung(z)} · Allergiker-Etage")
         for z in zt.ausnahmen:
             dazu(z.id, "ausnahme", f"{_bezeichnung(z)} · {zp.ausnahme_grund(stand.lage, z, b)}")
         zweite = b.massnahme.removeprefix("UWT ") if b.gruppe == "UWT" else b.massnahme

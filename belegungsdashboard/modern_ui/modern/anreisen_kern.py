@@ -134,9 +134,21 @@ def uwt_zuruecknehmen(heute: date) -> str:
 # ---- Optimieren -------------------------------------------------------------------------
 
 def optimieren_vorschlaege(heute: date):
+    """Vorschläge des Hauptprogramms – ohne die, die einen Allergiker von der Allergiker-Etage holen würden (dort
+    gelten für Allergiker die Etagen-Regeln nicht, siehe ``hinweise_kern``)."""
     from belegung import optimierung
 
-    return optimierung.vorschlaege(zp.laden(), heute)
+    from . import hinweise_kern as hk
+
+    stand = zp.laden()
+    allergiker = {b.schluessel for b in stand.bedarf if hk.allergiker(b.bemerkung)}
+    z = stand.lage.zimmer
+
+    def holt_weg(v) -> bool:
+        return any(p in allergiker and hk.auf_allergie_etage(z.get(von)) and not hk.auf_allergie_etage(z.get(nach))
+                   for p, von, nach in zip(v.personen, v.von_zimmer, v.nach_zimmer))
+
+    return [v for v in optimierung.vorschlaege(stand, heute) if not holt_weg(v)]
 
 
 def optimieren_umsetzen(auswahl: list, heute: date) -> str:
