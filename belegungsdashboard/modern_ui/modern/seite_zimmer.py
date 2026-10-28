@@ -632,8 +632,10 @@ def _uebersicht(a) -> None:
     mf = a.zl_mehr.get("maengel") or []
     with a.leiste:
         unbew = sum(1 for k in alle if k.unbewohnbar)
+        unfertig = sum(1 for k in alle if k.nicht_fertig)
         # Die Kacheln sind zugleich die Legende: gleiche Symbole und Farben wie die Zimmer darunter
         kennzahlen([("frei", n["frei"] + n["teilweise"], "frei" + (f" · davon {n['teilweise']} mit 1 Bett" if n["teilweise"] else ""), "ok"),
+                    ("unfertig", unfertig, "nicht bezugsfertig", "warn"),
                     ("belegt", n["belegt"], "belegt", "blau"), ("geplant", n["geplant"], "geplant", "akzent"),
                     ("gesperrt", n["gesperrt"], "gesperrt", "neutral"), ("maengel", defekt, "mit Mängeln", "warn"),
                     ("unbewohnbar", unbew, "unbewohnbar", "krit")], f,
@@ -643,7 +645,9 @@ def _uebersicht(a) -> None:
                                "Bett (grün umrandet)",
                        "belegt": "Alle Betten belegt (blau)", "geplant": "Nur geplant, noch nicht eingezogen (violett)",
                        "gesperrt": "Gesperrt (gestreift)", "maengel": "Offene Mängel (Marke „!“ an der Kachel)",
-                       "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen)"}.items()})
+                       "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen)",
+                       "unfertig": "Frei, aber noch nicht bezugsfertig: Reinigung bis zu diesem Tag offen oder dringender "
+                                   "Mangel (Besen an der Kachel)"}.items()})
         _mangel_menue(a)
         if f or mf:
             knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
@@ -671,7 +675,7 @@ def _uebersicht(a) -> None:
                             ui.label(etage).classes("m-zweite m-etage-titel")
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
-                                    passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf)
+                                    passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf, bool(k.nicht_fertig))
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=k.titel)
@@ -679,6 +683,8 @@ def _uebersicht(a) -> None:
                                         ui.label(k.nr)
                                         if k.stufe:
                                             ui.label("!" * k.stufe).classes("m-kachel-m")
+                                        if k.nicht_fertig:
+                                            ui.icon("cleaning_services").classes("m-kachel-u")
                                     b.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
 
 

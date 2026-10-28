@@ -639,21 +639,46 @@ class Kachel:
     unbewohnbar: bool
     titel: str
     arten: frozenset = frozenset()   # Arten der offenen Mängel (für den Mangelart-Filter)
+    nicht_fertig: str = ""           # frei, aber nicht bezugsfertig: Grund (Reinigung offen, dringender Mangel)
+
+
+def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
+    """Zimmer, die am ``tag`` frei sind, aber noch nicht bezugsfertig: eine Reinigung bis zu diesem Tag ist offen oder
+    ein dringender Mangel (Stufe 2) ist gemeldet. Unbewohnbare Zimmer sind eigens markiert und zählen hier nicht."""
+    from belegung import reinigungsliste as rl
+
+    from .seiten_kern import _reinigungen
+
+    fertig = rl.erledigt()
+    erg: dict[str, str] = {}
+    for r in _reinigungen(stand, tag - timedelta(days=14), tag):     # ältere offene Reinigungen sind meist nur nicht abgehakt
+        if rl.schluessel(r) not in fertig and r.tag <= tag:
+            erg.setdefault(r.zimmer.id, f"{r.art} vom {r.tag:%d.%m.} offen")
+    for zid, ms in mg.offen_je_zimmer().items():
+        if mg.stufe(ms) == 2 and zid not in erg:
+            erg[zid] = "dringender Mangel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms if m.stufe == 2)
+    return {zid: g for zid, g in erg.items() if zid not in stand.lage.unbewohnbar and zid in stand.lage.zimmer
+            and stand.lage.status_am(zid, tag)[0] in ("frei", "teilweise")}
 
 
 def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kachel]]]:
     """Haus → Etage-Text → Kacheln (am Tag ``tag``)."""
     offen = mg.offen_je_zimmer()
+    try:
+        unfertig = nicht_bezugsfertig(stand, tag)
+    except Exception:                          # noqa: BLE001 – Zusatzinfo, die Übersicht bleibt
+        unfertig = {}
     erg: dict[str, dict[str, list[Kachel]]] = {}
     for z in sorted((z for z in stand.zimmer if z.aktiv), key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
         status, bs = stand.lage.status_am(z.id, tag)
         ms = offen.get(z.id, [])
         namen = ", ".join(zp.anzeige_name(b.name) for b in bs if b.art in ("belegt", "geplant") and b.name != zp.PIVOT_NAME)
         titel = f"{z.kurz} · {status}" + (f" · {namen}" if namen else "") + \
-            ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "")
+            ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "") + \
+            (f"\nNicht bezugsfertig: {unfertig[z.id]}" if z.id in unfertig else "")
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
             Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel,
-                   frozenset(m.art for m in ms)))
+                   frozenset(m.art for m in ms), unfertig.get(z.id, "")))
     return erg
 
 
@@ -661,7 +686,7 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
 # deshalb mit „oder“ verknüpft (frei oder geplant), Mängel/unbewohnbar sind Eigenschaften und schränken zusätzlich ein
 # (frei + mit Mängeln = freie Zimmer mit Mängeln). Der Mangelart-Filter (Stufe/Art) gilt immer zusätzlich.
 KACHEL_STATUS = ("frei", "belegt", "geplant", "gesperrt")
-KACHEL_EIGENSCHAFT = ("maengel", "unbewohnbar")
+KACHEL_EIGENSCHAFT = ("unfertig", "maengel", "unbewohnbar")
 
 
 def kacheln(wert) -> frozenset:
@@ -682,12 +707,12 @@ def mangel_passt(stufe: int, arten, filt) -> bool:
     return not gesucht or bool(("*" in gesucht and stufe) or set(arten) & gesucht)
 
 
-def kachel_passt(status: str, stufe: int, unbewohnbar: bool, arten, auswahl, filt=None) -> bool:
+def kachel_passt(status: str, stufe: int, unbewohnbar: bool, arten, auswahl, filt=None, unfertig: bool = False) -> bool:
     st = auswahl & set(KACHEL_STATUS)
     ei = auswahl & set(KACHEL_EIGENSCHAFT)
     if st and not (status in st or ("frei" in st and status == "teilweise")):
         return False
-    if ei and not (("maengel" in ei and stufe) or ("unbewohnbar" in ei and unbewohnbar)):
+    if ei and not (("maengel" in ei and stufe) or ("unbewohnbar" in ei and unbewohnbar) or ("unfertig" in ei and unfertig)):
         return False
     return mangel_passt(stufe, arten, filt)
 
@@ -711,7 +736,7 @@ def kachel_text(auswahl, filt=None) -> str:
 # ---------------------------------------------------------------------------------------
 
 KACHEL_TEXT = {"frei": "frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt",
-               "maengel": "mit Mängeln", "unbewohnbar": "unbewohnbar"}
+               "maengel": "mit Mängeln", "unbewohnbar": "unbewohnbar", "unfertig": "nicht bezugsfertig"}
 STATUS_TEXT = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt"}
 
 
@@ -740,11 +765,12 @@ def druck_zeilen(stand: zp.Planstand, tag: date, f: zl.Filter | None = None, kac
     ``kachel`` = Kachel-Auswahl der Übersicht (ein Schlüssel oder mehrere), ``maengel`` = Mangelart-Filter."""
     lage = stand.lage
     auswahl = kacheln(kachel)
+    unfertig = nicht_bezugsfertig(stand, tag) if "unfertig" in auswahl else {}
     erg = []
     for r in _sortiert(stand, f or zl.Filter(nur_internat=True), tag):
         z = r.zimmer
         if (auswahl or maengel) and not kachel_passt(r.status, mg.stufe(r.maengel), z.id in lage.unbewohnbar,
-                                                     {m.art for m in r.maengel}, auswahl, maengel):
+                                                     {m.art for m in r.maengel}, auswahl, maengel, z.id in unfertig):
             continue
         personen = [b for b in r.belegungen if b.art in ("belegt", "geplant")]
         belegt_bis = max((b.bis for b in personen), default=None)
