@@ -157,6 +157,10 @@ async def _ordner(a) -> None:
 
 async def _anreisen_vorschau(a, dateien) -> None:
     v = await run.io_bound(dk.anreisen_lesen, [p for p, _ in dateien], [n for _, n in dateien])
+    try:
+        aenderungen = await run.io_bound(dk.anreisen_aenderungen, v) if v.listen else []
+    except Exception:                          # noqa: BLE001 – der Bericht ist Zusatz, der Import geht trotzdem
+        aenderungen = []
 
     def bauen():
         if v.fehler:
@@ -172,6 +176,7 @@ async def _anreisen_vorschau(a, dateien) -> None:
                 ui.label(f"{n} Personen, davon {internat} mit Internat · {datei}").classes("m-zweite")
         for h in v.hinweise[:12]:
             ui.label(h).classes("m-zweite").style("color:var(--orange); white-space:normal")
+        _aenderungen_zeigen(aenderungen)
 
         async def los():
             if await a.aendern(dk.anreisen_uebernehmen, v):
@@ -185,6 +190,32 @@ async def _anreisen_vorschau(a, dateien) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Anreiselisten importieren", bauen, breit=True)
+
+
+def _aenderungen_zeigen(aenderungen: list) -> None:
+    """Änderungsbericht vor dem Import: geänderte An-/Abreisen (mit betroffener Zimmerplanung), entfallene, neue."""
+    if not aenderungen:
+        ui.label("Gegenüber dem jetzigen Stand ändert sich an bekannten Personen nichts.").classes("m-zweite")
+        return
+    n = {art: sum(1 for x in aenderungen if x.art == art) for art in ("geaendert", "entfernt", "neu")}
+    betroffen = sum(1 for x in aenderungen if x.zimmer)
+    ui.label("Was sich gegenüber dem jetzigen Stand ändert").classes("m-ktitel")
+    ui.label(f"{n['geaendert']} geändert · {n['entfernt']} nicht mehr auf der Liste · {n['neu']} neu"
+             + (f" · {betroffen} geplante Zimmer betroffen – nach dem Import unter Anreisen prüfen" if betroffen else "")
+             ).classes("m-ptext")
+    titel = {"geaendert": "Geändert", "entfernt": "Nicht mehr auf der Liste", "neu": "Neu"}
+    for art in ("geaendert", "entfernt", "neu"):
+        liste = [x for x in aenderungen if x.art == art]
+        if not liste:
+            continue
+        ui.label(titel[art]).classes("m-mgruppe")
+        for x in liste[:25]:
+            with ui.element("div").classes("m-aenderung" + (" betroffen" if x.zimmer else "")):
+                ui.label(x.name).classes("m-name")
+                ui.label(x.text + (f" · Zimmer {x.zimmer} geplant" if x.zimmer else "")).classes("m-zweite").style(
+                    "white-space:normal")
+        if len(liste) > 25:
+            ui.label(f"+{len(liste) - 25} weitere").classes("m-zweite")
 
 
 # ---- UWT --------------------------------------------------------------------------------

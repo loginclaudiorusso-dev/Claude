@@ -102,6 +102,61 @@ def anreisen_lesen(pfade: list[Path], namen: list[str]) -> ListenVorschau:
     return v
 
 
+@dataclass
+class ListenAenderung:
+    art: str              # neu | geaendert | entfernt
+    name: str
+    text: str             # z. B. „Abreise 20.11. → 27.11.“
+    zimmer: str = ""      # gespeicherte Zimmerplanung (kurz), die davon betroffen ist
+
+
+def anreisen_aenderungen(v: ListenVorschau) -> list[ListenAenderung]:
+    """Was der Import gegenüber dem jetzigen Stand ändern würde – als Trockenlauf mit derselben Logik wie beim
+    Übernehmen (Personen werden über die TN-ID wiedererkannt). Betroffene Zimmerplanungen werden genannt."""
+    import copy
+
+    from . import hinweise_kern as hk
+    from .kern import kurz
+
+    bestand, _ = anreiseliste.laden()
+    vorher = {p.schluessel: copy.deepcopy(p) for p in bestand}
+    neu_bestand = copy.deepcopy(bestand)
+    entfernt = []
+    for liste in v.listen:
+        neu_bestand, bericht = anreiseliste.uebernehmen(neu_bestand, liste)
+        entfernt += bericht.entfernt
+    geplant = {z["person"]: z["zimmer"] for z in zp.laden().zuweisungen}
+
+    def d(x):
+        return f"{x:%d.%m.}" if x else "offen"
+
+    erg = []
+    for p in neu_bestand:
+        alt = vorher.get(p.schluessel)
+        if alt is None:
+            extra = [h.text for h in hk.erkennen(p.bemerkung) if h.art != "vortag"]
+            erg.append(ListenAenderung("neu", p.name, f"Anreise {d(p.anreise)}" + (f" · {', '.join(extra)}" if extra else "")))
+            continue
+        teile = []
+        if alt.anreise != p.anreise:
+            teile.append(f"Anreise {d(alt.anreise)} → {d(p.anreise)}")
+        if alt.abreise != p.abreise:
+            teile.append(f"Abreise {d(alt.abreise)} → {d(p.abreise)}")
+        if bool(alt.internat) != bool(p.internat):
+            teile.append("Internat " + ("ja → nein" if alt.internat else "nein → ja"))
+        neu_hinweise = {h.text for h in hk.erkennen(p.bemerkung)} - {h.text for h in hk.erkennen(alt.bemerkung)} - {"evtl. Vortag"}
+        if neu_hinweise:
+            teile.append("neu: " + ", ".join(sorted(neu_hinweise)))
+        if teile:
+            erg.append(ListenAenderung("geaendert", p.name, " · ".join(teile), kurz(geplant[p.schluessel])
+                                       if p.schluessel in geplant else ""))
+    for p in entfernt:
+        erg.append(ListenAenderung("entfernt", p.name, f"nicht mehr auf der Liste (Anreise {d(p.anreise)})",
+                                   kurz(geplant[p.schluessel]) if p.schluessel in geplant else ""))
+    reihe = {"geaendert": 0, "entfernt": 1, "neu": 2}
+    return sorted(erg, key=lambda x: (reihe[x.art], not x.zimmer, x.name))
+
+
 def anreisen_uebernehmen(v: ListenVorschau) -> str:
     def aktion():
         b = anreiseliste.Bericht()
