@@ -432,6 +432,7 @@ async def _unterlagen(a, nr: str) -> None:
 
 def mieter_neu_panel(a) -> None:
     from belegung import mieter as mt
+    from belegung import speicher
 
     from . import mieter_kern as mk
 
@@ -452,6 +453,33 @@ def mieter_neu_panel(a) -> None:
                 "dense outlined dark")
             schl = ui.number("Schlüssel", value=1, min=0, step=1, format="%d").classes("m-feld").props("dense outlined dark")
             mail = ui.input("E-Mail (optional)").classes("m-feld").props("dense outlined dark")
+        woher = ui.label("Vertragsnummer wird abgeglichen …").classes("m-zweite")
+        with ui.expansion("Nummern mit bisherigen Verträgen abgleichen").classes("m-ptext").props("dense"):
+            ui.label("Verträge, die nicht mit diesem Programm erstellt wurden, kennt die Zählung sonst nicht. Ordner mit den "
+                     "bisherigen Verträgen (Dateinamen mit Nummer, z. B. „MV 26-047 …“) und/oder die zuletzt vergebene "
+                     "Nummer – die nächste ist dann die höchste + 1.").classes("m-ptext")
+            e = speicher.einstellungen()
+            ordner = ui.input("Ordner mit bisherigen Verträgen", value=e.get(mk.EINSTELLUNG_ORDNER, ""),
+                              placeholder=r"z. B. S:\Internat\Mietverträge").classes("m-feld").props("dense outlined dark")
+            letzte = ui.input("Zuletzt vergebene Nummer", value=e.get(mk.EINSTELLUNG_LETZTE, ""),
+                              placeholder="z. B. 26-047").classes("m-feld").props("dense outlined dark")
+
+            async def abgleichen():
+                try:
+                    a.toast(await run.io_bound(mk.abgleich_einstellen, ordner.value, letzte.value), rueck=False)
+                except Exception as exc:       # noqa: BLE001
+                    a.toast(str(exc), fehler=True, rueck=False)
+                    return
+                await nummer_holen(True)
+            knopf("Abgleichen", abgleichen, "", "sync")
+
+        async def nummer_holen(setzen: bool = False):
+            vorschlag, text = await run.io_bound(mk.nummern_abgleich, a.heute)
+            if setzen or nr.value == erste:
+                nr.value = vorschlag
+            woher.text = f"Vorschlag {vorschlag} · {text}"
+        erste = nr.value
+        ui.timer(0.05, nummer_holen, once=True)
         zimmer = ui.select({}, label="Zimmer", with_input=True).classes("m-feld").props(
             'dense outlined dark options-dense popup-content-class="m-popup"')
         alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")

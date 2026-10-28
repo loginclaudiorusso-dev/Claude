@@ -5,6 +5,7 @@ Logik aus ``belegung.mieter``. Das Hauptprogramm setzt HTML mit Qt in PDF um; hi
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,88 @@ from belegung import zimmerplan as zp
 from .kern import _schritt
 
 ANREDEN = ["Frau", "Herr"]
+EINSTELLUNG_ORDNER = "modern_mietvertraege_ordner"    # Ordner mit den bisherigen Verträgen (auch aus Word/von Hand)
+EINSTELLUNG_LETZTE = "modern_mietvertraege_letzte"    # zuletzt vergebene Nummer außerhalb des Programms („26-047“)
+_NR = re.compile(r"(?<!\d)(\d{2})[-._ ]?(\d{3})(?!\d)")
+MAX_DATEIEN = 5000                                     # Netzlaufwerk: nicht endlos suchen
+
+
+def _nummern_in(ordner: Path, jj: str, nur_mv: bool) -> dict[int, str]:
+    """Laufende Nummern des Jahres ``jj`` in Dateinamen (auch Unterordner): „MV26-011“, „Mietvertrag 26.011“ …
+    ``nur_mv``: nur Dateien, die nach Mietvertrag aussehen (im allgemeinen Ablageordner)."""
+    erg: dict[int, str] = {}
+    n = 0
+    for wurzel, _ordner, dateien in os.walk(ordner):
+        for d in dateien:
+            n += 1
+            if n > MAX_DATEIEN:
+                return erg
+            if nur_mv and not re.search(r"(?i)miet|nebenabrede|(?<![a-z])mv", d):
+                continue
+            for m in _NR.finditer(Path(d).stem):
+                if m.group(1) == jj:
+                    erg.setdefault(int(m.group(2)), str(Path(wurzel) / d))
+    return erg
+
+
+def nummern_abgleich(heute: date | None = None) -> tuple[str, str]:
+    """(nächste Nummer, woher die höchste bisherige stammt). Berücksichtigt die Verträge dieses Programms, die Dateien im
+    Ablageordner und im Ordner mit den bisherigen Verträgen sowie die von Hand festgelegte letzte Nummer."""
+    heute = heute or date.today()
+    jj = f"{heute:%y}"
+    gefunden: dict[int, str] = {}
+    for nr in (m.nr for m in mt.laden()):
+        if (m := _NR.fullmatch(nr.strip())) and m.group(1) == jj:
+            gefunden[int(m.group(2))] = "Mieterliste"
+    e = speicher.einstellungen()
+    if (m := _NR.fullmatch(str(e.get(EINSTELLUNG_LETZTE, "")).strip())) and m.group(1) == jj:
+        gefunden.setdefault(int(m.group(2)), "von Hand festgelegt")
+    ordner = [(Path(e[EINSTELLUNG_ORDNER]), False)] if e.get(EINSTELLUNG_ORDNER) else []
+    for o, nur_mv in ordner + [(ablage(), True)]:
+        try:
+            if o.is_dir():
+                for lfd, datei in _nummern_in(o, jj, nur_mv).items():
+                    gefunden.setdefault(lfd, f"Datei {Path(datei).name}")
+        except OSError:
+            continue
+    if not gefunden:
+        return f"{jj}-001", f"noch keine Nummer aus 20{jj} gefunden"
+    hoechste = max(gefunden)
+    return f"{jj}-{hoechste + 1:03d}", f"zuletzt {jj}-{hoechste:03d} ({gefunden[hoechste]})"
+
+
+def vergeben(nr: str, heute: date | None = None) -> str | None:
+    """Ist die Nummer schon außerhalb der Mieterliste vergeben (Datei, festgelegt)? → Quelle, sonst None."""
+    m = _NR.fullmatch(nr.strip())
+    if not m:
+        return None
+    lfd = int(m.group(2))
+    e = speicher.einstellungen()
+    if (x := _NR.fullmatch(str(e.get(EINSTELLUNG_LETZTE, "")).strip())) and x.group(1) == m.group(1) and lfd <= int(x.group(2)):
+        return f"bis {x.group(1)}-{int(x.group(2)):03d} als vergeben festgelegt"
+    ordner = [(Path(e[EINSTELLUNG_ORDNER]), False)] if e.get(EINSTELLUNG_ORDNER) else []
+    for o, nur_mv in ordner + [(ablage(), True)]:
+        try:
+            if o.is_dir() and (d := _nummern_in(o, m.group(1), nur_mv).get(lfd)):
+                return f"Datei {Path(d).name}"
+        except OSError:
+            continue
+    return None
+
+
+def abgleich_einstellen(ordner: str, letzte: str) -> str:
+    ordner, letzte = (ordner or "").strip().strip('"'), (letzte or "").strip()
+    if ordner and not Path(ordner).is_dir():
+        raise ValueError(f"Ordner nicht gefunden: {ordner}")
+    if letzte and not _NR.fullmatch(letzte):
+        raise ValueError("Letzte Nummer bitte als JJ-NNN, z. B. 26-047.")
+    if letzte:
+        m = _NR.fullmatch(letzte)
+        letzte = f"{m.group(1)}-{m.group(2)}"
+    speicher.einstellung_setzen(EINSTELLUNG_ORDNER, ordner)
+    speicher.einstellung_setzen(EINSTELLUNG_LETZTE, letzte)
+    nr, woher = nummern_abgleich()
+    return f"Nächste Vertragsnummer {nr} – {woher}"
 
 
 def ablage() -> Path:
@@ -70,6 +153,8 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
                         int(werte["flaeche"]), int(werte["schluessel"]), werte["kaution_bis"] if werte["kaution"] else None,
                         kaution=bool(werte["kaution"]), email=werte.get("email", "").strip())
     fehler = mt.pruefen(mv) + [f"Vorlage fehlt: {v}" for v in mt.fehlende_vorlagen()]
+    if not any("Vertragsnummer" in f for f in fehler) and (wo := vergeben(mv.nr)):
+        fehler.append(f"Die Vertragsnummer {mv.nr} ist schon vergeben ({wo}) – nächste freie: {nummern_abgleich()[0]}.")
     if fehler:
         raise ValueError("Bitte prüfen: " + " ".join(fehler))
     ordner = mt.vorlagen_ordner()
