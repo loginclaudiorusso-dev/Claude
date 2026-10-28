@@ -209,3 +209,158 @@ def test_zaehler_und_glocke(leer):
     assert kern.neuigkeiten()[1] == 0
     assert kern.neu_ziel("zimmerplan:Aufgaben") == ("reinigung", "facility") and kern.neu_ziel("termine") == ("termine", "")
     assert kern.neu_ziel("posteingang") == ("assistenz", "")
+
+
+def test_hinweise_und_allergiker_etage(leer):
+    from belegung import anreiseliste
+    from belegung import zimmerplan as zp
+    from modern import hinweise_kern as hk
+    from modern import kern, melder
+
+    assert [h.text for h in hk.erkennen("ev. Anr. 11.10. benötigt Duschhocker")] == ["Duschhocker", "evtl. Vortag"]
+    assert [h.art for h in hk.erkennen("will Ehemann mitbringen in DZ")] == ["begleitung"]
+    assert hk.allergiker("Hausstauballergie") and not hk.allergiker("keine Besonderheit")
+    assert hk.rest("ev. Anr. 11.10.") == "" and hk.rest("ev. Anr. 11.10. Allergiker") == "Allergiker"
+    heute = date.today()
+    an = heute + timedelta(days=3)
+    p = [anreiseliste.Person("Allergisch, Anna", "GS ASS", an, True, tn_id="801", abreise=an + timedelta(days=10),
+                             bemerkung="Allergiker (Hausstaub)"),
+         anreiseliste.Person("Normal, Nora", "GS ASS", an, True, tn_id="802", abreise=an + timedelta(days=10))]
+    anreiseliste.speichern(p, {})
+    st = zp.laden()
+    zs = {z.name: z for z in kern.zeilen(st, an.isoformat(), heute)}
+    a = zs["Allergisch, Anna"]
+    assert [h.art for h in a.hinweise] == ["allergie"] and not zs["Normal, Nora"].hinweise
+    assert a.vorschlag and hk.auf_allergie_etage(st.lage.zimmer[a.vorschlag])          # Vorschlag auf Haus 2, 1. OG
+    k = kern.allergie_karte(st, heute)
+    assert k.stufe == "dringend" and "nicht auf der Allergiker-Etage" in k.titel and "noch ohne Zimmer" in k.detail
+    ms = melder.sammeln(heute)
+    assert any("Allergiker" in m.titel and "Haus 2, 1. OG einplanen" in m.text for m in ms)
+    assert not any("Allergiker" in m.titel for m in melder.sammeln(heute))           # nur einmal je Zustand
+    kern.zuweisen(a.schluessel, a.vorschlag)
+    st = zp.laden()
+    k = kern.allergie_karte(st, heute)
+    assert k.stufe == "info" and "alle auf der" in k.titel
+    a = {z.name: z for z in kern.zeilen(st, an.isoformat(), heute)}["Allergisch, Anna"]
+    assert a.status == "ok"
+    # Schimmel im geplanten Zimmer: Warnung + Ausweichvorschlag auf der Etage (nie ein Zimmer mit Schimmel)
+    from belegung import maengel as mg
+
+    zid = next(z["zimmer"] for z in st.zuweisungen if z["person"] == a.schluessel)
+    mg.setzen(zid, "geruch", True, heute)
+    a = {z.name: z for z in kern.zeilen(zp.laden(), an.isoformat(), heute)}["Allergisch, Anna"]
+    assert a.status == "handeln" and "Geruch oder Schmutz" in a.grund
+    assert a.vorschlag and a.vorschlag != zid and hk.auf_allergie_etage(zp.laden().lage.zimmer[a.vorschlag])
+    assert hk.meiden({zid: [mg.Mangel(zid, "geruch", heute)], "X": [mg.Mangel("X", "fenster", heute)]}) == {zid}
+
+
+def test_bereitschaft_je_anreise(leer):
+    from belegung import anreiseliste
+    from belegung import zimmerplan as zp
+    from modern import kern
+
+    heute = date.today()
+    an = heute + timedelta(days=4)
+    p = [anreiseliste.Person("Bereit, Berta", "GS ASS", an, True, tn_id="811", abreise=an + timedelta(days=10),
+                             bemerkung="benötigt Duschhocker"),
+         anreiseliste.Person("Ohne, Otto", "GS ASS", an, True, tn_id="812", abreise=an + timedelta(days=10))]
+    anreiseliste.speichern(p, {})
+    st = zp.laden()
+    zs = {z.name: z for z in kern.zeilen(st, an.isoformat(), heute)}
+    kern.zuweisen(zs["Bereit, Berta"].schluessel, zs["Bereit, Berta"].vorschlag)
+    st = zp.laden()
+    b = kern.bereitschaft(st, kern.zeilen(st, an.isoformat(), heute), an)
+    assert (b.n, b.bereit, b.stufe) == (2, 0, "krit")
+    assert ("blocker", "Ohne, Otto", "noch kein Zimmer") in b.punkte
+    assert any(a == "blocker" and n == "Bereit, Berta" and "Vorbereiten" in t and "nicht erledigt" in t for a, n, t in b.punkte)
+    assert any(a == "vorbereiten" and n == "Bereit, Berta" and "Duschhocker bereitstellen" in t for a, n, t in b.punkte)
+    from modern import seiten_kern as sk
+
+    offen = [r for r in sk.reinigung(st, heute, an, heute) if not r.erledigt]
+    sk.reinigung_setzen([r.schluessel for r in offen], True, heute, an)
+    st = zp.laden()
+    b = kern.bereitschaft(st, kern.zeilen(st, an.isoformat(), heute), an)
+    assert (b.bereit, b.stufe) == (1, "warn")
+
+
+def test_reinigung_last_6_wochen(leer):
+    from belegung import anreiseliste
+    from belegung import zimmerplan as zp
+    from modern import kern
+    from modern import seiten_kern as sk
+
+    heute = date.today()
+    an = heute + timedelta(days=9)
+    p = [anreiseliste.Person(f"Last, Person{i}", "GS ASS", an, True, tn_id=f"82{i}", abreise=an + timedelta(days=12))
+         for i in range(6)]
+    einzeln = [an + timedelta(days=d) for d in (2, 3, 4) if (an + timedelta(days=d)).weekday() < 5][:2]
+    p += [anreiseliste.Person(f"Einzeln, Ella{i}", "GS ASS", d, True, tn_id=f"83{i}", abreise=d + timedelta(days=20))
+          for i, d in enumerate(einzeln)]
+    anreiseliste.speichern(p, {})
+    for d in {an, *einzeln}:
+        kern.vorschlaege_uebernehmen(d.isoformat(), "alle")
+    tage, je_haus, schnitt = sk.reinigung_last(zp.laden(), heute)
+    assert len(tage) == 42 and tage[0].tag.weekday() == 0
+    assert sum(t.n for t in tage) == sum(je_haus.values()) >= 12            # Vorbereiten vor Anreise + Auszug danach
+    spitzen = [t for t in tage if t.spitze]
+    assert spitzen and all(t.n == 6 for t in spitzen) and not any(t.spitze for t in tage if t.n < 5)
+
+
+def _anreiseliste_xlsx(pfad, tag, zeilen):
+    """Erfundene Anreiseliste im Aufbau der echten Listen (Titel, Leerzeile, Kopf, Zeilen)."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append([f"Anreiseliste {tag:%d-%m-%Y} EMR"])
+    ws.append([])
+    ws.append(["Status", "lfd. Nr", "TN-ID", "Name, Vorname", "Wohnort", "Geb.-Datum", "KT", "Internat", "RIM/Koord.",
+               "Maßn.", "Bemerkung", "Internatsdienst"])
+    for i, (tn, name, dienst) in enumerate(zeilen, 1):
+        ws.append(["E/", i, tn, name, "Musterstadt", date(1980, 1, 1), "DRV (EMR)", "ja", "Fr. Beispiel", "EMR ASS",
+                   "Fahrtkosten", dienst])
+    wb.save(pfad)
+
+
+def test_import_aenderungsbericht_und_bezugsfertig(leer):
+    from belegung import zimmerplan as zp
+    from modern import daten_kern as dk
+    from modern import kern
+    from modern import zimmer_kern as zk
+
+    heute = date.today()
+    tag = heute + timedelta(days=6)
+    p1 = leer / "liste1.xlsx"
+    _anreiseliste_xlsx(p1, tag, [(990001, "Erstens, Emil", "ev. Anr."), (990002, "Zweitens, Zora", "ev. Anr."),
+                                 (990003, "Drittens, Dora", "")])
+    v = dk.anreisen_lesen([p1], ["liste1.xlsx"])
+    assert v.listen and not v.fehler
+    erst = dk.anreisen_aenderungen(v)
+    assert {x.art for x in erst} == {"neu"} and len(erst) == 3
+    dk.anreisen_uebernehmen(v)
+    st = zp.laden()
+    kennung = next(b.von.isoformat() for b in st.bedarf if b.name == "Erstens, Emil")
+    emil = next(z for z in kern.zeilen(st, kennung, heute) if z.name == "Erstens, Emil")
+    kern.zuweisen(emil.schluessel, emil.vorschlag)
+    # zweite Fassung der Liste: Dora fehlt, Emil ist jetzt Allergiker
+    p2 = leer / "liste2.xlsx"
+    _anreiseliste_xlsx(p2, tag, [(990001, "Erstens, Emil", "ev. Anr. Allergiker"), (990002, "Zweitens, Zora", "ev. Anr.")])
+    bericht = dk.anreisen_aenderungen(dk.anreisen_lesen([p2], ["liste2.xlsx"]))
+    arten = {(x.art, x.name): x for x in bericht}
+    assert ("geaendert", "Erstens, Emil") in arten and "neu: Allergiker" in arten[("geaendert", "Erstens, Emil")].text
+    assert arten[("geaendert", "Erstens, Emil")].zimmer                     # geplantes Zimmer betroffen
+    assert ("entfernt", "Drittens, Dora") in arten and ("geaendert", "Zweitens, Zora") not in arten
+    assert bericht[0].name == "Erstens, Emil"                                # betroffene Planungen zuerst
+    # bezugsfertig: das geplante Zimmer braucht vor der Anreise noch „Vorbereiten“ – am Anreisetag also offen
+    st = zp.laden()
+    unfertig = zk.nicht_bezugsfertig(st, emil.von)
+    zid = next(z["zimmer"] for z in st.zuweisungen if z["person"] == emil.schluessel)
+    assert zid not in unfertig                                                  # am Anreisetag schon belegt → nicht „frei“
+    from modern import seiten_kern as sk
+
+    r = next(r for r in sk._reinigungen(st, heute, emil.von) if r.zimmer.id == zid)
+    assert "nicht" not in r.art and zid in zk.nicht_bezugsfertig(st, r.tag)      # am Tag der Vorbereitung: frei, aber offen
+    sk.reinigung_setzen([f"{zid}|{r.tag.isoformat()}"], True, heute, emil.von)
+    assert zid not in zk.nicht_bezugsfertig(zp.laden(), r.tag)                    # abgehakt → bezugsfertig
+    assert zk.kachel_passt("frei", 0, False, set(), {"unfertig"}, None, True)
+    assert not zk.kachel_passt("frei", 0, False, set(), {"unfertig"}, None, False)

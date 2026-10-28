@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.22.0
+# Neue Oberfläche (modern_ui) – Version 0.23.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,28 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Hinweise aus den Anreiselisten, Allergiker-Etage, Bereitschaft, Reinigungsvorschau (neu in 0.23)
+
+* **Hinweise aus der Anreiseliste** (Spalte „Internatsdienst“): Beim Zuteilen stehen kleine Marken am Namen –
+  *Allergiker*, *Hilfsmittel* (z. B. Duschhocker, Rollator), *Begleitung* (z. B. Ehemann im DZ), *evtl. Vortag*;
+  sonstiger Text als *Hinweis*. Der volle Text steht beim Überfahren. Das bei EMR übliche „ev. Anr.“ erzeugt
+  bewusst keine Marke (EMR werden ohnehin ab dem Vortag geplant).
+* **Allergiker-Etage (Haus 2, 1. OG):** Für Allergiker schlägt die Zuteilung dort ein freies, nach den Regeln
+  zulässiges Zimmer vor – nie eines mit gemeldetem Schimmel, Ungeziefer, Geruch oder verschmutztem Boden. Liegt die
+  Planung woanders, wird gewarnt (mit Ausweichvorschlag, falls frei). Eigene Meldung: Karte unter *Heute*
+  (dringend, wenn die Anreise in 7 Tagen ist und das Zimmer nicht passt) und einmal je Person eine Windows-Meldung.
+  Hinweis: Die bestehende Regel „1. OG nur Kurzmaßnahmen“ gilt weiter – für lange Maßnahmen bleibt es bei der Warnung.
+* **Bezugsfertig je Anreise** (*Anreisen*, Kachel „x von y bezugsfertig“): Zimmer gespeichert, kein Konflikt,
+  Reinigung vor genau dieser Anreise erledigt. Klick zeigt, was fehlt und was vorzubereiten ist (Hilfsmittel,
+  angekündigte Begleitung, offene Mängel). Auch auf der Anreise-Karte unter *Heute*.
+* **Reinigung:** „Mehrere abhaken“ – alle sichtbaren, je Haus oder je Flur (mit Rückgängig). Neue Ansicht
+  **Vorschau 6 Wochen**: Zimmer je Tag und Haus, Spitzentage markiert (gezählt werden Zimmer, nicht Arbeitszeit).
+* **Zimmer-Übersicht:** neue Kachel **nicht bezugsfertig** (frei, aber Reinigung der letzten 14 Tage offen oder
+  dringender Mangel), Besen an der Kachel; auch kombinierbar, drucken und Excel.
+* **Anreiselisten-Import mit Änderungsbericht:** vor dem Übernehmen steht, was sich gegenüber dem jetzigen Stand
+  ändert – geänderte An-/Abreisen (alt → neu), Internat, neue Hinweise (z. B. Allergiker), wer nicht mehr auf der
+  Liste steht, wer neu ist; geplante Zimmer, die davon betroffen sind, stehen oben und sind markiert.
 
 ## Zähler an den Menüpunkten, Glocke, Haptik (neu in 0.22)
 
@@ -349,4 +371,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0` (jeweils auch als Zip in `Sicherung`).
