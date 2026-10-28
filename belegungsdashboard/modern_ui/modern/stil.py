@@ -325,6 +325,26 @@ body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%
 .m-bereit-punkt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 2px; border-bottom: 1px solid var(--rand); }
 .m-bereit-punkt .q-icon { font-size: 18px; margin-top: 2px; color: var(--text3); }
 .m-bereit-punkt.blocker .q-icon { color: var(--rot); }
+.m-fl-wrap { overflow-x: auto; }
+.m-fl { display: grid; grid-template-columns: 150px repeat(var(--wochen), minmax(58px, 1fr)); gap: 4px; margin: 12px 20px 20px; }
+.m-fl-kopf { font-size: 11.5px; color: var(--text3); text-align: center; line-height: 1.25; }
+.m-fl-kopf span { font-size: 10.5px; }
+.m-fl-kopf.heute { color: var(--akzent); font-weight: 600; }
+.m-fl-haus { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--text2); margin-top: 8px; }
+.m-fl-lab { display: flex; flex-direction: column; justify-content: center; font-size: 12.5px; color: var(--text); padding-right: 6px; }
+.m-fl-lab span { font-size: 11px; color: var(--text3); }
+.m-fl-z { font: inherit; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  min-height: 48px; padding: 4px 7px; border-radius: 8px; border: 1px solid var(--rand); background: var(--bg); color: var(--text); cursor: pointer; text-align: left; }
+.m-fl-z::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .22; }
+.m-fl-z > * { position: relative; }
+.m-fl-z b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.m-fl-z span { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.m-fl-z i { font-style: normal; font-size: 10px; color: var(--text3); white-space: nowrap; }
+.m-fl-z.ok::before { background: var(--gruen); } .m-fl-z.warn::before { background: var(--orange); } .m-fl-z.krit::before { background: var(--rot); opacity: .3; }
+.m-fl-z.krit { border-color: color-mix(in srgb, var(--rot) 55%, transparent); }
+.m-fl-z:hover { border-color: var(--akzent); }
+.m-legende i.fl-ok { background: var(--gruen); } .m-legende i.fl-warn { background: var(--orange); } .m-legende i.fl-krit { background: var(--rot); }
+.m-fl-p { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--rand); }
 .m-last { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); gap: 6px; margin: 14px 20px 20px; }
 .m-last-kopf { font-size: 11.5px; color: var(--text3); padding: 0 4px; }
 .m-last-kw { font-size: 12px; color: var(--text2); align-self: center; font-variant-numeric: tabular-nums; }

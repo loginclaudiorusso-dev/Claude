@@ -47,7 +47,8 @@ def haeuser(stand: zp.Planstand) -> list[str]:
     return sorted({z.haus for z in stand.zimmer if z.aktiv}, key=zp._haus_sort)
 
 
-def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heute: date | None = None) -> list[ZsZeile]:
+def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heute: date | None = None,
+               flur: str = "") -> list[ZsZeile]:
     heute = heute or date.today()
     ende = start + timedelta(days=tage - 1)
     probleme = problemfaelle(stand, heute)
@@ -58,7 +59,8 @@ def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heut
     except Exception:                      # noqa: BLE001
         maengel = {}
     erg = []
-    zimmer = sorted((z for z in stand.zimmer if z.aktiv and z.haus == haus),
+    zimmer = sorted((z for z in stand.zimmer if z.aktiv and z.haus == haus
+                     and (not flur or "|".join(z.flur_schluessel) == flur)),      # „Flure“: nur dieser Flur
                     key=lambda z: (zp._etage_sort(z.etage), z.nummer, z.nr))
     for z in zimmer:
         hinweis = ""

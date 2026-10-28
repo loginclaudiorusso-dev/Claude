@@ -70,6 +70,7 @@ class Ansicht:
         # Zustand der Seiten
         self.zs_haus, self.zs_tage, self.zs_haeuser = "", 28, []
         self.zs_start = self.heute - timedelta(days=self.heute.weekday())
+        self.zs_modus, self.zs_flur, self.fl_wochen = "zimmer", "", 8   # Zeitstrahl: Zimmer | Flure (Abreisewellen)
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
         self.rg_von = self.rg_bis = self.heute
         self.zl_haus, self.zl_status, self.zl_text = "", "", ""

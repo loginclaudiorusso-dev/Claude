@@ -39,18 +39,36 @@ def zs_daten(a) -> None:
     hs = sk.haeuser(a.stand)
     if a.zs_haus not in hs:
         a.zs_haus = hs[0] if hs else ""
-    a.daten = sk.zeitstrahl(a.stand, a.zs_haus, a.zs_start, a.zs_tage, a.heute) if a.zs_haus else []
     a.zs_haeuser = hs
+    if a.zs_modus == "flure":
+        from . import flur_kern as fk
+
+        a.daten = fk.raster(a.stand, a.zs_start, a.fl_wochen)
+        return
+    if a.zs_flur and not a.zs_flur.startswith(f"{a.zs_haus}|"):
+        a.zs_flur = ""
+    a.daten = sk.zeitstrahl(a.stand, a.zs_haus, a.zs_start, a.zs_tage, a.heute, a.zs_flur) if a.zs_haus else []
+
+
+ZS_MODUS = {"zimmer": "Zimmer", "flure": "Flure"}
 
 
 def zs_zeichnen(a) -> None:
+    if a.zs_modus == "flure":
+        _flure_zeichnen(a)
+        return
     with a.werkzeuge:
-        segmente({h: f"Haus {h}" for h in a.zs_haeuser}, a.zs_haus, lambda h: a.setzen(zs_haus=h))
+        segmente({h: f"Haus {h}" for h in a.zs_haeuser}, a.zs_haus, lambda h: a.setzen(zs_haus=h, zs_flur=""))
         knopf("", lambda: a.setzen(zs_start=a.zs_start - timedelta(days=7)), "leise", "chevron_left", "Eine Woche zurück")
         knopf("Heute", lambda: a.setzen(zs_start=a.heute - timedelta(days=a.heute.weekday())), "leise")
         knopf("", lambda: a.setzen(zs_start=a.zs_start + timedelta(days=7)), "leise", "chevron_right", "Eine Woche weiter")
     ende = a.zs_start + timedelta(days=a.zs_tage - 1)
     with a.leiste:
+        segmente(ZS_MODUS, a.zs_modus, lambda m: a.setzen(nur_seite=True, zs_modus=m))
+        if a.zs_flur:
+            _h, etage, flur = a.zs_flur.split("|")
+            knopf(f"nur {zp_etage(etage)} {flur}".strip(), lambda: a.setzen(nur_seite=True, zs_flur=""), "", "close",
+                  "Filter auf den Flur aufheben – wieder alle Zimmer des Hauses")
         n_bel = sum(1 for z in a.daten for b in z.balken if b.art in ("belegt", "geplant", "konflikt"))
         ui.html(f'<span class="m-kpi"><b>{len(a.daten)}</b> Zimmer<span class="m-punktt">·</span>'
                 f'{a.zs_start:%d.%m.} – {ende:%d.%m.%Y}<span class="m-punktt">·</span><b>{n_bel}</b> Belegungen</span>',
@@ -64,6 +82,112 @@ def zs_zeichnen(a) -> None:
             leer("Keine Zimmer in diesem Haus.")
             return
         ui.html(_zs_html(a), sanitize=False).classes("m-zs-wrap")
+
+
+def zp_etage(etage: str) -> str:
+    from belegung import zimmerplan as zp
+
+    return zp.etage_text(etage)
+
+
+FL_STUFE = {"ok": "1 Welle", "warn": "2 Wellen", "krit": "3+ Wellen", "leer": "keine gewerteten"}
+
+
+def _flure_zeichnen(a) -> None:
+    """Flur-Raster: je Flur und Woche die Zahl paralleler Abreisewellen (grün 1 · gelb 2 · rot 3+)."""
+    from . import flur_kern as fk
+
+    with a.werkzeuge:
+        knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start - timedelta(days=7)), "leise", "chevron_left", "Eine Woche zurück")
+        knopf("Heute", lambda: a.setzen(nur_seite=True, zs_start=a.heute - timedelta(days=a.heute.weekday())), "leise")
+        knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start + timedelta(days=7)), "leise", "chevron_right", "Eine Woche weiter")
+    flure = a.daten or []
+    with a.leiste:
+        segmente(ZS_MODUS, a.zs_modus, lambda m: a.setzen(nur_seite=True, zs_modus=m))
+        zs = fk.zusammenfassung(flure)
+        ui.html(f'<span class="m-kpi"><b>{len(flure)}</b> Flure<span class="m-punktt">·</span>diese Woche: '
+                f'<b>{zs["ok"]}</b> mit 1 Welle, <b>{zs["warn"]}</b> mit 2, <b>{zs["krit"]}</b> mit 3+</span>', sanitize=False)
+        ui.html('<span class="m-legende" title="Abreisewelle: Auszüge im selben Reinigungsfenster (Wochenende zählt zum '
+                'Montag, höchstens zwei Werktage). Gewertet werden lange Aufenthalte; kurze (EMR, UWT …) und Mieter '
+                'stehen klein daneben."><i class="fl-ok"></i>1 Welle<i class="fl-warn"></i>2<i class="fl-krit"></i>3+'
+                '</span>', sanitize=False).style("margin-left: auto")
+        segmente({4: "4 Wochen", 8: "8 Wochen", 12: "12 Wochen"}, a.fl_wochen, lambda w: a.setzen(nur_seite=True, fl_wochen=w))
+    with a.inhalt:
+        if not flure:
+            leer("Keine Zimmer im Gebäudeplan.")
+            return
+        ui.label("Je Flur und Woche: zu wie vielen Abreisewellen die belegten Zimmer gehören – wenige Wellen heißt "
+                 "wenige Reinigungsanlässe. Klick auf ein Feld zeigt die Wellen mit Zimmern.").classes("m-ptext").style(
+            "margin: 12px 20px 0")
+        raster = ui.html(_flure_html(a, flure), sanitize=False).classes("m-fl-wrap")
+        raster.on("click", lambda e: _flur_panel(a, e.args) if e.args else None,
+                  js_handler="(e) => { const t = e.target.closest('[data-fl]'); emit(t ? t.dataset.fl : null); }")
+
+
+def _flure_html(a, flure) -> str:
+    n = a.fl_wochen
+    teile = [f'<div class="m-fl" style="--wochen:{n}"><div class="m-fl-kopf"></div>']
+    for z in flure[0].zellen:
+        kl = " heute" if z.woche <= a.heute <= z.woche + timedelta(days=6) else ""
+        teile.append(f'<div class="m-fl-kopf{kl}">KW {z.woche.isocalendar()[1]}<br><span>{z.woche:%d.%m.}</span></div>')
+    haus = None
+    for f in flure:
+        if f.haus != haus:
+            haus = f.haus
+            teile.append(f'<div class="m-fl-haus">Haus {E(haus)}</div>')
+        teile.append(f'<div class="m-fl-lab" title="{len(f.zimmer)} Zimmer"><b>{E(f.text)}</b><span>{len(f.zimmer)} Zi.</span></div>')
+        for z in f.zellen:
+            neben = []
+            if z.kurz:
+                neben.append(f"{z.kurz} kurz")
+            if z.mieter:
+                neben.append(f"{z.mieter} M")
+            titel = (f"{f.text} (Haus {f.haus}) · KW {z.woche.isocalendar()[1]}\n{FL_STUFE[z.stufe]} · {z.belegt} von "
+                     f"{len(f.zimmer)} Zimmern lang belegt" + (f" · {z.kurz} mit kurzem Aufenthalt" if z.kurz else "")
+                     + (f" · {z.mieter} Mieter" if z.mieter else ""))
+            teile.append(f'<button class="m-fl-z {z.stufe}" data-fl="{E(f.schluessel)}#{z.woche.isoformat()}" title="{E(titel)}">'
+                         f'<b>{z.n or "–"}</b><span>{z.belegt}/{len(f.zimmer)}</span>'
+                         f'<i>{E(" · ".join(neben))}</i></button>')
+    teile.append("</div>")
+    return "".join(teile)
+
+
+async def _flur_panel(a, arg: str) -> None:
+    from . import flur_kern as fk
+
+    schluessel, _, woche = str(arg).partition("#")
+    f = next((x for x in (a.daten or []) if x.schluessel == schluessel), None)
+    if f is None or not woche:
+        return
+    mo = date.fromisoformat(woche)
+    d = fk.detail(f, mo)
+
+    def zeile(x):
+        with ui.element("div").classes("m-fl-p"):
+            ui.label(x.kurz).classes("m-mono")
+            ui.label(x.name).classes("m-name")
+            ui.label(f"{x.von:%d.%m.} – {x.bis:%d.%m.%Y}").classes("m-zweite")
+
+    def bauen():
+        z = d["zelle"]
+        ui.label(f"KW {mo.isocalendar()[1]} ({mo:%d.%m.} – {mo + timedelta(days=6):%d.%m.}) · {FL_STUFE[z.stufe]} · "
+                 f"{z.belegt} von {len(f.zimmer)} Zimmern lang belegt").classes("m-ptext")
+        for w, leute in d["wellen"]:
+            ui.label(f"Welle {w.text}: {len(set(w.zimmer))} Zimmer " + ("wird" if len(set(w.zimmer)) == 1 else "werden")
+                     + " frei").classes("m-btitel").style("margin-top:10px")
+            for x in leute:
+                zeile(x)
+        for titel, schl in (("Kurze Aufenthalte (nicht gewertet)", "kurz"), ("Mieter (nicht gewertet)", "mieter")):
+            if d[schl]:
+                ui.label(titel).classes("m-btitel").style("margin-top:10px")
+                for x in d[schl]:
+                    zeile(x)
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Zimmer im Zeitstrahl zeigen", lambda: a.oeffnen("zimmer", "zeitstrahl", zs_modus="zimmer",
+                  zs_haus=f.haus, zs_flur=f.schluessel, zs_start=mo), "primaer", "view_timeline")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel(f"Haus {f.haus} · {f.text}", bauen)
 
 
 def _zs_html(a) -> str:
