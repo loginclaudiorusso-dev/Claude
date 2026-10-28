@@ -306,6 +306,7 @@ body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%
 .m-einfuegen:focus { border-color: var(--akzent); background: color-mix(in srgb, var(--akzent) 6%, transparent); }
 .m-einfuegen.liest { opacity: .6; }
 .m-schalter { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
+.m-briefing { white-space: pre-wrap; font-family: inherit; font-size: 12.5px; line-height: 1.55; color: var(--text2); border: 1px solid var(--rand); border-radius: 10px; padding: 12px 14px; margin: 8px 0; max-height: 360px; overflow: auto; }
 .m-glocke { position: relative; }
 .m-glocke .m-zahl { position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; line-height: 17px; border-radius: 9px; background: var(--akzent); color: var(--akzent-text); }
 .m-neu { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--rand); padding: 10px 4px; color: var(--text2); cursor: pointer; border-radius: 6px; }

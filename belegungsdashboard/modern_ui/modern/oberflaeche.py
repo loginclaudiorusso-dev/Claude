@@ -1095,10 +1095,11 @@ def druckansicht(name: str):
 
 async def _melde_takt() -> None:
     """Wie im Hauptprogramm: 20 Sekunden nach dem Start und dann alle 15 Minuten Fälliges als Windows-Meldung zeigen
-    (Termine, offene Reinigung vor Anreise, Facility-Checks) – jede Meldung nur einmal, auch neben dem Hauptprogramm."""
+    (Termine, offene Reinigung vor Anreise, Facility-Checks) – jede Meldung nur einmal, auch neben dem Hauptprogramm.
+    Im selben Takt: das Tagesbriefing (Outlook-Termin oder Mail), sobald die eingestellte Uhrzeit erreicht ist."""
     import asyncio
 
-    from . import melder
+    from . import briefing_kern, melder
 
     await asyncio.sleep(20)                    # erst wenn der Start fertig ist – nicht mit dem ersten Laden konkurrieren
     while True:
@@ -1108,6 +1109,10 @@ async def _melde_takt() -> None:
                     melder.windows_zeigen(m.titel, m.text)
         except Exception:                      # noqa: BLE001 – der Takt läuft weiter
             log.exception("Meldungen konnten nicht geprüft werden")
+        try:
+            await run.io_bound(briefing_kern.pruefen)  # Tagesbriefing per Outlook, einmal am Tag ab der Uhrzeit
+        except Exception:                      # noqa: BLE001
+            log.exception("Tagesbriefing nicht gesendet")
         await asyncio.sleep(melder.TAKT_MINUTEN * 60)
 
 

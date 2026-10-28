@@ -129,6 +129,57 @@ def _windows(a) -> None:
             ui.label("Nur unter Windows.").classes("m-zweite")
     ui.label(f"Geprüft wird beim Start und alle {melder.TAKT_MINUTEN} Minuten, jede Meldung einmal – auch wenn das "
              "Hauptprogramm gleichzeitig läuft.").classes("m-zweite")
+    _briefing(a)
+
+
+def _briefing(a) -> None:
+    """Tagesbriefing: einmal am Tag die wichtigsten Punkte als Outlook-Termin oder E-Mail an mich (ohne Namen)."""
+    from . import briefing_kern as bk
+
+    ui.label("Tagesbriefing per Outlook").classes("m-btitel").style("margin-top:14px")
+    ui.label("Einmal am Tag ab der Uhrzeit: Dringendes, Anreisen (bezugsfertig?), Abreisen, Reinigung, Allergiker – "
+             "ohne Personennamen.").classes("m-ptext")
+    with ui.element("div").classes("m-schalter"):
+        weg = ui.select(bk.KANAELE, value=bk.kanal(), label="Weg").classes("m-feld").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        zeit = ui.input("Uhrzeit", value=f"{bk.uhrzeit():%H:%M}").classes("m-feld").props("dense outlined dark type=time")
+
+        async def speichern() -> None:
+            try:
+                a.toast(await run.io_bound(bk.einstellen, weg.value, zeit.value), rueck=False)
+            except Exception as exc:           # noqa: BLE001
+                a.toast(f"Nicht geändert: {exc}", fehler=True, rueck=False)
+        weg.on_value_change(speichern)
+        zeit.on("change", speichern)
+    vorschau = ui.element("pre").classes("m-briefing")
+    vorschau.set_visibility(False)
+
+    async def zeigen() -> None:
+        b = await run.io_bound(lambda: bk.erstellen(zp.laden(), a.heute))
+        vorschau.clear()
+        with vorschau:
+            ui.html(f"<b>{_esc(b.betreff)}</b>\n\n{_esc(b.text)}", sanitize=False)
+        vorschau.set_visibility(True)
+
+    async def testen() -> None:
+        art = weg.value if weg.value != "aus" else "mail"
+        try:
+            a.toast(await run.io_bound(lambda: bk.senden(zp.laden(), art=art, test=True)), rueck=False)
+        except Exception as exc:               # noqa: BLE001
+            a.toast(str(exc), fehler=True, rueck=False)
+    with ui.element("div").classes("m-schalter"):
+        knopf("Vorschau", zeigen, "", "visibility")
+        knopf("Jetzt testen", testen, "", "send", titel="Schickt das Briefing sofort (zählt nicht als heutiges)")
+        st = bk.status()
+        if st:
+            ui.label(f"Zuletzt {st['datum'][8:10]}.{st['datum'][5:7]}. {st.get('zeit', '')} – "
+                     + ("geschickt" if st.get("ok") else f"nicht geschickt: {st.get('fehler', '')}")).classes("m-zweite")
+
+
+def _esc(t: str) -> str:
+    import html
+
+    return html.escape(t)
 
 
 def _allgemein(a) -> None:
