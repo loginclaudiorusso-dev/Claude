@@ -56,7 +56,8 @@ ZUSTAND = {
 }
 SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "handeln": "error", "alle": "groups",
            "np": "trending_flat", "offen": "pending", "eilig": "bolt", "erledigt": "task_alt", "laufend": "key",
-           "mail": "mail", "weitere": "apartment", "neu": "fiber_new", 3: "report", 2: "priority_high", 1: "info"}
+           "mail": "mail", "weitere": "apartment", "neu": "fiber_new", "bereit": "verified", "unfertig": "cleaning_services", 3: "report", 2: "priority_high",
+           1: "info"}
 
 
 def badge(zustand: str, text: str | None = None, zahl: int | None = None) -> None:

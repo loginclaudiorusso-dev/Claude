@@ -128,6 +128,11 @@ class Ansicht:
                 self.kennung = kern.erste_offene(self.anreisen)
             self.zeilen = kern.zeilen(self.stand, self.kennung, self.heute)
             try:
+                self.bereit = kern.bereitschaft(self.stand, self.zeilen, date.fromisoformat(self.kennung)) if self.kennung else None
+            except Exception:                  # noqa: BLE001 – Zusatzinfo darf das Zuteilen nie blockieren
+                log.exception("Bereitschaft")
+                self.bereit = None
+            try:
                 self.np = kern.nach_planung(self.stand, self.heute, 12)
             except Exception:                  # noqa: BLE001 – Kennzahl darf das Zuteilen nie blockieren
                 self.np = None
@@ -754,12 +759,18 @@ class Ansicht:
                 if np_ and np_.tiefst:
                     text, frei, stufe = np_.tiefst
                     zimmer.append(("np", frei, f"nach Planung · {text.split(' · ')[0]}", {"ok": "ok", "knapp": "warn", "kritisch": "krit"}[stufe]))
-                kennzahlen(zimmer, None, lambda k: self.oeffnen("auswertung", ansicht="zimmer") if k == "np" else
+                b = getattr(self, "bereit", None)
+                if b is not None and b.n:
+                    zimmer.insert(0, ("bereit", b.bereit, f"von {b.n} bezugsfertig", b.stufe))
+                kennzahlen(zimmer, None, lambda k: self._bereit_panel() if k == "bereit" else
+                           self.oeffnen("auswertung", ansicht="zimmer") if k == "np" else
                            self.oeffnen("zimmer", ansicht="uebersicht", zu_tag=tag, zu_filter=k),
                            {"np": "Mindestens so viele Zimmer bleiben frei, wenn alle Anreisen der nächsten 12 Wochen ein "
                                   "Zimmer hätten – Klick: alle Wochen",
                             "frei": "Klick: diese Zimmer in der Übersicht", "belegt": "Klick: diese Zimmer in der Übersicht",
-                            "gesperrt": "Klick: diese Zimmer in der Übersicht"})
+                            "gesperrt": "Klick: diese Zimmer in der Übersicht",
+                            "bereit": "Zimmer gespeichert, kein Konflikt, Reinigung erledigt – Klick: was fehlt und was "
+                                      "vorzubereiten ist"})
                 offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
                 if offen:
                     knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",
@@ -777,6 +788,50 @@ class Ansicht:
             for z in sichtbar:
                 self._zeile(z)
 
+    def _bereit_panel(self) -> None:
+        b = getattr(self, "bereit", None)
+        if b is None:
+            return
+        tag = date.fromisoformat(self.kennung)
+
+        def bauen():
+            ui.label(f"{b.bereit} von {b.n} Zimmern sind für die Anreise am {tag:%d.%m.%Y} bezugsfertig.").classes("m-ptext")
+            for art, titel in (("blocker", "Was noch fehlt"), ("vorbereiten", "Vorbereiten")):
+                punkte = [p for p in b.punkte if p[0] == art]
+                if not punkte:
+                    continue
+                ui.label(titel).classes("m-ktitel")
+                for _a, name, text in punkte:
+                    with ui.element("div").classes(f"m-bereit-punkt {art}"):
+                        ui.icon("error_outline" if art == "blocker" else "inventory_2")
+                        with ui.element("div"):
+                            ui.label(name).classes("m-name")
+                            ui.label(text).classes("m-zweite").style("white-space:normal")
+            if not b.punkte:
+                leer("Alles bereit – nichts vorzubereiten.")
+            with ui.element("div").classes("m-paktionen"):
+                if any(p[0] == "blocker" and "nicht erledigt" in p[2] for p in b.punkte):
+                    knopf("Zur Reinigung", lambda: self.oeffnen("reinigung"), "", "cleaning_services")
+                knopf("Schließen", self.panel_zu, "leise")
+
+        self.panel(f"Anreise {tag:%d.%m.} – bezugsfertig?", bauen)
+
+    def _hinweise(self, z: kern.Zeile) -> None:
+        """Marken aus der Bemerkung der Anreiseliste (Allergiker, Hilfsmittel, Begleitung …); voller Text im Tooltip."""
+        from . import hinweise_kern as hk
+
+        weitere = hk.rest(z.bemerkung) if not [h for h in z.hinweise if h.art != "vortag"] else ""
+        for h in z.hinweise:
+            with ui.element("span").classes(f"m-merk {h.art}") as m:
+                ui.icon(h.symbol)
+                ui.label(h.text)
+            attr(m, title=(hk.ALLERGIE_TEXT + " – " if h.art == "allergie" else "") + z.bemerkung)
+        if weitere:
+            with ui.element("span").classes("m-merk sonst") as m:
+                ui.icon("sticky_note_2")
+                ui.label("Hinweis")
+            attr(m, title=z.bemerkung)
+
     def _zeile(self, z: kern.Zeile) -> None:
         with ui.element("div").classes("m-raster m-zeile"):
             with ui.element("div"):
@@ -787,6 +842,7 @@ class Ansicht:
                     n.on("click", lambda z=z: seite_anreisen.person_panel(self, z.schluessel))
                     if z.schluessel in self.neu:
                         badge_neu(self.neu[z.schluessel])
+                    self._hinweise(z)
                 if z.zweite:
                     ui.label(z.zweite).classes("m-zweite")
             ui.label(z.gruppe).classes("m-mono")

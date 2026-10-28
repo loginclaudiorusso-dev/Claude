@@ -315,6 +315,33 @@ body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%
 .m-neu.ungelesen .m-neu-punkt { background: var(--akzent); }
 .m-neu.ungelesen.warnung .m-neu-punkt { background: var(--orange); } .m-neu.ungelesen.fehler .m-neu-punkt { background: var(--rot, #ef4444); }
 .m-neu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-merk { display: inline-flex; align-items: center; gap: 3px; height: 19px; padding: 0 7px 0 5px; border-radius: 10px; font-size: 11px; font-weight: 500; white-space: nowrap; cursor: help;
+  background: color-mix(in srgb, var(--text3) 16%, transparent); color: var(--text2); border: 1px solid transparent; }
+.m-merk .q-icon { font-size: 13px; }
+.m-merk.allergie { background: color-mix(in srgb, var(--gruen) 16%, transparent); color: var(--gruen); border-color: color-mix(in srgb, var(--gruen) 40%, transparent); }
+.m-merk.hilfsmittel { background: color-mix(in srgb, var(--blau) 16%, transparent); color: var(--blau); }
+.m-merk.begleitung { background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); }
+.m-bereit-punkt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 2px; border-bottom: 1px solid var(--rand); }
+.m-bereit-punkt .q-icon { font-size: 18px; margin-top: 2px; color: var(--text3); }
+.m-bereit-punkt.blocker .q-icon { color: var(--rot); }
+.m-last { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); gap: 6px; margin: 14px 20px 20px; }
+.m-last-kopf { font-size: 11.5px; color: var(--text3); padding: 0 4px; }
+.m-last-kw { font-size: 12px; color: var(--text2); align-self: center; font-variant-numeric: tabular-nums; }
+.m-last-tag { position: relative; overflow: hidden; text-align: left; min-height: 64px; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--rand); color: var(--text); background: var(--bg); display: flex; flex-direction: column; gap: 1px; }
+.m-last-tag::before { content: ""; position: absolute; inset: 0; background: var(--akzent); opacity: calc(var(--anteil) * .32); pointer-events: none; }
+.m-last-tag > * { position: relative; }
+.m-last-tag.we { background: color-mix(in srgb, var(--fl) 60%, var(--bg)); }
+.m-last-tag.vorbei { opacity: .45; }
+.m-last-tag.heute { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.m-last-tag.spitze { border-color: var(--orange); }
+.m-last-tag.spitze::before { background: var(--orange); }
+.m-last-datum { font-size: 11px; color: var(--text3); }
+.m-last-zahl { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.m-last-haus { font-size: 10.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-kachel-u { position: absolute; left: -5px; bottom: -5px; font-size: 13px; color: var(--orange); background: var(--bg); border-radius: 50%; padding: 1px; }
+.m-aenderung { display: grid; grid-template-columns: minmax(140px, .8fr) 2fr; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--rand); }
+.m-aenderung.betroffen { border-left: 3px solid var(--orange); padding-left: 8px; }
 .m-klassen { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .m-chip { font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--fl2); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .m-chip.warn { background: color-mix(in srgb, var(--orange) 18%, transparent); }
