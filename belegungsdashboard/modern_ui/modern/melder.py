@@ -60,6 +60,10 @@ def sammeln(heute: date | None = None) -> list[Meldung]:
         erg += _reinigung_und_facility(heute)
     except Exception:                          # noqa: BLE001
         log.exception("Reinigung/Facility konnten nicht geprüft werden")
+    try:
+        erg += _allergiker(heute)
+    except Exception:                          # noqa: BLE001
+        log.exception("Allergiker konnten nicht geprüft werden")
     for m in erg:
         _als_neuigkeit(m)
     return erg
@@ -88,6 +92,32 @@ def _reinigung_und_facility(heute: date) -> list[Meldung]:
                            "\n".join(c.text for c in fac[:4]), "zimmerplan:Aufgaben"))
         eintragen.facility_gemeldet(fac)
     return erg
+
+
+ALLERGIE_GEMELDET = f"{speicher.IMPORT_ORDNER}/modern_allergie_gemeldet.json"
+
+
+def _allergiker(heute: date) -> list[Meldung]:
+    """Allergiker, die in den nächsten 14 Tagen kommen: einmal melden, sobald sie auftauchen – und noch einmal,
+    falls ihr Zimmer nicht (mehr) auf der Allergiker-Etage liegt."""
+    from belegung import zimmerplan as zp
+
+    from . import hinweise_kern as hk
+
+    gemeldet = speicher.lesen(ALLERGIE_GEMELDET, {})
+    neu = []
+    for f in hk.allergie_faelle(zp.laden(), heute, tage=14):
+        zustand = "etage" if f.auf_etage else (f.zimmer or "ohne")
+        if gemeldet.get(f.schluessel) != zustand and f.anreise >= heute:
+            neu.append(f)
+            gemeldet[f.schluessel] = zustand
+    if not neu:
+        return []
+    speicher.schreiben(ALLERGIE_GEMELDET, gemeldet)
+    zeilen = [f"{f.name}: Anreise {f.anreise:%d.%m.} – " + ("auf der Allergiker-Etage" if f.auf_etage else
+              "bitte Haus 2, 1. OG einplanen") for f in neu[:4]]
+    titel = "Allergiker reist an" if len(neu) == 1 else f"{len(neu)} Allergiker reisen an"
+    return [Meldung(titel, "\n".join(zeilen), "anreisen")]
 
 
 def _als_neuigkeit(m: Meldung) -> None:

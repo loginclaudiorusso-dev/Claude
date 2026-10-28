@@ -78,6 +78,8 @@ class Zeile:
     vorschlag: str | None = None      # grüne Ausweich-/Vorschlags-Option (Zimmer-ID)
     optionen: list[Option] = field(default_factory=list)
     maengel: str = ""
+    hinweise: list = field(default_factory=list)   # erkannte Hinweise aus der Bemerkung (hinweise_kern.Hinweis)
+    bemerkung: str = ""
 
     @property
     def zeitraum(self) -> str:
@@ -117,11 +119,24 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
     fest = {b.schluessel: z["zimmer"] for b in bedarf if (z := stand.zugewiesen(b.schluessel))}
     konflikte = {k.person: k.grund for k in zp.konflikte(stand.lage, heute)}
     maengel = _maengel_text()
+    from . import hinweise_kern as hk
+
+    zuteilungen = list(zp.vorschlagen(stand.lage, bedarf, fest))
+    from belegung import maengel as mg
+
+    fuer_allergiker_nicht = hk.meiden(mg.offen_je_zimmer())
+    vergeben = set(fest.values()) | {zt.zimmer.id for zt in zuteilungen if zt.zimmer}
     erg = []
-    for zt in zp.vorschlagen(stand.lage, bedarf, fest):
+    for zt in zuteilungen:
         b = zt.bedarf
         gespeichert = fest.get(b.schluessel)
         neu = zt.zimmer.id if zt.zimmer else None
+        hinweise = [h for h in hk.erkennen(b.bemerkung) if not (h.art == "vortag" and b.gruppe == "EMR")]  # EMR: Vortag ist Standard
+        allergie = any(h.art == "allergie" for h in hinweise)
+        if allergie and not gespeichert and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+            vergeben.discard(neu)
+            vergeben.add(alt.id)
+            neu = alt.id                      # Allergiker: freies, zulässiges Zimmer auf der Allergiker-Etage bevorzugen
         vorschlag, grund = None, ""
         hart = (konflikte.get(b.schluessel) or (f"unbewohnbar: {stand.lage.unbewohnbar[gespeichert]}"
                                                  if gespeichert in stand.lage.unbewohnbar else "")) if gespeichert else ""
@@ -139,6 +154,23 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
         else:
             status, stufe = "ok", "ok"
         zimmer_jetzt = gespeichert or vorschlag
+        if allergie and zimmer_jetzt in fuer_allergiker_nicht:
+            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+                vorschlag = alt.id
+                vergeben.add(alt.id)
+            text = "Allergiker – im Zimmer ist Schimmel, Ungeziefer, Geruch oder Schmutz gemeldet"
+            grund = f"{grund}; {text}" if grund else text
+            if status == "ok":
+                status, stufe = "handeln", "krit"
+        elif allergie and zimmer_jetzt and not hk.auf_allergie_etage(stand.lage.zimmer.get(zimmer_jetzt)):
+            frei = any(hk.auf_allergie_etage(z) for z in zt.alternativen)
+            if gespeichert and not vorschlag and (alt := hk.allergie_vorschlag(zt, vergeben, fuer_allergiker_nicht)) is not None:
+                vorschlag = alt.id
+                vergeben.add(alt.id)
+            text = f"Allergiker – nicht auf der {hk.ALLERGIE_TEXT}" + ("" if frei else ", dort ist für diese Person kein Zimmer frei bzw. zulässig")
+            grund = f"{grund}; {text}" if grund else text
+            if status == "ok":
+                status, stufe = "handeln", "warn"
         m = maengel.get(zimmer_jetzt or "", "")
         if status == "ok" and m:
             status, stufe = "maengel", "warn"
@@ -163,7 +195,51 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
             dazu(z.id, "ausnahme", f"{_bezeichnung(z)} · {zp.ausnahme_grund(stand.lage, z, b)}")
         zweite = b.massnahme.removeprefix("UWT ") if b.gruppe == "UWT" else b.massnahme
         erg.append(Zeile(b.schluessel, b.name, zweite, b.gruppe, b.von, b.bis, gespeichert, status, stufe, grund,
-                         vorschlag, opts, m))
+                         vorschlag, opts, m, hinweise, b.bemerkung))
+    return erg
+
+
+@dataclass
+class Bereitschaft:
+    """Sind die Zimmer einer Anreise bezugsfertig? ``punkte``: (art, Name, Text) – art = blocker | vorbereiten."""
+    n: int
+    bereit: int
+    punkte: list[tuple[str, str, str]] = field(default_factory=list)
+
+    @property
+    def stufe(self) -> str:
+        return "ok" if self.bereit == self.n else ("krit" if self.bereit < self.n / 2 else "warn")
+
+
+def bereitschaft(stand: zp.Planstand, zs: list[Zeile], tag: date) -> Bereitschaft:
+    """Je Person: Zimmer gespeichert, kein Konflikt, Reinigung vor genau dieser Anreise erledigt, Allergiker auf der
+    Allergiker-Etage → bereit. Hilfsmittel, Begleitung und offene (nicht sperrende) Mängel sind „vorbereiten“."""
+    from .seiten_kern import _reinigungen
+
+    fertig = rl.erledigt()
+    offen = {r.zimmer.id: r for r in _reinigungen(stand, tag - timedelta(days=28), tag)
+             if r.naechste_anreise == tag and rl.schluessel(r) not in fertig}
+    erg = Bereitschaft(len(zs), 0)
+    for z in zs:
+        blocker = []
+        if not z.gespeichert:
+            blocker.append("noch kein Zimmer")
+        elif z.status == "handeln":
+            blocker.append(z.grund)
+        elif z.gespeichert in offen:
+            r = offen[z.gespeichert]
+            blocker.append(f"{kurz(z.gespeichert)}: {r.art} vom {r.tag:%d.%m.} noch nicht erledigt")
+        erg.punkte += [("blocker", z.name, t) for t in blocker]
+        if not blocker:
+            erg.bereit += 1
+        wo = f" ({kurz(z.gespeichert)})" if z.gespeichert else ""
+        for h in z.hinweise:
+            if h.art == "hilfsmittel":
+                erg.punkte.append(("vorbereiten", z.name, f"{h.text} bereitstellen{wo}"))
+            elif h.art == "begleitung":
+                erg.punkte.append(("vorbereiten", z.name, f"Begleitung angekündigt{wo} – {z.bemerkung}"))
+        if z.maengel and z.gespeichert and not blocker:
+            erg.punkte.append(("vorbereiten", z.name, f"Mangel{wo}: {z.maengel}"))
     return erg
 
 
@@ -318,7 +394,13 @@ def _karte(v, stand: zp.Planstand | None) -> Karte:
     art = v.id.split(":")[0]
     if art == "anreise" and stand is not None:
         kennung = v.id.split(":", 1)[1]
-        zs = [z for z in zeilen(stand, kennung) if z.status == "ohne"]
+        alle = zeilen(stand, kennung)
+        try:
+            b = bereitschaft(stand, alle, date.fromisoformat(kennung))
+            k.detail += f" · {b.bereit} von {b.n} Zimmern bezugsfertig"
+        except Exception:                      # noqa: BLE001 – Zusatzinfo, die Karte bleibt
+            pass
+        zs = [z for z in alle if z.status == "ohne"]
         mit = sum(1 for z in zs if z.vorschlag)
         if mit:
             k.aktion = Aktion(f"vorschlaege:{kennung}", f"{mit} Vorschläge übernehmen", kennung)
@@ -368,7 +450,33 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                                 f"{len(unb)} Planung{'en' if len(unb) > 1 else ''} in unbewohnbarem Zimmer",
                                 "; ".join(f"{namen.get(p, '')} ({g.split(': ', 1)[1]})" for p, g in list(unb.items())[:2])
                                 + (" …" if len(unb) > 2 else ""), Aktion("konflikte", "Ausweichzimmer zuweisen")))
+    if stand is not None and "allergie" not in weg:
+        k = allergie_karte(stand, heute)
+        if k is not None:
+            erg.insert(0 if k.stufe == "dringend" else len([x for x in erg if x.stufe == "dringend"]), k)
     return erg
+
+
+def allergie_karte(stand: zp.Planstand, heute: date) -> Karte | None:
+    """Eigene Meldung für Allergiker (Hinweis in der Anreiseliste): gehören auf die Allergiker-Etage (Haus 2, 1. OG).
+    Dringend, wenn jemand in den nächsten 7 Tagen anreist und dort (noch) kein Zimmer hat."""
+    from . import hinweise_kern as hk
+
+    faelle = hk.allergie_faelle(stand, heute)
+    falsch = [f for f in faelle if not f.auf_etage]
+    if not faelle:
+        return None
+    if not falsch:
+        return Karte("allergie", "info", f"{len(faelle)} Allergiker – alle auf der {hk.ALLERGIE_TEXT}",
+                     ", ".join(f"{f.name} ({f.anreise:%d.%m.}, {kurz(f.zimmer)})" for f in faelle[:3])
+                     + (" …" if len(faelle) > 3 else ""),
+                     zweite=Aktion(f"zeigen:{faelle[0].anreise.isoformat()}", "Ansehen", faelle[0].anreise.isoformat()))
+    bald = any(f.anreise <= heute + timedelta(days=7) for f in falsch)
+    return Karte("allergie", "dringend" if bald else "bald",
+                 f"{len(falsch)} Allergiker nicht auf der {hk.ALLERGIE_TEXT}",
+                 "; ".join(f"{f.name}: Anreise {f.anreise:%d.%m.}, " + (f"geplant {kurz(f.zimmer)}" if f.zimmer else "noch ohne Zimmer")
+                           for f in falsch[:3]) + (" …" if len(falsch) > 3 else ""),
+                 zweite=Aktion(f"zeigen:{falsch[0].anreise.isoformat()}", "Zur Anreise", falsch[0].anreise.isoformat()))
 
 
 def ausfuehren(schluessel: str, heute: date | None = None) -> str:
