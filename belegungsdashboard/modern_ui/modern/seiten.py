@@ -104,6 +104,9 @@ def rg_daten(a) -> None:
 
         a.daten = eintragen.facility_checks(a.stand.lage, a.heute - timedelta(days=14), a.heute + timedelta(days=45))
         return
+    if a.ansicht_von("reinigung", "liste") == "last":
+        a.daten = sk.reinigung_last(a.stand, a.heute)
+        return
     von, bis = sk.zeitraum(a.rg_zeitraum, a.heute)
     a.daten = sk.reinigung(a.stand, von, bis, a.heute)
     a.rg_von, a.rg_bis = von, bis
@@ -160,9 +163,12 @@ def _facility(a) -> None:
 def rg_zeichnen(a) -> None:
     ansicht = a.ansicht_von("reinigung", "liste")
     with a.werkzeuge:
-        segmente({"liste": "Reinigungsliste", "facility": "Facility-Checks"}, ansicht, lambda v: a.oeffnen("reinigung", ansicht=v))
+        segmente({"liste": "Reinigungsliste", "last": "Vorschau 6 Wochen", "facility": "Facility-Checks"}, ansicht,
+                 lambda v: a.oeffnen("reinigung", ansicht=v))
     if ansicht == "facility":
         return _facility(a)
+    if ansicht == "last":
+        return _rg_last(a)
     with a.werkzeuge:
         segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w))
         knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "", "add")
@@ -181,9 +187,11 @@ def rg_zeichnen(a) -> None:
             knopf(f"Alle {len(eilig)} eiligen als gereinigt markieren" if len(eilig) > 1 else "Eilige als gereinigt markieren",
                   lambda: a.aendern(sk.reinigung_setzen, [z.schluessel for z in eilig], True, a.rg_von, a.rg_bis),
                   "gruen", "done_all")
+    zs = [z for z in a.daten if a.rg_filter == "alle" or (a.rg_filter == "erledigt" and z.erledigt)
+          or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
+    with a.leiste:
+        _mehrere_menue(a, [z for z in zs if not z.erledigt])
     with a.inhalt:
-        zs = [z for z in a.daten if a.rg_filter == "alle" or (a.rg_filter == "erledigt" and z.erledigt)
-              or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
         if not zs:
             leer("Keine offenen Reinigungen in diesem Zeitraum." if a.daten else "Keine Reinigungen in diesem Zeitraum.")
             return
@@ -212,6 +220,73 @@ def rg_zeichnen(a) -> None:
                     if z.manuell_id:
                         knopf("", lambda z=z: a.aendern(sk.reinigung_entfernen, z.manuell_id), "leise", "close",
                               "Von Hand hinzugefügte Reinigung entfernen")
+
+
+def _mehrere_menue(a, offen: list) -> None:
+    """Mehrere auf einmal abhaken: alle sichtbaren, je Haus oder je Flur (z. B. nach einer Gruppenabreise)."""
+    if len(offen) < 2:
+        return
+    haeuser: dict[str, list] = {}
+    flure: dict[str, list] = {}
+    for z in offen:
+        haeuser.setdefault(z.zimmer.rsplit("-", 1)[0], []).append(z)
+        flure.setdefault(z.lage, []).append(z)
+
+    def setzen(liste):
+        return a.aendern(sk.reinigung_setzen, [z.schluessel for z in liste], True, a.rg_von, a.rg_bis)
+
+    with knopf("Mehrere abhaken", None, "", "playlist_add_check").style("margin-left:auto"):
+        with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
+            ui.menu_item(f"Alle sichtbaren offenen ({len(offen)})", lambda: setzen(offen))
+            if len(haeuser) > 1:
+                ui.separator()
+                ui.label("Je Haus").classes("m-mgruppe")
+                for h, liste in sorted(haeuser.items()):
+                    ui.menu_item(f"Haus {h} ({len(liste)})", lambda liste=liste: setzen(liste))
+            mehrfach = {f: liste for f, liste in flure.items() if len(liste) > 1}
+            if mehrfach:
+                ui.separator()
+                ui.label("Je Flur").classes("m-mgruppe")
+                for f, liste in sorted(mehrfach.items()):
+                    ui.menu_item(f"{f} ({len(liste)})", lambda liste=liste: setzen(liste))
+
+
+def _rg_last(a) -> None:
+    """Wie viele Zimmer in den nächsten 6 Wochen je Tag gereinigt werden müssen – Spitzentage markiert."""
+    tage, je_haus, schnitt = a.daten
+    gesamt = sum(t.n for t in tage)
+    spitzen = [t for t in tage if t.spitze]
+    with a.leiste:
+        ui.html(f'<span class="m-kpi"><b>{gesamt}</b> Reinigungen in 6 Wochen<span class="m-punktt">·</span>'
+                f'Ø <b>{schnitt:.1f}</b> je Werktag<span class="m-punktt">·</span><b>{len(spitzen)}</b> Spitzentage</span>',
+                sanitize=False)
+        ui.label(" · ".join(f"Haus {h}: {n}" for h, n in je_haus.items())).classes("m-zweite").style("margin-left:auto")
+    with a.inhalt:
+        ui.label("Gezählt werden Zimmer (Auszug, Vorbereiten, von Hand) – nicht die Arbeitszeit. Spitzentag = mindestens "
+                 "1,5-mal so viele wie an einem üblichen Werktag. Klick auf einen Tag: Reinigungsliste dieser Woche."
+                 ).classes("m-ptext").style("margin:12px 20px 0")
+        with ui.element("div").classes("m-last"):
+            for w in ("KW", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"):
+                ui.label(w).classes("m-last-kopf")
+            hoechst = max((t.n for t in tage), default=0) or 1
+            for i in range(0, len(tage), 7):
+                woche = tage[i:i + 7]
+                ui.label(f"KW {woche[0].tag.isocalendar()[1]}").classes("m-last-kw")
+                for t in woche:
+                    kl = "m-last-tag" + (" spitze" if t.spitze else "") + (" heute" if t.tag == a.heute else "") + \
+                         (" we" if t.tag.weekday() >= 5 else "") + (" vorbei" if t.tag < a.heute else "")
+                    zelle = ui.element("button").classes(kl).style(f"--anteil:{t.n / hoechst:.2f}")
+                    attr(zelle, title=f"{sk.WT[t.tag.weekday()]} {t.tag:%d.%m.}: {t.n} Zimmer"
+                         + ("".join(f"\nHaus {h}: {n}" for h, n in t.je_haus.items()) if t.je_haus else "")
+                         + ("\nSpitzentag" if t.spitze else ""))
+                    with zelle:
+                        ui.label(f"{t.tag:%d.%m.}").classes("m-last-datum")
+                        ui.label(str(t.n) if t.n else "–").classes("m-last-zahl")
+                        if t.je_haus:
+                            ui.label(" · ".join(f"{h}: {n}" for h, n in t.je_haus.items())).classes("m-last-haus")
+                    zelle.on("click", lambda t=t: a.oeffnen("reinigung", ansicht="liste",
+                                                            rg_zeitraum="woche" if t.tag < a.heute + timedelta(days=7 - a.heute.weekday())
+                                                            else "naechste", rg_filter="alle"))
 
 
 def _rg_hinzu_panel(a) -> None:

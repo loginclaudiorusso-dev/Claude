@@ -144,6 +144,39 @@ def reinigung(stand: zp.Planstand, von: date, bis: date, heute: date | None = No
     return erg
 
 
+@dataclass
+class LastTag:
+    tag: date
+    je_haus: dict[str, int]
+    spitze: bool = False
+
+    @property
+    def n(self) -> int:
+        return sum(self.je_haus.values())
+
+
+def reinigung_last(stand: zp.Planstand, heute: date, wochen: int = 6) -> tuple[list[LastTag], dict[str, int], float]:
+    """Reinigungen (Auszug, Vorbereiten, von Hand) je Tag und Haus für die nächsten Wochen – ab Montag dieser Woche.
+    Spitzentag = deutlich mehr als an einem üblichen Werktag (≥ 1,5 × Ø der Werktage mit Reinigung, mindestens 5).
+    Gezählt werden Zimmer, nicht Arbeitszeit – die Dauer je Zimmer kennt das Programm nicht."""
+    start = heute - timedelta(days=heute.weekday())
+    ende = start + timedelta(days=7 * wochen - 1)
+    tage = {start + timedelta(days=i): {} for i in range(7 * wochen)}
+    for r in _reinigungen(stand, start, ende):
+        if r.tag in tage:
+            tage[r.tag][r.zimmer.haus] = tage[r.tag].get(r.zimmer.haus, 0) + 1
+    erg = [LastTag(t, dict(sorted(h.items(), key=lambda x: zp._haus_sort(x[0])))) for t, h in sorted(tage.items())]
+    werktage = [t.n for t in erg if t.tag.weekday() < 5 and t.n]
+    schnitt = sum(werktage) / len(werktage) if werktage else 0.0
+    for t in erg:
+        t.spitze = t.n >= max(5, 1.5 * schnitt)
+    je_haus: dict[str, int] = {}
+    for t in erg:
+        for h, n in t.je_haus.items():
+            je_haus[h] = je_haus.get(h, 0) + n
+    return erg, dict(sorted(je_haus.items(), key=lambda x: zp._haus_sort(x[0]))), schnitt
+
+
 def reinigung_zaehlen(zs: list[RZeile]) -> dict[str, int]:
     return {"offen": sum(1 for z in zs if not z.erledigt), "eilig": sum(1 for z in zs if not z.erledigt and z.prio <= 1),
             "erledigt": sum(1 for z in zs if z.erledigt)}
