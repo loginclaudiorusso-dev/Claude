@@ -48,6 +48,19 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Tagesbriefing per Outlook, Allergiker mit Vorrang auf der Allergiker-Etage (neu in 0.24)
+
+* **Tagesbriefing** (*Einstellungen → Allgemein → Erinnerungen*): einmal am Tag ab der eingestellten Uhrzeit die
+  wichtigsten Punkte – wahlweise als **Outlook-Termin** (mit Erinnerung, als „frei“ eingetragen) oder als **E-Mail an
+  mich**. Inhalt: Dringendes zuerst, „als Nächstes“, Anreisen heute/morgen mit „x von y bezugsfertig“, Abreisen,
+  Reinigung, freie Zimmer, Allergiker, Anzahl fälliger Termine und offener Mails. **Ohne Personennamen** – Details
+  stehen im Programm. *Vorschau* zeigt den Text, *Jetzt testen* schickt ihn sofort (zählt nicht als heutiges).
+  Geprüft wird beim Start und alle 15 Minuten; klappt der Versand nicht (Outlook zu), wird es an dem Tag nicht
+  ständig wiederholt – die Zeile darunter zeigt den letzten Stand. Nur unter Windows mit Outlook (klassisch).
+* **Allergiker haben Vorrang auf der Allergiker-Etage (Haus 2, 1. OG):** Die Etage ist für sie da, Allergiker sind
+  selten – deshalb werden sie dort bevorzugt eingeplant, auch bei langen Maßnahmen und auch in 101–110 (sonst nur
+  EMR). Die Etagen-Regeln erzeugen für Allergiker keine Warnung mehr; „Optimieren“ zieht sie nicht von der Etage weg.
+
 ## Hinweise aus den Anreiselisten, Allergiker-Etage, Bereitschaft, Reinigungsvorschau (neu in 0.23)
 
 * **Hinweise aus der Anreiseliste** (Spalte „Internatsdienst“): Beim Zuteilen stehen kleine Marken am Namen –
@@ -58,7 +71,7 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   zulässiges Zimmer vor – nie eines mit gemeldetem Schimmel, Ungeziefer, Geruch oder verschmutztem Boden. Liegt die
   Planung woanders, wird gewarnt (mit Ausweichvorschlag, falls frei). Eigene Meldung: Karte unter *Heute*
   (dringend, wenn die Anreise in 7 Tagen ist und das Zimmer nicht passt) und einmal je Person eine Windows-Meldung.
-  Hinweis: Die bestehende Regel „1. OG nur Kurzmaßnahmen“ gilt weiter – für lange Maßnahmen bleibt es bei der Warnung.
+  Seit 0.24 haben Allergiker dort Vorrang: Die Regeln „1. OG nur Kurzmaßnahmen“ und „101–110 nur EMR“ gelten für sie nicht.
 * **Bezugsfertig je Anreise** (*Anreisen*, Kachel „x von y bezugsfertig“): Zimmer gespeichert, kein Konflikt,
   Reinigung vor genau dieser Anreise erledigt. Klick zeigt, was fehlt und was vorzubereiten ist (Hilfsmittel,
   angekündigte Begleitung, offene Mängel). Auch auf der Anreise-Karte unter *Heute*.
@@ -371,4 +384,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0` (jeweils auch als Zip in `Sicherung`).

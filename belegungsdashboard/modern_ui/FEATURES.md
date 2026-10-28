@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.23)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.24)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -16,7 +16,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Belegung optimieren (Tauschvorschläge), UWT automatisch zuteilen
 - Abreiselisten, Firmenprogramm (was im Belegungssystem einzutragen ist), Anreise- und Schlüssellisten, Zimmerschilder, Excel
 - Hinweise aus der Anreiseliste als Marken (Allergiker, Hilfsmittel, Begleitung); Allergiker-Etage (Haus 2, 1. OG) mit
-  eigenem Vorschlag, Warnung und Meldung
+  Vorrang für Allergiker (auch lange Maßnahmen), eigenem Vorschlag, Warnung und Meldung
 - „x von y bezugsfertig“ je Anreisetag mit fehlenden Punkten und Vorbereitungsliste
 
 ## Zimmer
@@ -68,6 +68,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Planungsregeln, Erinnerungen, Engpass-Grenzen, KI-Zugang (Schlüssel im Windows-Tresor)
 - Zimmer-Stammdaten, Sicherung und Verlauf
 - Windows-Meldungen (fällige Termine, Reinigung, Facility-Checks), „Mit Windows starten“
+- Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
 ## Übergreifend
 - Rückgängig für jede Änderung (Strg+Z), Suche über alles (Strg+K), Panels statt Dialoge
