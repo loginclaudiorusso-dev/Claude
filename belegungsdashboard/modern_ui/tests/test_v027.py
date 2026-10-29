@@ -43,3 +43,12 @@ def test_gruppenauswahl_personenangaben():
     assert set(ank.GRUPPEN) == {"EMR", "ASS", "RVT", "Reha", "UWT", "Gast", "Mieter"}
     assert ank.GRUPPEN["RVT"] == "Vorbereitende Maßnahme" and ank.GRUPPEN["Reha"] == "Hauptmaßnahme"
     assert ank.gruppe_auswahl("RVL") == "RVT" and ank.gruppe_auswahl("Gast") == "Gast" and ank.gruppe_auswahl("?") is None
+
+
+def test_tabellen_sortierbar():
+    """0.28: Klick auf eine Spaltenüberschrift sortiert jede Tabelle (Skript einmal für alle Seiten)."""
+    from modern import oberflaeche
+
+    js = oberflaeche.SORTIER_JS
+    assert "m-sortbar" in js and "sessionStorage" in js and r"(\d{1,2})\.(\d{1,2})" in js
+    assert "ui.add_body_html(SORTIER_JS)" in open(oberflaeche.__file__, encoding="utf-8").read()

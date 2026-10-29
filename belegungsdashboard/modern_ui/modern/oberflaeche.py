@@ -247,6 +247,7 @@ class Ansicht:
         from .seite_heute import BRIEFING_JS
 
         ui.add_body_html(BRIEFING_JS)         # Heute: Morgen-Briefing vorlesen (Sprachausgabe des Systems)
+        ui.add_body_html(SORTIER_JS)          # alle Tabellen: Klick auf die Spaltenüberschrift sortiert
         self.toast_box = ui.element("div")
         ui.keyboard(self._taste, ignore=["input", "select", "textarea"])   # Esc auch, wenn ein Knopf den Fokus hat
         ui.timer(PRUEF_S, self.pruefen)
@@ -1076,6 +1077,98 @@ _TOOLBAR_JS = """<script>
   const wach = () => { const tb = document.querySelector('.m-tb'); if (!tb) return; tb.classList.add('wach');
     clearTimeout(t); t = setTimeout(() => tb.classList.remove('wach'), 3500); };
   ['mousemove', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, wach, { passive: true }));
+})();
+</script>"""
+
+
+SORTIER_JS = r"""<script>
+(() => {   // Tabellen sortieren: Klick auf eine Spaltenüberschrift → aufsteigend, nochmal → absteigend, nochmal → wie vorher.
+  // Nur Darstellung (CSS „order“), die Zeilen bleiben im DOM, wo sie sind – das Neuzeichnen der Seite stört nicht.
+  let zustand = {};
+  try { zustand = JSON.parse(sessionStorage.getItem('mSort') || '{}'); } catch (e) { zustand = {}; }
+  const merken = () => { try { sessionStorage.setItem('mSort', JSON.stringify(zustand)); } catch (e) {} };
+  const sig = (kopf) => [...kopf.children].map(c => c.innerText.trim()).join('|');
+  const schluessel = (t) => {
+    t = (t || '').trim();
+    if (!t || t === '–' || t === '—') return [2, ''];
+    const ds = [...t.matchAll(/(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})?/g)].slice(0, 2).map(d => {
+      const tg = +d[1], m = +d[2], h = new Date();
+      let j = d[3] ? +d[3] : h.getFullYear();
+      if (d[3] && j < 100) j += 2000;
+      if (!d[3]) { const x = new Date(j, m - 1, tg); if (x - h < -182 * 864e5) j++; else if (x - h > 182 * 864e5) j--; }
+      return j * 10000 + m * 100 + tg;
+    });
+    if (ds.length) return [0, ds[0] * 1e8 + (ds[1] || 0)];     // Zeitraum: erst Beginn, dann Ende
+    const n = t.replace(/\s/g, '').replace(',', '.').replace(/[%€]$/, '');
+    if (/^-?\d+(\.\d+)?$/.test(n)) return [0, parseFloat(n)];
+    return [1, t];
+  };
+  const zellText = (el) => {   // ohne die Namen der Symbole (Material-Icons stehen als Text im Element)
+    if (!el) return '';
+    let t = el.innerText;
+    el.querySelectorAll('.q-icon, .material-icons').forEach(ic => { const x = ic.innerText.trim(); if (x) t = t.replace(x, ''); });
+    return t;
+  };
+  const vergleich = (a, b) => (typeof a[1] === 'number' && typeof b[1] === 'number') ? a[1] - b[1]
+    : String(a[1]).localeCompare(String(b[1]), 'de', { numeric: true, sensitivity: 'base' });
+  // Zeilen einer Tabelle = die Zeilen direkt unter ihrer Kopfzeile, bis etwas anderes kommt (mehrere Tabellen untereinander,
+  // z. B. „Defekte Zimmer“ je Dringlichkeit, sortieren jede für sich)
+  const zeilenVon = (kopf) => {
+    const k = [...kopf.parentElement.children], erg = [];
+    for (let j = k.indexOf(kopf) + 1; j < k.length && k[j].classList.contains('m-zeile'); j++) erg.push(k[j]);
+    return erg;
+  };
+  const kopfMarken = (kopf, sp, ri) => [...kopf.children].forEach((c, i) => {
+    c.classList.toggle('m-sort-auf', ri === 1 && i === sp); c.classList.toggle('m-sort-ab', ri === -1 && i === sp);
+    if (c.innerText.trim()) c.setAttribute('aria-sort', i === sp && ri ? (ri === 1 ? 'ascending' : 'descending') : 'none');
+  });
+  const anwenden = (kopf, sp, ri) => {   // die Plätze dieser Tabelle neu verteilen – alles andere bleibt, wo es ist
+    const k = [...kopf.parentElement.children], zeilen = zeilenVon(kopf), plaetze = zeilen.map(z => k.indexOf(z));
+    const mit = zeilen.map((z, i) => ({ z, i, k: schluessel(zellText(z.children[sp])) }));
+    mit.sort((a, b) => a.k[0] !== b.k[0] ? a.k[0] - b.k[0] : (vergleich(a.k, b.k) * ri || a.i - b.i));
+    mit.forEach((x, r) => { x.z.style.order = plaetze[r]; });
+  };
+  const sortierbar = (kopf) => {
+    const eltern = kopf.parentElement;
+    if (!eltern || zeilenVon(kopf).length < 2) return false;
+    const st = getComputedStyle(eltern);
+    return st.display === 'block' || (st.display === 'flex' && st.flexDirection === 'column') || eltern.classList.contains('m-sortiert');
+  };
+  let geplant = false;
+  const pruefen = () => {
+    geplant = false;
+    const eltern = new Map();
+    document.querySelectorAll('.m-tkopf').forEach(kopf => {
+      const ok = sortierbar(kopf), s = ok ? zustand[sig(kopf)] : null;
+      kopf.classList.toggle('m-sortbar', ok);
+      kopfMarken(kopf, s ? s[0] : -1, s ? s[1] : 0);
+      if (kopf.parentElement) {
+        if (!eltern.has(kopf.parentElement)) eltern.set(kopf.parentElement, []);
+        if (s) eltern.get(kopf.parentElement).push([kopf, s]);
+      }
+    });
+    eltern.forEach((sortiert, el) => {
+      if (!sortiert.length) {
+        if (el.classList.contains('m-sortiert')) { el.classList.remove('m-sortiert'); [...el.children].forEach(c => c.style.order = ''); }
+        return;
+      }
+      el.classList.add('m-sortiert');
+      [...el.children].forEach((c, i) => { c.style.order = i; });   // Grundordnung = Reihenfolge im Dokument
+      sortiert.forEach(([kopf, s]) => anwenden(kopf, s[0], s[1]));
+    });
+  };
+  new MutationObserver(() => { if (!geplant) { geplant = true; requestAnimationFrame(pruefen); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('click', (e) => {
+    const zelle = e.target.closest('.m-tkopf.m-sortbar > div');
+    if (!zelle || !zelle.innerText.trim()) return;
+    const kopf = zelle.parentElement, sp = [...kopf.children].indexOf(zelle), s = zustand[sig(kopf)];
+    const ri = !s || s[0] !== sp ? 1 : s[1] === 1 ? -1 : 0;
+    if (ri) zustand[sig(kopf)] = [sp, ri]; else delete zustand[sig(kopf)];
+    merken();
+    pruefen();
+  });
+  requestAnimationFrame(pruefen);
 })();
 </script>"""
 

@@ -81,10 +81,15 @@ body { font-family: var(--schrift); font-size: 13.5px; letter-spacing: -0.005em;
 .m-segm .n { color: var(--text3); font-variant-numeric: tabular-nums; }
 
 /* Tabelle */
-.m-raster { display: grid; grid-template-columns: 28px minmax(140px, 1.3fr) 56px 132px minmax(150px, 210px) minmax(0, 1.7fr); }
+.m-raster { display: grid; grid-template-columns: 28px minmax(140px, 1.3fr) 70px 132px minmax(150px, 210px) minmax(0, 1.7fr); }
 .m-tkopf { position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--rand); }
 .m-tkopf > div { font-size: 11.5px; color: var(--text3); padding: 8px 8px; font-weight: 500; }
 .m-zeile { border-bottom: 1px solid var(--rand); align-items: center; min-height: 46px; }
+.m-tkopf.m-sortbar > div:not(:empty) { cursor: pointer; user-select: none; }
+.m-tkopf.m-sortbar > div:not(:empty):hover { color: var(--text2); }
+.m-tkopf > div.m-sort-auf, .m-tkopf > div.m-sort-ab { color: var(--text); }
+.m-tkopf > div.m-sort-auf::after { content: " ▲"; font-size: 9px; } .m-tkopf > div.m-sort-ab::after { content: " ▼"; font-size: 9px; }
+.m-sortiert { display: flex; flex-direction: column; }
 .m-zeile:hover { background: color-mix(in srgb, var(--fl2) 55%, transparent); }
 .m-zeile > div { padding: 6px 8px; min-width: 0; }
 .m-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
