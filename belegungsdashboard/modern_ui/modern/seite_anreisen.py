@@ -165,13 +165,15 @@ async def person_panel(a, schluessel: str) -> None:
                       label="Geschlecht" + (" (aus dem Vornamen geschätzt)" if p.geschlecht_geschaetzt else "")).classes(
             "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
         tier = ui.switch("kommt mit Tier", value=p.tier).props("dense color=indigo-4")
-        gr = ui.select(ank.GRUPPEN, value=p.gruppe if p.gruppe in ank.GRUPPEN else None, label="Gruppe").classes(
+        gr_vorher = ank.gruppe_auswahl(p.gruppe)
+        gr = ui.select(ank.GRUPPEN, value=gr_vorher, label="Gruppe").classes(
             "m-feld").props('dense outlined dark popup-content-class="m-popup"')
-        attr(gr, title="Bestimmt Zeitraum und erlaubte Zimmer (z. B. EMR nur Haus 2, Etage 1–2)")
+        attr(gr, title="Bestimmt Zeitraum und erlaubte Zimmer (z. B. EMR nur Haus 2, Etage 1–2). Details zur Maßnahme "
+                       "gehören in die Bemerkung.")
 
         async def angaben():
             ok = await a.aendern(ank.angaben_setzen, p.schluessel, g.value or "", bool(tier.value))
-            if ok and gr.value and gr.value != p.gruppe:
+            if ok and gr.value and gr.value != gr_vorher:      # nur wenn wirklich umgestellt (RVL bleibt RVL)
                 ok = await a.aendern(ank.gruppe_setzen, p.schluessel, gr.value)
             if ok:
                 await person_panel(a, schluessel)

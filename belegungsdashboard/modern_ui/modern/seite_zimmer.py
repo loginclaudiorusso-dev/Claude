@@ -793,15 +793,11 @@ async def _fm_zurueck(a, dateien) -> None:
 # Person in dieses Zimmer: aus den Anreisen ohne Zimmer wählen oder neu anlegen
 # =======================================================================================
 
-GRUPPEN = {"Reha": "Reha-Maßnahme", "RVL": "RVL", "RVT": "RVT", "ASS": "Assessment", "EMR": "EMR"}
 GESCHLECHT = {"": "unbekannt", "m": "männlich", "w": "weiblich", "d": "divers"}
 
 
 async def person_hinzu_panel(a, k: zk.Karte) -> None:
-    from . import anreisen_kern as ank
-
     kandidaten = await run.io_bound(zk.kandidaten, a.stand, k.zimmer, a.heute)
-    massnahmen = await run.io_bound(ank.massnahmen)
 
     def bauen():
         knopf("Zurück zur Zimmerkarte", lambda: karte_oeffnen(a, k.zimmer), "leise", "arrow_back")
@@ -826,11 +822,9 @@ async def person_hinzu_panel(a, k: zk.Karte) -> None:
         ui.label("Für Nachmeldungen, Gäste oder Mieter: die Person wird angelegt und gleich in dieses Zimmer geplant "
                  "(Rückgängig nimmt beides zurück).").classes("m-ptext")
         name = ui.input("Name (Nachname, Vorname)").classes("m-feld").props("dense outlined dark autofocus")
-        mn = ui.select(massnahmen, label="Maßnahme", new_value_mode="add-unique", with_input=True).classes(
-            "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
-        gr = ui.select(GRUPPEN, value="Reha", label="Gruppe").classes("m-feld").props(
+        gr = ui.select(zk.GRUPPEN_NEU, value="Reha", label="Gruppe").classes("m-feld").props(
             'dense outlined dark popup-content-class="m-popup"')
-        attr(gr, title="Bestimmt, welche Zimmer erlaubt sind (z. B. EMR nur Haus 2, Etage 1–2)")
+        attr(gr, title="Bestimmt, welche Zimmer erlaubt sind (z. B. Gast nur Gästezimmer, Mieter nur Haus 6)")
         with ui.element("div").classes("m-zweispaltig"):
             von = ui.input("Anreise", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
             bis = ui.input("Abreise", value=(a.heute + timedelta(days=28)).isoformat()).classes("m-feld").props(
@@ -839,7 +833,7 @@ async def person_hinzu_panel(a, k: zk.Karte) -> None:
             ge = ui.select(GESCHLECHT, value="", label="Geschlecht").classes("m-feld").props(
                 'dense outlined dark popup-content-class="m-popup"')
             tier = ui.checkbox("kommt mit Tier").props("dark dense")
-        bem = ui.input("Bemerkung (optional)", placeholder="z. B. barrierefrei, kommt einen Tag später").classes(
+        bem = ui.input("Bemerkung (optional)", placeholder="z. B. Maßnahme FIAE, Hospitation, barrierefrei").classes(
             "m-feld").props("dense outlined dark")
         tn = ui.input("TN-ID (optional)").classes("m-feld").props("dense outlined dark")
 
@@ -849,7 +843,7 @@ async def person_hinzu_panel(a, k: zk.Karte) -> None:
             except (TypeError, ValueError):
                 a.toast("Bitte An- und Abreise wählen.", fehler=True)
                 return
-            if await a.aendern(zk.person_ins_zimmer, k.zimmer, name.value or "", mn.value or "", gr.value or "",
+            if await a.aendern(zk.person_ins_zimmer, k.zimmer, name.value or "", "", gr.value or "",
                                d_von, d_bis, ge.value or "", bool(tier.value), bem.value or "", tn.value or ""):
                 await karte_oeffnen(a, k.zimmer)
 

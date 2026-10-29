@@ -63,6 +63,11 @@ class Option:
     art: str = "frei"     # frei | vorschlag | aktuell | ausnahme
 
 
+# Spalte „Gruppe“: kurz und in den Begriffen des Internatsdienstes
+GRUPPE_KURZ = {"Reha": "Haupt", "RVT": "Vorb.", "RVL": "Vorb.", "ASS": "ASS", "EMR": "EMR", "UWT": "UWT", "Gast": "Gast",
+               "Mieter": "Mieter"}
+
+
 @dataclass
 class Zeile:
     schluessel: str
@@ -198,7 +203,8 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
         for z in zt.ausnahmen:
             dazu(z.id, "ausnahme", f"{_bezeichnung(z)} · {zp.ausnahme_grund(stand.lage, z, b)}")
         zweite = b.massnahme.removeprefix("UWT ") if b.gruppe == "UWT" else b.massnahme
-        erg.append(Zeile(b.schluessel, b.name, zweite, b.gruppe, b.von, b.bis, gespeichert, status, stufe, grund,
+        erg.append(Zeile(b.schluessel, b.name, zweite, GRUPPE_KURZ.get(b.gruppe, b.gruppe), b.von, b.bis, gespeichert, status,
+                         stufe, grund,
                          vorschlag, opts, m, hinweise, b.bemerkung))
     return erg
 

@@ -298,14 +298,22 @@ def anreise_excel(stand: zp.Planstand, kennung: str, titel: str = ""):
 # Gruppe und Abreise-Erinnerung einer Person (wie im Personen-Dialog des Hauptprogramms)
 # ---------------------------------------------------------------------------------------
 
-GRUPPEN = {"EMR": "EMR", "ASS": "Assessment", "RVL": "RVL", "RVT": "RVT", "Reha": "Reha-Maßnahme"}
+# Gruppen in den Personenangaben (Details zur Maßnahme gehören in die Bemerkung). RVL bleibt erkannt und zählt als
+# vorbereitende Maßnahme – mit seiner Vorliebe für Haus 3.1 –, steht aber nicht eigens in der Auswahl.
+GRUPPEN = {"EMR": "EMR", "ASS": "Assessment", "RVT": "Vorbereitende Maßnahme", "Reha": "Hauptmaßnahme", "UWT": "UWT",
+           "Gast": "Gast", "Mieter": "Mieter"}
+
+
+def gruppe_auswahl(gruppe: str) -> str | None:
+    """Welcher Eintrag der Auswahl zur Gruppe einer Person passt (RVL → vorbereitende Maßnahme)."""
+    return "RVT" if gruppe == "RVL" else gruppe if gruppe in GRUPPEN else None
 
 
 def gruppe_setzen(schluessel: str, gruppe: str) -> str:
     if gruppe not in zp.GRUPPEN:
         raise ValueError("Unbekannte Gruppe.")
     _schritt("Gruppe geändert", lambda: zp.angabe_setzen(schluessel, gruppe=gruppe), [zp.PERSONEN_ANGABEN])
-    return f"Gruppe: {zp.GRUPPE_LABEL.get(gruppe, gruppe)} – Zeitraum und erlaubte Zimmer richten sich danach"
+    return f"Gruppe: {GRUPPEN.get(gruppe, zp.GRUPPE_LABEL.get(gruppe, gruppe))} – Zeitraum und erlaubte Zimmer richten sich danach"
 
 
 def kanaele() -> dict[str, str]:

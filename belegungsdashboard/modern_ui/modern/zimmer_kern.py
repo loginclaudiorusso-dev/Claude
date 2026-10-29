@@ -300,6 +300,11 @@ def kandidaten(stand: zp.Planstand, zid: str, heute: date, wochen: int = 8) -> l
     return erg
 
 
+# Gruppen für „Neue Person anlegen“ – Details zur Maßnahme (z. B. FIAE, Hospitation) gehören in die Bemerkung
+GRUPPEN_NEU = {"Reha": "Hauptmaßnahme", "RVT": "Vorbereitende Maßnahme", "ASS": "Assessment", "UWT": "UWT", "Gast": "Gast",
+               "Mieter": "Mieter"}
+
+
 def person_ins_zimmer(zid: str, name: str, massnahme: str, gruppe: str, anreise: date, abreise: date,
                       geschlecht: str = "", tier: bool = False, bemerkung: str = "", tn_id: str = "") -> str:
     """Neue Person anlegen und gleich in dieses Zimmer setzen – ein Schritt (Rückgängig nimmt beides zurück)."""
@@ -310,8 +315,9 @@ def person_ins_zimmer(zid: str, name: str, massnahme: str, gruppe: str, anreise:
     name = " ".join(name.split())
     if "," not in name or len(name) < 4:
         raise ValueError("Bitte den Namen als „Nachname, Vorname“ eingeben.")
-    if not massnahme.strip():
-        raise ValueError("Bitte eine Maßnahme angeben (z. B. „GS RVL“).")
+    massnahme = massnahme.strip() or GRUPPEN_NEU.get(gruppe, "")    # ohne Maßnahme: die Gruppe („Gast“, „UWT“ …)
+    if not massnahme:
+        raise ValueError("Bitte eine Gruppe wählen.")
     if abreise is None or abreise <= anreise:
         raise ValueError("Bitte eine Abreise nach der Anreise angeben – sonst lässt sich nicht prüfen, ob das Zimmer frei ist.")
     p = anreiseliste.Person(name, massnahme.strip(), anreise, True, tn_id=tn_id.strip(), abreise=abreise,
