@@ -291,6 +291,7 @@ def test_reinigung_last_6_wochen(leer):
 
     heute = date.today()
     an = heute + timedelta(days=9)
+    an += timedelta(days=-an.weekday() % 7)            # immer ein Montag: am Wochenende verschiebt sich die Reinigung
     p = [anreiseliste.Person(f"Last, Person{i}", "GS ASS", an, True, tn_id=f"82{i}", abreise=an + timedelta(days=12))
          for i in range(6)]
     einzeln = [an + timedelta(days=d) for d in (2, 3, 4) if (an + timedelta(days=d)).weekday() < 5][:2]
