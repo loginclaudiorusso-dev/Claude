@@ -608,6 +608,8 @@ def mieter_neu_panel(a) -> None:
             'dense outlined dark options-dense popup-content-class="m-popup"')
         alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")
         kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=indigo-4")
+        flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=indigo-4")
+        attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")
 
         async def zimmer_fuellen():
             try:
@@ -637,7 +639,8 @@ def mieter_neu_panel(a) -> None:
                 return
             werte = {"nr": nr.value or "", "anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
                      "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
-                     "schluessel": schl.value or 0, "kaution": kaution.value, "kaution_bis": v, "email": mail.value or ""}
+                     "schluessel": schl.value or 0, "kaution": kaution.value, "kaution_bis": v, "email": mail.value or "",
+                     "flexibel": bool(flex.value)}
             if await _mit_datei(a, mk.neuer_vertrag, werte):
                 a.panel_zu()
 

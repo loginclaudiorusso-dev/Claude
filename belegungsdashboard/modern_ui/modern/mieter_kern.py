@@ -146,6 +146,52 @@ def zimmer_auswahl(von: date, bis: date, anrede: str, alle: bool = False) -> dic
     return erg
 
 
+# ---- Flexible Mietverträge ---------------------------------------------------------------------------
+# In „Vorlagen/Mieter/Mietvertrag.vorlage“ stehen die abweichenden Textstellen als eigene Zeilen:
+#   ?flexibel  <Text>   – nur im flexiblen Vertrag
+#   ?!flexibel <Text>   – nur im üblichen Vertrag (dort wie bisher)
+# Das Hauptprogramm kennt die Markierung nicht und erstellt immer den üblichen Vertrag (gleiche Schreibweise wie
+# „?kaution“). Welche Verträge flexibel sind, merkt sich die neue Oberfläche (für „Unterlagen neu erstellen“).
+
+FLEX_DATEI = f"{speicher.IMPORT_ORDNER}/modern_mieter_flexibel.json"
+_FLEX = re.compile(r"^\?(!?)flexibel\s+(.*)$")
+
+
+def flexible() -> set[str]:
+    return set(speicher.lesen(FLEX_DATEI, {}).get("vertraege", []))
+
+
+def _flex_setzen(nr: str, an: bool) -> None:
+    alle = flexible() - {nr} | ({nr} if an else set())
+    speicher.schreiben(FLEX_DATEI, {"vertraege": sorted(alle)})
+
+
+def vorlage_hat_flexibel(text: str | None = None) -> bool:
+    if text is None:
+        ordner = mt.vorlagen_ordner()
+        if ordner is None or not (ordner / mt.VERTRAG).exists():
+            return False
+        text = (ordner / mt.VERTRAG).read_text(encoding="utf-8")
+    return any(_FLEX.match(z.rstrip()) and not z.startswith("?!") for z in text.splitlines())
+
+
+def vorlage_fuer(text: str, flexibel: bool) -> str:
+    """Wortlaut für den Vertrag: beim flexiblen die „?flexibel“-Zeilen statt der „?!flexibel“-Zeilen."""
+    if not flexibel:
+        return text
+    if not vorlage_hat_flexibel(text):
+        raise ValueError("Die Vorlage „Mietvertrag.vorlage“ enthält noch keine Textstellen für flexible Verträge – "
+                         "dort Zeilen mit „?flexibel “ beginnen lassen (und die üblichen mit „?!flexibel “).")
+    erg = []
+    for z in text.splitlines():
+        m = _FLEX.match(z.rstrip())
+        if m is None:
+            erg.append(z)
+        elif not m.group(1):
+            erg.append(m.group(2))                 # nur flexibel → immer zeigen
+    return "\n".join(erg)
+
+
 def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     """Vertrag anlegen, Unterlagen erstellen. (Meldung, Pfad der PDF/HTML)."""
     mv = mt.Mietvertrag(werte["nr"].strip(), werte["anrede"], werte["vorname"].strip(), werte["nachname"].strip(),
@@ -158,7 +204,8 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     if fehler:
         raise ValueError("Bitte prüfen: " + " ".join(fehler))
     ordner = mt.vorlagen_ordner()
-    html = mt.vertrag_html(mv, (ordner / mt.VERTRAG).read_text(encoding="utf-8"), ordner / mt.LOGO)
+    flex = bool(werte.get("flexibel"))
+    html = mt.vertrag_html(mv, vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"), flex), ordner / mt.LOGO)
     ziel = ablage() / f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
     pdf = html_als_pdf(html)
     teile = mt.paket_erstellen(mv, pdf, ziel, ordner)
@@ -167,8 +214,12 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
         h = ziel.with_name(ziel.stem.replace("Mietunterlagen", "Mietvertrag") + ".html")
         h.write_text(html, encoding="utf-8")
         extra = f" Mietvertrag als {h.name} (im Browser drucken)."
-    _schritt(f"Mietvertrag {mv.nr}", lambda: mt.anlegen(mv), [mt.DATEI])
-    return (f"Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: " + ", ".join(teile) + "." + extra), ziel
+    def anlegen():
+        mt.anlegen(mv)
+        _flex_setzen(mv.nr, flex)
+    _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI])
+    return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: "
+            + ", ".join(teile) + "." + extra), ziel
 
 
 def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
@@ -195,7 +246,8 @@ def unterlagen_neu(nr: str) -> tuple[str, Path]:
     ordner = mt.vorlagen_ordner()
     if ordner is None:
         raise ValueError("Vorlagen fehlen im Ordner „Vorlagen/Mieter“.")
-    html = mt.vertrag_html(mv, (ordner / mt.VERTRAG).read_text(encoding="utf-8"), ordner / mt.LOGO)
+    html = mt.vertrag_html(mv, vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"), nr in flexible()),
+                           ordner / mt.LOGO)
     ziel = ablage() / f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
     teile = mt.paket_erstellen(mv, html_als_pdf(html), ziel, ordner)
     return f"Unterlagen neu erstellt: {', '.join(teile)}", ziel
