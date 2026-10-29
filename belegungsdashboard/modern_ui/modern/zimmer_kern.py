@@ -380,6 +380,7 @@ class Karte:
     personen: list[Person]
     notizen: list                 # tm.Notiz (zum Zimmer)
     belegungen: list              # (Zeitraum, Text, Art) – kommende und laufende
+    historie: list = field(default_factory=list)   # historie_kern.Aufenthalt – frühere Bewohner, neueste zuerst
 
 
 def _umzug_von(stand: zp.Planstand, bw: zp.Bewohner):
@@ -416,8 +417,15 @@ def karte(stand: zp.Planstand, zid: str, heute: date) -> Karte:
         if b.bis >= heute and b.art != "freigabe":
             text, art = zp.balken_text(b)
             belegungen.append((f"{b.von:%d.%m.%y} – {b.bis:%d.%m.%y}", text, art))
+    from . import historie_kern as hk
+
+    try:
+        historie = hk.im_zimmer(zid, heute)
+    except Exception:                      # noqa: BLE001 – Historie ist Zusatz
+        historie = []
     return Karte(zid, z.kurz, zp.flur_text(z), z.betten, zl.merkmal_kurz(z), z.notiz,
-                 stand.lage.unbewohnbar.get(zid, ""), maengel, personen, tm.notizen(zp.zimmer_schluessel(zid)), belegungen)
+                 stand.lage.unbewohnbar.get(zid, ""), maengel, personen, tm.notizen(zp.zimmer_schluessel(zid)), belegungen,
+                 historie)
 
 
 # ---- Ändern ---------------------------------------------------------------------------

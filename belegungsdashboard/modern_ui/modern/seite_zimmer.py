@@ -534,6 +534,31 @@ def _karte(a, k: zk.Karte) -> None:
                 ui.element("div").classes(f"m-zs-punkt {art}")
                 ui.label(text).classes("m-name")
                 ui.label(zeit).classes("m-mono")
+    _historie(k)
+
+
+def _historie(k: zk.Karte) -> None:
+    """Frühere Bewohner – auch wer längst nicht mehr im Gebäudeplan steht (Zimmerhistorie)."""
+    if not k.historie:
+        return
+    ui.label(f"Früher in diesem Zimmer ({len(k.historie)})").classes("m-ktitel")
+    sichtbar = ui.element("div")
+    mehr = ui.element("div")
+
+    def zeigen(n: int) -> None:
+        sichtbar.clear()
+        with sichtbar:
+            for h in k.historie[:n]:
+                with ui.element("div").classes("m-liste-zeile"):
+                    ui.element("div").classes(f"m-zs-punkt {'belegt' if h.art == 'belegt' else 'geplant'}")
+                    attr(ui.label(h.name).classes("m-name"), title=h.massnahme or "")
+                    attr(ui.label(h.zeitraum).classes("m-mono"),
+                         title="laut Gebäudeplan" if h.art == "belegt" else "laut eigener Planung")
+        mehr.clear()
+        if len(k.historie) > n:
+            with mehr:
+                knopf(f"Alle {len(k.historie)} anzeigen", lambda: zeigen(len(k.historie)), "leise", "expand_more")
+    zeigen(8)
 
 
 def _notiz_zeile(a, k: zk.Karte, n) -> None:

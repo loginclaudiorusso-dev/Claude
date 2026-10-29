@@ -29,6 +29,17 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
                 erg.append((t.name, zusatz, "zimmer", {"karte": t.zimmer_id}))
             else:
                 erg.append((t.name, zusatz, "anreisen", {"kennung": t.von.isoformat()}))
+        from . import historie_kern as hk
+
+        try:
+            frueher = hk.suchen(text, heute)
+        except Exception:                  # noqa: BLE001 – Historie ist Zusatz
+            frueher = []
+        schon = {(t[0], t[3].get("karte")) for t in erg}
+        for h in frueher:
+            if (h.name, h.zimmer) not in schon:
+                erg.append((h.name, " · ".join(x for x in (f"früher in {h.kurz}", h.massnahme, h.zeitraum) if x),
+                            "zimmer", {"karte": h.zimmer}))
     return erg
 
 

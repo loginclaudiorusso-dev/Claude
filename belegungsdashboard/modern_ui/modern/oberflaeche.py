@@ -118,6 +118,12 @@ class Ansicht:
             self.neu = {}
         self.nav_zahl = kern.nav_zahlen(self.stand, self.heute)
         try:
+            from . import historie_kern
+
+            historie_kern.erfassen(self.stand, self.heute)      # Zimmerhistorie: wer wann wo gewohnt hat
+        except Exception:                      # noqa: BLE001 – darf das Laden nie verhindern
+            log.exception("Zimmerhistorie")
+        try:
             self.neu_liste, self.ungelesen = kern.neuigkeiten()
         except Exception:                      # noqa: BLE001
             self.neu_liste, self.ungelesen = [], 0
