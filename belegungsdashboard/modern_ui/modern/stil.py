@@ -15,6 +15,11 @@ T = {
     "orange": "#E9A15A",
     "gruen": "#4CC38A",
     "blau": "#6E8BD8",
+    # Zimmerzustände: frei und belegt klar unterscheidbar (ΔE ≈ 68, auch bei Rot-Grün-Schwäche ≥ 50), Text ≥ 4,5:1;
+    # „geplant“ ist hohl mit gestricheltem Rand – unterscheidbar auch ohne Farbe
+    "frei_fl": "#2E7556",
+    "belegt_fl": "#4459A0",
+    "belegt_text": "#F1F3FF",
     "knopf_oben": "#262A33",   # Knopf: leichter Verlauf von oben nach unten
     "knopf_unten": "#1C1F26",
     "akzent_oben": "#94A2FF",
@@ -27,6 +32,7 @@ CSS = """
   --text: %(text)s; --text2: %(text2)s; --text3: %(text3)s;
   --akzent: %(akzent)s; --akzent-text: %(akzent_text)s;
   --rot: %(rot)s; --orange: %(orange)s; --gruen: %(gruen)s; --blau: %(blau)s;
+  --frei: %(frei_fl)s; --belegt: %(belegt_fl)s; --belegt-text: %(belegt_text)s;
   --k-oben: %(knopf_oben)s; --k-unten: %(knopf_unten)s; --a-oben: %(akzent_oben)s; --a-unten: %(akzent_unten)s;
   --r: 6px;
   --schrift: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
@@ -209,8 +215,8 @@ button.m-navpunkt:focus-visible { outline: 2px solid var(--akzent); outline-offs
 .m-zs-b span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-zs-b.ol { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .m-zs-b.or { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.m-zs-b.belegt, .m-legende i.belegt { background: #2A3350; color: #C9D1F5; }
-.m-zs-b.geplant, .m-legende i.geplant { background: color-mix(in srgb, var(--akzent) 22%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px var(--akzent); }
+.m-zs-b.belegt, .m-legende i.belegt { background: var(--belegt); color: var(--belegt-text); }
+.m-zs-b.geplant, .m-legende i.geplant { background: color-mix(in srgb, var(--akzent) 8%, transparent); color: var(--text); border: 1.5px dashed var(--akzent); box-sizing: border-box; }
 .m-zs-b.gesperrt, .m-legende i.gesperrt { background: repeating-linear-gradient(135deg, #2A2D34 0 6px, #22252B 6px 12px); color: var(--text3); }
 .m-zs-b.konflikt, .m-legende i.konflikt { background: color-mix(in srgb, var(--rot) 22%, transparent); color: var(--rot); box-shadow: inset 0 0 0 1px var(--rot); }
 
@@ -261,8 +267,8 @@ CSS += """
 .m-klick { cursor: pointer; }
 .m-krit { color: var(--rot) !important; } .m-warn { color: var(--orange) !important; }
 .m-zs-lab, .m-zs-b { cursor: pointer; }
-.m-zs-punkt { width: 10px; height: 10px; border-radius: 3px; background: #2A3350; }
-.m-zs-punkt.geplant { background: color-mix(in srgb, var(--akzent) 40%, transparent); }
+.m-zs-punkt { width: 10px; height: 10px; border-radius: 3px; background: var(--belegt); }
+.m-zs-punkt.geplant { background: transparent; border: 1.5px dashed var(--akzent); box-sizing: border-box; }
 .m-zs-punkt.gesperrt { background: #3A3D44; }
 .m-sucheingabe { width: 220px !important; }
 .m-leiste { flex-wrap: wrap; row-gap: 8px; }
@@ -404,10 +410,10 @@ CSS += """
 .m-kachel { position: relative; width: 44px; height: 30px; border-radius: 6px; border: 1px solid transparent; font: inherit; font-size: 11.5px;
   font-variant-numeric: tabular-nums; cursor: pointer; display: grid; place-items: center; color: var(--text); padding: 0; }
 .m-kachel:hover { filter: brightness(1.25); }
-.m-kachel.frei, .m-legende i.frei { background: color-mix(in srgb, var(--gruen) 26%, var(--fl)); }
-.m-kachel.teilweise, .m-legende i.teilweise { background: color-mix(in srgb, var(--gruen) 12%, var(--fl)); border-color: color-mix(in srgb, var(--gruen) 45%, transparent); }
-.m-kachel.belegt, .m-legende i.belegt { background: #2A3350; }
-.m-kachel.geplant, .m-legende i.geplant { background: color-mix(in srgb, var(--akzent) 22%, var(--fl)); }
+.m-kachel.frei, .m-legende i.frei { background: var(--frei); }
+.m-kachel.teilweise, .m-legende i.teilweise { background: color-mix(in srgb, var(--gruen) 14%, var(--fl)); border: 1.5px solid var(--gruen); }
+.m-kachel.belegt, .m-legende i.belegt { background: var(--belegt); color: var(--belegt-text); }
+.m-kachel.geplant, .m-legende i.geplant { background: var(--fl); border: 1.5px dashed var(--akzent); color: #C7CEFF; }
 .m-kachel.gesperrt, .m-legende i.gesperrt { background: repeating-linear-gradient(135deg, #2A2D34 0 5px, #22252B 5px 10px); color: var(--text3); }
 .m-kachel.unbew { border: 2px solid var(--rot); }
 .m-kachel-m { position: absolute; top: -6px; right: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
