@@ -89,6 +89,14 @@ def zeichnen(a) -> None:
                         knopf(f"Neu im Ordner: {plan.datei} prüfen …", lambda: seiten._plan_panel(a, plan, kennung, unterschiede)
                               if unterschiede else a.aendern(seiten.sk.plan_uebernehmen, plan, [], kennung), "gruen")
             with ui.element("section").classes("m-block"):
+                ui.label("Schlüssellisten (An- und Abreisen vom Empfang)").classes("m-btitel")
+                ui.label("Wo der Schlüssel ausgegeben wurde, wohnt die Person. Die Listen werden mit Planung und "
+                         "Gebäudeplan verglichen; Abweichungen übernehmen Sie nach Prüfung – die Planung gilt dann auch "
+                         "gegen einen veralteten Gebäudeplan.").classes("m-ptext")
+                with ui.element("div").classes("m-paktionen"):
+                    _hochladen(a, "Schlüssellisten abgleichen", ".xlsx,.xlsm", lambda f: _schluessel_panel(a, f), True,
+                               "primaer")
+            with ui.element("section").classes("m-block"):
                 ui.label("Zimmerkontrollliste (ZKL) und Zimmer-Pivot").classes("m-btitel")
                 ui.label(f"ZKL: {q['zkl'].stand}").classes("m-name")
                 ui.label(f"Zimmer-Pivot: {q['zimmerpivot'].stand}").classes("m-name")
@@ -142,6 +150,64 @@ def _karte(a, q: dk.Quelle, knopf_bauen, text: str, extra=None) -> None:
             knopf_bauen()
             if extra:
                 extra()
+
+
+async def _schluessel_panel(a, dateien) -> None:
+    """Schlüssellisten gegen Planung und Gebäudeplan – Korrekturen ankreuzen (laufende Aufenthalte vorausgewählt)."""
+    from belegung import zimmerplan as zp
+
+    from . import schluessel_kern as sk
+
+    def lesen_und_vergleichen():
+        stand, eintraege, fehler = zp.laden(), [], []
+        for pfad, name in dateien:
+            try:
+                eintraege += sk.lesen(pfad, name, stand)
+            except Exception as exc:           # noqa: BLE001 – andere Dateien trotzdem
+                fehler.append(str(exc))
+        return sk.vergleichen(stand, eintraege), fehler
+
+    punkte, fehler = await run.io_bound(lesen_und_vergleichen)
+    wahl = {i: p.art == "korrigieren" and p.laeuft for i, p in enumerate(punkte)}
+
+    def bauen():
+        for f in fehler:
+            ui.label(f).classes("m-pille krit").style("white-space:normal")
+        zahl = {k: sum(1 for p in punkte if p.art == k) for k in ("stimmt", "korrigieren", "nur_plan", "unbekannt",
+                                                                  "zimmer_unbekannt")}
+        ui.label(f"{len(punkte)} Zeilen · {zahl['stimmt']} stimmen · {zahl['korrigieren']} zu korrigieren · "
+                 f"{zahl['nur_plan'] + zahl['unbekannt'] + zahl['zimmer_unbekannt']} nur zur Info. Vorausgewählt sind "
+                 "Korrekturen für Aufenthalte, die noch laufen.").classes("m-ptext")
+        sp = "34px minmax(150px, 1.2fr) 150px 90px minmax(220px, 2fr)"
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("", "Name", "Zeitraum", "Schlüssel", "Ergebnis"):
+                ui.label(t)
+        for i, p in enumerate(punkte):
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                cb = ui.checkbox(value=wahl[i]).props("dark dense")
+                if p.art != "korrigieren":
+                    cb.props("disable")
+                cb.on_value_change(lambda e, i=i: wahl.__setitem__(i, bool(e.value)))
+                with ui.element("div"):
+                    ui.label(p.e.name).classes("m-name")
+                    ui.label(p.e.datei).classes("m-zweite")
+                ui.label(f"{p.e.anreise:%d.%m.}–{p.e.abreise:%d.%m.%y}" if p.e.abreise else f"ab {p.e.anreise:%d.%m.%y}"
+                         ).classes("m-mono")
+                ui.label(p.e.zimmer_text).classes("m-mono")
+                with ui.element("div"):
+                    ui.label(p.text).classes("m-ptext " + {"stimmt": "", "korrigieren": "m-warn"}.get(p.art, "m-zweite"))
+                    for h in p.hinweise:
+                        ui.label(f"⚠ {h}").classes("m-zweite").style("white-space:normal")
+
+        async def los():
+            gewaehlt = [p for i, p in enumerate(punkte) if wahl[i]]
+            if gewaehlt and await a.aendern(sk.uebernehmen, gewaehlt):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Angehakte Korrekturen übernehmen", los, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Schlüssellisten abgleichen", bauen, breit=True)
 
 
 async def _ordner(a) -> None:
