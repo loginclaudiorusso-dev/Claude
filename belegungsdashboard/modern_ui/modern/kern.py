@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import re
 from datetime import date, timedelta
 from typing import Callable
 
@@ -324,6 +325,63 @@ def problemfaelle(stand: zp.Planstand, heute: date) -> dict[str, str]:
         if z["zimmer"] in stand.lage.unbewohnbar and z.get("bis", "") >= heute.isoformat() and z["person"] not in erg:
             erg[z["person"]] = f"unbewohnbar: {stand.lage.unbewohnbar[z['zimmer']]}"
     return erg
+
+
+@dataclass
+class ZimmerPruefung:
+    zimmer: str | None        # Zimmer-ID, wenn erkannt
+    art: str                  # passt | ausnahme | nein
+    text: str
+    gruende: list[str] = field(default_factory=list)   # wer/was im Zeitraum im Weg ist
+
+
+def _zimmer_aus_text(stand: zp.Planstand, text: str) -> str | None:
+    """„3.2 111“, „3.2-111“, „GS-3.2-111“, „2-104“ → Zimmer-ID."""
+    t = re.sub(r"\s+", " ", (text or "").strip().upper()).removeprefix("GS-").removeprefix("GS ")
+    m = re.match(r"^(\d(?:\.\d)?)\s*[- /]?\s*([A-Z]?\d{2,4}[A-Z]?)$", t)
+    if not m:
+        return None
+    kurz_ = f"{m.group(1)}-{m.group(2)}"
+    return next((z.id for z in stand.zimmer if z.kurz.upper() == kurz_), None)
+
+
+def zimmer_pruefen(stand: zp.Planstand, schluessel: str, eingabe: str) -> ZimmerPruefung:
+    """Warum ist ein bestimmtes Zimmer für diese Person (nicht) wählbar? Mit allem, was im Zeitraum im Weg ist."""
+    b = next((x for x in stand.bedarf if x.schluessel == schluessel), None)
+    if b is None:
+        return ZimmerPruefung(None, "nein", "Die Person steht nicht (mehr) in den Listen.")
+    zid = _zimmer_aus_text(stand, eingabe)
+    if zid is None:
+        return ZimmerPruefung(None, "nein", f"Zimmer „{eingabe}“ nicht gefunden – bitte z. B. „3.2-111“ eingeben.")
+    lage, z, ohne = stand.lage, stand.lage.zimmer[zid], frozenset({schluessel})
+    if (stand.zugewiesen(schluessel) or {}).get("zimmer") == zid:
+        return ZimmerPruefung(zid, "nein", f"{z.kurz} ist schon für diese Person gespeichert.")
+    if not z.aktiv:
+        return ZimmerPruefung(zid, "nein", f"{z.kurz} gehört nicht (mehr) zum Internat (außer Betrieb).")
+    if zid in lage.unbewohnbar:
+        return ZimmerPruefung(zid, "nein", f"{z.kurz} ist unbewohnbar: {lage.unbewohnbar[zid]} – erst den Mangel beheben.")
+    if zp.nur_doppel(z, b.gruppe):
+        return ZimmerPruefung(zid, "nein", f"{z.kurz} ist ein Doppelzimmer ({z.betten} Betten) – {zp.DOPPEL_GRUND}. "
+                              "Das ist eine feste Regel des Hauptprogramms (auch nicht von Hand). Ist das Zimmer in "
+                              "Wirklichkeit ein Einzelzimmer: unter Einstellungen → Zimmer-Stammdaten die Betten ändern.")
+    puffer = timedelta(days=max(lage.puffer - 1, 0))
+    im_weg = sorted((x for x in lage.belegungen.get(zid, []) if x.art in ("belegt", "geplant", "gesperrt")
+                     and x.person != schluessel and x.von <= b.bis + puffer and b.von <= x.bis + puffer), key=lambda x: x.von)
+    gruende = [f"{(zp.anzeige_name(x.name) if x.name else x.grund or 'gesperrt')} · {x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y} · "
+               + {"belegt": "laut Gebäudeplan", "geplant": "im Programm geplant", "gesperrt": "gesperrt"}[x.art]
+               for x in im_weg]
+    if lage.freie_betten(zid, b.von, b.bis, ohne) <= 0:
+        extra = f" (mit {lage.puffer} Tag{'en' if lage.puffer != 1 else ''} Abstand für die Reinigung)" if lage.puffer else ""
+        return ZimmerPruefung(zid, "nein", f"{z.kurz} ist vom {b.von:%d.%m.} bis {b.bis:%d.%m.%Y}{extra} belegt oder gesperrt.",
+                              gruende)
+    grund = zp.passt(lage, z, b, ohne)
+    if grund and lage.mitbewohner(zid, b.von, b.bis, ohne):
+        return ZimmerPruefung(zid, "nein", f"In {z.kurz} wohnt im Zeitraum schon jemand – dorthin geht es nicht ({grund}).",
+                              gruende)
+    if grund:
+        return ZimmerPruefung(zid, "ausnahme", f"{z.kurz} ist frei, verletzt aber eine Regel: {grund}. "
+                              "Von Hand trotzdem möglich.", gruende)
+    return ZimmerPruefung(zid, "passt", f"{z.kurz} ist frei und passt.", gruende)
 
 
 @dataclass

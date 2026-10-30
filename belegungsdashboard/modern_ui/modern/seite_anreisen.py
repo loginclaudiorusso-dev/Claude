@@ -151,6 +151,34 @@ async def _kopieren(a) -> None:
 
 # ---- Personen im Panel ------------------------------------------------------------------
 
+def _zimmer_pruefen(a, schluessel: str) -> None:
+    """Bestimmtes Zimmer prüfen: warum steht es nicht in der Auswahl – und von Hand trotzdem zuweisen, wenn es geht."""
+    from . import kern
+
+    ui.label("Bestimmtes Zimmer prüfen").classes("m-ktitel")
+    with ui.element("div").classes("m-schalter"):
+        ein = ui.input("Zimmer, z. B. 3.2-111").classes("m-feld").props("dense outlined dark")
+        knopf_pruefen = knopf("Prüfen", None, "", "search")
+    ergebnis = ui.element("div")
+
+    async def pruefen():
+        r = await run.io_bound(kern.zimmer_pruefen, a.stand, schluessel, ein.value or "")
+        ergebnis.clear()
+        with ergebnis:
+            ui.label(r.text).classes("m-ptext " + {"passt": "", "ausnahme": "m-warn", "nein": "m-krit"}[r.art])
+            for g in r.gruende:
+                ui.label(f"• {g}").classes("m-zweite").style("white-space:normal")
+            if r.art in ("passt", "ausnahme") and r.zimmer:
+                async def zuweisen(zid=r.zimmer):
+                    if await a.aendern(kern.zuweisen, schluessel, zid):
+                        a.panel_zu()
+                with ui.element("div").classes("m-paktionen"):
+                    knopf("Zuweisen" if r.art == "passt" else "Trotzdem zuweisen (Ausnahme)", zuweisen,
+                          "primaer" if r.art == "passt" else "", "check")
+    knopf_pruefen.on("click", pruefen)
+    ein.on("keydown.enter", pruefen)
+
+
 async def person_panel(a, schluessel: str) -> None:
     try:
         p = await run.io_bound(ank.person, a.stand, schluessel)
@@ -180,6 +208,7 @@ async def person_panel(a, schluessel: str) -> None:
 
         with ui.element("div").classes("m-paktionen"):
             knopf("Angaben speichern", angaben, "primaer", "check")
+        _zimmer_pruefen(a, schluessel)
         if p.aus_liste:
             ui.label("Aufenthalt").classes("m-ktitel")
             ab = ui.input("Abreise (leer = offen)", value=p.abreise.isoformat() if p.abreise else "").classes("m-feld").props(
