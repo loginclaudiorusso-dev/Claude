@@ -919,7 +919,11 @@ class Ansicht:
                 if pro:
                     knopf("", lambda k=k: self._spaeter(k), "leise m-kspaeter", "snooze", "Später – bis morgen ausblenden")
             if k.detail:
-                attr(ui.label(k.detail).classes("k2"), title=k.detail)
+                d = attr(ui.label(k.detail).classes("k2"), title=k.detail)
+                if self._hat_details(k):                        # Klick zeigt alle Fälle, nicht nur die ersten
+                    d.classes(add="m-klickbar")
+                    attr(d, title=k.detail + "\n\nKlick: alle anzeigen")
+                    d.on("click", lambda k=k: self._karte_details(k))
             with ui.element("div").classes("k3"):
                 if k.aktion:
                     knopf(k.aktion.text, lambda k=k: self._karte_loesen(k), "primaer")
@@ -999,7 +1003,114 @@ class Ansicht:
     async def _alle_vorschlaege(self) -> None:
         await self.aendern(kern.vorschlaege_uebernehmen, self.kennung, "alle")
 
+    @staticmethod
+    def _hat_details(k: kern.Karte) -> bool:
+        return k.id in ("unbewohnbar", "konflikte", "allergie") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
+
+    async def _karte_details(self, k: kern.Karte) -> None:
+        if k.id in ("unbewohnbar", "konflikte"):
+            await self._faelle_panel(k.id == "unbewohnbar")
+        elif k.id == "allergie":
+            await self._allergie_panel()
+        elif k.zweite:
+            await self._zeigen(k.zweite.zeigen)
+        elif k.aktion and k.aktion.zeigen:
+            await self._zeigen(k.aktion.zeigen)
+
+    async def _faelle_panel(self, nur_unbewohnbar: bool) -> None:
+        """Planungen mit Konflikt / in unbewohnbaren Zimmern prüfen – umgeplant wird nur, was angehakt ist."""
+        from . import seite_zimmer
+
+        fs = await run.io_bound(kern.faelle, self.stand, self.heute, nur_unbewohnbar)
+        wahl: dict[str, bool] = {}
+
+        def bauen():
+            moeglich = [f for f in fs if f.vorschlag]
+            wohnen = sum(1 for f in fs if f.wohnt)
+            ui.label(f"{len(fs)} Planungen · {len(moeglich)} mit freiem Ausweichzimmer"
+                     + (f" · {wohnen} wohnen schon dort (Umzug über die Zimmerkarte)" if wohnen else "")
+                     + ". Geändert wird nur, was Sie anhaken.").classes("m-ptext")
+            sp = "34px minmax(150px, 1.3fr) minmax(160px, 1.4fr) 120px 40px"
+            kaestchen = {}
+
+            def neu_zaehlen():
+                n = sum(1 for v in wahl.values() if v)
+                zahl.text = f"{n} ausgewählt"
+                los.default_slot.children[-1].text = f"{n} Ausweichzimmer übernehmen" if n != 1 else "1 Ausweichzimmer übernehmen"
+                los.props("disabled") if not n else los.props(remove="disabled")
+
+            def alle(an: bool):
+                for f in moeglich:
+                    wahl[f.schluessel] = an
+                    kaestchen[f.schluessel].value = an
+                neu_zaehlen()
+
+            with ui.element("div").classes("m-paktionen"):
+                knopf(f"Alle {len(moeglich)} mit Vorschlag auswählen", lambda: alle(True), "", "done_all")
+                knopf("Keine", lambda: alle(False), "leise")
+            with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+                for t in ("", "Person", "Zimmer jetzt · Grund", "Ausweichzimmer", ""):
+                    ui.label(t)
+            for f in fs:
+                with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                    cb = ui.checkbox(value=False).props("dark dense")
+                    kaestchen[f.schluessel] = cb
+                    wahl[f.schluessel] = False
+                    if not f.vorschlag:
+                        cb.props("disable")
+                    cb.on_value_change(lambda e, f=f: (wahl.__setitem__(f.schluessel, bool(e.value)), neu_zaehlen()))
+                    with ui.element("div"):
+                        ui.label(f.name).classes("m-name")
+                        ui.label(("wohnt seit " if f.wohnt else "Anreise ") + f"{f.von:%d.%m.%Y}").classes("m-zweite")
+                    with ui.element("div"):
+                        z = ui.label(kern.kurz(f.zimmer)).classes("m-mono m-link")
+                        z.on("click", lambda f=f: seite_zimmer.karte_oeffnen(self, f.zimmer))
+                        attr(ui.label(f.grund).classes("m-zweite"), title=f.grund)
+                    if f.vorschlag:
+                        v = ui.label(f"→ {kern.kurz(f.vorschlag)}").classes("m-mono m-link")
+                        v.on("click", lambda f=f: seite_zimmer.karte_oeffnen(self, f.vorschlag))
+                    else:
+                        ui.label("Umzug planen" if f.wohnt else "kein freies").classes("m-zweite")
+                    knopf("", lambda f=f: seite_zimmer.karte_oeffnen(self, f.zimmer), "leise", "open_in_new", "Zimmerkarte")
+            with ui.element("div").classes("m-paktionen"):
+                los = knopf("Ausweichzimmer übernehmen", lambda: uebernehmen(), "primaer", "check")
+                knopf("Abbrechen", self.panel_zu, "leise")
+                zahl = ui.label("").classes("m-zweite")
+            neu_zaehlen()
+
+        async def uebernehmen():
+            gewaehlt = [p for p, an in wahl.items() if an]
+            if gewaehlt and await self.aendern(kern.ausweich_uebernehmen, gewaehlt, self.heute):
+                self.panel_zu()
+
+        self.panel("Unbewohnbare Zimmer – prüfen" if nur_unbewohnbar else "Konflikte – prüfen", bauen, breit=True)
+
+    async def _allergie_panel(self) -> None:
+        from . import hinweise_kern as hk
+
+        fs = await run.io_bound(hk.allergie_faelle, self.stand, self.heute)
+
+        def bauen():
+            ui.label(f"{len(fs)} Allergiker in den nächsten 3 Wochen · {hk.ALLERGIE_TEXT}").classes("m-ptext")
+            sp = "minmax(160px, 1.4fr) 110px 110px 150px 110px"
+            with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+                for t in ("Person", "Anreise", "Zimmer", "Etage", ""):
+                    ui.label(t)
+            for f in fs:
+                with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                    ui.label(f.name).classes("m-name")
+                    ui.label(f"{f.anreise:%d.%m.%Y}").classes("m-mono")
+                    ui.label(kern.kurz(f.zimmer) if f.zimmer else "noch ohne").classes("m-mono")
+                    ui.label("auf der Etage ✓" if f.auf_etage else "nicht auf der Etage").classes(
+                        "m-zweite" if f.auf_etage else "m-zweite m-warn")
+                    knopf("Zur Anreise", lambda f=f: self._zeigen(f.anreise.isoformat()), "leise")
+
+        self.panel("Allergiker", bauen, breit=True)
+
     async def _karte_loesen(self, k: kern.Karte) -> None:
+        if k.aktion.schluessel == "konflikte":                  # erst prüfen, dann nur das Angehakte umplanen
+            await self._faelle_panel(k.id == "unbewohnbar")
+            return
         if k.aktion.zeigen:
             self.kennung = k.aktion.zeigen
         await self.aendern(kern.ausfuehren, k.aktion.schluessel, self.heute)

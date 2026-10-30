@@ -96,6 +96,8 @@ body { font-family: var(--schrift); font-size: 13.5px; letter-spacing: -0.005em;
 .m-tkopf > div.m-sort-auf, .m-tkopf > div.m-sort-ab { color: var(--text); }
 .m-tkopf > div.m-sort-auf::after { content: " ▲"; font-size: 9px; } .m-tkopf > div.m-sort-ab::after { content: " ▼"; font-size: 9px; }
 .m-sortiert { display: flex; flex-direction: column; }
+.m-knopf[disabled] { opacity: .45; cursor: default; pointer-events: none; }
+.m-karte .k2.m-klickbar { cursor: pointer; } .m-karte .k2.m-klickbar:hover { color: var(--text); text-decoration: underline dotted; }
 .m-zeile:hover { background: color-mix(in srgb, var(--fl2) 55%, transparent); }
 .m-zeile > div { padding: 6px 8px; min-width: 0; }
 .m-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
