@@ -68,7 +68,9 @@ def _aus_belegung(b) -> Aufenthalt | None:
                       "geplant" if b.art == "geplant" else "belegt", b.person or "")
 
 
-def _zusammenfuehren(bisher: dict[str, Aufenthalt], neu: list[Aufenthalt], heute: date) -> bool:
+def _zusammenfuehren(bisher: dict[str, Aufenthalt], neu: list[Aufenthalt], heute: date, nur_neue: bool = False) -> bool:
+    """Neue Aufenthalte aufnehmen; bei bekannten gilt der aktuelle Stand (auch ein früheres Ende nach Abbruch).
+    ``nur_neue``: Nachtragen aus alten Sicherungen – bekannte Einträge nie mit einem älteren Stand überschreiben."""
     geaendert = False
     for a in neu:
         alt = bisher.get(a.schluessel)
@@ -76,11 +78,13 @@ def _zusammenfuehren(bisher: dict[str, Aufenthalt], neu: list[Aufenthalt], heute
             bisher[a.schluessel] = a
             geaendert = True
             continue
+        if nur_neue:
+            continue
         if a.art == "geplant" and alt.zimmer != a.zimmer and date.fromisoformat(a.von) > heute:
             bisher[a.schluessel] = a                     # vor dem Einzug umgeplant: das neue Zimmer zählt
             geaendert = True
-        elif a.bis > alt.bis or (a.massnahme and a.massnahme != alt.massnahme):
-            bisher[a.schluessel] = Aufenthalt(alt.zimmer, alt.name, alt.von, max(a.bis, alt.bis), a.massnahme or alt.massnahme,
+        elif a.bis != alt.bis or (a.massnahme and a.massnahme != alt.massnahme):
+            bisher[a.schluessel] = Aufenthalt(alt.zimmer, alt.name, alt.von, a.bis, a.massnahme or alt.massnahme,
                                               alt.art, alt.person)
             geaendert = True
     return geaendert
@@ -113,7 +117,7 @@ def erfassen(stand, heute: date | None = None) -> int:
         geaendert = True
     nachgetragen = roh["nachgetragen"]
     if not nachgetragen:
-        geaendert |= _zusammenfuehren(bisher, _aus_sicherungen(), heute)
+        geaendert |= _zusammenfuehren(bisher, _aus_sicherungen(), heute, nur_neue=True)
         nachgetragen = geaendert = True
     geaendert |= _aufraeumen(bisher, heute)
     if geaendert:

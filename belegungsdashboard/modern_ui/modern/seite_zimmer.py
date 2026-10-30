@@ -515,6 +515,9 @@ def _karte(a, k: zk.Karte) -> None:
                 elif p.umzug_moeglich:
                     knopf("Umzug planen …", lambda p=p: _umzug(a, k, p), "", "swap_horiz")
                 knopf("Notiz", lambda p=p: _notiz(a, k, p.schluessel, p.name), "leise", "edit_note")
+                if not p.kommt:
+                    knopf("Auszug / Abbruch …", lambda p=p: _auszug(a, k, p), "leise", "logout",
+                          "Abbruch oder vorzeitiger Auszug – das Zimmer wird danach frei")
             for n in p.notizen[:3]:
                 _notiz_zeile(a, k, n)
     # Mängel
@@ -603,6 +606,35 @@ def _notiz(a, k: zk.Karte, person: str, name: str) -> None:
             knopf("Zurück", lambda: karte_oeffnen(a, k.zimmer), "leise")
 
     a.panel(f"Notiz · {name}", bauen)
+
+
+def _auszug(a, k: zk.Karte, p: zk.Person) -> None:
+    """Abbruch / vorzeitiger Auszug buchen."""
+    def bauen():
+        knopf("Zurück zur Zimmerkarte", lambda: karte_oeffnen(a, k.zimmer), "leise", "arrow_back")
+        ui.label(f"{p.name} · {k.kurz} · bisher bis {p.bis:%d.%m.%Y}").classes("m-name")
+        ui.label("Letzter Tag im Zimmer eintragen. Die Abreise wird überall gekürzt (Anreiseliste, eigene Planung und – "
+                 "bis zum nächsten Gebäudeplan – auch dort), der Grund kommt in die Bemerkung. Danach ist das Zimmer "
+                 "frei und kommt auf die Reinigungsliste. Rückgängig ist möglich.").classes("m-ptext")
+        with ui.element("div").classes("m-zweispaltig"):
+            tag = ui.input("Auszug am", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            grund = ui.select(zk.AUSZUG_GRUENDE, value="Abbruch", label="Grund").classes("m-feld").props(
+                'dense outlined dark popup-content-class="m-popup"')
+
+        async def buchen():
+            try:
+                d = date.fromisoformat(tag.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte ein Datum wählen.", fehler=True)
+                return
+            if await a.aendern(zk.auszug, k.zimmer, p.schluessel, d, grund.value or "Abbruch"):
+                await karte_oeffnen(a, k.zimmer)
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Auszug buchen", buchen, "primaer", "logout")
+            knopf("Abbrechen", lambda: karte_oeffnen(a, k.zimmer), "leise")
+
+    a.panel(f"Auszug / Abbruch · {k.kurz}", bauen)
 
 
 def _umzug(a, k: zk.Karte, p: zk.Person) -> None:

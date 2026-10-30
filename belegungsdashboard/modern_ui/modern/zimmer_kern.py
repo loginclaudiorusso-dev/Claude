@@ -492,6 +492,66 @@ class Wechsel:
     partner_passt: bool = False
 
 
+AUSZUG_GRUENDE = ["Abbruch", "Vorzeitiger Auszug", "Sonstiges"]
+
+
+def auszug(zid: str, schluessel: str, datum: date, grund: str = "Abbruch") -> str:
+    """Abbruch / vorzeitiger Auszug: der letzte Tag im Zimmer ist ``datum``. Kürzt in einem Schritt (ein Rückgängig)
+    die Abreise in der Anreiseliste (Grund in die Bemerkung), die eigene Zuweisung und – bis zum nächsten
+    Gebäudeplan – die Buchung im gespeicherten Gebäudeplan, damit das Zimmer danach wirklich frei ist."""
+    from dataclasses import replace
+
+    from belegung import anreiseliste, gebaeudeplan, protokoll, speicher
+
+    stand = zp.laden()
+    heute = date.today()
+    bw = next((b for b in zp.bewohner_im_zimmer(stand, zid, heute) if b.schluessel == schluessel), None)
+    if bw is None:
+        raise ValueError("Die Person wohnt (nicht mehr) in diesem Zimmer.")
+    if datum < bw.von:
+        raise ValueError(f"Der Auszug liegt vor dem Einzug ({bw.von:%d.%m.%Y}) – kommt die Person gar nicht, unter "
+                         "Anreisen → Person entfernen.")
+    if datum >= bw.bis:
+        raise ValueError(f"Der Auszug muss vor der bisherigen Abreise ({bw.bis:%d.%m.%Y}) liegen.")
+    gruppe = bw.bedarf.gruppe if bw.bedarf else bw.gruppe
+    if gruppe == "Mieter":
+        raise ValueError("Bei Mietern das Vertragsende auf der Seite „Mieter“ ändern.")
+    personen, _ = anreiseliste.laden()
+    p = next((x for x in personen if x.schluessel == schluessel), None)
+    plan, meta = gebaeudeplan.laden()
+    woerter = zp._namenswoerter(bw.name)
+    im_plan = [b for b in (plan.belegungen if plan else []) if b.zimmer == zid and b.art == "belegt" and b.name
+               and (w := zp._namenswoerter(b.name)) and (woerter <= w or w <= woerter)
+               and b.von <= bw.bis and bw.von <= b.bis and b.bis > datum]
+    zuw = [z for z in stand.zuweisungen if z["person"] == schluessel and z["bis"] > datum.isoformat()]
+    if p is None and not im_plan:
+        raise ValueError("Diese Belegung lässt sich hier nicht kürzen (z. B. UWT-Block) – bitte im Hauptprogramm bzw. "
+                         "im Belegungssystem ändern.")
+
+    def aktion():
+        if p is not None:
+            text = f"{grund} am {datum:%d.%m.%Y}"
+            neu = replace(p, abreise=datum, abreise_quelle="hand",
+                          bemerkung=f"{p.bemerkung} · {text}" if p.bemerkung else text)
+            anreiseliste.person_speichern(neu, p.schluessel)
+            zp.person_umbenannt(p.schluessel, neu.schluessel)
+        if im_plan:
+            for b in im_plan:
+                b.bis = datum
+            gebaeudeplan.speichern(plan, meta.get("quelle"))
+        if zuw:
+            alle = zp.zuweisungen_laden()
+            for z in alle:
+                if z["person"] == schluessel and z["bis"] > datum.isoformat():
+                    z["bis"] = datum.isoformat()
+            speicher.schreiben(zp.ZUWEISUNGEN, {"zuweisungen": alle})
+        protokoll.eintragen([{"aktion": grund, "name": bw.name, "person": schluessel, "alt": zid, "neu": "",
+                              "von": datum.isoformat(), "quelle": "Zimmerkarte"}])
+    _schritt(f"{bw.name}: {grund}", aktion, [anreiseliste.DATEI, gebaeudeplan.DATEI, zp.ZUWEISUNGEN])
+    return (f"{bw.name}: {grund} am {datum:%d.%m.%Y} – {kurz(zid)} ist ab dem {datum + timedelta(days=1):%d.%m.} frei. "
+            "Bitte auch im Belegungssystem buchen.")
+
+
 def wechsel_pruefen(person: str, nach: str) -> Wechsel:
     from . import kern
 
