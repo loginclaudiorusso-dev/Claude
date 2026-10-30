@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.33.2
+# Neue Oberfläche (modern_ui) – Version 0.34.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,31 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Ergebnisse der UX-Prüfung (neu in 0.34)
+
+Eine externe UX/UI-Prüfung hat sechs Punkte gefunden. Alle sind umgesetzt:
+
+* **Nichts geht beim Schließen verloren:** Wer in einem Panel (z. B. *Neuer Mieter*) etwas eingegeben oder angehakt
+  hat und es mit Esc, ✕ oder einem Klick daneben schließt, wird gefragt: *Eingaben verwerfen?* Die Antwort
+  „Weiter bearbeiten“ (oder Esc) behält alles. Ohne Eingaben schließt das Panel wie bisher sofort. „Abbrechen“ im
+  Formular verwirft weiterhin ohne Rückfrage.
+* **Lesbarere Kleinschrift:** Spaltenköpfe, Hinweise und Datumsangaben sind heller (Kontrast mindestens 4,5:1 auf
+  allen Flächen, WCAG). Das Layout ist unverändert.
+* **Datenstand sichtbar:** In der Kopfzeile steht „Stand 14:32“, also wann die Daten zuletzt geladen wurden. Hat das
+  Hauptprogramm gespeichert, wird neu geladen und die Anzeige leuchtet kurz auf. Ist gerade ein Formular offen, steht
+  dort „· neue Daten“ (orange); neu geladen wird nach dem Schließen.
+* **Bericht nach dem Einlesen beim Start:** Neue Dateien in den Ordnern „Listen“ und „UWT“ werden wie im
+  Hauptprogramm beim Start übernommen. Die Meldung nennt jetzt, wie viele Personen neu sind, wie viele
+  geändert oder entfallen sind und wie viele geplante Zimmer betroffen sind. Mit *Was hat sich geändert?* öffnet sich
+  der Änderungsbericht. Dort gibt es „Rückgängig machen“ und den Sprung zu den Anreisen. Das gilt auch für *Daten &
+  Import → Ordner jetzt einlesen*.
+* **Sortieren per Tastatur:** Die Spaltenköpfe sind mit Tab erreichbar. Enter oder Leertaste sortiert, und
+  Bildschirmleser hören Spalte und Richtung.
+* **Weitere Darstellungen:** Standard bleibt „Original“. Layouts und Farben stehen nur noch unter *Weitere
+  Darstellungen*, in der Werkzeugleiste unten rechts als ein Knopf und in den Einstellungen eingeklappt. Dass ein
+  anderes Theme auch das Layout zu Classic Grid wechselt, steht direkt dabei. Hell/Dunkel und Dichte erscheinen
+  nur in den weiteren Darstellungen.
 
 ## Auf einen anderen PC umziehen (neu in 0.33.1)
 
@@ -511,4 +536,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2` (jeweils auch als Zip in `Sicherung`).

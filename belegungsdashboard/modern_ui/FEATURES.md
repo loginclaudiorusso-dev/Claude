@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.33.2)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.34.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -63,7 +63,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel)
 
 ## Daten & Import
-- Anreiselisten, Einheitslisten und UWT (PDF/Excel), automatisch aus Eingangsordnern beim Start
+- Anreiselisten, Einheitslisten und UWT (PDF/Excel), automatisch aus Eingangsordnern beim Start – danach Bericht, was sich geändert hat (mit Rückgängig)
 - Schlüssellisten (An-/Abreisen vom Empfang) abgleichen: Zimmer nach Schlüsselausgabe korrigieren
 - Änderungsbericht vor dem Import (geänderte An-/Abreisen, entfallene, neue; betroffene Zimmerplanungen)
 - Klassenstärken beim UWT-Import einstellbar
@@ -83,8 +83,11 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 
 ## Übergreifend
 - Rückgängig für jede Änderung (Strg+Z), Suche über alles (Strg+K), Panels statt Dialoge
-- Alle Listen per Klick auf die Spaltenüberschrift sortierbar (Datum, Zahl, Zimmer natürlich)
+- Panels mit Eingaben fragen vor dem Schließen („Eingaben verwerfen?“) – nichts geht durch Esc oder Fehlklick verloren
+- „Stand 14:32“ in der Kopfzeile: wann die Daten zuletzt geladen wurden, leuchtet bei Änderungen aus dem Hauptprogramm
+- Alle Listen per Klick auf die Spaltenüberschrift sortierbar (Datum, Zahl, Zimmer natürlich), auch per Tastatur (Tab, Enter)
+- Kleinschrift mit Kontrast ≥ 4,5:1 (WCAG)
 - Zähler an den Menüpunkten, Glocke für ungelesene Neuigkeiten
-- 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 5 Themes, hell/dunkel, Dichte
+- Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 5 Themes, hell/dunkel, Dichte
 - Haptik: Knöpfe geben beim Drücken nach, Arbeitsbalken beim Speichern, einrastende Bestätigung
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird
