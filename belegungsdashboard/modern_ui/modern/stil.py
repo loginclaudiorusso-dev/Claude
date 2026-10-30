@@ -8,7 +8,7 @@ T = {
     "rand2": "#323743",
     "text": "#E6E8EC",
     "text2": "#A2A8B4",
-    "text3": "#6E7582",
+    "text3": "#848B98",       # Kleinschrift: ≥ 4,5:1 auf allen Flächen (WCAG 1.4.3)
     "akzent": "#7C8CFF",      # einziger Akzent (Auswahl, Hauptknopf)
     "akzent_text": "#0E0F12",
     "rot": "#F2706B",
@@ -937,4 +937,25 @@ CSS += """
 """
 CSS += """
 .m-xd .m-xt .m-zeile { min-height: 36px; }
+"""
+CSS += """
+/* 0.34: Datenstand, Rückfrage beim Schließen, sortieren per Tastatur, weitere Darstellungen */
+.m-datenstand { font-size: 11.5px; color: var(--text3); white-space: nowrap; padding: 2px 8px; border-radius: 999px;
+  font-variant-numeric: tabular-nums; }
+.m-datenstand.neu { animation: m-stand-neu 2.4s ease-out 1; }
+.m-datenstand.warten { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+@keyframes m-stand-neu { 0%, 40% { color: var(--text); background: color-mix(in srgb, var(--akzent) 28%, transparent); }
+  100% { color: var(--text3); background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .m-datenstand.neu { animation: none; color: var(--text2); } }
+.m-frage { width: min(420px, 92vw); background: var(--fl); color: var(--text); border: 1px solid var(--rand2);
+  border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,.55); padding: 18px 20px 14px; display: flex; flex-direction: column; gap: 8px; }
+.m-tkopf.m-sortbar > div[tabindex]:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; border-radius: 4px; color: var(--text); }
+.m-mehr { margin-top: 10px; }
+.m-mehr > summary { cursor: pointer; color: var(--text2); font-size: 12.5px; list-style: none; display: inline-flex;
+  align-items: center; gap: 6px; padding: 5px 12px 5px 8px; border: 1px solid var(--rand2); border-radius: var(--r); }
+.m-mehr > summary::-webkit-details-marker { display: none; }
+.m-mehr > summary:hover { color: var(--text); background: var(--fl2); }
+.m-mehr-pfeil { font-size: 18px; transition: transform .15s; }
+.m-mehr[open] .m-mehr-pfeil { transform: rotate(90deg); }
+.m-mehr[open] > summary { margin-bottom: 4px; }
 """

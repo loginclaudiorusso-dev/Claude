@@ -62,7 +62,7 @@ def _p(bg, fl, fl2, rand, rand2, text, text2, text3, akzent, akzent_text, akzent
 P = {
     ("original", "dunkel"): _p("#0E0F12", "#15171C", "#1B1E24", "#262A32", "#323743", "#E6E8EC", "#A2A8B4", "#8A919D",
                                "#7C8CFF", "#0E0F12", "#94A2FF", "#94A2FF", "#F2706B", "#E9A15A", "#4CC38A", "#6E8BD8",
-                               "#15171C", "#1B1E24", "#22252D", "#E6E8EC", "#E6E8EC", "#94A2FF", "#A2A8B4", "#6E7582",
+                               "#15171C", "#1B1E24", "#22252D", "#E6E8EC", "#E6E8EC", "#94A2FF", "#A2A8B4", "#848B98",
                                "#262A32", "#7C8CFF", status=_DUNKEL),
     ("inn", "hell"): _p("#f3f5f9", "#ffffff", "#eef2f7", "#dde3ec", "#c5cfdd", "#14213d", "#3b4a63", "#5b6880",
                         "#183861", "#ffffff", "#183861", "#0f2341", "#b42318", "#b54708", "#067647", "#1d4ed8",

@@ -211,12 +211,41 @@ async def _schluessel_panel(a, dateien) -> None:
 
 
 async def _ordner(a) -> None:
-    meldungen = await run.io_bound(dk.ordner_importieren)
+    meldungen, aenderungen = await run.io_bound(dk.ordner_importieren_bericht)
     if not meldungen:
         a.toast("Keine neuen Dateien in den Ordnern „Listen“ und „UWT“.", rueck=False)
         return
     await a.laden()
-    a.toast("Eingelesen – " + " · ".join(meldungen[:3]) + (f" (+{len(meldungen) - 3})" if len(meldungen) > 3 else ""))
+    eingelesen_melden(a, meldungen, aenderungen)
+
+
+def eingelesen_melden(a, meldungen: list[str], aenderungen: list) -> None:
+    """Nach dem Einlesen aus den Ordnern (auch beim Start): Hinweis mit „Was hat sich geändert?“ und Rückgängig."""
+    n = sum(1 for x in aenderungen if x.art in ("geaendert", "entfernt"))
+    betroffen = sum(1 for x in aenderungen if x.zimmer)
+    text = f"Neu eingelesen: {len(meldungen)} Datei(en)"
+    if aenderungen:
+        text += f" – {len(aenderungen) - n} neu, {n} geändert/entfallen" + (f", {betroffen} Zimmer betroffen" if betroffen else "")
+    a.toast(text, extra=("Was hat sich geändert?", lambda: bericht_panel(a, meldungen, aenderungen)), dauer=20)
+
+
+def bericht_panel(a, meldungen: list[str], aenderungen: list) -> None:
+    def bauen():
+        ui.label("Aus den Ordnern „Listen“ und „UWT“ automatisch eingelesen (wie im Hauptprogramm):").classes("m-ptext")
+        for m in meldungen:
+            ui.label(m).classes("m-zweite").style("white-space:normal")
+        _aenderungen_zeigen(aenderungen, nachher=True)
+
+        async def zurueck():
+            a.panel_zu()
+            await a.rueckgaengig()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Passt", a.panel_zu, "primaer", "check")
+            knopf("Rückgängig machen", zurueck, "", "undo")
+            if any(x.zimmer for x in aenderungen):
+                knopf("Zu den Anreisen", lambda: a.seite_wechseln("anreisen"), "leise")
+
+    a.panel("Neu eingelesen – was sich geändert hat", bauen, breit=True)
 
 
 # ---- Anreiselisten ----------------------------------------------------------------------
@@ -258,16 +287,19 @@ async def _anreisen_vorschau(a, dateien) -> None:
     a.panel("Anreiselisten importieren", bauen, breit=True)
 
 
-def _aenderungen_zeigen(aenderungen: list) -> None:
-    """Änderungsbericht vor dem Import: geänderte An-/Abreisen (mit betroffener Zimmerplanung), entfallene, neue."""
+def _aenderungen_zeigen(aenderungen: list, nachher: bool = False) -> None:
+    """Änderungsbericht vor dem Import (bzw. ``nachher``: nach dem Einlesen aus den Ordnern): geänderte An-/Abreisen
+    (mit betroffener Zimmerplanung), entfallene, neue."""
     if not aenderungen:
-        ui.label("Gegenüber dem jetzigen Stand ändert sich an bekannten Personen nichts.").classes("m-zweite")
+        ui.label("An den Personen hat sich nichts geändert." if nachher else
+                 "Gegenüber dem jetzigen Stand ändert sich an bekannten Personen nichts.").classes("m-zweite")
         return
     n = {art: sum(1 for x in aenderungen if x.art == art) for art in ("geaendert", "entfernt", "neu")}
     betroffen = sum(1 for x in aenderungen if x.zimmer)
-    ui.label("Was sich gegenüber dem jetzigen Stand ändert").classes("m-ktitel")
+    ui.label("Was sich geändert hat" if nachher else "Was sich gegenüber dem jetzigen Stand ändert").classes("m-ktitel")
     ui.label(f"{n['geaendert']} geändert · {n['entfernt']} nicht mehr auf der Liste · {n['neu']} neu"
-             + (f" · {betroffen} geplante Zimmer betroffen – nach dem Import unter Anreisen prüfen" if betroffen else "")
+             + (f" · {betroffen} geplante Zimmer betroffen – " + ("unter Anreisen prüfen" if nachher else
+                                                                  "nach dem Import unter Anreisen prüfen") if betroffen else "")
              ).classes("m-ptext")
     titel = {"geaendert": "Geändert", "entfernt": "Nicht mehr auf der Liste", "neu": "Neu"}
     for art in ("geaendert", "entfernt", "neu"):

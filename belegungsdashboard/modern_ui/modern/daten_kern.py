@@ -252,6 +252,65 @@ def ordner_importieren() -> list[str]:
     return meldungen
 
 
+def _neues_im_ordner() -> bool:
+    """Liegt in „UWT“/„Listen“ eine Datei, die noch nicht eingelesen wurde? (Nur dann lohnt der Vorher-Stand.)"""
+    for mod, endungen in ((uwt, (".pdf", ".xlsx", ".xlsm")), (einheitsliste, (".xlsx", ".xlsm", ".csv"))):
+        ordner = mod.eingangsordner()
+        if not ordner.is_dir():
+            continue
+        bekannt = speicher.lesen(mod._KENNUNGEN, {})
+        if any(p.suffix.lower() in endungen and not p.name.startswith("~$") and bekannt.get(p.name) != int(p.stat().st_mtime)
+               for p in ordner.iterdir()):
+            return True
+    return False
+
+
+def bedarf_aenderungen(vorher: zp.Planstand, nachher: zp.Planstand, heute: date | None = None) -> list[ListenAenderung]:
+    """Was sich an den Personen geändert hat (neu, andere An-/Abreise, weggefallen) – mit betroffener Zimmerplanung."""
+    from .kern import kurz
+
+    heute = heute or date.today()
+    geplant = {z["person"]: z["zimmer"] for z in vorher.zuweisungen + nachher.zuweisungen if z.get("zimmer")}
+    alt = {b.schluessel: b for b in vorher.bedarf}
+    neu = {b.schluessel: b for b in nachher.bedarf}
+
+    def zimmer(s):
+        return kurz(geplant[s]) if s in geplant else ""
+
+    erg = []
+    for s, b in neu.items():
+        a = alt.get(s)
+        if a is None:
+            erg.append(ListenAenderung("neu", b.name, f"Anreise {b.von:%d.%m.}" + (f" · {b.gruppe}" if b.gruppe else "")))
+            continue
+        teile = []
+        if a.von != b.von:
+            teile.append(f"Anreise {a.von:%d.%m.} → {b.von:%d.%m.}")
+        if a.bis != b.bis:
+            teile.append(f"Abreise {a.bis:%d.%m.} → {b.bis:%d.%m.}")
+        if teile:
+            erg.append(ListenAenderung("geaendert", b.name, " · ".join(teile), zimmer(s)))
+    for s, a in alt.items():
+        if s not in neu and a.bis >= heute:
+            erg.append(ListenAenderung("entfernt", a.name, f"nicht mehr auf der Liste (Anreise {a.von:%d.%m.})", zimmer(s)))
+    reihe = {"geaendert": 0, "entfernt": 1, "neu": 2}
+    return sorted(erg, key=lambda x: (reihe[x.art], not x.zimmer, x.name))
+
+
+def ordner_importieren_bericht() -> tuple[list[str], list[ListenAenderung]]:
+    """Wie ``ordner_importieren``, dazu der Änderungsbericht: was sich an Personen und Zimmerplanungen geändert hat."""
+    if not _neues_im_ordner():
+        return [], []
+    vorher = zp.laden()
+    meldungen = ordner_importieren()
+    if not meldungen:
+        return [], []
+    try:
+        return meldungen, bedarf_aenderungen(vorher, zp.laden())
+    except Exception:                      # noqa: BLE001 – der Bericht ist Zusatz, eingelesen ist schon
+        return meldungen, []
+
+
 def eingangsordner() -> dict[str, Path]:
     return {"UWT": uwt.eingangsordner(), "Listen": einheitsliste.eingangsordner()}
 

@@ -387,45 +387,56 @@ async def _ki_testen(a) -> None:
 
 
 def _darstellung(a) -> None:
-    """Layout und Theme – dasselbe wie die schwebende Werkzeugleiste unten rechts."""
+    """Darstellung: Standard ist „Original“; Layouts und Farben stehen unter „Weitere Darstellungen“ (wie in der
+    schwebenden Werkzeugleiste unten rechts)."""
     from . import themes
 
     d = a.design
     original = d["layout"] == "original"
     with ui.element("section").classes("m-block m-breit"):
         ui.label("Darstellung").classes("m-btitel")
-        ui.label("Zwei Ebenen: das Layout (Aufbau) und das Theme (Farben). Wirkt sofort und bleibt gespeichert. "
-                 "„Original-Zustand“ setzt beides auf das bisherige Design zurück – auch über den roten Knopf in der "
-                 "Werkzeugleiste unten rechts.").classes("m-ptext")
-        ui.label("Layout").classes("m-ktitel")
-        with ui.element("div").classes("m-designs"):
-            for k, (name, text, icon) in themes.LAYOUTS.items():
-                b = ui.element("button").classes("m-design" + (" an" if k == d["layout"] else ""))
-                attr(b, aria_pressed=str(k == d["layout"]).lower())
-                with b:
-                    with ui.element("div").classes("m-name").style("display:flex; gap:8px; align-items:center"):
-                        ui.icon(icon)
-                        ui.label(name)
-                    ui.label(text).classes("m-zweite").style("white-space:normal")
-                b.on("click", lambda k=k: a.design_setzen(layout=k))
-        ui.label("Theme" + (" – wechselt ins Classic Grid" if original else "")).classes("m-ktitel")
-        with ui.element("div").classes("m-designs"):
-            for k, (name, text, _m) in themes.THEMES.items():
-                an = not original and k == d["theme"]
-                b = ui.element("button").classes(f"m-design d-{k}" + (" an" if an else ""))
-                attr(b, aria_pressed=str(an).lower())
-                with b:
-                    with ui.element("div").classes("m-design-muster"):
-                        for _i in range(3):
-                            ui.element("i")
-                    ui.label(name).classes("m-name")
-                    ui.label(text).classes("m-zweite").style("white-space:normal")
-                b.on("click", lambda k=k: a.design_setzen(theme=k))
+        ui.label("Standard ist „Original“ – für den Alltag reicht das. Unter „Weitere Darstellungen“ gibt es andere "
+                 "Layouts (Aufbau) und Farben (Theme) zum Ausprobieren; sie wirken sofort und bleiben gespeichert.").classes(
+                     "m-ptext")
         if not original:
             with ui.element("div").classes("m-paktionen"):
-                if len(themes.modi(d["theme"])) > 1:
-                    segmente({"hell": "Hell", "dunkel": "Dunkel"}, d["modus"], lambda m: a.design_setzen(modus=m))
-                segmente({"normal": "Normale Dichte", "kompakt": "Kompakt"}, d["dichte"], lambda x: a.design_setzen(dichte=x))
-                if d["layout"] == "grid":
-                    segmente({False: "Seitenleiste", True: "Schmale Leiste"}, d["schmal"], lambda x: a.design_setzen(schmal=x))
-
+                knopf("Zurück zum Original", lambda: a.design_setzen(**{**themes.STANDARD, "notiz": d["notiz"]}),
+                      "primaer", "restart_alt")
+        mehr = ui.element("details").classes("m-mehr")
+        if not original:
+            attr(mehr, open="")                # in einer weiteren Darstellung: gleich aufgeklappt
+        with mehr:
+            with ui.element("summary"):
+                ui.icon("chevron_right").classes("m-mehr-pfeil")
+                ui.label("Weitere Darstellungen – Layouts und Farben")
+            ui.label("Layout (Aufbau)").classes("m-ktitel")
+            with ui.element("div").classes("m-designs"):
+                for k, (name, text, icon) in themes.LAYOUTS.items():
+                    b = ui.element("button").classes("m-design" + (" an" if k == d["layout"] else ""))
+                    attr(b, aria_pressed=str(k == d["layout"]).lower())
+                    with b:
+                        with ui.element("div").classes("m-name").style("display:flex; gap:8px; align-items:center"):
+                            ui.icon(icon)
+                            ui.label(name + (" (Standard)" if k == "original" else ""))
+                        ui.label(text).classes("m-zweite").style("white-space:normal")
+                    b.on("click", lambda k=k: a.design_setzen(layout=k))
+            ui.label("Farben (Theme)" + (" – wechselt auch das Layout zu Classic Grid" if original else "")).classes("m-ktitel")
+            with ui.element("div").classes("m-designs"):
+                for k, (name, text, _m) in themes.THEMES.items():
+                    an = not original and k == d["theme"]
+                    b = ui.element("button").classes(f"m-design d-{k}" + (" an" if an else ""))
+                    attr(b, aria_pressed=str(an).lower())
+                    with b:
+                        with ui.element("div").classes("m-design-muster"):
+                            for _i in range(3):
+                                ui.element("i")
+                        ui.label(name).classes("m-name")
+                        ui.label(text).classes("m-zweite").style("white-space:normal")
+                    b.on("click", lambda k=k: a.design_setzen(theme=k))
+            if not original:
+                with ui.element("div").classes("m-paktionen"):
+                    if len(themes.modi(d["theme"])) > 1:
+                        segmente({"hell": "Hell", "dunkel": "Dunkel"}, d["modus"], lambda m: a.design_setzen(modus=m))
+                    segmente({"normal": "Normale Dichte", "kompakt": "Kompakt"}, d["dichte"], lambda x: a.design_setzen(dichte=x))
+                    if d["layout"] == "grid":
+                        segmente({False: "Seitenleiste", True: "Schmale Leiste"}, d["schmal"], lambda x: a.design_setzen(schmal=x))

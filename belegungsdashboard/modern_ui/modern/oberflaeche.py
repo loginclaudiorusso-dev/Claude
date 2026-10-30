@@ -4,9 +4,10 @@ gebaut, die übrigen Seiten in ``seiten``. Alle Daten und Regeln kommen aus dem 
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from nicegui import app, run, ui
+from nicegui.elements.mixins.value_element import ValueElement
 
 from belegung import __version__ as haupt_version
 
@@ -154,8 +155,26 @@ class Ansicht:
         except Exception as exc:              # noqa: BLE001 – Fehler sichtbar machen statt leerer Seite
             log.exception("Laden fehlgeschlagen")
             self.fehler = f"Die Daten konnten nicht geladen werden: {exc}"
+        self._datenstand()
         if zeichnen:
             self.zeichnen()
+
+    def _datenstand(self, extern: bool = False, wartet: bool = False) -> None:
+        """„Stand 14:32“ in der Kopfzeile – wann die Daten zuletzt geladen wurden. Blinkt kurz, wenn das Hauptprogramm
+        gespeichert hat; „neue Daten“, solange ein offenes Formular das Neuladen aufhält."""
+        el = getattr(self, "stand_anzeige", None)
+        if el is None:
+            return
+        if not wartet:
+            self.geladen_um = datetime.now()
+        um = getattr(self, "geladen_um", None) or datetime.now()
+        el.set_text(f"Stand {um:%H:%M}" + (" · neue Daten" if wartet else ""))
+        attr(el, title=(f"Daten zuletzt geladen um {um:%H:%M:%S}. "
+                        + ("Das Hauptprogramm hat inzwischen gespeichert – nach dem Schließen des Formulars wird neu geladen."
+                           if wartet else f"Speichert das Hauptprogramm, wird innerhalb von {PRUEF_S} s neu geladen.")))
+        el.classes(remove="neu warten")
+        if extern or wartet:
+            el.classes(add="warten" if wartet else "neu")
 
     async def pruefen(self) -> None:
         """Hat das Hauptprogramm (oder jemand anderes) inzwischen gespeichert? Dann neu laden."""
@@ -163,8 +182,13 @@ class Ansicht:
             neu = await run.io_bound(_stempel)
         except OSError:
             return
-        if neu != self.stempel and self.panel_def is None:     # offenes Formular nicht unter den Händen neu bauen
-            await self.laden()
+        if neu == self.stempel:
+            return
+        if self.panel_def is not None:                     # offenes Formular nicht unter den Händen neu bauen
+            self._datenstand(wartet=True)
+            return
+        await self.laden()
+        self._datenstand(extern=True)
 
     async def setzen(self, laden: bool = True, nur_seite: bool = False, **werte) -> None:
         """Zustand der Seite ändern (z. B. Haus im Zeitstrahl) und neu zeichnen.
@@ -230,6 +254,7 @@ class Ansicht:
                     self.titel = ui.label("Anreisen").classes("m-titel")
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
                     ui.element("div").style("flex: 1")
+                    self.stand_anzeige = ui.label("").classes("m-datenstand")
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)")
                     self.glocke = ui.element("button").classes("m-knopf leise m-glocke")
                     attr(self.glocke, title="Neuigkeiten")
@@ -241,6 +266,7 @@ class Ansicht:
                 self.inhalt = ui.element("div").classes("m-inhalt")
             self.schleier = ui.element("div").classes("m-schleier")
             self.schleier.on("click", self._schliessen)
+            self._frage_bauen()
             self.center = ui.element("aside").classes("m-center")
             attr(self.center, aria_label="Aufgaben")
         self.toolbar = ui.element("div").classes("m-tb")
@@ -537,25 +563,28 @@ class Ansicht:
         with self.toolbar:
             griff = k("tune", "Darstellung – Leiste anheften/lösen", extra="m-tb-griff")
             griff.on("click", js_handler="() => document.querySelector('.m-tb')?.classList.toggle('fest')")
-            with k("space_dashboard", "Layout"):
+            # Layout und Farben in einem Menü „Weitere Darstellungen“ – für den Alltag reicht „Original“
+            with k("space_dashboard", "Weitere Darstellungen (Layout und Farben)", extra="" if original else "an"):
                 with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
-                    ui.label("Layout").classes("m-mgruppe")
+                    ui.label("Weitere Darstellungen").classes("m-mgruppe")
+                    ui.label("Für den Alltag reicht „Original“. Die anderen sind Alternativen zum Ausprobieren.").classes(
+                        "m-zweite").style("white-space:normal; max-width:300px; padding: 0 12px 6px")
+                    ui.label("Layout (Aufbau)").classes("m-mgruppe")
                     for key, (name, text, _i) in themes.LAYOUTS.items():
-                        punkt(name, text, d["layout"] == key, lambda key=key: self.design_setzen(layout=key))
-            with k("palette", "Theme (Farben)"):
-                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
-                    ui.label("Theme" + (" – wechselt ins Classic Grid" if original else "")).classes("m-mgruppe")
+                        punkt(name + (" (Standard)" if key == "original" else ""), text, d["layout"] == key,
+                              lambda key=key: self.design_setzen(layout=key))
+                    ui.label("Farben (Theme)" + (" – wechselt auch das Layout zu Classic Grid" if original else "")).classes(
+                        "m-mgruppe")
                     for key, (name, text, _m) in themes.THEMES.items():
                         punkt(name, text, not original and d["theme"] == key, lambda key=key: self.design_setzen(theme=key))
-            zwei = len(themes.modi(d["theme"])) > 1 and not original
-            k("dark_mode" if d["modus"] == "hell" else "light_mode",
-              ("Dunkel" if d["modus"] == "hell" else "Hell") if zwei else "Hell/Dunkel – im Original bzw. Original-Theme nicht verfügbar",
-              (lambda: self.design_setzen(modus="dunkel" if d["modus"] == "hell" else "hell")) if zwei else None,
-              "" if zwei else "aus")
-            k("density_small" if d["dichte"] == "normal" else "density_medium",
-              ("Kompakt (mehr Zeilen)" if d["dichte"] == "normal" else "Normale Dichte") if not original else "Dichte – im Original nicht verfügbar",
-              (lambda: self.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal")) if not original else None,
-              ("an" if d["dichte"] == "kompakt" else "") if not original else "aus")
+            if not original:                   # Hell/Dunkel und Dichte gibt es nur in den weiteren Darstellungen
+                if len(themes.modi(d["theme"])) > 1:
+                    k("dark_mode" if d["modus"] == "hell" else "light_mode", "Dunkel" if d["modus"] == "hell" else "Hell",
+                      lambda: self.design_setzen(modus="dunkel" if d["modus"] == "hell" else "hell"))
+                k("density_small" if d["dichte"] == "normal" else "density_medium",
+                  "Kompakt (mehr Zeilen)" if d["dichte"] == "normal" else "Normale Dichte",
+                  lambda: self.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal"),
+                  "an" if d["dichte"] == "kompakt" else "")
             ui.element("div").classes("m-tb-t")
             k("search", "Suchen / Prompt (Strg+K)", self.suchen)
             k("fullscreen_exit" if d["vollbild"] else "fullscreen", "Vollbild beenden" if d["vollbild"] else "Vollbild",
@@ -879,9 +908,43 @@ class Ansicht:
 
     def _schliessen(self) -> None:
         if self.panel_def is not None:
-            self.panel_zu()
+            self.panel_schliessen()
         else:
             self.center_umschalten(False)
+
+    # ---- Formular-Schutz: nichts geht beim Schließen still verloren ------------------------
+
+    def _werte(self) -> dict:
+        return {el.id: el.value for el in self.center.descendants() if isinstance(el, ValueElement)}
+
+    def panel_geaendert(self) -> bool:
+        """Wurde im offenen Panel etwas eingegeben/angehakt, das noch nicht gespeichert ist?"""
+        if self.panel_def is None:
+            return False
+        if self._panel_geaendert:
+            return True
+        jetzt = self._werte()
+        return any(k in jetzt and jetzt[k] != v for k, v in self._panel_werte.items())
+
+    def panel_schliessen(self) -> None:
+        """Schließen durch Esc, ✕ oder Klick daneben – mit Eingaben erst nachfragen. (Nach dem Speichern: ``panel_zu``.)"""
+        if self.panel_geaendert():
+            self.frage.open()
+        else:
+            self.panel_zu()
+
+    def _frage_bauen(self) -> None:
+        with ui.dialog().props("no-esc-dismiss") as self.frage, ui.element("div").classes("m-frage"):
+            attr(self.frage, role="alertdialog")
+            ui.label("Eingaben verwerfen?").classes("m-titel")
+            ui.label("Im Formular wurde etwas eingegeben, das noch nicht gespeichert ist.").classes("m-ptext")
+            with ui.element("div").classes("m-paktionen"):
+                knopf("Weiter bearbeiten", self.frage.close, "primaer")
+                knopf("Verwerfen", self._verwerfen, "", "delete_outline")
+
+    def _verwerfen(self) -> None:
+        self.frage.close()
+        self.panel_zu()
 
     def _schleier_setzen(self) -> None:
         self.schleier.classes(add="offen" if self.center_offen else "", remove="" if self.center_offen else "offen")
@@ -937,6 +1000,7 @@ class Ansicht:
 
     def panel(self, titel: str, bauen, breit: bool = False) -> None:
         """Formular im Panel rechts (gleitet über den abgedunkelten Inhalt, Klick daneben schließt)."""
+        weiter = self.panel_def is not None and self.panel_def[0] == titel and self.panel_geaendert()
         self.panel_def = (titel, bauen)
         self.center_offen = True
         self.center.clear()
@@ -945,9 +1009,10 @@ class Ansicht:
         with self.center:
             with ui.element("div").classes("m-ckopf"):
                 ui.label(titel).classes("m-titel")
-                knopf("", self.panel_zu, "leise", "close", "Schließen (Esc)")
+                knopf("", self.panel_schliessen, "leise", "close", "Schließen (Esc)")
             with ui.element("div").classes("m-cinhalt m-formular"):
                 bauen()
+        self._panel_werte, self._panel_geaendert = self._werte(), weiter    # neu gezeichnet (z. B. nach „Prüfen“): bleibt geändert
 
     def panel_zu(self) -> None:
         if self.panel_def is not None:
@@ -958,16 +1023,20 @@ class Ansicht:
 
     # ---- Toast ---------------------------------------------------------------------------
 
-    def toast(self, text: str, rueck: bool = True, fehler: bool = False) -> None:
+    def toast(self, text: str, rueck: bool = True, fehler: bool = False, extra: tuple | None = None,
+              dauer: int = TOAST_S) -> None:
+        """Kurzer Hinweis unten; ``extra`` = (Text, Klick) für einen zusätzlichen Knopf, z. B. „Was hat sich geändert?“."""
         self.toast_box.clear()
         with self.toast_box:
             with ui.element("div").classes("m-toast" + (" fehler" if fehler else "")).props('role="status"'):
                 if not fehler and self.design.get("layout", "original") != "original":
                     ui.icon("check_circle").classes("m-toast-ok")      # Haptik: die Bestätigung rastet ein
                 ui.label(text)
+                if extra:
+                    knopf(extra[0], lambda: (self.toast_box.clear(), extra[1]()), "primaer")
                 if rueck and not fehler:
                     knopf("Rückgängig", self.rueckgaengig, icon="undo")
-            ui.timer(TOAST_S, self.toast_box.clear, once=True)
+            ui.timer(dauer, self.toast_box.clear, once=True)
 
     # ---- Handlungen ----------------------------------------------------------------------
 
@@ -1219,9 +1288,11 @@ class Ansicht:
             from . import seite_prognose
 
             seite_prognose.praes_umschalten(self)
+        elif e.key.name == "Escape" and self.frage.value:
+            self.frage.close()                   # Esc in der Rückfrage = weiter bearbeiten
         elif e.key.name == "Escape" and self.center_offen:
             if self.panel_def is not None:
-                self.panel_zu()
+                self.panel_schliessen()
             else:
                 self.center_umschalten(False)
         elif e.key.name.lower() == "a" and not e.modifiers.ctrl and self.panel_def is None:
@@ -1275,9 +1346,14 @@ SORTIER_JS = r"""<script>
     for (let j = k.indexOf(kopf) + 1; j < k.length && k[j].classList.contains('m-zeile'); j++) erg.push(k[j]);
     return erg;
   };
-  const kopfMarken = (kopf, sp, ri) => [...kopf.children].forEach((c, i) => {
+  const kopfMarken = (kopf, sp, ri, ok) => [...kopf.children].forEach((c, i) => {
     c.classList.toggle('m-sort-auf', ri === 1 && i === sp); c.classList.toggle('m-sort-ab', ri === -1 && i === sp);
-    if (c.innerText.trim()) c.setAttribute('aria-sort', i === sp && ri ? (ri === 1 ? 'ascending' : 'descending') : 'none');
+    if (!c.innerText.trim()) return;
+    if (ok) {   // per Tab erreichbar, Enter/Leertaste sortiert; Bildschirmleser hören Spalte und Richtung
+      if (c.getAttribute('tabindex') !== '0') c.setAttribute('tabindex', '0');
+      if (c.getAttribute('role') !== 'columnheader') c.setAttribute('role', 'columnheader');
+      c.setAttribute('aria-sort', i === sp && ri ? (ri === 1 ? 'ascending' : 'descending') : 'none');
+    } else { c.removeAttribute('tabindex'); c.removeAttribute('aria-sort'); }
   });
   const anwenden = (kopf, sp, ri) => {   // die Plätze dieser Tabelle neu verteilen – alles andere bleibt, wo es ist
     const k = [...kopf.parentElement.children], zeilen = zeilenVon(kopf), plaetze = zeilen.map(z => k.indexOf(z));
@@ -1298,7 +1374,7 @@ SORTIER_JS = r"""<script>
     document.querySelectorAll('.m-tkopf').forEach(kopf => {
       const ok = sortierbar(kopf), s = ok ? zustand[sig(kopf)] : null;
       kopf.classList.toggle('m-sortbar', ok);
-      kopfMarken(kopf, s ? s[0] : -1, s ? s[1] : 0);
+      kopfMarken(kopf, s ? s[0] : -1, s ? s[1] : 0, ok);
       if (kopf.parentElement) {
         if (!eltern.has(kopf.parentElement)) eltern.set(kopf.parentElement, []);
         if (s) eltern.get(kopf.parentElement).push([kopf, s]);
@@ -1316,6 +1392,11 @@ SORTIER_JS = r"""<script>
   };
   new MutationObserver(() => { if (!geplant) { geplant = true; requestAnimationFrame(pruefen); } })
     .observe(document.body, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const zelle = e.target.closest && e.target.closest('.m-tkopf.m-sortbar > div');
+    if (zelle && zelle === e.target) { e.preventDefault(); zelle.click(); }
+  });
   document.addEventListener('click', (e) => {
     const zelle = e.target.closest('.m-tkopf.m-sortbar > div');
     if (!zelle || !zelle.innerText.trim()) return;
@@ -1382,9 +1463,12 @@ async def startseite() -> None:
         pass
     from . import daten_kern
 
-    eingelesen = await run.io_bound(daten_kern.ordner_importieren)   # neue Dateien in „UWT“/„Listen“ (wie das Hauptprogramm)
+    # neue Dateien in „UWT“/„Listen“ (wie das Hauptprogramm) – mit Bericht, was sich dadurch geändert hat
+    eingelesen, aenderungen = await run.io_bound(daten_kern.ordner_importieren_bericht)
     await a.laden()
     if eingelesen:
-        a.toast("Neu eingelesen – " + " · ".join(eingelesen[:3]) + (f" (+{len(eingelesen) - 3})" if len(eingelesen) > 3 else ""))
+        from .seite_daten import eingelesen_melden
+
+        eingelesen_melden(a, eingelesen, aenderungen)
     if await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute) and a.seite != "heute":
         a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist (Heute zeigt sie schon)
