@@ -22,9 +22,14 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
         if q and q in titel.lower():
             erg.append((titel, "Seite", key, {}))
     if stand is not None and len(q) >= 2:
+        from . import kern as k_
+
+        strittig = {x.person: x for x in k_.strittige(stand)}
         for t in suche.suchen(text, stand, heute=heute)[:40]:
             zusatz = " · ".join(x for x in (t.zimmer_text, t.massnahme, f"{t.von:%d.%m.%y}–{t.bis:%d.%m.%y}"
                                              if t.bis else f"ab {t.von:%d.%m.%y}", t.status(heute)) if x)
+            if (x := strittig.get(t.person)) is not None and t.zimmer_id == x.geplant:
+                zusatz = f"⚠ strittig – Gebäudeplan: {kurz(x.gebucht)} · " + zusatz
             if t.zimmer_id:
                 erg.append((t.name, zusatz, "zimmer", {"karte": t.zimmer_id}))
             else:

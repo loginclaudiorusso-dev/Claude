@@ -418,6 +418,11 @@ CSS += """
 .m-kachel.geplant, .m-legende i.geplant { background: var(--fl); border: 1.5px dashed var(--akzent); color: #C7CEFF; }
 .m-kachel.gesperrt, .m-legende i.gesperrt { background: repeating-linear-gradient(135deg, #2A2D34 0 5px, #22252B 5px 10px); color: var(--text3); }
 .m-kachel.unbew { border: 2px solid var(--rot); }
+.m-kachel.strittig { outline: 2px dashed var(--orange); outline-offset: 1px; }
+.m-kachel-s { position: absolute; top: -6px; left: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
+  border-radius: 6px; padding: 0 4px; line-height: 14px; }
+.m-strittig { border: 1px solid var(--orange); border-radius: 10px; padding: 10px 12px; margin: 8px 0;
+  background: color-mix(in srgb, var(--orange) 8%, transparent); }
 .m-kachel-m { position: absolute; top: -6px; right: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
   border-radius: 7px; padding: 0 4px; line-height: 14px; }
 .m-mliste { display: flex; flex-direction: column; gap: 2px; }

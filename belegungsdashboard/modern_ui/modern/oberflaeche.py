@@ -1005,13 +1005,15 @@ class Ansicht:
 
     @staticmethod
     def _hat_details(k: kern.Karte) -> bool:
-        return k.id in ("unbewohnbar", "konflikte", "allergie") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
+        return k.id in ("unbewohnbar", "konflikte", "allergie", "strittig") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
 
     async def _karte_details(self, k: kern.Karte) -> None:
         if k.id in ("unbewohnbar", "konflikte"):
             await self._faelle_panel(k.id == "unbewohnbar")
         elif k.id == "allergie":
             await self._allergie_panel()
+        elif k.id == "strittig":
+            await self._strittig_panel()
         elif k.zweite:
             await self._zeigen(k.zweite.zeigen)
         elif k.aktion and k.aktion.zeigen:
@@ -1107,7 +1109,45 @@ class Ansicht:
 
         self.panel("Allergiker", bauen, breit=True)
 
+    async def _strittig_panel(self) -> None:
+        """Eigene Planung ↔ Gebäudeplan: je Person entscheiden, was stimmt (Rückgängig je Entscheidung)."""
+        from . import seite_zimmer
+
+        sts = await run.io_bound(kern.strittige, self.stand)
+
+        def bauen():
+            ui.label("Laut Gebäudeplan wohnt die Person in einem anderen Zimmer als in der eigenen Planung. Bisher gilt "
+                     "dann still der Gebäudeplan – das geplante Zimmer erschien frei. Bis zur Klärung wird es niemand "
+                     "anderem angeboten. Was stimmt? (Im Zweifel: wo wurde der Schlüssel ausgegeben?)").classes("m-ptext")
+            if not sts:
+                ui.label("Alles geklärt.").classes("m-ptext")
+            for x in sts:
+                with ui.element("div").classes("m-strittig"):
+                    ui.label(x.name).classes("m-name")
+                    ui.label(f"{x.von:%d.%m.%Y} – {x.bis:%d.%m.%Y}").classes("m-zweite")
+                    with ui.element("div").classes("m-schalter"):
+                        ui.label("Planung").classes("m-zweite")
+                        g = ui.label(kern.kurz(x.geplant)).classes("m-mono m-link")
+                        g.on("click", lambda x=x: seite_zimmer.karte_oeffnen(self, x.geplant))
+                        ui.label("· Gebäudeplan").classes("m-zweite")
+                        p_ = ui.label(kern.kurz(x.gebucht)).classes("m-mono m-link")
+                        p_.on("click", lambda x=x: seite_zimmer.karte_oeffnen(self, x.gebucht))
+                    with ui.element("div").classes("m-paktionen"):
+                        knopf(f"Gebäudeplan stimmt ({kern.kurz(x.gebucht)})", lambda x=x: klaeren(x.person, "plan"), "",
+                              "description", f"{x.name} wohnt in {kern.kurz(x.gebucht)} – eigene Planung wird darauf gesetzt")
+                        knopf(f"Planung stimmt ({kern.kurz(x.geplant)})", lambda x=x: klaeren(x.person, "planung"), "",
+                              "event_available", f"{x.name} wohnt in {kern.kurz(x.geplant)} – gilt dann auch gegen den Gebäudeplan")
+
+        async def klaeren(person: str, wahl: str):
+            if await self.aendern(kern.strittig_klaeren, person, wahl):
+                await self._strittig_panel()
+
+        self.panel("Planung widerspricht dem Gebäudeplan", bauen, breit=True)
+
     async def _karte_loesen(self, k: kern.Karte) -> None:
+        if k.aktion.schluessel == "strittig":
+            await self._strittig_panel()
+            return
         if k.aktion.schluessel == "konflikte":                  # erst prüfen, dann nur das Angehakte umplanen
             await self._faelle_panel(k.id == "unbewohnbar")
             return

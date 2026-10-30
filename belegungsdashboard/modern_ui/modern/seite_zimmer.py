@@ -462,11 +462,29 @@ async def _nach(a, aktion, *args, zimmer: str) -> None:
         await karte_oeffnen(a, zimmer)
 
 
+def _strittig_kasten(a, x, zimmer: str) -> None:
+    """Planung und Gebäudeplan widersprechen sich – hier sichtbar und per Klick zu klären."""
+    from . import kern
+
+    with ui.element("div").classes("m-strittig"):
+        ui.label("Planung widerspricht dem Gebäudeplan").classes("m-name")
+        ui.label(f"{x.name} ({x.von:%d.%m.} – {x.bis:%d.%m.%Y}): eigene Planung {kern.kurz(x.geplant)}, Gebäudeplan "
+                 f"{kern.kurz(x.gebucht)}. Bis zur Klärung gilt der Gebäudeplan, {kern.kurz(x.geplant)} wird aber "
+                 "niemand anderem angeboten.").classes("m-ptext")
+        with ui.element("div").classes("m-paktionen"):
+            knopf(f"Gebäudeplan stimmt ({kern.kurz(x.gebucht)})",
+                  lambda: _nach(a, kern.strittig_klaeren, x.person, "plan", zimmer=zimmer), "", "description")
+            knopf(f"Planung stimmt ({kern.kurz(x.geplant)})",
+                  lambda: _nach(a, kern.strittig_klaeren, x.person, "planung", zimmer=zimmer), "", "event_available")
+
+
 def _karte(a, k: zk.Karte) -> None:
     ui.label(f"{k.lage} · {k.betten} Bett{'en' if k.betten > 1 else ''}" + (f" · {k.merkmale}" if k.merkmale else "")
              ).classes("m-ptext")
     if k.unbewohnbar:
         badge("unbewohnbar", f"unbewohnbar: {k.unbewohnbar}")
+    for x in k.strittig:
+        _strittig_kasten(a, x, k.zimmer)
     # Bewohner
     with ui.element("div").classes("m-ktitelzeile"):
         ui.label("Bewohner").classes("m-ktitel")
@@ -701,7 +719,8 @@ def _uebersicht(a) -> None:
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
                                     passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf, bool(k.nicht_fertig))
-                                    kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus")
+                                    kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus") \
+                                        + (" strittig" if k.strittig else "")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=k.titel)
                                     with b:
@@ -710,6 +729,8 @@ def _uebersicht(a) -> None:
                                             ui.label("!" * k.stufe).classes("m-kachel-m")
                                         if k.nicht_fertig:
                                             ui.icon("cleaning_services").classes("m-kachel-u")
+                                        if k.strittig:
+                                            ui.label("?").classes("m-kachel-s")
                                     b.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
 
 

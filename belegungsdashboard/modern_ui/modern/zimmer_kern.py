@@ -381,6 +381,7 @@ class Karte:
     notizen: list                 # tm.Notiz (zum Zimmer)
     belegungen: list              # (Zeitraum, Text, Art) – kommende und laufende
     historie: list = field(default_factory=list)   # historie_kern.Aufenthalt – frühere Bewohner, neueste zuerst
+    strittig: list = field(default_factory=list)   # kern.Strittig: Planung und Gebäudeplan widersprechen sich hier
 
 
 def _umzug_von(stand: zp.Planstand, bw: zp.Bewohner):
@@ -423,9 +424,12 @@ def karte(stand: zp.Planstand, zid: str, heute: date) -> Karte:
         historie = hk.im_zimmer(zid, heute)
     except Exception:                      # noqa: BLE001 – Historie ist Zusatz
         historie = []
+    from . import kern
+
+    strittig = [x for x in kern.strittige(stand) if zid in (x.geplant, x.gebucht) and x.bis >= heute]
     return Karte(zid, z.kurz, zp.flur_text(z), z.betten, zl.merkmal_kurz(z), z.notiz,
                  stand.lage.unbewohnbar.get(zid, ""), maengel, personen, tm.notizen(zp.zimmer_schluessel(zid)), belegungen,
-                 historie)
+                 historie, strittig)
 
 
 # ---- Ändern ---------------------------------------------------------------------------
@@ -489,6 +493,8 @@ class Wechsel:
 
 
 def wechsel_pruefen(person: str, nach: str) -> Wechsel:
+    from . import kern
+
     stand = zp.laden()
     fehler, hinweis, partner = zp.verschieben_pruefen(stand, person, nach)
     b = next((x for x in stand.bedarf if x.schluessel == person), None)
@@ -499,6 +505,8 @@ def wechsel_pruefen(person: str, nach: str) -> Wechsel:
                 fehler or "", hinweis or "", zw.get("status") == "belegt", [(x.schluessel, x.name) for x in partner])
     if not fehler and zw.get("zimmer") == nach:
         w.fehler = f"{w.name} ist schon in {w.nach_kurz} geplant."
+    if not w.fehler and b is not None and (st_ := kern.strittig_im_weg(stand, nach, b.von, b.bis, person)) is not None:
+        w.fehler = kern.strittig_text(st_)
     if partner and b is not None and not w.fehler:
         ohne = frozenset({person} | {x.schluessel for x in partner})
         w.partner_passt = stand.lage.freie_betten(nach, b.von, b.bis, ohne) >= 1 + len(partner)
@@ -509,11 +517,15 @@ def wechseln(person: str, nach: str, mit_partner: bool = False) -> str:
     """Prüft gegen den frischen Stand (inzwischen woanders geändert? dann nichts überschreiben) und speichert."""
     from belegung import aenderungen
 
+    from . import kern
+
     stand = zp.laden()
     fehler, _hinweis, partner = zp.verschieben_pruefen(stand, person, nach)
     if fehler:
         raise ValueError(fehler)
     b = next(x for x in stand.bedarf if x.schluessel == person)
+    if (st_ := kern.strittig_im_weg(stand, nach, b.von, b.bis, person)) is not None:
+        raise ValueError(kern.strittig_text(st_))
     alt = kurz((stand.zugewiesen(person) or {}).get("zimmer", "")) or "–"
     z = stand.lage.zimmer[nach]
     zts = [zp.Zuteilung(x, z) for x in [b] + (partner if mit_partner else [])]
@@ -654,6 +666,7 @@ class Kachel:
     titel: str
     arten: frozenset = frozenset()   # Arten der offenen Mängel (für den Mangelart-Filter)
     nicht_fertig: str = ""           # frei, aber nicht bezugsfertig: Grund (Reinigung offen, dringender Mangel)
+    strittig: str = ""               # eigene Planung widerspricht dem Gebäudeplan (Text) – Zimmer erst klären
 
 
 def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
@@ -683,6 +696,12 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
     except Exception:                          # noqa: BLE001 – Zusatzinfo, die Übersicht bleibt
         unfertig = {}
     erg: dict[str, dict[str, list[Kachel]]] = {}
+    from . import kern
+
+    strittig = {}
+    for x in kern.strittige(stand):
+        if x.von <= tag <= x.bis or tag < x.von:
+            strittig.setdefault(x.geplant, f"strittig: laut Planung {x.name}, im Gebäudeplan in {kurz(x.gebucht)}")
     for z in sorted((z for z in stand.zimmer if z.aktiv), key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
         status, bs = stand.lage.status_am(z.id, tag)
         ms = offen.get(z.id, [])
@@ -691,8 +710,9 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
             ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "") + \
             (f"\nNicht bezugsfertig: {unfertig[z.id]}" if z.id in unfertig else "")
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
-            Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar, titel,
-                   frozenset(m.art for m in ms), unfertig.get(z.id, "")))
+            Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar,
+                   titel + (f"\n⚠ {strittig[z.id]} – bitte klären" if z.id in strittig else ""),
+                   frozenset(m.art for m in ms), unfertig.get(z.id, ""), strittig.get(z.id, "")))
     return erg
 
 

@@ -128,6 +128,7 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
     from . import hinweise_kern as hk
 
     zuteilungen = list(zp.vorschlagen(stand.lage, bedarf, fest))
+    reserviert = strittige(stand)
     from belegung import maengel as mg
 
     fuer_allergiker_nicht = hk.meiden(mg.offen_je_zimmer())
@@ -203,6 +204,15 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
                 dazu(z.id, "frei", f"{_bezeichnung(z)} · Allergiker-Etage")
         for z in zt.ausnahmen:
             dazu(z.id, "ausnahme", f"{_bezeichnung(z)} · {zp.ausnahme_grund(stand.lage, z, b)}")
+        if reserviert:
+            opts = [o for o in opts if not any(r.geplant == o.zimmer and r.person != b.schluessel and r.von <= b.bis
+                                               and b.von <= r.bis for r in reserviert)]
+            if vorschlag and vorschlag not in {o.zimmer for o in opts}:
+                vorschlag = None
+        if (eigen := next((r for r in reserviert if r.person == b.schluessel), None)) is not None:
+            status, stufe = "handeln", "krit"
+            grund = (f"Gebäudeplan: {kurz(eigen.gebucht)} · eigene Planung: {kurz(eigen.geplant)} – widerspricht sich, "
+                     "bitte klären (Heute)")
         zweite = b.massnahme.removeprefix("UWT ") if b.gruppe == "UWT" else b.massnahme
         erg.append(Zeile(b.schluessel, b.name, zweite, GRUPPE_KURZ.get(b.gruppe, b.gruppe), b.von, b.bis, gespeichert, status,
                          stufe, grund,
@@ -288,10 +298,83 @@ def _schritt(titel: str, aktion: Callable[[], object], dateien: list[str] | None
     return erg
 
 
+# ---- Eigene Planung widerspricht dem Gebäudeplan („strittig“) ------------------------------------------
+# Das Hauptprogramm lässt bei einem Widerspruch stillschweigend den Gebäudeplan gelten: steht die Person dort in einem
+# anderen Zimmer, entfällt unsere Zuweisung – das geplante Zimmer erscheint FREI, obwohl Zuteilen und Suche es weiter
+# zeigen. Ist der Gebäudeplan veraltet, droht eine Doppelbelegung. Deshalb: sichtbar machen, das Zimmer bis zur Klärung
+# für niemand anderen anbieten und per Klick klären (Gebäudeplan stimmt / Planung stimmt).
+
+@dataclass
+class Strittig:
+    person: str
+    name: str
+    geplant: str              # Zimmer-ID laut eigener Planung (gilt bisher NICHT)
+    gebucht: str              # Zimmer-ID laut Gebäudeplan (gilt bisher)
+    von: date
+    bis: date
+
+
+def strittige(stand: zp.Planstand) -> list[Strittig]:
+    zw = {z["person"]: z for z in stand.zuweisungen}
+    erg = []
+    for a in getattr(stand.lage, "abgleich", []) or []:
+        z = zw.get(a.person)
+        if a.art != "anders" or z is None or z.get("vorrang") == "plan":
+            continue
+        erg.append(Strittig(a.person, zp.anzeige_name(a.name), a.geplant, a.gebucht,
+                            date.fromisoformat(z["von"]), date.fromisoformat(z["bis"])))
+    return sorted(erg, key=lambda s: (s.von, s.name))
+
+
+def strittig_im_weg(stand: zp.Planstand, zimmer: str, von: date, bis: date, ausser: str = "") -> Strittig | None:
+    """Ist ``zimmer`` im Zeitraum laut eigener Planung (strittig) für jemand anderen vorgesehen?"""
+    return next((s for s in strittige(stand) if s.geplant == zimmer and s.person != ausser
+                 and s.von <= bis and von <= s.bis), None)
+
+
+def strittig_text(s: Strittig) -> str:
+    return (f"{kurz(s.geplant)} ist laut eigener Planung für {s.name} ({s.von:%d.%m.} – {s.bis:%d.%m.%Y}) vorgesehen, "
+            f"im Gebäudeplan steht {s.name} aber in {kurz(s.gebucht)} – bitte erst klären (Heute → „Planung widerspricht "
+            "dem Gebäudeplan“).")
+
+
+def strittig_klaeren(person: str, wahl: str) -> str:
+    """``wahl``: „plan“ = Gebäudeplan stimmt (eigene Zuweisung auf dessen Zimmer setzen) | „planung“ = unsere Planung
+    stimmt (gilt dann auch gegen den Gebäudeplan; das Zimmer im Gebäudeplan wird frei). Ein Rückgängig-Schritt."""
+    stand = zp.laden()
+    s = next((x for x in strittige(stand) if x.person == person), None)
+    if s is None:
+        raise ValueError("Das ist schon geklärt.")
+    if wahl not in ("plan", "planung"):
+        raise ValueError("Unbekannte Auswahl.")
+
+    def aendern():
+        alle = zp.zuweisungen_laden()
+        for z in alle:
+            if z["person"] == person:
+                z["vorrang"] = wahl
+                if wahl == "plan":
+                    z["zimmer"] = s.gebucht
+        speicher.schreiben(zp.ZUWEISUNGEN, {"zuweisungen": alle})
+        from belegung import protokoll
+
+        protokoll.eintragen([{"aktion": "gilt: " + ("Gebäudeplan" if wahl == "plan" else "eigene Planung"), "name": s.name,
+                              "person": person, "alt": s.geplant if wahl == "plan" else s.gebucht,
+                              "neu": s.gebucht if wahl == "plan" else s.geplant, "von": s.von.isoformat(),
+                              "quelle": "Neue Oberfläche – Klären"}])
+    _schritt(f"{s.name}: " + ("Gebäudeplan gilt" if wahl == "plan" else "Planung gilt"), aendern, [zp.ZUWEISUNGEN])
+    if wahl == "plan":
+        return f"{s.name}: Gebäudeplan gilt – {kurz(s.gebucht)}; {kurz(s.geplant)} ist frei"
+    return (f"{s.name}: Planung gilt – {kurz(s.geplant)}; {kurz(s.gebucht)} ist frei. Bitte auch im Belegungssystem "
+            "umbuchen.")
+
+
 def _zuteilung(stand: zp.Planstand, schluessel: str, zimmer: str) -> zp.Zuteilung:
     b = next((x for x in stand.bedarf if x.schluessel == schluessel), None)
     if b is None:
         raise ValueError("Die Person ist nicht mehr in den Listen.")
+    if (st_ := strittig_im_weg(stand, zimmer, b.von, b.bis, schluessel)) is not None:
+        raise ValueError(strittig_text(st_))
     zeile = next((z for z in zeilen(stand, b.von.isoformat()) if z.schluessel == schluessel), None)
     if zeile is None or zimmer not in {o.zimmer for o in zeile.optionen}:
         raise ValueError(f"Zimmer {kurz(zimmer)} ist für {b.name} nicht (mehr) frei.")
@@ -360,6 +443,8 @@ def zimmer_pruefen(stand: zp.Planstand, schluessel: str, eingabe: str) -> Zimmer
         return ZimmerPruefung(zid, "nein", f"{z.kurz} gehört nicht (mehr) zum Internat (außer Betrieb).")
     if zid in lage.unbewohnbar:
         return ZimmerPruefung(zid, "nein", f"{z.kurz} ist unbewohnbar: {lage.unbewohnbar[zid]} – erst den Mangel beheben.")
+    if (st_ := strittig_im_weg(stand, zid, b.von, b.bis, schluessel)) is not None:
+        return ZimmerPruefung(zid, "nein", strittig_text(st_))
     if zp.nur_doppel(z, b.gruppe):
         return ZimmerPruefung(zid, "nein", f"{z.kurz} ist ein Doppelzimmer ({z.betten} Betten) – {zp.DOPPEL_GRUND}. "
                               "Das ist eine feste Regel des Hauptprogramms (auch nicht von Hand). Ist das Zimmer in "
@@ -572,6 +657,12 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                                 f"{len(unb)} Planung{'en' if len(unb) > 1 else ''} in unbewohnbarem Zimmer",
                                 "; ".join(f"{namen.get(p, '')} ({g.split(': ', 1)[1]})" for p, g in list(unb.items())[:2])
                                 + (" …" if len(unb) > 2 else ""), Aktion("konflikte", "Prüfen und zuweisen")))
+    if stand is not None and "strittig" not in weg and (sts := strittige(stand)):
+        erg.insert(0, Karte("strittig", "dringend",
+                            f"{len(sts)} Planung{'en widersprechen' if len(sts) > 1 else ' widerspricht'} dem Gebäudeplan",
+                            "; ".join(f"{x.name}: Planung {kurz(x.geplant)}, Gebäudeplan {kurz(x.gebucht)}" for x in sts[:2])
+                            + (" …" if len(sts) > 2 else "") + " – bis zur Klärung wird das geplante Zimmer niemandem angeboten",
+                            Aktion("strittig", "Klären")))
     if stand is not None and "allergie" not in weg:
         k = allergie_karte(stand, heute)
         if k is not None:
@@ -670,7 +761,7 @@ def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 1
     return NachPlanung(zeilen, (t.text, t.gesamt, t.stufe("gesamt")) if t else None, np_.offen, np_.ohne_platz)
 
 
-SYMBOL = {"anreise": "flight_land", "konflikte": "warning", "unbewohnbar": "report", "eintragen": "edit_note",
+SYMBOL = {"anreise": "flight_land", "konflikte": "warning", "unbewohnbar": "report", "strittig": "sync_problem", "eintragen": "edit_note",
           "reinigung": "cleaning_services", "abreisen": "flight_takeoff", "facility": "electrical_services",
           "maengel": "build", "engpass": "trending_down", "termin": "event", "mail": "mail", "posteingang": "mail",
           "mieterende": "key", "gebaeudeplan": "description", "umzug": "swap_horiz", "n": "campaign"}
