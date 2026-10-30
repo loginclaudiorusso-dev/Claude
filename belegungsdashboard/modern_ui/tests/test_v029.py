@@ -114,3 +114,53 @@ def test_flexibler_vertrag_nur_auf_wunsch(leer):
     assert mk.flexible() == {"30-001"}
     mk._flex_setzen("30-001", False)
     assert mk.flexible() == set()
+
+
+def test_unbewohnbar_erst_pruefen_dann_nur_angehakte(leer):
+    """0.30: Planungen in unbewohnbaren Zimmern werden aufgelistet; umgeplant wird nur die Auswahl."""
+    from belegung import anreiseliste, maengel
+    from belegung import zimmerplan as zp
+    from modern import kern
+
+    h = date.today()
+    an = h + timedelta(days=5)
+    anreiseliste.speichern([anreiseliste.Person(n, "GS RVL", an, True, tn_id=str(950 + i), abreise=an + timedelta(days=60))
+                            for i, n in enumerate(["Erste, Ella", "Zweite, Zoe"])], {})
+    kern.vorschlaege_uebernehmen(an.isoformat(), "alle")
+    st = zp.laden()
+    zimmer = {b.name: st.zugewiesen(b.schluessel)["zimmer"] for b in st.bedarf}
+    for z in set(zimmer.values()):
+        maengel.setzen(z, "schimmel", True, h)                  # beide Zimmer werden unbewohnbar
+    fs = kern.faelle(zp.laden(), h, nur_unbewohnbar=True)
+    assert {f.name for f in fs} == {"Erste, Ella", "Zweite, Zoe"} and all(f.vorschlag and not f.wohnt for f in fs)
+    assert all(f.grund.startswith("Schimmel") for f in fs)
+    assert len({f.vorschlag for f in fs}) == 2                 # gemeinsam verteilt: nie zweimal dasselbe Zimmer
+    ella = next(f for f in fs if f.name == "Erste, Ella")
+    assert kern.ausweich_uebernehmen([ella.schluessel], h) == "1 Ausweichzimmer zugewiesen"
+    st = zp.laden()
+    neu = {b.name: st.zugewiesen(b.schluessel)["zimmer"] for b in st.bedarf}
+    assert neu["Erste, Ella"] == ella.vorschlag and neu["Zweite, Zoe"] == zimmer["Zweite, Zoe"]   # Zoe unverändert
+    with pytest.raises(ValueError):
+        kern.ausweich_uebernehmen([], h)
+    # wer schon eingezogen ist, bekommt keinen Vorschlag (das wäre ein Umzug)
+    spaeter = [f for f in kern.faelle(zp.laden(), an + timedelta(days=3), nur_unbewohnbar=True) if f.name == "Zweite, Zoe"]
+    assert spaeter and spaeter[0].wohnt and spaeter[0].vorschlag is None
+
+
+def test_sammelknopf_ohne_doppelbelegung(leer):
+    from belegung import anreiseliste, maengel
+    from belegung import zimmerplan as zp
+    from modern import kern
+
+    h = date.today()
+    an = h + timedelta(days=6)
+    anreiseliste.speichern([anreiseliste.Person(f"Sammel, Sam{i}", "GS RVL", an, True, tn_id=str(960 + i),
+                                                abreise=an + timedelta(days=40)) for i in range(5)], {})
+    kern.vorschlaege_uebernehmen(an.isoformat(), "alle")
+    st = zp.laden()
+    for b in st.bedarf:
+        maengel.setzen(st.zugewiesen(b.schluessel)["zimmer"], "schimmel", True, h)
+    kern.konflikte_loesen(h)
+    st = zp.laden()
+    neu = [st.zugewiesen(b.schluessel)["zimmer"] for b in st.bedarf]
+    assert len(set(neu)) == 5 and not set(neu) & set(st.lage.unbewohnbar)
