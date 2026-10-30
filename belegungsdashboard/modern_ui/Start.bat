@@ -4,6 +4,15 @@ rem und die Pakete werden installiert (einmalig, ca. 1-3 Minuten). Das bisherige
 chcp 65001 >nul
 cd /d "%~dp0"
 
+rem Kopierte oder beschaedigte Umgebung (z. B. vom alten PC mitkopiert): pruefen und dann neu anlegen
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import sys" >nul 2>nul
+    if errorlevel 1 (
+        echo Die Python-Umgebung passt nicht zu diesem PC - sie wird neu angelegt ...
+        rmdir /s /q ".venv"
+    )
+)
+
 if not exist ".venv\Scripts\python.exe" (
     where py >nul 2>nul
     if errorlevel 1 (
