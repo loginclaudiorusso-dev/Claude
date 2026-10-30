@@ -18,11 +18,12 @@ if not exist ".venv\Scripts\python.exe" (
     if errorlevel 1 (
         python -m venv .venv
     ) else (
-        py -3 -m venv .venv
+        rem Bewaehrte Version bevorzugen - fuer ganz neue Python-Versionen gibt es oft noch keine fertigen Pakete
+        py -3.13 -m venv .venv <nul >nul 2>nul || py -3.12 -m venv .venv <nul >nul 2>nul || py -3.11 -m venv .venv <nul >nul 2>nul || py -3 -m venv .venv
     )
 )
 if not exist ".venv\Scripts\python.exe" (
-    echo Python wurde nicht gefunden. Bitte Python 3.11 oder neuer von python.org installieren.
+    echo Python wurde nicht gefunden. Bitte Python 3.13 von python.org installieren - Haken bei "Add Python to PATH".
     pause
     exit /b 1
 )
@@ -34,6 +35,8 @@ if errorlevel 1 (
     ".venv\Scripts\python.exe" -m pip install -r requirements.txt
     if errorlevel 1 (
         echo Installation fehlgeschlagen - siehe Meldungen oben.
+        echo Tipp: Bei sehr neuen Python-Versionen fehlen oft fertige Pakete. Python 3.13 installieren
+        echo ^(python.org oder "py install 3.13"^), den Ordner modern_ui\.venv loeschen und neu starten.
         pause
         exit /b 1
     )
