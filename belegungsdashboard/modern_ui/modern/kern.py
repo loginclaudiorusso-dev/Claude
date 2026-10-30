@@ -326,22 +326,76 @@ def problemfaelle(stand: zp.Planstand, heute: date) -> dict[str, str]:
     return erg
 
 
-def konflikte_loesen(heute: date | None = None) -> str:
-    """Jede Planung mit Konflikt bekommt das vorgeschlagene Ausweichzimmer (Personen ohne Vorschlag bleiben)."""
+@dataclass
+class Fall:
+    """Eine Planung mit Konflikt bzw. in einem unbewohnbaren Zimmer – zum Prüfen vor dem Umplanen."""
+    schluessel: str
+    name: str
+    zimmer: str               # Zimmer-ID der Planung
+    grund: str
+    von: date
+    bis: date
+    wohnt: bool               # schon eingezogen → kein Ausweichzimmer hier, sondern Umzug (Zimmerkarte)
+    vorschlag: str | None     # freies Ausweichzimmer (Zimmer-ID) oder None
+
+
+def faelle(stand: zp.Planstand, heute: date, nur_unbewohnbar: bool = False) -> list[Fall]:
+    """Alle Problemfälle mit Ausweichvorschlag – ändert nichts (Entscheidung im Panel „Prüfen und zuweisen“)."""
+    pf = {p: g for p, g in problemfaelle(stand, heute).items() if not nur_unbewohnbar or g.startswith("unbewohnbar")}
+    bedarf = {b.schluessel: b for b in stand.bedarf if b.schluessel in pf}
+    kandidaten: dict[str, list[str]] = {}            # je Person: Vorschlag, dann die übrigen freien Zimmer
+    for tag in sorted({b.von.isoformat() for b in bedarf.values()}):
+        for z in zeilen(stand, tag, heute):
+            if z.schluessel in pf:
+                liste = ([z.vorschlag] if z.vorschlag else []) + [o.zimmer for o in z.optionen if o.art == "frei"]
+                kandidaten[z.schluessel] = [x for i, x in enumerate(liste) if x and x != z.gespeichert
+                                            and x not in stand.lage.unbewohnbar and x not in liste[:i]]
+    namen = {z["person"]: z for z in stand.zuweisungen}
+    erg = []
+    for p, grund in pf.items():
+        b, zw = bedarf.get(p), namen.get(p, {})
+        if b is None and not zw:
+            continue
+        von = b.von if b else date.fromisoformat(zw.get("von", heute.isoformat()))
+        bis = b.bis if b else date.fromisoformat(zw.get("bis", heute.isoformat()))
+        zimmer = (stand.zugewiesen(p) or {}).get("zimmer", "") or zw.get("zimmer", "")
+        erg.append(Fall(p, zp.anzeige_name(b.name if b else zw.get("name", "")), zimmer,
+                        grund.split(": ", 1)[-1] if grund.startswith("unbewohnbar") else grund, von, bis, von < heute,
+                        None))
+    erg.sort(key=lambda f: (f.wohnt, f.von, f.zimmer))
+    # gemeinsam verteilen: kein Ausweichzimmer zweimal für überlappende Zeiträume (jeder Fall einzeln hätte oft dasselbe)
+    vergeben: list[tuple[str, date, date]] = []
+    for f in erg:
+        if f.wohnt:
+            continue
+        f.vorschlag = next((x for x in kandidaten.get(f.schluessel, [])
+                            if not any(x == z and f.von <= b and v <= f.bis for z, v, b in vergeben)), None)
+        if f.vorschlag:
+            vergeben.append((f.vorschlag, f.von, f.bis))
+    return erg
+
+
+def ausweich_uebernehmen(personen: list[str], heute: date | None = None) -> str:
+    """Nur die ausgewählten Planungen bekommen ihr Ausweichzimmer – ein Schritt, ein Rückgängig."""
     heute = heute or date.today()
     stand = zp.laden()
-    kon = set(problemfaelle(stand, heute))
-    tage = {b.von.isoformat() for b in stand.bedarf if b.schluessel in kon}
-    zts = []
-    for k in sorted(tage):
-        for z in zeilen(stand, k, heute):
-            if z.schluessel in kon and z.vorschlag:
-                zts.append(_zuteilung(stand, z.schluessel, z.vorschlag))
-    if not zts:
-        raise ValueError("Für die Konflikte gibt es gerade kein freies Ausweichzimmer – bitte im Hauptprogramm lösen.")
-    _schritt(f"{len(zts)} Konflikte gelöst", lambda: zp.zuweisungen_speichern(zts, "Neue Oberfläche"))
-    rest = len(kon) - len(zts)
+    gewaehlt = {f.schluessel: f for f in faelle(stand, heute) if f.schluessel in set(personen) and f.vorschlag}
+    if not gewaehlt:
+        raise ValueError("Nichts ausgewählt, das ein freies Ausweichzimmer hat.")
+    zts = [_zuteilung(stand, p, f.vorschlag) for p, f in gewaehlt.items()]
+    _schritt(f"{len(zts)} Ausweichzimmer", lambda: zp.zuweisungen_speichern(zts, "Neue Oberfläche"))
+    rest = len(set(personen)) - len(zts)
     return f"{len(zts)} Ausweichzimmer zugewiesen" + (f", {rest} ohne freies Zimmer" if rest else "")
+
+
+def konflikte_loesen(heute: date | None = None) -> str:
+    """Jede Planung mit Konflikt bekommt ihr (gemeinsam verteiltes) Ausweichzimmer – Bewohner und Fälle ohne freies
+    Zimmer bleiben. In der Oberfläche läuft das über „Prüfen und zuweisen“ (nur das Angehakte)."""
+    heute = heute or date.today()
+    fs = [f.schluessel for f in faelle(zp.laden(), heute) if f.vorschlag]
+    if not fs:
+        raise ValueError("Für die Konflikte gibt es gerade kein freies Ausweichzimmer – bitte im Hauptprogramm lösen.")
+    return ausweich_uebernehmen(fs, heute)
 
 
 def reinigung_erledigt(dringend: bool, heute: date | None = None) -> str:
@@ -416,7 +470,7 @@ def _karte(v, stand: zp.Planstand | None) -> Karte:
             k.aktion = Aktion(f"vorschlaege:{kennung}", f"{mit} Vorschläge übernehmen", kennung)
         k.zweite = Aktion(f"zeigen:{kennung}", "Anzeigen", kennung)
     elif art == "konflikte":
-        k.aktion = Aktion("konflikte", "Ausweichzimmer zuweisen")
+        k.aktion = Aktion("konflikte", "Prüfen und zuweisen")
     elif v.id == "reinigung_dringend":
         k.aktion = Aktion("reinigung:dringend", "Alle als gereinigt markieren")
     elif v.id == "reinigung":
@@ -459,7 +513,7 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
             erg.insert(0, Karte("unbewohnbar", "dringend",
                                 f"{len(unb)} Planung{'en' if len(unb) > 1 else ''} in unbewohnbarem Zimmer",
                                 "; ".join(f"{namen.get(p, '')} ({g.split(': ', 1)[1]})" for p, g in list(unb.items())[:2])
-                                + (" …" if len(unb) > 2 else ""), Aktion("konflikte", "Ausweichzimmer zuweisen")))
+                                + (" …" if len(unb) > 2 else ""), Aktion("konflikte", "Prüfen und zuweisen")))
     if stand is not None and "allergie" not in weg:
         k = allergie_karte(stand, heute)
         if k is not None:
