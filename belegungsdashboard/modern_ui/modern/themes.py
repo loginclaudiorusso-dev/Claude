@@ -690,5 +690,22 @@ body.pro .m-toast .m-toast-ok { color: var(--gruen); font-size: 20px; animation:
 }
 """
 
+# 0.36: Showcase aufgeräumt – Standort im Dock, nur fünf Hauptbereiche (Rest unter „Mehr“), flachere Kennzahlen
+_SHOWCASE_RUHIG = """
+body.lay-showcase .m-topnav .m-dock-standort { font: inherit; font-weight: 600; color: var(--text); background: transparent;
+  border: 0; border-radius: 10px; height: 34px; padding: 0 8px 0 4px; gap: 8px; display: inline-flex; align-items: center;
+  cursor: pointer; width: auto; margin: 0; }
+body.lay-showcase .m-topnav .m-dock-standort:hover { background: var(--fl2); }
+body.lay-showcase .m-topnav .m-dock-standort .m-standort-name { font-size: 13px; color: var(--text); }
+body.lay-showcase .m-topnav .m-nur-symbol { padding: 0 10px; }
+body.lay-showcase .m-topnav .m-punkt-neu { width: 7px; height: 7px; border-radius: 50%; background: var(--akzent); flex: none; }
+body.lay-showcase .m-stats { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+body.lay-showcase .m-stat { padding: 10px 14px; border-radius: 14px; gap: 4px; }
+body.lay-showcase .m-stat .l { font-size: 10px; letter-spacing: .06em; }
+body.lay-showcase .m-stat .z { font-size: 22px !important; }
+body.lay-showcase .m-leiste { padding-bottom: 12px; }
+"""
+
+
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG])

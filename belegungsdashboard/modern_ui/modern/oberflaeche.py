@@ -297,14 +297,18 @@ class Ansicht:
                 ui.label("Belegung")
                 ui.label(aktiv.name).classes("m-standort-name")
             ui.icon("unfold_more").classes("m-standort-pfeil")
-            with ui.menu().props('dark class="m-menue"'):
-                ui.label("Standort wechseln").classes("m-mgruppe")
-                for k, s in standort_kern.STANDORTE.items():
-                    with ui.menu_item(on_click=lambda k=k: self.standort_wechseln(k)).classes("m-mpunkt"):
-                        ui.icon("check" if k == aktiv.kurz else "").classes("m-mhaken" + (" an" if k == aktiv.kurz else ""))
-                        ui.label(s.name)
-                ui.label("Auswertung und Prognose zeigen immer alle Standorte.").classes("m-zweite").style(
-                    "white-space:normal; max-width:240px; padding: 4px 12px 8px")
+            self._standort_menue()
+
+    def _standort_menue(self) -> None:
+        aktiv = standort_kern.aktiv()
+        with ui.menu().props('dark class="m-menue"'):
+            ui.label("Standort wechseln").classes("m-mgruppe")
+            for k, s in standort_kern.STANDORTE.items():
+                with ui.menu_item(on_click=lambda k=k: self.standort_wechseln(k)).classes("m-mpunkt"):
+                    ui.icon("check" if k == aktiv.kurz else "").classes("m-mhaken" + (" an" if k == aktiv.kurz else ""))
+                    ui.label(s.name)
+            ui.label("Auswertung und Prognose zeigen immer alle Standorte.").classes("m-zweite").style(
+                "white-space:normal; max-width:240px; padding: 4px 12px 8px")
 
     async def standort_wechseln(self, kurz: str) -> None:
         if kurz == standort_kern.aktiv().kurz:
@@ -392,47 +396,57 @@ class Ansicht:
                 z.props(remove="title")
             z.set_visibility(n > 0)
 
+    DOCK = ("heute", "anreisen", "zimmer", "reinigung", "auswertung")   # Showcase: direkt im Dock, der Rest unter „Mehr“
+
     def _topnav_fuellen(self, dringend: int) -> None:
-        """Showcase-Dock: alle Seiten direkt sichtbar, „Verwalten“ als Dropdown – kein Menüpunkt fällt weg."""
+        """Showcase-Dock: Standort, die fünf Hauptbereiche, „Mehr“ (Termine, Assistenz, Mieter, Verwalten), Suche."""
         self.topnav.clear()
         if self.design["layout"] != "showcase":
             return
+        aktiv_s = standort_kern.aktiv()
         with self.topnav:
-            with ui.element("div").classes("m-marke"):
+            with ui.element("button").classes("m-marke m-dock-standort") as mk:
+                attr(mk, title=f"Standort: {aktiv_s.name} – wechseln")
                 ui.label("B").classes("m-logo")
-            gruppen = {}
-            for k, text, icon, g in register.NAV:
-                gruppen.setdefault(g, []).append((k, text, icon))
-            for g, punkte in gruppen.items():
-                if g == "Verwalten":
-                    continue
-                if g:
-                    ui.element("div").classes("m-trenner")
-                for k, text, icon in punkte:
-                    p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
-                    attr(p, title=text)
-                    with p:
-                        ui.icon(icon)
-                        ui.label(text)
-                        self._nav_zahlen.append((k, ui.label("").classes("m-zahl")))
-                    p.on("click", lambda k=k: self.seite_wechseln(k))
-            verwalten = [x for x in register.NAV if x[3] == "Verwalten"]
+                ui.label(aktiv_s.name).classes("m-standort-name")
+                ui.icon("expand_more").classes("m-standort-pfeil")
+                self._standort_menue()
             ui.element("div").classes("m-trenner")
-            aktiv = any(k == self.seite for k, *_r in verwalten)
+            for k, text, icon, _g in register.NAV:
+                if k not in self.DOCK:
+                    continue
+                p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
+                attr(p, title=text)
+                with p:
+                    ui.icon(icon)
+                    ui.label(text)
+                    self._nav_zahlen.append((k, ui.label("").classes("m-zahl")))
+                p.on("click", lambda k=k: self.seite_wechseln(k))
+            mehr = [x for x in register.NAV if x[0] not in self.DOCK]
+            aktiv = any(k == self.seite for k, *_r in mehr)
+            offen = sum(1 for k, *_r in mehr if (w := self.nav_zahl.get(k)) and w.n)
             with ui.element("button").classes("m-navpunkt" + (" aktiv" if aktiv else "")) as v:
-                ui.icon("tune")
-                ui.label("Verwalten")
+                ui.icon("more_horiz")
+                ui.label(next((t for k, t, *_r in mehr if k == self.seite), "Mehr"))
+                if offen:
+                    ui.label("").classes("m-punkt-neu")
                 ui.icon("expand_more")
                 with ui.menu().props('dark class="m-menue"'):
-                    for k, text, icon, _g in verwalten:
+                    gruppe = None
+                    for k, text, icon, g in mehr:
+                        if g != gruppe:
+                            ui.label(g).classes("m-mgruppe")
+                            gruppe = g
+                        w = self.nav_zahl.get(k)
                         with ui.menu_item(on_click=lambda k=k: self.seite_wechseln(k)).classes("m-mpunkt"):
                             ui.icon(icon).classes("m-mhaken" + (" an" if k == self.seite else ""))
                             ui.label(text)
-            attr(v, title="Daten & Import, Inventar, Einstellungen")
-            with ui.element("button").classes("m-navpunkt m-suche") as p:
+                            if w and w.n:
+                                ui.label(str(w.n)).classes("m-zahl" + (" rot" if w.rot else "")).style("margin-left:auto")
+            attr(v, title="Termine, Assistenz, Mieter, Daten & Import, Inventar, Einstellungen")
+            with ui.element("button").classes("m-navpunkt m-suche m-nur-symbol") as p:
                 ui.icon("search")
-                ui.label("Suchen")
-                ui.label("Strg K").classes("m-taste")
+            attr(p, title="Suchen (Strg+K)")
             p.on("click", self.suchen)
 
     # ---- AI-Canvas: Prompt-Bar ------------------------------------------------------------

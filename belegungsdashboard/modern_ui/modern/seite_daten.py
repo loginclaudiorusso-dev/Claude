@@ -64,11 +64,16 @@ def zeichnen(a) -> None:
     q = {x.schluessel: x for x in d["quellen"]}
     with a.inhalt:
         with ui.element("div").classes("m-zwei"):
-            _karte(a, q["anreisen"], lambda: _hochladen(a, "Anreiselisten hochladen", ".xlsx,.xlsm,.csv",
+            goslar = standort_kern.ist_goslar()
+            _karte(a, q["anreisen"], lambda: _hochladen(a, "Anreiselisten hochladen",
+                                                        ".xlsx,.xlsm,.csv" if goslar else ".pdf,.xlsx,.xlsm,.csv",
                                                         lambda f: _anreisen_vorschau(a, f), True, "primaer"),
                    "Je Kurs eine Liste oder die Einheitsliste. Personen werden über die TN-ID wiedererkannt – Abreisen und "
                    "Erinnerungen bleiben bei einem neuen Upload erhalten. Neue Dateien in den Ordnern „Listen“ und „UWT“ "
-                   "werden beim Start automatisch eingelesen.",
+                   "werden beim Start automatisch eingelesen." if goslar else
+                   "PDF „Teilnehmer Beginn“ aus der Teilnehmerverwaltung: K = wohnt im Internat. Anreise ist der Eintritt, "
+                   "Abreise das Ende der Maßnahme. Personen werden über Name und Anreisetag wiedererkannt – Abreisen und "
+                   "Erinnerungen bleiben bei einem neuen Upload erhalten.",
                    lambda: knopf("Ordner jetzt einlesen", lambda: _ordner(a), "leise", "folder_open",
                                  " · ".join(f"{k}: {v}" for k, v in dk.eingangsordner().items())))
             if not standort_kern.ist_goslar():     # UWT, Schlüssellisten, ZKL und Prognose-Quellen: nur Goslar

@@ -94,7 +94,14 @@ def anreisen_lesen(pfade: list[Path], namen: list[str]) -> ListenVorschau:
     v = ListenVorschau()
     for p, name in zip(pfade, namen):
         try:
-            if einheitsliste.ist_einheitsliste(p):
+            if p.suffix.lower() == ".pdf":           # „Teilnehmer Beginn“ (Bad Pyrmont, Weser-Ems)
+                from . import pdf_anreise_kern
+
+                if standort().kurz == "GS":
+                    raise ValueError("In Goslar bitte die Excel-Listen nehmen – sie haben die TN-ID, an der Personen "
+                                     "wiedererkannt werden. Die PDF-Listen sind für Bad Pyrmont und Weser-Ems.")
+                v.listen += pdf_anreise_kern.lesen(p, name)
+            elif einheitsliste.ist_einheitsliste(p):
                 erg = einheitsliste.lesen(p)
                 v.listen += erg.anreisen
                 v.einheit.append(erg)
