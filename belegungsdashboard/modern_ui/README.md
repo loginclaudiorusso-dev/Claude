@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.34.0
+# Neue Oberfläche (modern_ui) – Version 0.35.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,34 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Drei Standorte: Goslar, Bad Pyrmont, Weser-Ems (neu in 0.35)
+
+Beim Start fragt die Oberfläche: **Welcher Standort?** Vorausgewählt ist der zuletzt gewählte, Enter genügt.
+Gewechselt wird jederzeit über das Logo oben links, wo unter „Belegung“ der aktuelle Standort steht.
+
+* **Getrennte Verwaltung:** Heute, Anreisen, Zimmer, Reinigung, Termine, Mieter, Inventar sowie Daten & Import
+  gelten nur für den gewählten Standort. Jeder Standort hat einen eigenen Datenordner. Goslar bleibt, wo es immer
+  war. Bad Pyrmont liegt in `Standorte\BP`, Weser-Ems in `Standorte\WE`. Jeder Ordner hat eigene Eingangsordner
+  (`Gebaeudeplan`, `Listen`, `UWT`), eigene Sicherungen, eigenen Verlauf und eigenes Rückgängig. Beim Wechsel wird
+  das Rückgängig geleert, damit nie ein Schritt im falschen Standort zurückgenommen wird.
+* **Auswertung und Prognose bleiben wie bisher:** Sie zeigen immer alle drei Standorte und lesen weiter aus dem
+  Goslar-Ordner (Belegungs-Pivot, Kapazitäten, Statistik). Diese Quellen pflegt man im Standort Goslar. Die
+  Darstellung (Layout und Farben) gilt für alle Standorte.
+* **Gebäudeplan:** Den Export aus dem Belegungssystem wie gewohnt unter *Daten & Import → Gebäudeplan hochladen*
+  einlesen, im jeweiligen Standort. Bad Pyrmont („BP-A 103“, Gebäude A–D, UG bis 6. OG) und Weser-Ems
+  („WE-A 202 R“, Internat A–G, UG bis 3. OG) werden mit Häusern, Etagen, Betten, Belegungen und Sperrungen erkannt.
+  Gebäudeskizzen sind dafür nicht nötig.
+* **Zimmer eingeben:** Die Zimmerprüfung versteht „A 103“, „a103“ oder „A-202-R“, je nach Standort.
+* **Regeln:** Die Zuteil-Regeln des Hauptprogramms sind auf Goslar zugeschnitten. In Bad Pyrmont und Weser-Ems
+  gelten zunächst neutrale Regeln: Alle Zimmer stehen allen Gruppen offen. Doppelzimmer sind nur für UWT und
+  Gäste, Gästezimmer nur für Gäste. Tier-Zimmer, „nur Männer“ und „außer Betrieb“ gelten so, wie sie in den
+  Zimmer-Stammdaten markiert sind. Eigene Regeln je Standort (Allergiker-, Tier-, Gästezimmer …) kommen nach und
+  nach dazu.
+* **Daten & Import** zeigt in Bad Pyrmont und Weser-Ems zunächst nur Anreiselisten und Gebäudeplan. UWT,
+  Schlüssellisten, ZKL und Zimmer-Pivot sind auf die Goslarer Listen zugeschnitten und kommen dazu, sobald es die
+  Listen der Standorte gibt.
+* **In Goslar ändert sich nichts.** Das Hauptprogramm bleibt unverändert und kennt weiterhin nur Goslar.
 
 ## Ergebnisse der UX-Prüfung (neu in 0.34)
 
@@ -536,4 +564,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0` (jeweils auch als Zip in `Sicherung`).
