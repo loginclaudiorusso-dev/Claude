@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.37.1
+# Neue Oberfläche (modern_ui) – Version 0.38.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,42 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Tageszentrale und Darstellung „INNternat“ (neu in 0.38)
+
+* **Neue Darstellung „INNternat“** (wird beim ersten Start einmalig eingeschaltet):
+  * Layout mit dauerhaft sichtbarer, beschrifteter Seitenleiste. Einklappen mit Strg+B oder „Leiste einklappen“.
+  * Türkis-Grau als Akzent. Überschriften und Kennzahlen in Bahnschrift, Text in Candara. Beides sind
+    Windows-Schriften, sonst gelten die System-Schriften.
+  * Hell und dunkel, umschaltbar direkt in der Seitenleiste („Helle/Dunkle Darstellung“). Die Wahl wird
+    gespeichert.
+  * Alle Texte und Statusfarben haben mindestens 4,5:1 Kontrast. Die Statusfarben (frei grün, belegt blau, Mangel
+    orange, kritisch rot) sind bewusst nicht türkis und stehen immer mit Text oder Symbol.
+  * Zurück zum bisherigen Aussehen: Werkzeugleiste unten rechts → „Original-Zustand“.
+* **Logo:** Liegt `INNternat_Logo.png` im INNternat-Ordner (neben `modern_ui`), steht es unverändert oben in der
+  Seitenleiste, auf dunklem Grund auf einer hellen Fläche. Ohne Datei steht dort der Schriftzug „INNternat“. Das Logo
+  wird nicht ins Programm eingebaut.
+* **Kontextleiste oben:** Sie zeigt nur die Unteransichten des gewählten Bereichs, z. B. bei Zimmer Übersicht ·
+  Karten · Zeitstrahl · Liste · Defekte Zimmer · Änderungen. Dazu kommen Datenstand, Rückgängig, Neuigkeiten und
+  Aufgaben. Die Hauptnavigation steht nur links.
+* **Heute → Tageszentrale** (neue Standardansicht; Postfach und Übersicht bleiben als Umschalter):
+  * Datum und eine Zeile, wie viel heute ansteht.
+  * Kennzahlen: Jetzt klären, Anreisen heute (ohne Zimmer), Reinigung vor Einzug, Zimmer nicht nutzbar (mit
+    Mängeln), frei nach Planung (Tiefstand). Jede Kennzahl ist ein Knopf zur passenden Stelle.
+  * **Als Nächstes:** dringende und anstehende Aufgaben, nummeriert und nach Dringlichkeit sortiert, mit Bereich,
+    direkter Aktion (bestehender Ablauf mit Prüfungen und Rückgängig), „Fälle ansehen“ (öffnet das Postfach an der
+    Stelle) und „Später“.
+  * **Die nächsten 7 Tage:** je Tag Anreisen (ohne Zimmer, x von y bezugsfertig) und Abreisen. Ein Klick öffnet die
+    Anreise.
+  * **Freie Zimmer nach Planung:** 5 Wochen als Balken, mit EMR und Doppelzimmern. Engpässe stehen zusätzlich als
+    Text und Symbol da.
+* **Outlook-Vorschau** (nur lesen): In den Einstellungen unter „Outlook-Vorschau auf ‚Heute‘“ den Ordner eintragen,
+  z. B. `Internatsdienst` (Posteingang dieses Postfachs) oder `Internatsdienst/Posteingang/Anreisen`. Dann zeigt
+  die Tageszentrale die neuesten 6 Mails mit Zeit, Betreff, Absender und „ungelesen“.
+  * Es wird nichts gesendet, verschoben, gelöscht oder als gelesen markiert, und Outlook wird nicht gestartet.
+  * Voraussetzung ist das klassische Outlook, das unter Windows läuft (derselbe Weg wie bei Erinnerungen und
+    Briefing). Das neue Outlook hat diese Schnittstelle nicht.
+  * Ohne Ordner zeigt der Block nur einen Hinweis und keine Inhalte.
 
 ## Postfach, Änderungen je Zeitraum, Schloss/Schlüssel als FM-Auftrag (neu in 0.37)
 
@@ -620,4 +656,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1` (jeweils auch als Zip in `Sicherung`).

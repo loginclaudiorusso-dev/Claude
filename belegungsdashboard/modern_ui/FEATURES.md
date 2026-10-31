@@ -1,10 +1,11 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.37.1)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.38.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
 Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft offline, die KI ist optional.
 
 ## Heute
+- Tageszentrale (Standard): Kennzahlen, „Als Nächstes“ nummeriert mit direkter Aktion, nächste 7 Tage (bezugsfertig), freie Zimmer 5 Wochen mit EMR/DZ, Outlook-Vorschau (nur lesen)
 - Postfach wie Outlook: links Aufgaben, rechts alle Fälle mit Einzel- und Sammelaktion; Erledigtes verschwindet, Pfeiltasten; Umschalter zur bisherigen Übersicht
 - Schloss/Schlüssel defekt: FM-Auftrag mit Frist (nächster Einzug) statt Umplanen, solange die Anreise ≥ 3 Tage entfernt ist
 - Aufgaben als Karten mit 1-Klick-Lösung („dringend“ / „als Nächstes“ / „zur Info“), „Später“ verschiebt auf morgen
@@ -86,6 +87,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
 ## Übergreifend
+- Darstellung „INNternat“: Türkis-Grau, hell/dunkel umschaltbar in der Seitenleiste, Bahnschrift/Candara, Kontraste ≥ 4,5:1, Logo aus Datei
 - Drei Standorte (Goslar, Bad Pyrmont, Weser-Ems): Auswahl beim Start, Wechsel über das Logo; Verwaltung je Standort getrennt (eigener Datenordner), Auswertung und Prognose über alle
 - Rückgängig für jede Änderung (Strg+Z), Suche über alles (Strg+K), Panels statt Dialoge
 - Panels mit Eingaben fragen vor dem Schließen („Eingaben verwerfen?“) – nichts geht durch Esc oder Fehlklick verloren
