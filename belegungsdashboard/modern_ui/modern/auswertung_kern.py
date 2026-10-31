@@ -40,7 +40,9 @@ def datenstand(neu: bool = False):
     """(Datenstand oder None, Fehlertext). Lädt nur neu, wenn sich Pivot, Listen oder Kapazitäten geändert haben."""
     from belegung import laden
 
-    with _SPERRE:
+    from .standort_kern import haupt
+
+    with _SPERRE, haupt():                    # Prognose: immer aus dem Goslar-Ordner (Pivot, Kapazitäten, Listen)
         quelle, schluessel = _schluessel()
         if not neu and schluessel == _ZWISCHEN["schluessel"]:
             return _ZWISCHEN["ds"], _ZWISCHEN["fehler"]

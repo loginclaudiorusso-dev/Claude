@@ -14,6 +14,7 @@ from belegung import zimmerplan as zp
 from . import seiten_kern as sk
 from .kern import _schritt
 from .ui_bausteine import attr, knopf, leer, segmente
+from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Sicherung & Verlauf"}
 ZAHLEN = {   # Einstellung → (Text, Standard, min, max)
@@ -253,8 +254,8 @@ def stammdaten_setzen(zid: str, werte: dict) -> str:
                 for k, v in werte.items():
                     setattr(z, k, v)
         zp.stammdaten_speichern(st.zimmer, st.plan)
-    _schritt(f"Stammdaten {zid.removeprefix('GS-')}", aktion, [zp.STAMM_DATEI])
-    return f"Zimmer {zid.removeprefix('GS-')} gespeichert"
+    _schritt(f"Stammdaten {zkurz(zid)}", aktion, [zp.STAMM_DATEI])
+    return f"Zimmer {zkurz(zid)} gespeichert"
 
 
 def _stammdaten(a) -> None:
@@ -336,7 +337,7 @@ def _sicherung(a) -> None:
                     with ui.element("div").classes("m-liste-zeile"):
                         ui.label(zeit).classes("m-zweite").style("width:84px")
                         attr(ui.label(f"{e.get('aktion', '')}: {e.get('name', '')}"
-                                      + (f" · {str(e.get('alt', '')).removeprefix('GS-')} → {str(e.get('neu', '')).removeprefix('GS-')}"
+                                      + (f" · {zkurz(str(e.get('alt', '')))} → {zkurz(str(e.get('neu', '')))}"
                                          if e.get("alt") or e.get("neu") else "")).classes("m-name"), title=e.get("quelle", ""))
                         ui.label(e.get("wer", "")).classes("m-zweite")
 

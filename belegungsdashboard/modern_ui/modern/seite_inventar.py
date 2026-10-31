@@ -11,6 +11,7 @@ from belegung import zimmerplan as zp
 from . import seiten
 from .kern import _schritt
 from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
+from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Zimmer", "haeuser": "Übersicht je Haus"}
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
@@ -63,7 +64,7 @@ def setzen(zid: str, gid: str, anzahl: int) -> str:
 
 def kopieren(von: str, nach: list[str]) -> str:
     _aendern("Ausstattung kopiert", lambda inv: inv.kopieren(von, nach))
-    return f"Ausstattung von {von.removeprefix('GS-')} in {len(nach)} Zimmer übernommen"
+    return f"Ausstattung von {zkurz(von)} in {len(nach)} Zimmer übernommen"
 
 
 def zeichnen(a) -> None:
@@ -176,7 +177,7 @@ def _gegenstand_panel(a, g) -> None:
                 haus_von = {z.id: z.haus for z in a.daten["zimmer"]}
                 je: dict[str, list[str]] = {}
                 for zid, n in wo:
-                    je.setdefault(haus_von.get(zid, "?"), []).append(zid.removeprefix("GS-") + (f" ({n}×)" if n > 1 else ""))
+                    je.setdefault(haus_von.get(zid, "?"), []).append(zkurz(zid) + (f" ({n}×)" if n > 1 else ""))
                 for h, zs in sorted(je.items()):
                     with ui.element("div").classes("m-wo"):
                         ui.label(f"Haus {h}").classes("m-name")

@@ -16,6 +16,7 @@ from nicegui import run, ui
 from . import seiten_kern as sk
 from .kern import kurz
 from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
+from .standort_kern import kurz as zkurz
 
 E = html.escape
 
@@ -251,7 +252,7 @@ def facility_setzen(schluessel: str, an: bool) -> str:
     if c is None:
         raise ValueError("Den Facility-Check gibt es nicht mehr.")
     _schritt("Facility-Check", lambda: eintragen.facility_setzen(c, an), [eintragen.FACILITY_DATEI])
-    return f"Zimmer {c.zimmer.removeprefix('GS-')}: Facility-Check " + ("erledigt" if an else "wieder offen")
+    return f"Zimmer {zkurz(c.zimmer)}: Facility-Check " + ("erledigt" if an else "wieder offen")
 
 
 def _facility(a) -> None:
@@ -278,7 +279,7 @@ def _facility(a) -> None:
                         ui.icon("check")
                     b.on("click", lambda c=c: a.aendern(facility_setzen, c.schluessel, not c.haken))
                 ui.label(f"{c.bis:%d.%m.%Y}").classes("m-mono")
-                ui.label(c.zimmer.removeprefix("GS-")).classes("m-mono")
+                ui.label(zkurz(c.zimmer)).classes("m-mono")
                 ui.label(c.name).classes("m-name")
                 ui.label(c.massnahme).classes("m-zweite")
                 ui.label(f"{c.monate} Monate").classes("m-mono")

@@ -13,6 +13,7 @@ from belegung import anreiseliste, einheitsliste, importe, laden, speicher, uwt
 from belegung import zimmerplan as zp
 
 from .kern import _schritt
+from .standort_kern import aktiv as standort, im_haupt
 
 
 # ---------------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ def uebersicht() -> list[Quelle]:
     erg = []
     personen, listen = anreiseliste.laden()
     letzte = max(listen.values(), key=lambda l: l.get("importiert_am", ""), default={})
-    erg.append(Quelle("anreisen", "Anreiselisten Goslar", f"{len(personen)} Personen aus {len(listen)} Listen",
+    erg.append(Quelle("anreisen", f"Anreiselisten {standort().name}", f"{len(personen)} Personen aus {len(listen)} Listen",
                       f"zuletzt {letzte.get('datei', '')} am {_wann(letzte.get('importiert_am'))}" if letzte else "noch keine"))
     bloecke = uwt.laden()
     klassen = uwt.klassen_laden()
@@ -56,6 +57,15 @@ def uebersicht() -> list[Quelle]:
     zpv = zimmerpivot.laden()
     erg.append(Quelle("zimmerpivot", "Zimmer-Pivot", f"{zpv.zimmer} Zimmer · {zpv.zeitraum[0]:%d.%m.%Y} – {zpv.zeitraum[1]:%d.%m.%Y}"
                       if zpv else "noch keine"))
+    from .standort_kern import haupt
+
+    with haupt():                           # Prognose-Quellen liegen immer im Goslar-Ordner
+        erg += _prognose_quellen()
+    return erg
+
+
+def _prognose_quellen() -> list[Quelle]:
+    erg = []
     q = laden.excel_suchen()
     erg.append(Quelle("pivot", "Belegungs-Pivot (Statistik, Prognose)", q.name if q else "keine Datei gefunden",
                       str(q.parent) if q else ""))
@@ -406,6 +416,7 @@ def zimmerpivot_importieren(pfad: Path) -> str:
 # Belegungs-Pivot und Kapazitäten
 # ---------------------------------------------------------------------------------------
 
+@im_haupt
 def pivot_setzen(pfad: Path, name: str) -> str:
     """Neue Pivot-Datei: in den Programmordner legen und als Quelle merken."""
     from belegung import konfig
@@ -427,6 +438,7 @@ PIVOT_EBENEN = {2: "Standort und Haus", 1: "Nur Standort"}
 _MATRIX: dict = {}
 
 
+@im_haupt
 def pivot_struktur() -> dict:
     """Aktuelle Pivot-Datei, ihr Profil (Felder) und die Tabellenblätter für das Formular."""
     from belegung import pivot
@@ -452,6 +464,7 @@ def _profil(felder: dict):
         zwischensummen_suffix=felder.get("zwischensummen_suffix") or "", datumsformat=felder.get("datumsformat") or "%d.%m.%Y")
 
 
+@im_haupt
 def pivot_vorschau(pfad: Path, felder: dict) -> tuple[bool, str]:
     """Trockenlauf: (passt, Text) – zeigt sofort, ob die Einstellungen zur Datei passen."""
     from belegung import konfig, pivot
@@ -471,6 +484,7 @@ def pivot_vorschau(pfad: Path, felder: dict) -> tuple[bool, str]:
     return True, f"✓ {r['anzahl_tage']} Tage vom {r['erster_tag']:%d.%m.%Y} bis {r['letzter_tag']:%d.%m.%Y} · {haeuser}"
 
 
+@im_haupt
 def pivot_struktur_speichern(pfad: Path, felder: dict) -> str:
     from belegung import pivot
 
@@ -489,6 +503,7 @@ def pivot_struktur_speichern(pfad: Path, felder: dict) -> str:
     return f"Pivot-Struktur „{p.name}“ für {pfad.name} gespeichert"
 
 
+@im_haupt
 def pivot_vom_server() -> str:
     q = laden.excel_suchen()
     if q is None:
@@ -501,6 +516,7 @@ def pivot_vom_server() -> str:
     return f"Pivot vom Server aktualisiert (Stand {ds.stichtag:%d.%m.%Y})"
 
 
+@im_haupt
 def kapazitaeten() -> dict[str, dict[str, int]]:
     from belegung import konfig
 
@@ -509,6 +525,7 @@ def kapazitaeten() -> dict[str, dict[str, int]]:
             for s in konfig.STANDORTE}
 
 
+@im_haupt
 def kapazitaeten_speichern(werte: dict[str, dict[str, int]]) -> str:
     _schritt("Kapazitäten", lambda: laden.kapazitaeten_speichern(werte), [speicher.KAPAZITAETEN])
     return "Kapazitäten gespeichert"
@@ -518,6 +535,7 @@ def kapazitaeten_speichern(werte: dict[str, dict[str, int]]) -> str:
 # Mieten/Anreisen (Statistik) und manuelle Einträge
 # ---------------------------------------------------------------------------------------
 
+@im_haupt
 def statistik_lesen(pfad: Path, name: str, art: str):
     tab = importe.tabelle_lesen(pfad)
     zu = importe.gemerkte_zuordnung(art, name) or importe.zuordnung_erraten(tab)
@@ -527,6 +545,7 @@ def statistik_lesen(pfad: Path, name: str, art: str):
     return zu, eintraege, hinweise, importe.standorte_in(eintraege)
 
 
+@im_haupt
 def statistik_uebernehmen(art: str, pfad: Path, name: str, zu, eintraege: list[dict]) -> str:
     if not eintraege:
         raise ValueError("Keine Einträge erkannt – bitte die Datei im Hauptprogramm mit Spaltenzuordnung importieren.")
@@ -538,15 +557,18 @@ def statistik_uebernehmen(art: str, pfad: Path, name: str, zu, eintraege: list[d
     return f"{len(eintraege)} {importe.ARTEN[art]} importiert"
 
 
+@im_haupt
 def statistik_loeschen(art: str) -> str:
     _schritt(f"{importe.ARTEN[art]} entfernt", lambda: importe.datensatz_loeschen(art), [f"{speicher.IMPORT_ORDNER}/{art}.json"])
     return f"Alle importierten {importe.ARTEN[art]} entfernt"
 
 
+@im_haupt
 def manuelle() -> list[dict]:
     return laden.manuelle_laden()
 
 
+@im_haupt
 def manuell_hinzu(typ: str, standort: str, von: date, bis: date, anzahl: int, bezeichnung: str) -> str:
     if bis < von:
         raise ValueError("„Bis“ liegt vor „Von“.")
@@ -557,6 +579,7 @@ def manuell_hinzu(typ: str, standort: str, von: date, bis: date, anzahl: int, be
     return "Eintrag gespeichert"
 
 
+@im_haupt
 def manuell_loeschen(index: int) -> str:
     roh = laden.manuelle_laden()
     if not 0 <= index < len(roh):

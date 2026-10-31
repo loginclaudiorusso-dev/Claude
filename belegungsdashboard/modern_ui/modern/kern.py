@@ -24,7 +24,9 @@ ZUSTAND = "modern_ui.json"           # eigene Ablage der neuen Oberfläche (z. B
 
 
 def kurz(zid: str) -> str:
-    return zid.removeprefix("GS-")
+    from .standort_kern import kurz as zkurz
+
+    return zkurz(zid)
 
 
 # ---------------------------------------------------------------------------------------
@@ -420,12 +422,22 @@ class ZimmerPruefung:
 
 def _zimmer_aus_text(stand: zp.Planstand, text: str) -> str | None:
     """„3.2 111“, „3.2-111“, „GS-3.2-111“, „2-104“ → Zimmer-ID."""
+    from . import standort_kern
+
+    if not standort_kern.ist_goslar():             # Bad Pyrmont „A 103“, Weser-Ems „A 202 R“ …
+        return standort_kern.zimmer_aus_text([z.id for z in stand.zimmer], text)
     t = re.sub(r"\s+", " ", (text or "").strip().upper()).removeprefix("GS-").removeprefix("GS ")
     m = re.match(r"^(\d(?:\.\d)?)\s*[- /]?\s*([A-Z]?\d{2,4}[A-Z]?)$", t)
     if not m:
         return None
     kurz_ = f"{m.group(1)}-{m.group(2)}"
     return next((z.id for z in stand.zimmer if z.kurz.upper() == kurz_), None)
+
+
+def _beispiel() -> str:
+    from .standort_kern import aktiv
+
+    return aktiv().beispiel
 
 
 def zimmer_pruefen(stand: zp.Planstand, schluessel: str, eingabe: str) -> ZimmerPruefung:
@@ -435,7 +447,7 @@ def zimmer_pruefen(stand: zp.Planstand, schluessel: str, eingabe: str) -> Zimmer
         return ZimmerPruefung(None, "nein", "Die Person steht nicht (mehr) in den Listen.")
     zid = _zimmer_aus_text(stand, eingabe)
     if zid is None:
-        return ZimmerPruefung(None, "nein", f"Zimmer „{eingabe}“ nicht gefunden – bitte z. B. „3.2-111“ eingeben.")
+        return ZimmerPruefung(None, "nein", f"Zimmer „{eingabe}“ nicht gefunden – bitte z. B. „{_beispiel()}“ eingeben.")
     lage, z, ohne = stand.lage, stand.lage.zimmer[zid], frozenset({schluessel})
     if (stand.zugewiesen(schluessel) or {}).get("zimmer") == zid:
         return ZimmerPruefung(zid, "nein", f"{z.kurz} ist schon für diese Person gespeichert.")
@@ -836,15 +848,21 @@ def design_lesen() -> dict:
     """Layout, Theme, Hell/Dunkel, Dichte, schmale Leiste, Vollbild, Notiz – geprüft (Unbekanntes → Original)."""
     from .themes import bereinigen
 
-    return bereinigen(speicher.lesen(ZUSTAND, {}).get("design", {}))
+    from .standort_kern import haupt
+
+    with haupt():                             # Darstellung gilt für alle Standorte
+        return bereinigen(speicher.lesen(ZUSTAND, {}).get("design", {}))
 
 
 def design_setzen(d: dict) -> dict:
     from .themes import bereinigen
 
-    roh = speicher.lesen(ZUSTAND, {})
-    roh["design"] = bereinigen(d)
-    speicher.schreiben(ZUSTAND, roh)
+    from .standort_kern import haupt
+
+    with haupt():
+        roh = speicher.lesen(ZUSTAND, {})
+        roh["design"] = bereinigen(d)
+        speicher.schreiben(ZUSTAND, roh)
     return roh["design"]
 
 

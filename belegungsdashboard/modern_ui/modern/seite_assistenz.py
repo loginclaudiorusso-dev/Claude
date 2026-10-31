@@ -13,6 +13,7 @@ from belegung import zimmerplan as zp
 
 from .kern import _schritt
 from .ui_bausteine import attr, knopf, leer, segmente
+from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"auftraege": "Aufträge", "mails": "Mails", "fragen": "Fragen & Zahlen"}
 BEISPIEL = ("z. B.  6-403 Fliegen beseitigen bis 1.11.26\n        Nachname, Vorname vom 26.06.2025 bis 24.06.2027 in 2-408\n"
@@ -99,7 +100,7 @@ def _vorschau(a, box, eingabe) -> None:
             with ui.element("div").classes("m-plan-u"):
                 teile = [v.eingabe]
                 if v.zimmer:
-                    teile.append("Zimmer " + ", ".join(z.removeprefix("GS-") for z in v.zimmer))
+                    teile.append("Zimmer " + ", ".join(zkurz(z) for z in v.zimmer))
                 if v.datum:
                     teile.append(("Frist " if v.frist else "Termin ") + f"{v.datum:%d.%m.%Y}" + (f" {v.uhrzeit} Uhr" if v.uhrzeit else ""))
                 ui.label(" · ".join(teile)).classes("m-name").style("white-space:normal")

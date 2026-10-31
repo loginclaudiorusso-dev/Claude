@@ -9,6 +9,7 @@ from nicegui import run, ui
 
 from . import seiten, zimmer_kern as zk
 from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
+from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
              "maengel": "Defekte Zimmer"}
@@ -853,7 +854,7 @@ async def _fm_zurueck(a, dateien) -> None:
         for zid, art, tag, bem in eintraege[:60]:
             from belegung import maengel as mg
 
-            ui.label(f"{zid.removeprefix('GS-')}: {mg.NAMEN.get(art, art)} – erledigt {tag:%d.%m.%Y}" + (f" ({bem})" if bem else "")
+            ui.label(f"{zkurz(zid)}: {mg.NAMEN.get(art, art)} – erledigt {tag:%d.%m.%Y}" + (f" ({bem})" if bem else "")
                      ).classes("m-zweite")
 
         async def los():

@@ -13,6 +13,7 @@ from belegung import __version__ as haupt_version
 
 from . import __version__, kern, register, seite_anreisen, suche_palette, themes
 from .stil import CSS
+from . import standort_kern
 from .ui_bausteine import attr, badge_neu, kennzahlen, knopf, leer
 
 log = logging.getLogger(__name__)
@@ -241,9 +242,7 @@ class Ansicht:
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         with ui.element("div").classes("m-app"):
             with ui.element("nav").classes("m-nav"):
-                with ui.element("div").classes("m-marke"):
-                    ui.label("B").classes("m-logo")
-                    ui.label("Belegung")
+                self._marke_bauen()
                 self.nav = ui.element("div").classes("m-navliste")
                 ui.label(f"Neue Oberfläche {__version__}\nDaten und Regeln: Belegung {haupt_version}").classes(
                     "m-navfuss").style("white-space: pre-line")
@@ -285,6 +284,54 @@ class Ansicht:
         ui.timer(PRUEF_S, self.pruefen)
         if self.design["vollbild"]:
             ui.timer(1.0, lambda: self._vollbild_nativ(True), once=True)
+
+    # ---- Standort (Goslar, Bad Pyrmont, Weser-Ems) ----------------------------------------
+
+    def _marke_bauen(self) -> None:
+        """Logo + „Belegung“ + Standort; Klick öffnet „Standort wechseln“."""
+        aktiv = standort_kern.aktiv()
+        with ui.element("button").classes("m-marke m-standort") as mk:
+            attr(mk, title=f"Standort: {aktiv.name} – wechseln")
+            ui.label("B").classes("m-logo")
+            with ui.element("div").classes("m-marke-t"):
+                ui.label("Belegung")
+                ui.label(aktiv.name).classes("m-standort-name")
+            ui.icon("unfold_more").classes("m-standort-pfeil")
+            with ui.menu().props('dark class="m-menue"'):
+                ui.label("Standort wechseln").classes("m-mgruppe")
+                for k, s in standort_kern.STANDORTE.items():
+                    with ui.menu_item(on_click=lambda k=k: self.standort_wechseln(k)).classes("m-mpunkt"):
+                        ui.icon("check" if k == aktiv.kurz else "").classes("m-mhaken" + (" an" if k == aktiv.kurz else ""))
+                        ui.label(s.name)
+                ui.label("Auswertung und Prognose zeigen immer alle Standorte.").classes("m-zweite").style(
+                    "white-space:normal; max-width:240px; padding: 4px 12px 8px")
+
+    async def standort_wechseln(self, kurz: str) -> None:
+        if kurz == standort_kern.aktiv().kurz:
+            return
+        await run.io_bound(standort_kern.waehlen, kurz)
+        ui.navigate.reload()                   # alles frisch aus dem Ordner des neuen Standorts
+
+    async def standort_fragen(self) -> str:
+        """Beim Start: Welcher Standort? Der zuletzt gewählte ist vorausgewählt (Enter)."""
+        gemerkt = standort_kern.gemerkt()
+        with ui.dialog().props("persistent") as dlg, ui.element("div").classes("m-frage m-standortwahl"):
+            attr(dlg, role="dialog", aria_label="Standort wählen")
+            ui.label("Welcher Standort?").classes("m-titel")
+            ui.label("Zimmer, Anreisen, Reinigung und alles Weitere gelten für den gewählten Standort. Auswertung und "
+                     "Prognose zeigen immer alle drei.").classes("m-ptext")
+            with ui.element("div").classes("m-standorte"):
+                for k, s in standort_kern.STANDORTE.items():
+                    b = ui.element("button").classes("m-standort-k" + (" an" if k == gemerkt else ""))
+                    if k == gemerkt:
+                        attr(b, autofocus="")
+                    with b:
+                        ui.label(s.name).classes("m-name")
+                        ui.label(standort_kern.daten_text(k)).classes("m-zweite")
+                    b.on("click", lambda k=k: dlg.submit(k))
+        dlg.open()
+        ui.run_javascript("setTimeout(() => document.querySelector('.m-standort-k.an')?.focus(), 150)")
+        return await dlg or gemerkt
 
     def _nav_fuellen(self) -> None:
         dringend = sum(1 for k in self.karten if k.stufe == "dringend")
@@ -1451,10 +1498,26 @@ async def _melde_takt() -> None:
 app.on_startup(_melde_takt)
 
 
+_START = {"gefragt": False}                    # Standort einmal je Programmstart abfragen (nicht bei jedem Neuladen)
+
+
 @ui.page("/")
 async def startseite() -> None:
+    erster = not _START["gefragt"]
+    if erster:
+        await run.io_bound(standort_kern.waehlen, standort_kern.gemerkt(), False)
+    ui.page_title(f"Belegung – {standort_kern.aktiv().name}")
     a = Ansicht()
     a.aufbauen()
+    if erster:
+        await ui.context.client.connected()
+        _START["gefragt"] = True
+        kurz = await a.standort_fragen()
+        if kurz != standort_kern.aktiv().kurz:
+            await run.io_bound(standort_kern.waehlen, kurz)
+            ui.navigate.reload()
+            return
+        await run.io_bound(standort_kern.merken, kurz)
     a.zeichnen()                               # sofort Rahmen zeigen („Lädt …“), dann Daten
     await ui.context.client.connected()
     try:

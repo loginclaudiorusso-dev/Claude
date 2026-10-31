@@ -20,6 +20,7 @@ from datetime import date, timedelta
 
 from belegung import speicher
 from belegung import zimmerplan as zp
+from .standort_kern import kurz as zkurz
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class Aufenthalt:
 
     @property
     def kurz(self) -> str:
-        return self.zimmer.removeprefix("GS-")
+        return zkurz(self.zimmer)
 
     @property
     def zeitraum(self) -> str:

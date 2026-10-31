@@ -15,8 +15,10 @@ from nicegui import app, run, ui
 from belegung import importe, konfig
 
 from . import daten_kern as dk
+from . import standort_kern
 from . import seiten
 from .ui_bausteine import knopf, leer
+from .standort_kern import kurz as zkurz
 
 UPLOAD = Path(tempfile.gettempdir()) / "belegung_uploads"
 EINGEFUEGT: dict[str, dict] = {}          # Kennung → {"text", "html"} (eingefügter Gebäudeplan, kurz zwischengelagert)
@@ -69,25 +71,15 @@ def zeichnen(a) -> None:
                    "werden beim Start automatisch eingelesen.",
                    lambda: knopf("Ordner jetzt einlesen", lambda: _ordner(a), "leise", "folder_open",
                                  " · ".join(f"{k}: {v}" for k, v in dk.eingangsordner().items())))
+            if not standort_kern.ist_goslar():     # UWT, Schlüssellisten, ZKL und Prognose-Quellen: nur Goslar
+                _gebaeudeplan_block(a, d, q)
+                _standort_hinweis()
+                return
             _karte(a, q["uwt"], lambda: _hochladen(a, "UWT-Plan oder Klassenliste hochladen", ".xlsx,.xlsm,.pdf",
                                                    lambda f: _uwt_vorschau(a, f)),
                    "Blockschulplan (PDF), Anreisekalender (Excel) oder Klassenübersicht mit DZ-Partnern.",
                    lambda: _uwt_bloecke(a))
-            with ui.element("section").classes("m-block"):
-                ui.label(q["gebaeudeplan"].titel).classes("m-btitel")
-                ui.label(q["gebaeudeplan"].stand).classes("m-name")
-                if q["gebaeudeplan"].hinweis:
-                    ui.label(q["gebaeudeplan"].hinweis).classes("m-zweite")
-                ui.label("Neuer Export aus dem Belegungssystem (Word). Er wird erst mit dem Zimmerplan verglichen; bei "
-                         "Unterschieden wählen Sie, was gilt.").classes("m-ptext")
-                with ui.element("div").classes("m-paktionen"):
-                    _hochladen(a, "Gebäudeplan hochladen", ".docx", lambda f: _plan_lesen(a, f), art="primaer")
-                    knopf("Aus Zwischenablage einfügen …", lambda: _plan_einfuegen(a), "leise", "content_paste",
-                          "Gebäudeansicht im Belegungssystem markieren (Strg+A), kopieren (Strg+C) und hier einfügen")
-                    if d["plan"] is not None:
-                        plan, kennung, unterschiede = d["plan"]
-                        knopf(f"Neu im Ordner: {plan.datei} prüfen …", lambda: seiten._plan_panel(a, plan, kennung, unterschiede)
-                              if unterschiede else a.aendern(seiten.sk.plan_uebernehmen, plan, [], kennung), "gruen")
+            _gebaeudeplan_block(a, d, q)
             with ui.element("section").classes("m-block"):
                 ui.label("Schlüssellisten (An- und Abreisen vom Empfang)").classes("m-btitel")
                 ui.label("Wo der Schlüssel ausgegeben wurde, wohnt die Person. Die Listen werden mit Planung und "
@@ -138,6 +130,33 @@ def zeichnen(a) -> None:
                        if "noch keine" not in x.stand else None)
             _manuell(a, q["manuell"])
 
+
+def _gebaeudeplan_block(a, d, q) -> None:
+    with ui.element("section").classes("m-block"):
+        ui.label(q["gebaeudeplan"].titel).classes("m-btitel")
+        ui.label(q["gebaeudeplan"].stand).classes("m-name")
+        if q["gebaeudeplan"].hinweis:
+            ui.label(q["gebaeudeplan"].hinweis).classes("m-zweite")
+        ui.label("Neuer Export aus dem Belegungssystem (Word). Er wird erst mit dem Zimmerplan verglichen; bei "
+                 "Unterschieden wählen Sie, was gilt.").classes("m-ptext")
+        with ui.element("div").classes("m-paktionen"):
+            _hochladen(a, "Gebäudeplan hochladen", ".docx", lambda f: _plan_lesen(a, f), art="primaer")
+            knopf("Aus Zwischenablage einfügen …", lambda: _plan_einfuegen(a), "leise", "content_paste",
+                  "Gebäudeansicht im Belegungssystem markieren (Strg+A), kopieren (Strg+C) und hier einfügen")
+            if d["plan"] is not None:
+                plan, kennung, unterschiede = d["plan"]
+                knopf(f"Neu im Ordner: {plan.datei} prüfen …", lambda: seiten._plan_panel(a, plan, kennung, unterschiede)
+                      if unterschiede else a.aendern(seiten.sk.plan_uebernehmen, plan, [], kennung), "gruen")
+
+
+def _standort_hinweis() -> None:
+    s = standort_kern.aktiv()
+    with ui.element("section").classes("m-block"):
+        ui.label(f"Standort {s.name}").classes("m-btitel")
+        ui.label("Hier gibt es zunächst Anreiselisten und den Gebäudeplan des Standorts. UWT, Schlüssellisten, ZKL und "
+                 "Zimmer-Pivot sind auf die Goslarer Listen zugeschnitten und kommen dazu, sobald es die Listen von hier "
+                 "gibt. Die Quellen der Prognose (Belegungs-Pivot, Kapazitäten, Statistik) gelten für alle Standorte und "
+                 "werden im Standort Goslar gepflegt.").classes("m-ptext")
 
 def _karte(a, q: dk.Quelle, knopf_bauen, text: str, extra=None) -> None:
     with ui.element("section").classes("m-block"):
@@ -560,7 +579,7 @@ def _zkl_panel(a) -> None:
             for art in sorted({p.art for p in punkte}):
                 ui.label(zkl.ARTEN.get(art, art)).classes("m-ktitel")
                 for p in (x for x in punkte if x.art == art):
-                    cb = ui.checkbox(f"{p.zimmer.removeprefix('GS-')}: {p.text}", value=p.schluessel in gewaehlt).props(
+                    cb = ui.checkbox(f"{zkurz(p.zimmer)}: {p.text}", value=p.schluessel in gewaehlt).props(
                         "dense dark color=indigo-4")
                     cb.on_value_change(lambda e, k=p.schluessel: gewaehlt.add(k) if e.value else gewaehlt.discard(k))
 

@@ -157,7 +157,7 @@ def _zimmer_pruefen(a, schluessel: str) -> None:
 
     ui.label("Bestimmtes Zimmer prüfen").classes("m-ktitel")
     with ui.element("div").classes("m-schalter"):
-        ein = ui.input("Zimmer, z. B. 3.2-111").classes("m-feld").props("dense outlined dark")
+        ein = ui.input(f"Zimmer, z. B. {kern._beispiel()}").classes("m-feld").props("dense outlined dark")
         knopf_pruefen = knopf("Prüfen", None, "", "search")
     ergebnis = ui.element("div")
 

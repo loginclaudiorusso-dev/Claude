@@ -959,3 +959,20 @@ CSS += """
 .m-mehr[open] .m-mehr-pfeil { transform: rotate(90deg); }
 .m-mehr[open] > summary { margin-bottom: 4px; }
 """
+CSS += """
+/* 0.35: Standorte – Wechsel über das Logo, Auswahl beim Start */
+.m-marke.m-standort { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 0; width: 100%;
+  text-align: left; cursor: pointer; border-radius: var(--r); margin-bottom: 8px; padding: 4px 8px 8px; }
+.m-marke.m-standort:hover { background: var(--fl2); }
+.m-marke-t { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
+.m-standort-name { font-size: 11.5px; font-weight: 500; color: var(--akzent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-standort-pfeil { font-size: 16px; color: var(--text3); }
+.m-standortwahl { width: min(560px, 94vw); }
+.m-standorte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
+.m-standort-k { font: inherit; color: var(--text); text-align: left; cursor: pointer; background: var(--fl2);
+  border: 1px solid var(--rand2); border-radius: 10px; padding: 14px 14px 12px; display: grid; gap: 4px; }
+.m-standort-k:hover { border-color: var(--akzent); }
+.m-standort-k.an { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent) inset; }
+.m-standort-k:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+@media (max-width: 520px) { .m-standorte { grid-template-columns: 1fr; } }
+"""
