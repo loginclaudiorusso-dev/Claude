@@ -107,3 +107,36 @@ def test_postfach_auswahl_rueckt_nach():
     assert sh.auswahl(a) == "a"
     a.karten = []
     assert sh.auswahl(a) == sh.UEBERBLICK
+
+
+def test_innternat_theme_kontraste():
+    """0.38: Theme INNternat – Text, Akzent und Status mindestens 4,5:1 auf allen Flächen, hell und dunkel."""
+    from modern import themes
+
+    def lum(h):
+        c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+    def k(a, b):
+        hi, lo = sorted((lum(a), lum(b)), reverse=True)
+        return (hi + 0.05) / (lo + 0.05)
+
+    for modus in ("hell", "dunkel"):
+        v = themes.P[("innternat", modus)]
+        for fg in ("text", "text2", "text3", "akzent_hell", "rot", "orange", "gruen", "blau"):
+            for bg in ("bg", "fl", "fl2"):
+                assert k(v[fg], v[bg]) >= 4.5, (modus, fg, bg)
+        assert k(v["akzent_text"], v["akzent"]) >= 4.5
+        assert k(v["chrome_aktiv_text"], v["chrome_aktiv"]) >= 4.5
+        assert k(v["chrome_text3"], v["chrome"]) >= 4.5
+
+
+def test_outlook_vorschau_aus_ohne_ordner(leer):
+    from modern import outlook_kern as ok
+
+    assert ok.vorschau() == ([], "")                  # ohne Ordner: keine Inhalte, kein Zugriff
+    ok.einstellen("Internatsdienst")
+    mails, fehler = ok.vorschau(True)
+    assert mails == [] and fehler                     # hier kein Outlook: verständlicher Hinweis statt Inhalten
+    assert ok._teile("Internatsdienst/Posteingang\\Anreisen") == ["Internatsdienst", "Posteingang", "Anreisen"]

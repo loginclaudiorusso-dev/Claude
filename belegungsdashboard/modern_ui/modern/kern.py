@@ -957,7 +957,16 @@ def design_lesen() -> dict:
     from .standort_kern import haupt
 
     with haupt():                             # Darstellung gilt für alle Standorte
-        return bereinigen(speicher.lesen(ZUSTAND, {}).get("design", {}))
+        roh = speicher.lesen(ZUSTAND, {})
+        if not roh.get("design_038"):         # einmalig: neue INNternat-Darstellung (zurück: „Original-Zustand“)
+            alt = roh.get("design", {})
+            roh["design"] = {**alt, "layout": "grid", "theme": "innternat", "modus": "dunkel", "schmal": False}
+            roh["design_038"] = True
+            try:
+                speicher.schreiben(ZUSTAND, roh)
+            except OSError:
+                pass
+        return bereinigen(roh.get("design", {}))
 
 
 def design_setzen(d: dict) -> dict:

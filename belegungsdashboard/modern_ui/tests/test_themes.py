@@ -40,10 +40,10 @@ def test_fuenf_themes_drei_layouts_und_farben():
     from modern import themes
     from modern.stil import T
 
-    assert list(themes.THEMES) == ["original", "inn", "linear", "obsidian", "nordic"]
+    assert list(themes.THEMES) == ["innternat", "original", "inn", "linear", "obsidian", "nordic"]
     assert list(themes.LAYOUTS) == ["original", "grid", "canvas", "showcase"]
     assert {k: v for k, v in themes.farben({}).items() if k in T} == dict(T)
-    for t in ("inn", "linear", "obsidian", "nordic"):
+    for t in ("innternat", "inn", "linear", "obsidian", "nordic"):
         assert set(themes.modi(t)) == {"hell", "dunkel"}
         assert themes.farben({"layout": "grid", "theme": t}) != themes.farben({})
 
@@ -61,7 +61,10 @@ def test_design_wird_gespeichert(tmp_path, monkeypatch):
     from modern import kern
 
     monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
-    assert kern.design_lesen()["layout"] == "original"
+    d = kern.design_lesen()                   # 0.38: einmalig die neue INNternat-Darstellung …
+    assert (d["layout"], d["theme"], d["modus"]) == ("grid", "innternat", "dunkel")
+    kern.design_setzen({"layout": "original"})
+    assert kern.design_lesen()["layout"] == "original"      # … „Original-Zustand“ bleibt danach erhalten
     kern.design_setzen({"layout": "showcase", "theme": "obsidian", "dichte": "kompakt", "notiz": "Rückruf"})
     d = kern.design_lesen()
     assert (d["layout"], d["theme"], d["modus"], d["dichte"], d["notiz"]) == ("showcase", "obsidian", "dunkel", "kompakt", "Rückruf")

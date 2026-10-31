@@ -131,6 +131,29 @@ def _windows(a) -> None:
     ui.label(f"Geprüft wird beim Start und alle {melder.TAKT_MINUTEN} Minuten, jede Meldung einmal – auch wenn das "
              "Hauptprogramm gleichzeitig läuft.").classes("m-zweite")
     _briefing(a)
+    _outlook_vorschau(a)
+
+
+def _outlook_vorschau(a) -> None:
+    """Ordner für die Outlook-Vorschau auf „Heute“ (nur lesen)."""
+    from . import outlook_kern as ok
+
+    ui.label("Outlook-Vorschau auf „Heute“").classes("m-btitel").style("margin-top:14px")
+    ui.label("Zeigt die neuesten Mails eines Ordners (Betreff, Zeit, ungelesen) – nur lesen, es wird nichts gesendet, "
+             "verschoben oder gelöscht. Postfach-Name wie in Outlook links, z. B. „Internatsdienst“ (dessen Posteingang) "
+             "oder „Internatsdienst/Posteingang/Anreisen“. Leer = aus. Nur mit dem klassischen Outlook.").classes("m-ptext")
+    with ui.element("div").classes("m-schalter"):
+        feld = ui.input("Outlook-Ordner", value=ok.ordner()).classes("m-feld").props("dense outlined dark")
+
+        async def speichern() -> None:
+            a.toast(await run.io_bound(ok.einstellen, feld.value or ""), rueck=False)
+
+        async def testen() -> None:
+            await run.io_bound(ok.einstellen, feld.value or "")
+            mails, fehler = await run.io_bound(ok.vorschau, True)
+            a.toast(fehler or f"Verbindung klappt: {len(mails)} Mails gelesen", rueck=False, fehler=bool(fehler))
+        knopf("Speichern", speichern, "", "check")
+        knopf("Testen", testen, "leise", "bolt")
 
 
 def _briefing(a) -> None:

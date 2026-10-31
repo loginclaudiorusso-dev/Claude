@@ -24,6 +24,27 @@ STUFEN = [("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Inf
 AMPEL = {"dringend": "krit", "bald": "warn", "info": "ok"}
 
 
+LOGO_DATEI = "INNternat_Logo.png"
+
+
+def _logo() -> str:
+    """Logo als data-URI, wenn ``INNternat_Logo.png`` im INNternat-Ordner (oder in ``modern_ui``) liegt – sonst "".
+    Das Logo wird unverändert gezeigt und nicht ins Programm eingebaut (es gehört nicht ins Repository)."""
+    import base64
+    from pathlib import Path
+
+    from belegung import konfig
+
+    for ordner in (konfig.programmordner(), Path(__file__).resolve().parent.parent, konfig.programmordner() / "Vorlagen"):
+        p = ordner / LOGO_DATEI
+        try:
+            if p.is_file() and p.stat().st_size < 3_000_000:
+                return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
+        except OSError:
+            continue
+    return ""
+
+
 def _stempel() -> tuple:
     """Änderungszeit der Daten – ändert sie sich, wird neu geladen."""
     from belegung import aenderungen, speicher
@@ -294,7 +315,10 @@ class Ansicht:
             attr(mk, title=f"Standort: {aktiv.name} – wechseln")
             ui.label("B").classes("m-logo")
             with ui.element("div").classes("m-marke-t"):
-                ui.label("Belegung")
+                if logo := _logo():                    # Markenlogo (Datei im INNternat-Ordner), nur im Theme INNternat
+                    ui.html(f'<img class="m-logo-bild" src="{logo}" alt="INNternat">', sanitize=False)
+                ui.label("Belegung").classes("m-marke-alt" + (" mit-logo" if logo else ""))
+                ui.label("INNternat").classes("m-marke-neu" + (" mit-logo" if logo else ""))
                 ui.label(aktiv.name).classes("m-standort-name")
             ui.icon("unfold_more").classes("m-standort-pfeil")
             self._standort_menue()
@@ -369,6 +393,13 @@ class Ansicht:
             if pro:
                 attr(p, title="Suchen (Strg+K)")
             p.on("click", self.suchen)
+            if pro and len(themes.modi(self.design["theme"])) > 1:
+                hell = self.design["modus"] == "hell"
+                with ui.element("button").classes("m-navpunkt m-modus") as mo:
+                    ui.icon("dark_mode" if hell else "light_mode")
+                    ui.label("Dunkle Darstellung" if hell else "Helle Darstellung")
+                attr(mo, title="Zwischen hell und dunkel wechseln – wird gespeichert")
+                mo.on("click", lambda: self.design_setzen(modus="dunkel" if self.design["modus"] == "hell" else "hell"))
             if self.design["layout"] == "grid":
                 schmal = self.design["schmal"]
                 with ui.element("button").classes("m-navpunkt m-navklapp") as k:

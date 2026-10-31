@@ -19,6 +19,7 @@ LAYOUTS = {
     "showcase": ("Showcase", "Schwebendes Dock oben, großzügige Karten, viel Weißraum, Glas", "dashboard"),
 }
 THEMES = {
+    "innternat": ("INNternat", "Türkis-Grau wie das Logo – ruhig, klar, hell und dunkel", "dunkel"),
     "original": ("Original", "Die Farben des bisherigen Designs", "dunkel"),
     "inn": ("inn-tegrativ", "Corporate Deep Blue #183861 – ruhig und seriös", "hell"),
     "linear": ("Linear Monochrome", "Graustufen, messerscharfe Kanten, hohe Dichte", "dunkel"),
@@ -41,6 +42,21 @@ _DUNKEL = {   # gedeckte Status-Töne (950/50 Hintergrund · 400 Schrift · 800/
     "akzent": ("rgba(30,27,75,.5)", "#a5b4fc", "rgba(55,48,163,.5)"),
     "neutral": ("rgba(39,39,42,.5)", "#a1a1aa", "rgba(63,63,70,.5)"),
 }
+# INNternat: Status bewusst NICHT türkis (das ist der Akzent) – frei grün, belegt blau, Mangel orange, kritisch rot
+_INN_DUNKEL = {
+    "ok": ("rgba(120,200,90,.15)", "#9AD96E", "rgba(120,200,90,.45)"),
+    "krit": ("rgba(255,138,128,.14)", "#FF8A80", "rgba(255,138,128,.45)"),
+    "warn": ("rgba(246,194,107,.14)", "#F6C26B", "rgba(246,194,107,.45)"),
+    "blau": ("rgba(141,184,240,.14)", "#8DB8F0", "rgba(141,184,240,.45)"),
+    "akzent": ("rgba(94,214,198,.14)", "#5ED6C6", "rgba(94,214,198,.45)"),
+    "neutral": ("rgba(147,170,170,.14)", "#B4C7C6", "rgba(147,170,170,.40)"),
+}
+_INN_HELL = {
+    "ok": ("#EEF7E8", "#2F6F14", "#BFE0A8"), "krit": ("#FDF0EE", "#B42318", "#F5C5BF"),
+    "warn": ("#FFF6E5", "#8A5100", "#F2D49A"), "blau": ("#EDF3FC", "#1D5BB8", "#BFD3F2"),
+    "akzent": ("#E6F4F2", "#0B6E66", "#A9DAD3"), "neutral": ("#EEF2F2", "#3D5558", "#CBD8D8"),
+}
+
 _HELL = {
     "ok": ("#ecfdf3", "#067647", "#abefc6"), "krit": ("#fef3f2", "#b42318", "#fecdca"),
     "warn": ("#fffaeb", "#b54708", "#fedf89"), "blau": ("#eff4ff", "#1d4ed8", "#c7d7fe"),
@@ -60,6 +76,15 @@ def _p(bg, fl, fl2, rand, rand2, text, text2, text3, akzent, akzent_text, akzent
 
 
 P = {
+    ("innternat", "dunkel"): _p("#132328", "#182b31", "#1f363d", "#25414a", "#33545e", "#E7F0EF", "#B4C7C6", "#93AAAA",
+                                "#5ED6C6", "#0A1F22", "#5ED6C6", "#7FE3D6", "#FF8A80", "#F6C26B", "#9AD96E", "#8DB8F0",
+                                "#0f1d21", "#173036", "#1d3d42", "#E7F0EF", "#5ED6C6", "#5ED6C6", "#B4C7C6", "#93AAAA",
+                                "#1f363d", "#5ED6C6", status=_INN_DUNKEL, panel_schatten="-16px 0 40px rgba(0,0,0,.4)"),
+    ("innternat", "hell"): _p("#F1F5F5", "#FFFFFF", "#E6EEEE", "#D3DFDF", "#B9CBCB", "#10272B", "#3D5558", "#53696C",
+                              "#0B6E66", "#FFFFFF", "#0B6E66", "#085A53", "#B42318", "#9A5B00", "#17703F", "#1D5BB8",
+                              "#E8F0F0", "#DCE8E8", "#CDE3E1", "#10272B", "#074B45", "#074B45", "#3D5558", "#53696C",
+                              "#D3DFDF", "#0B6E66", kopf="#F1F5F5", status=_INN_HELL,
+                              schatten="0 1px 2px rgba(16,39,43,.06)", panel_schatten="-12px 0 32px rgba(16,39,43,.14)"),
     ("original", "dunkel"): _p("#0E0F12", "#15171C", "#1B1E24", "#262A32", "#323743", "#E6E8EC", "#A2A8B4", "#8A919D",
                                "#7C8CFF", "#0E0F12", "#94A2FF", "#94A2FF", "#F2706B", "#E9A15A", "#4CC38A", "#6E8BD8",
                                "#15171C", "#1B1E24", "#22252D", "#E6E8EC", "#E6E8EC", "#94A2FF", "#A2A8B4", "#848B98",
@@ -104,6 +129,9 @@ P = {
 
 # Typografie und Kanten je Theme (unabhängig von hell/dunkel)
 TYPO = {
+    "innternat": dict(r="6px", r2="10px", fs="14px", zeile="44px", kante="none",
+                      schrift='"Candara", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+                      titel_schrift='"Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'),
     "original": dict(r="8px", r2="12px", fs="13.5px", zeile="44px", kante="none",
                      schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
                      titel_schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'),
@@ -707,5 +735,19 @@ body.lay-showcase .m-leiste { padding-bottom: 12px; }
 """
 
 
+# 0.38: Theme „INNternat“ – Bahnschrift für Überschriften und Kennzahlen, Candara für Text, Türkis nur als Akzent
+_INNTERNAT = """
+body.pro.th-innternat .m-btitel, body.pro.th-innternat .m-pf-dtitel, body.pro.th-innternat .m-pf-titel,
+body.pro.th-innternat .m-stat .z, body.pro.th-innternat .m-zahl, body.pro.th-innternat .m-tz-zahl,
+body.pro.th-innternat .m-tz-titel, body.pro.th-innternat .m-tz-ab, body.pro.th-innternat .m-navgruppe {
+  font-family: var(--titel-schrift); }
+body.pro.th-innternat .m-btitel { font-weight: 600; letter-spacing: .01em; }
+body.pro.th-innternat .m-navgruppe { text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; }
+body.pro.th-innternat .m-marke .m-logo { display: none; }
+body.pro.th-innternat .m-marke-t > :first-child { font-family: var(--titel-schrift); font-size: 17px; letter-spacing: .02em; }
+body.pro.th-innternat .m-knopf.primaer { font-family: var(--titel-schrift); letter-spacing: .02em; }
+"""
+
+
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT])
