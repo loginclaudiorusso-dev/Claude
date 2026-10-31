@@ -443,6 +443,7 @@ class Ansicht:
                             ui.label(text)
                             if w and w.n:
                                 ui.label(str(w.n)).classes("m-zahl" + (" rot" if w.rot else "")).style("margin-left:auto")
+                    ui.label(f"Neue Oberfläche {__version__}").classes("m-zweite").style("padding: 6px 12px 8px")
             attr(v, title="Termine, Assistenz, Mieter, Daten & Import, Inventar, Einstellungen")
             with ui.element("button").classes("m-navpunkt m-suche m-nur-symbol") as p:
                 ui.icon("search")

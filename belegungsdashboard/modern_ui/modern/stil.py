@@ -155,7 +155,10 @@ CSS += """
 button.m-navpunkt { font: inherit; border: 0; background: transparent; text-align: left; width: 100%; cursor: pointer; }
 button.m-navpunkt:hover { background: var(--fl2); color: var(--text); }
 button.m-navpunkt:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
-.m-werkzeuge { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
+/* 0.37.1: bei schmalem Fenster umbrechen statt unsichtbar abschneiden (sonst fehlen z. B. „Änderungen“) */
+.m-werkzeuge { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; flex-wrap: wrap; }
+.m-werkzeuge .m-segm { flex-wrap: wrap; }
+.m-kopf { flex-wrap: wrap; row-gap: 6px; }
 .m-segm button { white-space: nowrap; flex: none; }
 .m-werkzeuge .m-segm, .m-leiste .m-segm + .m-segm { margin-left: 0; }
 .m-kopf .m-titel { flex: none; }
