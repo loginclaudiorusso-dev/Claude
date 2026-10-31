@@ -749,5 +749,27 @@ body.pro.th-innternat .m-knopf.primaer { font-family: var(--titel-schrift); lett
 """
 
 
+# 0.38.1: Laptop – unter 1200 px Fensterbreite wird die Seitenleiste automatisch schmal (Symbole mit Tooltip), damit
+# Tabellen und Tageszentrale Platz haben; „Leiste einklappen“ braucht es dort nicht.
+_LAPTOP = """
+@media (max-width: 1199px) {
+body.pro.lay-grid .m-nav { width: 60px; padding: 14px 8px; }
+body.pro.lay-grid .m-marke { padding: 4px 2px 14px; justify-content: center; }
+body.pro.lay-grid .m-marke > :not(.m-logo) { display: none; }
+body.pro.lay-grid .m-nav .m-navgruppe { font-size: 0 !important; height: 1px; padding: 0; margin: 10px 6px; background: var(--chrome-rand); }
+body.pro.lay-grid .m-navpunkt { justify-content: center; padding: 6px 0; position: relative; }
+body.pro.lay-grid .m-nav .m-navpunkt > :not(.q-icon):not(.m-zahl) { display: none; }
+body.pro.lay-grid .m-navpunkt .m-zahl { position: absolute; top: 2px; right: 4px; margin: 0 !important; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
+body.pro.lay-grid .m-navpunkt.aktiv::before { left: -8px; }
+body.pro.lay-grid .m-navfuss { display: none; }
+body.pro.lay-grid .m-navklapp .q-icon { transform: rotate(180deg); }
+body.pro.lay-grid .m-navklapp { justify-content: center; }
+body.pro.lay-grid .m-navklapp { display: none; }
+}
+body.pro.th-innternat.nav-schmal .m-marke .m-standort-pfeil { display: inline-flex; }
+@media (max-width: 1199px) { body.pro.th-innternat.lay-grid .m-marke .m-standort-pfeil { display: inline-flex; } }
+"""
+
+
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT, _LAPTOP])

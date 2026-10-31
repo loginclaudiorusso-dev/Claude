@@ -1094,3 +1094,24 @@ CSS += """
 @media (max-width: 1150px) { .m-tz-raster { grid-template-columns: 1fr; } .m-tz-punkt { grid-template-columns: 34px minmax(0, 1fr); }
   .m-tz-paktion { grid-column: 2; justify-content: flex-start; } }
 """
+CSS += """
+/* 0.38.1: Laptop-Auflösungen (z. B. 1366×768, 1920×1080 bei 125–150 % Skalierung) */
+.m-inhalt > .m-raster { min-width: min-content; }        /* breite Tabellen: waagerecht scrollen statt Spalten abschneiden */
+@media (max-width: 1400px) {
+  .m-tz { padding: 16px 20px 24px; gap: 18px; }
+  .m-tz-zahl { font-size: 30px; }
+  .m-tz-zahl-k { padding: 12px 14px; gap: 10px; }
+  .m-tz-punkt { grid-template-columns: 40px minmax(0, 1fr); row-gap: 8px; }
+  .m-tz-paktion { grid-column: 2; justify-content: flex-start; }
+  .m-tz-raster { grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 22px; }
+  .m-pf { grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); padding: 12px 14px 20px; }
+}
+@media (max-height: 820px) {
+  .m-tz-titel { font-size: 26px; }
+  .m-tz-sub { font-size: 14px; }
+  .m-tz-kopf { gap: 2px; }
+  .m-tz-ptitel { font-size: 15.5px; }
+  .m-tz-punkt { padding-top: 10px; padding-bottom: 10px; }
+  .m-kopf { padding-top: 8px; padding-bottom: 8px; min-height: 46px; }
+}
+"""
