@@ -134,6 +134,7 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
     from belegung import maengel as mg
 
     fuer_allergiker_nicht = hk.meiden(mg.offen_je_zimmer())
+    schnell = schnell_zimmer()
     vergeben = set(fest.values()) | {zt.zimmer.id for zt in zuteilungen if zt.zimmer}
     erg = []
     for zt in zuteilungen:
@@ -149,7 +150,10 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
         vorschlag, grund = None, ""
         hart = (konflikte.get(b.schluessel) or (f"unbewohnbar: {stand.lage.unbewohnbar[gespeichert]}"
                                                  if gespeichert in stand.lage.unbewohnbar else "")) if gespeichert else ""
-        if gespeichert and (hart or neu != gespeichert):
+        if gespeichert and not konflikte.get(b.schluessel) and _noch_zeit(gespeichert, b.von, heute, schnell):
+            status, stufe = "handeln", "warn"              # Schloss/Schlüssel: FM bis zur Anreise, nicht umplanen
+            grund = f"{stand.lage.unbewohnbar[gespeichert]} – FM-Auftrag, muss bis {b.von:%d.%m.} behoben sein"
+        elif gespeichert and (hart or neu != gespeichert):
             status, stufe = "handeln", "krit"
             grund = hart or "Zimmer passt nicht mehr"
             vorschlag = neu if neu and neu != gespeichert else next(
@@ -403,13 +407,89 @@ def vorschlaege_uebernehmen(kennung: str, nur: str = "ohne") -> str:
     return f"Anreise {tag:%d.%m.}: {len(zts)} Zimmer zugewiesen"
 
 
-def problemfaelle(stand: zp.Planstand, heute: date) -> dict[str, str]:
-    """Person → Grund: Planungen mit Konflikt (belegt/gesperrt) oder in einem inzwischen unbewohnbaren Zimmer."""
+# Tür/Schloss/Schlüssel defekt: Das Zimmer ist unbewohnbar (man kommt nicht hinein), das FM behebt es aber schnell.
+# Deshalb wird nicht umgeplant, solange die Anreise noch mindestens SCHNELL_VORLAUF Tage entfernt ist – stattdessen
+# geht ein FM-Auftrag mit Frist raus. Erst wenn es knapp wird, kommt der Fall wieder zum Umplanen.
+SCHNELL_BEHEBBAR = {"tuer"}
+SCHNELL_VORLAUF = 3
+
+
+def schnell_zimmer() -> dict[str, list]:
+    """Zimmer, die nur wegen schnell behebbarer Mängel unbewohnbar sind → diese Mängel."""
+    from belegung import maengel as mg
+
+    erg: dict[str, list] = {}
+    for zid, ms in mg.offen_je_zimmer().items():
+        sperren = [m for m in ms if m.unbewohnbar]
+        if sperren and all(m.art in SCHNELL_BEHEBBAR for m in sperren):
+            erg[zid] = sperren
+    return erg
+
+
+def _noch_zeit(zid: str, von: date, heute: date, schnell: dict) -> bool:
+    return zid in schnell and von >= heute + timedelta(days=SCHNELL_VORLAUF)
+
+
+def problemfaelle(stand: zp.Planstand, heute: date, schnell: dict | None = None) -> dict[str, str]:
+    """Person → Grund: Planungen mit Konflikt (belegt/gesperrt) oder in einem inzwischen unbewohnbaren Zimmer
+    (schnell behebbare Mängel erst, wenn die Anreise näher als ``SCHNELL_VORLAUF`` Tage ist)."""
+    schnell = schnell_zimmer() if schnell is None else schnell
     erg = {k.person: k.grund for k in zp.konflikte(stand.lage, heute)}
     for z in stand.zuweisungen:
         if z["zimmer"] in stand.lage.unbewohnbar and z.get("bis", "") >= heute.isoformat() and z["person"] not in erg:
+            if _noch_zeit(z["zimmer"], date.fromisoformat(z["von"]), heute, schnell):
+                continue                              # FM-Auftrag statt Umplanen
             erg[z["person"]] = f"unbewohnbar: {stand.lage.unbewohnbar[z['zimmer']]}"
     return erg
+
+
+@dataclass
+class FmFall:
+    zimmer: str
+    maengel: str          # z. B. „Tür/Schloss/Schlüssel defekt“
+    seit: date
+    frist: date | None    # bis wann behoben sein muss (nächster Einzug; bewohnt = heute)
+    wer: str              # wer dann einzieht bzw. wohnt (Name) oder ""
+    arten: list[str] = field(default_factory=list)
+
+    @property
+    def knapp(self) -> bool:
+        return self.frist is not None and self.frist <= date.today() + timedelta(days=SCHNELL_VORLAUF)
+
+
+def fm_faelle(stand: zp.Planstand, heute: date) -> list[FmFall]:
+    """Schnell behebbare Sperr-Mängel (Schloss/Schlüssel) mit Frist bis zum nächsten Einzug – dringendste zuerst."""
+    erg = []
+    for zid, ms in schnell_zimmer().items():
+        naechste = sorted((b for b in stand.lage.belegungen.get(zid, []) if b.art in ("belegt", "geplant") and b.bis >= heute
+                           and b.name != zp.PIVOT_NAME), key=lambda b: b.von)
+        b = naechste[0] if naechste else None
+        frist = (max(b.von, heute) if b else None)
+        erg.append(FmFall(zid, "; ".join(dict.fromkeys(m.text for m in ms)), min(m.seit for m in ms), frist,
+                          zp.anzeige_name(b.name) if b and b.name else "", [m.art for m in ms]))
+    return sorted(erg, key=lambda f: (f.frist is None, f.frist or heute, f.zimmer))
+
+
+def fm_text(faelle: list[FmFall]) -> str:
+    """Auftrag ans FM (für Mail/Teams) – ohne Namen, mit Frist."""
+    zeilen = ["Bitte schnellstmöglich beheben (Zimmer derzeit nicht nutzbar):", ""]
+    for f in faelle:
+        zeilen.append(f"- Zimmer {kurz(f.zimmer)}: {f.maengel} (seit {f.seit:%d.%m.})"
+                      + (f" – benötigt ab {f.frist:%d.%m.%Y}" if f.frist else ""))
+    return "\n".join(zeilen)
+
+
+def fm_behoben(zimmer: list[str]) -> str:
+    """Schloss/Schlüssel in den gewählten Zimmern als behoben markieren – ein Schritt, ein Rückgängig."""
+    from belegung import maengel as mg
+
+    schnell = schnell_zimmer()
+    ziele = [(z, m.art) for z in zimmer for m in schnell.get(z, [])]
+    if not ziele:
+        raise ValueError("Nichts ausgewählt.")
+    _schritt(f"{len(set(z for z, _ in ziele))} Zimmer: Schloss/Schlüssel behoben",
+             lambda: [mg.setzen(z, art, False) for z, art in ziele], [mg.DATEI])
+    return f"{len(set(z for z, _ in ziele))} Zimmer wieder nutzbar"
 
 
 @dataclass
@@ -565,6 +645,23 @@ def reinigung_erledigt(dringend: bool, heute: date | None = None) -> str:
     return f"{len(rs)} Zimmer als gereinigt markiert"
 
 
+def reinigungen_offen(dringend: bool, heute: date | None = None) -> list:
+    """Offene Reinigungen von heute (``dringend``: vor einem Einzug heute/morgen) – für das Postfach."""
+    from belegung import cockpit
+
+    heute = heute or date.today()
+    kon, offen = cockpit.reinigung_heute(zp.laden(), heute)
+    return kon if dringend else offen
+
+
+def reinigung_einzeln(zimmer: str, dringend: bool, heute: date | None = None) -> str:
+    rs = [r for r in reinigungen_offen(dringend, heute) if r.zimmer.id == zimmer]
+    if not rs:
+        raise ValueError("Diese Reinigung ist schon erledigt.")
+    _schritt(f"{kurz(zimmer)} gereinigt", lambda: [rl.erledigt_setzen(r) for r in rs], [rl.DATEI])
+    return f"{kurz(zimmer)} als gereinigt markiert"
+
+
 def termin_erledigt(tid: str) -> str:
     from belegung import anreiseliste
 
@@ -669,6 +766,15 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                                 f"{len(unb)} Planung{'en' if len(unb) > 1 else ''} in unbewohnbarem Zimmer",
                                 "; ".join(f"{namen.get(p, '')} ({g.split(': ', 1)[1]})" for p, g in list(unb.items())[:2])
                                 + (" …" if len(unb) > 2 else ""), Aktion("konflikte", "Prüfen und zuweisen")))
+    if stand is not None and "fm" not in weg and (fms := fm_faelle(stand, heute)):
+        knapp = [f for f in fms if f.knapp]
+        erg.insert(0 if knapp else len([x for x in erg if x.stufe == "dringend"]),
+                   Karte("fm", "dringend" if knapp else "bald",
+                         f"{len(fms)} Zimmer nicht nutzbar (Schloss/Schlüssel) – FM-Auftrag",
+                         ", ".join(f"{kurz(f.zimmer)}" + (f" bis {f.frist:%d.%m.}" if f.frist else "") for f in fms[:4])
+                         + (" …" if len(fms) > 4 else "") + " – wird nicht umgeplant, solange die Anreise noch "
+                         f"{SCHNELL_VORLAUF} Tage oder mehr entfernt ist",
+                         Aktion("fm", "FM-Auftrag …"), Aktion("fm_liste", "Defekte Zimmer", "zimmer/maengel")))
     if stand is not None and "strittig" not in weg and (sts := strittige(stand)):
         erg.insert(0, Karte("strittig", "dringend",
                             f"{len(sts)} Planung{'en widersprechen' if len(sts) > 1 else ' widerspricht'} dem Gebäudeplan",
@@ -773,7 +879,7 @@ def nach_planung(stand: zp.Planstand, heute: date | None = None, wochen: int = 1
     return NachPlanung(zeilen, (t.text, t.gesamt, t.stufe("gesamt")) if t else None, np_.offen, np_.ohne_platz)
 
 
-SYMBOL = {"anreise": "flight_land", "konflikte": "warning", "unbewohnbar": "report", "strittig": "sync_problem", "eintragen": "edit_note",
+SYMBOL = {"fm": "key_off", "anreise": "flight_land", "konflikte": "warning", "unbewohnbar": "report", "strittig": "sync_problem", "eintragen": "edit_note",
           "reinigung": "cleaning_services", "abreisen": "flight_takeoff", "facility": "electrical_services",
           "maengel": "build", "engpass": "trending_down", "termin": "event", "mail": "mail", "posteingang": "mail",
           "mieterende": "key", "gebaeudeplan": "description", "umzug": "swap_horiz", "n": "campaign"}

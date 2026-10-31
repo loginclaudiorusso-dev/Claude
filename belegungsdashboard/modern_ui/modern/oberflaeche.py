@@ -11,7 +11,7 @@ from nicegui.elements.mixins.value_element import ValueElement
 
 from belegung import __version__ as haupt_version
 
-from . import __version__, kern, register, seite_anreisen, suche_palette, themes
+from . import __version__, kern, register, seite_anreisen, seite_heute, suche_palette, themes
 from .stil import CSS
 from . import standort_kern
 from .ui_bausteine import attr, badge_neu, kennzahlen, knopf, leer
@@ -1060,7 +1060,18 @@ class Ansicht:
                         "margin-left: auto")
 
     def panel(self, titel: str, bauen, breit: bool = False) -> None:
-        """Formular im Panel rechts (gleitet über den abgedunkelten Inhalt, Klick daneben schließt)."""
+        """Formular im Panel rechts (gleitet über den abgedunkelten Inhalt, Klick daneben schließt). Im Postfach auf
+        *Heute* erscheint es stattdessen direkt in der rechten Spalte."""
+        if (ziel := getattr(self, "_pf_ziel", None)) is not None:
+            self._pf_ziel = None
+            ziel.clear()
+            with ziel, ui.element("div").classes("m-formular m-pf-inhalt"):
+                bauen()
+            for el in ziel.descendants():           # „Schließen“/„Abbrechen“ gibt es im Postfach nicht
+                if isinstance(el, ui.label) and el.text in ("Schließen", "Abbrechen") and el.parent_slot \
+                        and "m-knopf" in el.parent_slot.parent.classes:
+                    el.parent_slot.parent.set_visibility(False)
+            return
         weiter = self.panel_def is not None and self.panel_def[0] == titel and self.panel_geaendert()
         self.panel_def = (titel, bauen)
         self.center_offen = True
@@ -1135,7 +1146,7 @@ class Ansicht:
 
     @staticmethod
     def _hat_details(k: kern.Karte) -> bool:
-        return k.id in ("unbewohnbar", "konflikte", "allergie", "strittig") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
+        return k.id in ("unbewohnbar", "konflikte", "allergie", "strittig", "fm") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
 
     async def _karte_details(self, k: kern.Karte) -> None:
         if k.id in ("unbewohnbar", "konflikte"):
@@ -1144,10 +1155,123 @@ class Ansicht:
             await self._allergie_panel()
         elif k.id == "strittig":
             await self._strittig_panel()
+        elif k.id == "fm":
+            await self._fm_panel()
         elif k.zweite:
             await self._zeigen(k.zweite.zeigen)
         elif k.aktion and k.aktion.zeigen:
             await self._zeigen(k.aktion.zeigen)
+
+    # ---- Postfach auf „Heute“: Fälle der gewählten Aufgabe rechts ---------------------------
+
+    PF_LISTEN = ("unbewohnbar", "konflikte", "allergie", "strittig", "fm")
+
+    def pf_hat_liste(self, k: kern.Karte) -> bool:
+        return k.id in self.PF_LISTEN or k.id.startswith(("anreise:", "reinigung"))
+
+    async def pf_detail(self, k: kern.Karte, ziel) -> None:
+        """Rechte Spalte des Postfachs füllen – dieselben Prüflisten wie in den Panels, nur ohne Überblenden."""
+        try:
+            if k.id in self.PF_LISTEN:
+                self._pf_ziel = ziel
+                await self._karte_details(k)
+            elif k.id.startswith("anreise:"):
+                await self._pf_anreise(k, ziel)
+            elif k.id.startswith("reinigung"):
+                await self._pf_reinigung(k, ziel)
+        finally:
+            self._pf_ziel = None
+
+    async def _pf_anreise(self, k: kern.Karte, ziel) -> None:
+        kennung = k.id.split(":", 1)[1]
+        zs = [z for z in await run.io_bound(kern.zeilen, self.stand, kennung, self.heute) if z.status != "ok"]
+        ziel.clear()
+        with ziel:
+            if not zs:
+                ui.label("Alle Personen dieser Anreise haben ein passendes Zimmer.").classes("m-ptext")
+                return
+            mit = [z for z in zs if z.vorschlag]
+            with ui.element("div").classes("m-paktionen"):
+                if mit and k.aktion:
+                    knopf(f"Alle {len(mit)} Vorschläge übernehmen", lambda: self._karte_loesen(k), "primaer", "done_all")
+                knopf("Zur Anreise", lambda: self._zeigen(kennung), "", "flight_land")
+            for z in zs:
+                with ui.element("div").classes("m-fall"):
+                    with ui.element("div").classes("m-fall-t"):
+                        ui.label(f"{z.name} · {z.gruppe} · {z.zeitraum}").classes("m-name")
+                        ui.label(z.grund or "noch kein Zimmer").classes("m-zweite").style("white-space:normal")
+                    if z.vorschlag:
+                        knopf(f"{kern.kurz(z.vorschlag)} übernehmen",
+                              lambda z=z: self.aendern(kern.zuweisen, z.schluessel, z.vorschlag), "gruen", "check")
+                    else:
+                        ui.label("kein freies Zimmer").classes("m-pille warn")
+
+    async def _pf_reinigung(self, k: kern.Karte, ziel) -> None:
+        dringend = k.id == "reinigung_dringend"
+        rs = await run.io_bound(kern.reinigungen_offen, dringend, self.heute)
+        ziel.clear()
+        with ziel:
+            if not rs:
+                ui.label("Alles gereinigt.").classes("m-ptext")
+                return
+            with ui.element("div").classes("m-paktionen"):
+                if k.aktion:
+                    knopf(f"Alle {len(rs)} als gereinigt markieren", lambda: self._karte_loesen(k), "primaer", "done_all")
+                knopf("Reinigungsliste", lambda: self.oeffnen("reinigung", rg_zeitraum="heute"), "", "cleaning_services")
+            for r in rs:
+                with ui.element("div").classes("m-fall"):
+                    with ui.element("div").classes("m-fall-t"):
+                        ui.label(f"{kern.kurz(r.zimmer.id)}").classes("m-name")
+                        ui.label((f"Einzug {r.naechste_anreise:%d.%m.}" if r.naechste_anreise else "kein Einzug geplant")
+                                 + (" · Auszug heute" if r.auszug else " · vorbereiten")).classes("m-zweite")
+                    knopf("Gereinigt", lambda r=r: self.aendern(kern.reinigung_einzeln, r.zimmer.id, dringend, self.heute),
+                          "gruen", "check")
+
+    async def _fm_panel(self) -> None:
+        """Schloss/Schlüssel defekt: Auftrag ans FM mit Frist (nächster Einzug) – kopieren, nach Erledigung abhaken."""
+        import json
+
+        from . import seite_zimmer
+
+        fs = await run.io_bound(kern.fm_faelle, self.stand, self.heute)
+        wahl = {f.zimmer: True for f in fs}
+
+        def bauen():
+            if not fs:
+                ui.label("Keine Zimmer mit defektem Schloss oder Schlüssel.").classes("m-ptext")
+                return
+            ui.label("Diese Zimmer sind nicht nutzbar, weil Schloss oder Schlüssel defekt ist. Das FM behebt das "
+                     f"schnell. Darum wird erst umgeplant, wenn die Anreise weniger als {kern.SCHNELL_VORLAUF} Tage "
+                     "entfernt ist. Frist ist der nächste Einzug.").classes("m-ptext")
+            for f in fs:
+                with ui.element("div").classes("m-fall" + (" knapp" if f.knapp else "")):
+                    cb = ui.checkbox(value=True).props("dense dark")
+                    cb.on_value_change(lambda e, z=f.zimmer: wahl.__setitem__(z, bool(e.value)))
+                    with ui.element("div").classes("m-fall-t"):
+                        n_ = ui.label(f"{kern.kurz(f.zimmer)} · {f.maengel}").classes("m-name m-link")
+                        n_.on("click", lambda z=f.zimmer: seite_zimmer.karte_oeffnen(self, z))
+                        ui.label((f"Frist {f.frist:%d.%m.%Y}" + (f" – {f.wer}" if f.wer else "") if f.frist else "kein Einzug geplant")
+                                 + f" · gemeldet {f.seit:%d.%m.}").classes("m-zweite")
+                    if f.knapp:
+                        ui.label("knapp").classes("m-pille krit")
+
+            def gewaehlt():
+                return [f for f in fs if wahl.get(f.zimmer)]
+
+            def kopieren():
+                text = kern.fm_text(gewaehlt())
+                ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(text)})")
+                self.toast(f"FM-Auftrag für {len(gewaehlt())} Zimmer kopiert – in Mail oder Teams einfügen", rueck=False)
+
+            async def behoben():
+                if await self.aendern(kern.fm_behoben, [f.zimmer for f in gewaehlt()]):
+                    self.panel_zu()
+            with ui.element("div").classes("m-paktionen"):
+                knopf("FM-Auftrag kopieren", kopieren, "primaer", "content_copy")
+                knopf("Als behoben markieren", behoben, "", "check")
+                knopf("Schließen", self.panel_zu, "leise")
+
+        self.panel("FM-Auftrag: Schloss/Schlüssel", bauen)
 
     async def _faelle_panel(self, nur_unbewohnbar: bool) -> None:
         """Planungen mit Konflikt / in unbewohnbaren Zimmern prüfen – umgeplant wird nur, was angehakt ist."""
@@ -1278,6 +1402,9 @@ class Ansicht:
         if k.aktion.schluessel == "strittig":
             await self._strittig_panel()
             return
+        if k.aktion.schluessel == "fm":
+            await self._fm_panel()
+            return
         if k.aktion.schluessel == "konflikte":                  # erst prüfen, dann nur das Angehakte umplanen
             await self._faelle_panel(k.id == "unbewohnbar")
             return
@@ -1349,6 +1476,9 @@ class Ansicht:
             from . import seite_prognose
 
             seite_prognose.praes_umschalten(self)
+        elif (e.key.name in ("ArrowDown", "ArrowUp") and self.seite == "heute" and self.panel_def is None
+              and not self.center_offen and getattr(self, "pf_schritt", None) and seite_heute.postfach_an(self)):
+            self.pf_schritt(1 if e.key.name == "ArrowDown" else -1)
         elif e.key.name == "Escape" and self.frage.value:
             self.frage.close()                   # Esc in der Rückfrage = weiter bearbeiten
         elif e.key.name == "Escape" and self.center_offen:

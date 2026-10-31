@@ -976,3 +976,39 @@ CSS += """
 .m-standort-k:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
 @media (max-width: 520px) { .m-standorte { grid-template-columns: 1fr; } }
 """
+CSS += """
+.m-ae-zeit { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.m-ae-zeit .m-feld { width: 150px; }
+"""
+CSS += """
+.m-fall { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--rand); }
+.m-fall-t { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.m-fall.knapp .m-name { color: var(--rot); }
+"""
+CSS += """
+/* 0.37: Postfach auf „Heute“ – links die Aufgaben wie Mails, rechts alle Fälle */
+.m-pf { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; padding: 14px 20px 24px; align-items: start; }
+.m-pf-liste { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 8px; max-height: calc(100vh - 190px); overflow-y: auto; }
+.m-pf-zeile { font: inherit; color: var(--text); background: transparent; border: 0; border-left: 3px solid transparent; cursor: pointer;
+  display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 9px 10px; border-radius: var(--r); width: 100%; }
+.m-pf-zeile:hover { background: var(--fl2); }
+.m-pf-zeile.an { background: color-mix(in srgb, var(--akzent) 16%, transparent); }
+.m-pf-zeile.dringend { border-left-color: var(--rot); }
+.m-pf-zeile.bald { border-left-color: var(--orange); }
+.m-pf-zeile:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.m-pf-symbol { font-size: 18px; color: var(--text3); margin-top: 1px; flex: none; }
+.m-pf-symbol.dringend { color: var(--rot); } .m-pf-symbol.bald { color: var(--orange); }
+.m-pf-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.m-pf-titel { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.m-pf-unter { font-size: 12px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-pf-gruppe { font-size: 11.5px; color: var(--text3); padding: 12px 10px 4px; }
+.m-pf-leer { font-size: 12.5px; color: var(--text3); padding: 10px; }
+.m-pf-detail { background: var(--fl); border: 1px solid var(--rand); border-radius: 12px; padding: 18px 20px; min-height: 320px; min-width: 0; }
+.m-pf-dkopf { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.m-pf-dkopf .m-pf-symbol { font-size: 22px; }
+.m-pf-dtitel { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.m-pf-faelle { display: flex; flex-direction: column; gap: 6px; }
+.m-pf-inhalt { display: flex; flex-direction: column; gap: 10px; }
+.m-pf-ueberblick { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 10px; }
+@media (max-width: 1000px) { .m-pf { grid-template-columns: 1fr; } .m-pf-liste { position: static; max-height: none; } }
+"""

@@ -11,7 +11,7 @@ import json
 from nicegui import run, ui
 
 from .kern import WT, kurz
-from .ui_bausteine import attr, kennzahlen, knopf, leer
+from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 
 
 @dataclass
@@ -148,9 +148,13 @@ def zeichnen(a) -> None:
                                          "neu": "Neu in den Listen – Klick: Liste der neuen Personen", "frei": "Klick: Zimmer-Übersicht",
                                          "belegt": "Klick: Zimmer-Übersicht", "gesperrt": "Klick: Zimmer-Übersicht"})
         ui.label(f"{wt}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
+    _umschalter(a)
     with a.inhalt:
         if t.willkommen:
             _willkommen(a)
+        if postfach_an(a):
+            _postfach(a, t)
+            return
         with ui.element("div").classes("m-heute"):
             with ui.element("section").classes("m-heute-links"):
                 ui.label("Zu tun").classes("m-btitel")
@@ -163,47 +167,50 @@ def zeichnen(a) -> None:
                     for k in ks:
                         a._karte(k)
             with ui.element("section").classes("m-heute-rechts"):
-                with ui.element("div").classes("m-block"):
-                    ui.label("Anreisen der nächsten 7 Tage").classes("m-btitel")
-                    if not t.anreisen:
-                        ui.label("Keine Anreisen.").classes("m-ptext")
-                    for kennung, text, n, mit in t.anreisen:
-                        z_ = ui.element("button").classes("m-liste-zeile")
-                        with z_:
-                            ui.element("div").classes("m-ampel " + ("ok" if mit == n else "krit")).style("margin:0")
-                            attr(ui.label(text).classes("m-name"), title=text)
-                            ui.label(f"{mit}/{n}").classes("m-mono")
-                        z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
-                if t.np:
-                    _nach_planung_block(a, t.np)
-                with ui.element("div").classes("m-block"):
-                    ui.label("Abreisen heute und morgen").classes("m-btitel")
-                    if not t.abreisen:
-                        ui.label("Keine Abreisen.").classes("m-ptext")
-                    for wann, name, zimmer in t.abreisen[:12]:
-                        with ui.element("div").classes("m-liste-zeile"):
-                            ui.label(wann).classes("m-zweite").style("width:52px")
-                            ui.label(name).classes("m-name")
-                            ui.label(zimmer).classes("m-mono")
-                    if len(t.abreisen) > 12:
-                        knopf(f"Alle {len(t.abreisen)} ansehen", lambda: a.oeffnen("anreisen", ansicht="abreisen"), "leise")
-                with ui.element("div").classes("m-block"):
-                    ui.label("Reinigung heute").classes("m-btitel")
-                    eilig, offen = t.reinigung
-                    ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{eilig}</b> vor Einzug noch offen'
-                            f'<span class="m-punktt">·</span><b>{offen}</b> weitere heute</span>', sanitize=False)
-                    knopf("Reinigungsliste öffnen", lambda: a.oeffnen("reinigung", rg_zeitraum="heute"), "", "cleaning_services")
-                if t.neuigkeiten:
-                    with ui.element("div").classes("m-block"):
-                        ui.label("Neu seit gestern").classes("m-btitel")
-                        for zeit, text, art in t.neuigkeiten:
-                            with ui.element("div").classes("m-neu"):
-                                ui.element("div").classes("m-ampel " + {"warnung": "warn", "fehler": "krit"}.get(art, "ok")).style(
-                                    "margin:6px 0 0")
-                                with ui.element("div"):
-                                    ui.label(text).classes("m-ptext").style("color:var(--text)")
-                                    ui.label(zeit).classes("m-zweite")
+                _tagesblock(a, t)
 
+def _tagesblock(a, t: "Tag") -> None:
+    """Der Tag auf einen Blick: Anreisen 7 Tage, frei nach Planung, Abreisen, Reinigung, Neuigkeiten."""
+    with ui.element("div").classes("m-block"):
+        ui.label("Anreisen der nächsten 7 Tage").classes("m-btitel")
+        if not t.anreisen:
+            ui.label("Keine Anreisen.").classes("m-ptext")
+        for kennung, text, n, mit in t.anreisen:
+            z_ = ui.element("button").classes("m-liste-zeile")
+            with z_:
+                ui.element("div").classes("m-ampel " + ("ok" if mit == n else "krit")).style("margin:0")
+                attr(ui.label(text).classes("m-name"), title=text)
+                ui.label(f"{mit}/{n}").classes("m-mono")
+            z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
+    if t.np:
+        _nach_planung_block(a, t.np)
+    with ui.element("div").classes("m-block"):
+        ui.label("Abreisen heute und morgen").classes("m-btitel")
+        if not t.abreisen:
+            ui.label("Keine Abreisen.").classes("m-ptext")
+        for wann, name, zimmer in t.abreisen[:12]:
+            with ui.element("div").classes("m-liste-zeile"):
+                ui.label(wann).classes("m-zweite").style("width:52px")
+                ui.label(name).classes("m-name")
+                ui.label(zimmer).classes("m-mono")
+        if len(t.abreisen) > 12:
+            knopf(f"Alle {len(t.abreisen)} ansehen", lambda: a.oeffnen("anreisen", ansicht="abreisen"), "leise")
+    with ui.element("div").classes("m-block"):
+        ui.label("Reinigung heute").classes("m-btitel")
+        eilig, offen = t.reinigung
+        ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{eilig}</b> vor Einzug noch offen'
+                f'<span class="m-punktt">·</span><b>{offen}</b> weitere heute</span>', sanitize=False)
+        knopf("Reinigungsliste öffnen", lambda: a.oeffnen("reinigung", rg_zeitraum="heute"), "", "cleaning_services")
+    if t.neuigkeiten:
+        with ui.element("div").classes("m-block"):
+            ui.label("Neu seit gestern").classes("m-btitel")
+            for zeit, text, art in t.neuigkeiten:
+                with ui.element("div").classes("m-neu"):
+                    ui.element("div").classes("m-ampel " + {"warnung": "warn", "fehler": "krit"}.get(art, "ok")).style(
+                        "margin:6px 0 0")
+                    with ui.element("div"):
+                        ui.label(text).classes("m-ptext").style("color:var(--text)")
+                        ui.label(zeit).classes("m-zweite")
 
 def _nach_planung_block(a, np_) -> None:
     """Freie Zimmer der nächsten 5 Wochen nach Planung – gesamt, EMR, Doppelzimmer, mit Ampel."""
@@ -309,9 +316,13 @@ def _feed(a) -> None:
                                             a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter="frei")),
                    {"frei": "Klick: Zimmer-Übersicht", "ohne": "Klick: zuteilen", "dringend": "Klick: alle Aufgaben"})
         ui.label(f"{WOCHENTAGE[a.heute.weekday()]}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
+    _umschalter(a)
     with a.inhalt:
         if t.willkommen:
             _willkommen(a)
+        if postfach_an(a):
+            _postfach(a, t)
+            return
         with ui.element("div").classes("m-feed"):
             with ui.element("div").classes("m-feed-kopf"):
                 with ui.element("ol").classes("m-briefing-text"):        # Mitschrift – erscheint beim Abspielen
@@ -373,3 +384,118 @@ def _tag(a, anreisen: list, abreisen: list, wann: str) -> None:
         namen = ", ".join(f"{n} ({z})" for _w, n, z in abreisen[:4]) + (f" und {len(abreisen) - 4} weitere" if len(abreisen) > 4 else "")
         _eintrag("flight_takeoff", f"{len(abreisen)} Abreise{'n' if len(abreisen) != 1 else ''}", namen, "neutral",
                  lambda: a.oeffnen("anreisen", ansicht="abreisen"))
+
+
+
+# ---------------------------------------------------------------------------------------
+# Postfach (wie Outlook): links die Aufgaben als Zeilen, rechts alle Fälle der gewählten Aufgabe
+# ---------------------------------------------------------------------------------------
+
+UEBERBLICK = "ueberblick"
+STUFEN_PF = (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info"))
+
+
+def postfach_an(a) -> bool:
+    return getattr(a, "heute_ansicht", "postfach") == "postfach"
+
+
+def _umschalter(a) -> None:
+    with a.werkzeuge:
+        segmente({"postfach": "Postfach", "uebersicht": "Übersicht"}, getattr(a, "heute_ansicht", "postfach"),
+                 lambda v: a.setzen(heute_ansicht=v, laden=False))
+
+
+def auswahl(a) -> str:
+    """Gewählte Aufgabe – bleibt nach dem Erledigen eines Falls stehen; ist die Aufgabe ganz erledigt, rückt die
+    nächste nach (wie im Posteingang)."""
+    ids = [k.id for k in a.karten]
+    alt = getattr(a, "pf_auswahl", None)
+    if alt in ids or alt == UEBERBLICK:
+        return alt
+    reihe = getattr(a, "pf_reihe", [])
+    if alt in reihe:                                  # erledigt → die nächste in der alten Reihenfolge
+        for kid in reihe[reihe.index(alt) + 1:] + list(reversed(reihe[:reihe.index(alt)])):
+            if kid in ids:
+                return kid
+    return ids[0] if ids else UEBERBLICK
+
+
+def _postfach(a, t: Tag) -> None:
+    a.pf_auswahl = auswahl(a)
+    a.pf_reihe = [k.id for k in a.karten]
+    with ui.element("div").classes("m-pf"):
+        liste = ui.element("nav").classes("m-pf-liste")
+        attr(liste, aria_label="Aufgaben")
+        detail = ui.element("section").classes("m-pf-detail")
+
+    def zeigen(kid: str) -> None:
+        a.pf_auswahl = kid
+        fuellen()
+
+    def schritt(richtung: int) -> None:
+        reihe = [UEBERBLICK] + [k.id for k in a.karten]
+        i = reihe.index(a.pf_auswahl) if a.pf_auswahl in reihe else 0
+        zeigen(reihe[max(0, min(len(reihe) - 1, i + richtung))])
+
+    a.pf_schritt = schritt
+
+    def fuellen() -> None:
+        liste.clear()
+        detail.clear()
+        with liste:
+            z = ui.element("button").classes("m-pf-zeile ueberblick" + (" an" if a.pf_auswahl == UEBERBLICK else ""))
+            with z:
+                ui.icon("today").classes("m-pf-symbol")
+                with ui.element("div").classes("m-pf-text"):
+                    ui.label("Überblick heute").classes("m-pf-titel")
+                    ui.label(f"{len(t.anreisen)} Anreisetage · {len(t.abreisen)} Abreisen · Reinigung").classes("m-pf-unter")
+            z.on("click", lambda: zeigen(UEBERBLICK))
+            if not a.karten:
+                ui.label("Keine Aufgaben – alles erledigt.").classes("m-pf-leer")
+            for stufe, titel in STUFEN_PF:
+                ks = [k for k in a.karten if k.stufe == stufe]
+                if not ks:
+                    continue
+                ui.label(f"{titel} ({len(ks)})").classes("m-pf-gruppe")
+                for k in ks:
+                    z = ui.element("button").classes(f"m-pf-zeile {k.stufe}" + (" an" if a.pf_auswahl == k.id else ""))
+                    attr(z, title=k.titel)
+                    with z:
+                        ui.icon(_symbol(k.id)).classes(f"m-pf-symbol {k.stufe}")
+                        with ui.element("div").classes("m-pf-text"):
+                            ui.label(k.titel).classes("m-pf-titel")
+                            ui.label(k.detail).classes("m-pf-unter")
+                    z.on("click", lambda k=k: zeigen(k.id))
+        with detail:
+            if a.pf_auswahl == UEBERBLICK:
+                ui.label("Überblick heute").classes("m-pf-dtitel")
+                with ui.element("div").classes("m-pf-ueberblick"):
+                    _tagesblock(a, t)
+                return
+            k = next(k for k in a.karten if k.id == a.pf_auswahl)
+            with ui.element("div").classes("m-pf-dkopf"):
+                ui.icon(_symbol(k.id)).classes(f"m-pf-symbol {k.stufe}")
+                with ui.element("div").classes("m-pf-text"):
+                    ui.label(k.titel).classes("m-pf-dtitel")
+                    ui.label({"dringend": "Dringend", "bald": "Als Nächstes", "info": "Zur Info"}[k.stufe]).classes(
+                        "m-kstufe " + {"dringend": "krit", "bald": "warn", "info": "ok"}[k.stufe])
+                knopf("", lambda k=k: a._spaeter(k), "leise", "snooze", "Später – bis morgen ausblenden")
+            if not a.pf_hat_liste(k):                   # keine Fall-Liste: Text und die Knöpfe der Aufgabe
+                ui.label(k.detail).classes("m-ptext")
+                with ui.element("div").classes("m-paktionen"):
+                    if k.aktion:
+                        knopf(k.aktion.text, lambda k=k: a._karte_loesen(k), "primaer")
+                    if k.zweite:
+                        knopf(k.zweite.text, lambda k=k: a._zeigen(k.zweite.zeigen), "")
+                    if k.hinweis:
+                        ui.label(k.hinweis).classes("m-zweite")
+            koerper = ui.element("div").classes("m-pf-faelle")
+            ui.timer(0.01, lambda k=k: a.pf_detail(k, koerper), once=True)
+
+    fuellen()
+
+
+def _symbol(kid: str) -> str:
+    from .kern import symbol
+
+    return symbol(kid)

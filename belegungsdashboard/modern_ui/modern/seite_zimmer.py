@@ -12,7 +12,7 @@ from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
-             "maengel": "Defekte Zimmer"}
+             "maengel": "Defekte Zimmer", "aenderungen": "Änderungen"}
 
 
 def daten(a) -> None:
@@ -22,6 +22,13 @@ def daten(a) -> None:
         return
     if ansicht == "maengel":
         a.daten = zk.maengel_liste(a.stand, a.heute)
+        return
+    if ansicht == "aenderungen":
+        from . import aenderungen_kern as ak
+
+        if getattr(a, "ae_von", None) is None:
+            a.ae_von, a.ae_bis = ak.zeitraum("7", a.heute)
+        a.daten = ak.liste(a.ae_von, a.ae_bis, getattr(a, "ae_art", "alle"))
         return
     if ansicht == "zeitstrahl":
         seiten.zs_daten(a)
@@ -44,6 +51,8 @@ def zeichnen(a) -> None:
         _uebersicht(a)
     elif ansicht == "maengel":
         _maengel(a)
+    elif ansicht == "aenderungen":
+        _aenderungen(a)
     elif ansicht == "zeitstrahl":
         seiten.zs_zeichnen(a)
         _klickbar(a)
@@ -51,6 +60,66 @@ def zeichnen(a) -> None:
         _karten(a)
     else:
         _liste(a)
+
+
+def _aenderungen(a) -> None:
+    """Was wurde im Zeitraum geändert – Zuteilungen, Umzüge, Auszüge, Mängel – mit Excel-Export."""
+    from . import aenderungen_kern as ak
+
+    zs: list[ak.Aenderung] = a.daten
+
+    def zeitraum(vorgabe):
+        von, bis = ak.zeitraum(vorgabe, a.heute)
+        return a.setzen(ae_von=von, ae_bis=bis, nur_seite=True)
+
+    def tag(feld, wert):
+        try:
+            d = date.fromisoformat(wert or "")
+        except ValueError:
+            return None
+        return a.setzen(nur_seite=True, **{feld: d})
+
+    with a.leiste:
+        segmente(ak.ARTEN, getattr(a, "ae_art", "alle"), lambda v: a.setzen(ae_art=v, nur_seite=True), sofort=True)
+        with ui.element("div").classes("m-ae-zeit"):
+            for k, t in (("woche", "Diese Woche"), ("vorwoche", "Letzte Woche"), ("7", "7 Tage"), ("30", "30 Tage")):
+                knopf(t, lambda k=k: zeitraum(k), "leise" if (a.ae_von, a.ae_bis) != ak.zeitraum(k, a.heute) else "")
+            von = ui.input("von", value=a.ae_von.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            von.on_value_change(lambda e: tag("ae_von", e.value))
+            bis = ui.input("bis", value=a.ae_bis.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            bis.on_value_change(lambda e: tag("ae_bis", e.value))
+        ui.label(f"{len(zs)} Änderungen").classes("m-kpi")
+
+        async def export():
+            try:
+                text, pfad = await run.io_bound(ak.excel_speichern, a.ae_von, a.ae_bis, getattr(a, "ae_art", "alle"))
+            except Exception as exc:             # noqa: BLE001
+                a.toast(f"Nicht gespeichert: {exc}", fehler=True)
+                return
+            a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text}: {pfad}", rueck=False)
+        knopf("Excel", export, "", "table_view").style("margin-left:auto")
+    sp = "140px 112px minmax(150px, 1fr) minmax(180px, 1.4fr) minmax(130px, 1fr) 100px 100px"
+    with a.inhalt:
+        if not zs:
+            leer("Keine Änderungen in diesem Zeitraum.")
+            return
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("Zeitpunkt", "Art", "Aktion", "Person / Mangel", "Zimmer", "Ab", "Wer"):
+                ui.label(t)
+        for x in zs:
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                ui.label(f"{x.zeit:%d.%m.%Y %H:%M}").classes("m-mono")
+                ui.label(ak.ARTEN.get(x.art, "Sonstiges")).classes("m-zweite")
+                attr(ui.label(x.aktion).classes("m-ptext"), title=x.quelle)
+                ui.label(x.name).classes("m-name")
+                z = ui.label(x.zimmer).classes("m-mono" + (" m-link" if x.neu or x.alt else ""))
+                ziel = x.neu or x.alt
+                if ziel:
+                    zid = next((zz.id for zz in a.stand.zimmer if zkurz(zz.id) == ziel), None)
+                    if zid:
+                        z.on("click", lambda zid=zid: karte_oeffnen(a, zid))
+                ui.label(f"{x.ab:%d.%m.%Y}" if x.ab else "").classes("m-mono")
+                ui.label(x.wer).classes("m-zweite")
 
 
 _ZIEL_WEG = "document.querySelectorAll('.m-zs-zeile.ziel').forEach(x => x.classList.remove('ziel'))"
