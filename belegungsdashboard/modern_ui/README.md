@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.35.0
+# Neue Oberfläche (modern_ui) – Version 0.36.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -47,6 +47,30 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Anreiselisten als PDF, Showcase aufgeräumt (neu in 0.36)
+
+* **Anreiselisten Bad Pyrmont und Weser-Ems:** Dort kommen die Listen als PDF „Teilnehmer Beginn“ aus der
+  Teilnehmerverwaltung. Sie werden unter *Daten & Import → Anreiselisten hochladen* eingelesen, mit
+  Änderungsbericht vor dem Übernehmen wie bei den Excel-Listen.
+  * **K** heißt: wohnt im Internat und braucht ein Zimmer. Personen ohne K werden mitgeführt, bekommen aber
+    kein Zimmer.
+  * **Anreise** ist das Eintrittsdatum der Person. Ein Sternchen markiert einen verspäteten Einstieg, das steht dann
+    in der Bemerkung.
+  * **Abreise** ist das Ende der Maßnahme.
+  * **EMR** wird an der Maßnahme erkannt.
+  * Geburtsdatum und Kostenträger werden **nicht** übernommen.
+  * Die PDF hat keine TN-ID. Personen werden deshalb über Name und Anreisetag wiedererkannt.
+* **Goslar bleibt bei den Excel-Listen:** Sie haben die TN-ID und die Bemerkungen (Allergiker, Hilfsmittel,
+  Begleitung, Vortag), die die PDF nicht hat. Beide Formate zu mischen, würde Personen doppelt anlegen. Deshalb
+  nimmt Goslar keine PDF-Listen an.
+* **Showcase:**
+  * Links im Dock steht jetzt der Standort, ein Klick darauf wechselt ihn.
+  * Direkt sichtbar sind nur noch die fünf Hauptbereiche Heute, Anreisen, Zimmer, Reinigung und Auswertung.
+    Termine, Assistenz, Mieter, Daten & Import, Inventar und Einstellungen liegen unter „Mehr“. Ein Punkt zeigt,
+    wenn dort etwas offen ist.
+  * Die Suche ist nur noch ein Symbol.
+  * Die Kennzahlen sind kleiner und flacher.
 
 ## Drei Standorte: Goslar, Bad Pyrmont, Weser-Ems (neu in 0.35)
 
@@ -564,4 +588,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0` (jeweils auch als Zip in `Sicherung`).
