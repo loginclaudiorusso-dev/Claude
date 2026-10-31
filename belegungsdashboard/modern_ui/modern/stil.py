@@ -1115,3 +1115,24 @@ CSS += """
   .m-kopf { padding-top: 8px; padding-bottom: 8px; min-height: 46px; }
 }
 """
+CSS += """
+/* 0.39: Prognose – Erklärung der Kennzahl sichtbar, fortgeschriebene Monate gedämpft */
+.m-xk-hinweis { font-size: 11.5px; color: var(--text3); line-height: 1.4; margin-top: 6px; white-space: normal; }
+.m-zeile.m-fortgeschrieben .m-mono, .m-zeile.m-fortgeschrieben .m-name { color: var(--text3); font-style: italic; }
+"""
+CSS += """
+/* 0.39: Renovierungsplanung */
+.m-rv { display: flex; flex-direction: column; gap: 16px; padding: 14px 20px 28px; }
+.m-rv .m-block { margin: 0; }
+.m-rv-zeile { cursor: pointer; }
+.m-rv-zeile.an { background: color-mix(in srgb, var(--akzent) 12%, transparent); }
+.m-rv-zeile .m-zweite { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-rv-paket { display: grid; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--rand); }
+.m-rv-jahr { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 6px; }
+.m-rv-monat { font: inherit; color: var(--text); text-align: left; background: var(--fl2); border: 1px solid var(--rand);
+  border-left: 4px solid var(--rand2); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; }
+button.m-rv-monat { cursor: pointer; } button.m-rv-monat:hover { border-color: var(--akzent); }
+.m-rv-monat.frei { border-left-color: var(--gruen); } .m-rv-monat.ok { border-left-color: var(--blau); }
+.m-rv-monat.eng { border-left-color: var(--orange); } .m-rv-monat.gesperrt { opacity: .55; border-left-style: dashed; }
+.m-rv-monat.belegt { border-left-color: var(--akzent); } .m-rv-monat.bester { box-shadow: 0 0 0 1px var(--akzent) inset; }
+"""

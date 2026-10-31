@@ -8,7 +8,11 @@ Alle Zahlen stammen aus dem Datenstand des Hauptprogramms (Pivot, Listen, Kapazi
 * **Gebucht** (im Hauptprogramm „gesichert“) – bereits bekannter Bestand (Teilnehmende mit geplantem Ende +
   Verträge), Ø der künftigen Tage des Monats. Die Prognose fällt nie darunter → Untergrenze.
 * **Reserve** – Kapazität − Erwartet; **Reserve ungünstig** – Kapazität − obere 80 %-Grenze.
-* **Risiko** – Ampel des Hauptprogramms auf die obere 80 %-Grenze (≥ 70 % knapp, ≥ 85 % kritisch, > 100 % über).
+* **Warnschwelle** – Schwellenprüfung (keine Wahrscheinlichkeit): Monate, deren obere 80 %-Grenze die Ampel
+  „kritisch“ (≥ 85 % der Kapazität) erreicht. Die obere 80 %-Grenze wird im Rückblick in rund 1 von 10 Fällen
+  überschritten.
+* **Zeitraum** – alle Kennzahlen folgen dem gewählten Zeitraum (12/24/36 Monate). Geprüft (Backtest) sind nur die
+  ersten 12 Monate; danach ist die Prognose rechnerisch fortgeschrieben – das steht bei den Kennzahlen dabei.
 
 Nichts wird erfunden: Fehlt eine Grundlage (z. B. Vorjahreswert, Backtest-Verlauf für „Gesamt“), sagt der Text das.
 """
@@ -98,6 +102,7 @@ def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None 
     szen = kap != kap_echt or bool(offset)
     zs = ak.szenario(pg, kap, offset)
     kuenftig = [z for z in zs if z.art != "ist"][:horizont]
+    fort = f" · Monate 13–{len(kuenftig)} nur fortgeschrieben" if len(kuenftig) > 12 else ""
     voll = [z for z in kuenftig if z.art == "prognose"]
     ziel = voll[0] if voll else (kuenftig[0] if kuenftig else None)
     ist_je_monat = {z.monat: z.ist for z in pg.zeilen if z.art == "ist" and z.ist is not None}
@@ -141,33 +146,35 @@ def executive(ds, standort: str, brutto: bool, pg: ak.Prognose, kap: int | None 
         knapp = min(kuenftig, key=lambda z: z.reserve)
         kpis.append(Kpi("reserve", "Freie Reserve", _z(ziel.reserve), "Plätze",
                         f"{ak.monat_text(ziel.monat)} (erwartet) · ungünstig {_z(kap - ziel.hi80)}",
-                        f"am knappsten {ak.monat_text(knapp.monat)}: {_z(knapp.reserve)}", 0,
+                        f"am knappsten in {len(kuenftig)} Monaten: {ak.monat_text(knapp.monat)} mit {_z(knapp.reserve)}", 0,
                         "krit" if knapp.reserve < 0 else _stufe(1 - knapp.reserve / kap) if kap else "neutral",
                         "Kapazität − erwartete Belegung; „ungünstig“ = Kapazität − obere 80 %-Grenze."))
 
-    # 4 Kapazitätsrisiko (Einschätzung nach Ampel auf obere 80 %-Grenze)
+    # 4 Warnschwelle (Schwellenprüfung auf die obere 80 %-Grenze – keine Wahrscheinlichkeit)
     if kap:
         risk = [z for z in kuenftig if z.stufe in ("kritisch", "ueber")]
         knapp_m = [z for z in kuenftig if z.stufe == "knapp"]
+        erklaerung = (f"Gezählt: Monate, deren obere 80 %-Grenze ≥ {round(100 * konfig.AMPEL_ROT)} % der Kapazität erreicht. "
+                      "Schwellenprüfung, keine Wahrscheinlichkeit – die obere Grenze wird in rund 1 von 10 Fällen überschritten.")
         if risk:
-            kpis.append(Kpi("risiko", "Kapazitätsrisiko", str(len(risk)), f"von {len(kuenftig)} Monaten",
-                            f"ab {ak.monat_text(risk[0].monat)} ≥ {round(100 * konfig.AMPEL_ROT)} % (obere 80 %)",
-                            f"höchstens {_p(max(z.hi80 for z in risk) / kap)}", 1, "krit",
-                            "Monate, deren obere 80 %-Grenze die Schwelle „kritisch“ erreicht oder die Kapazität übersteigt."))
+            kpis.append(Kpi("risiko", "Monate an der Warnschwelle", str(len(risk)), f"von {len(kuenftig)} Monaten",
+                            f"zuerst {ak.monat_text(risk[0].monat)} · obere 80 %-Grenze ≥ {round(100 * konfig.AMPEL_ROT)} %"
+                            + fort, f"höchstens {_p(max(z.hi80 for z in risk) / kap)} der Kapazität", 1, "krit", erklaerung))
         else:
-            kpis.append(Kpi("risiko", "Kapazitätsrisiko", "0", f"von {len(kuenftig)} Monaten",
-                            f"nächste {len(kuenftig)} Monate unter {round(100 * konfig.AMPEL_ROT)} % (obere 80 %)",
+            kpis.append(Kpi("risiko", "Monate an der Warnschwelle", "0", f"von {len(kuenftig)} Monaten",
+                            f"obere 80 %-Grenze bleibt unter {round(100 * konfig.AMPEL_ROT)} %" + fort,
                             f"{len(knapp_m)} Monat(e) knapp (≥ {round(100 * konfig.AMPEL_GELB)} %)" if knapp_m else "durchgehend Reserve",
-                            0, "warn" if knapp_m else "ok",
-                            "Kein Monat erreicht mit der oberen 80 %-Grenze die Schwelle „kritisch“."))
+                            0, "warn" if knapp_m else "ok", erklaerung))
 
     # 5 Prognosegüte (Backtest)
     if pg.mae_1m is not None or pg.abdeckung80 is not None:
         kpis.append(Kpi("guete", "Prognosegüte", f"± {_z1(pg.mae_1m)}" if pg.mae_1m is not None else "–", "Plätze Ø-Fehler",
                         "Backtest, 1 Monat voraus" + (f" · bis 12 Monate: ± {_z1(pg.mae)}" if pg.mae is not None else ""),
-                        f"{_p(pg.abdeckung80)} der Fälle im 80 %-Band (Soll 80 %)" if pg.abdeckung80 is not None else "",
-                        0, ("ok" if pg.abdeckung80 >= .7 else "warn") if pg.abdeckung80 is not None else "neutral",
-                        "Blind gerechnete Prognosen der Vergangenheit mit den damaligen Daten, verglichen mit dem Ist."))
+                        f"{_p(pg.abdeckung80)} im 80 %-Band – Band aus denselben Fällen, daher kein unabhängiger Test"
+                        if pg.abdeckung80 is not None else "", 0, "neutral",
+                        "Blind gerechnete Prognosen der Vergangenheit mit den damaligen Daten, verglichen mit dem Ist. "
+                        "Das 80 %-Band wird aus genau diesen Fehlern bestimmt – die Trefferquote liegt deshalb fast "
+                        "zwangsläufig bei 80 % und ist kein Gütesiegel. Geprüft sind Abstände bis 12 Monate."))
     else:
         kpis.append(Kpi("guete", "Prognosegüte", "–", "", "kein Backtest vorhanden", "", 0, "neutral"))
 
@@ -275,6 +282,7 @@ class SzVergleich:
 
 
 def szenario_vergleich(pg: ak.Prognose, kap: int, offset: float, horizont: int = 12) -> list[SzVergleich]:
+    """Echte Werte gegen Szenario – über den gewählten Zeitraum (``horizont``)."""
     a = [z for z in ak.szenario(pg, pg.kapazitaet or 0, 0) if z.art != "ist"][:horizont]
     b = [z for z in ak.szenario(pg, kap, offset) if z.art != "ist"][:horizont]
     if not a or not b:
@@ -291,7 +299,7 @@ def szenario_vergleich(pg: ak.Prognose, kap: int, offset: float, horizont: int =
                     f"{_z(sb.erwartet)} · {ak.monat_text(sb.monat)}", sb.erwartet > sa.erwartet),
         SzVergleich("Kleinste Reserve", f"{_z(ra.reserve)} · {ak.monat_text(ra.monat)}" if k0 else "–",
                     f"{_z(rb.reserve)} · {ak.monat_text(rb.monat)}" if kap else "–", (rb.reserve or 0) < (ra.reserve or 0)),
-        SzVergleich("Monate mit Kapazitätsrisiko", f"{ea} von {len(a)}", f"{eb} von {len(b)}", eb > ea),
+        SzVergleich("Monate an der Warnschwelle", f"{ea} von {len(a)}", f"{eb} von {len(b)}", eb > ea),
     ]
 
 
@@ -336,22 +344,23 @@ def vorjahr(pg: ak.Prognose, zurueck: int = 6, vor: int = 6) -> Vorjahr:
 # ---------------------------------------------------------------------------------------
 
 def summary_html(ex: Executive, pg: ak.Prognose, standort: str, brutto: bool, kap: int, offset: float,
-                 vergleich: list[StandortZeile] | None = None) -> str:
+                 vergleich: list[StandortZeile] | None = None, horizont: int = 12) -> str:
     from html import escape
 
-    zs = [z for z in ak.szenario(pg, kap, offset) if z.art != "ist"][:12]
+    zs = [z for z in ak.szenario(pg, kap, offset) if z.art != "ist"][:horizont]
     kp = "".join(f"<div class='k'><div class='t'>{escape(k.titel)}</div><div class='w'>{escape(k.wert)} "
                  f"<span>{escape(k.einheit)}</span></div><div class='b'>{escape(k.bezug)}</div>"
                  f"<div class='v'>{escape(k.vergleich)}</div></div>" for k in ex.kpis)
     er = "".join(f"<li><b>{escape(a)}:</b> {escape(t)}</li>" for a, t in ex.erkenntnisse
                  if "oben einen Standort" not in t)          # Bedienhinweis gehört nicht ins Dokument
-    rows = "".join(f"<tr><td>{ak.monat_text(z.monat)}{' (laufend)' if z.art == 'laufend' else ''}</td>"
+    rows = "".join(f"<tr class='{'fort' if i >= 12 else ''}'><td>{ak.monat_text(z.monat)}{' (laufend)' if z.art == 'laufend' else ''}"
+                   f"{' ¹' if i >= 12 else ''}</td>"
                    f"<td>{_z(z.erwartet)}</td><td>{_z(z.lo80)}–{_z(z.hi80)}</td><td>{_z(z.lo95)}–{_z(z.hi95)}</td>"
-                   f"<td>{_z(z.gesichert)}</td><td>{_z(z.reserve)}</td><td>{escape(z.text)}</td></tr>" for z in zs)
+                   f"<td>{_z(z.gesichert)}</td><td>{_z(z.reserve)}</td><td>{escape(z.text)}</td></tr>" for i, z in enumerate(zs))
     sv = ""
     if vergleich:
         sv = ("<h2>Standorte</h2><table><tr><th>Standort</th><th>Belegt</th><th>Kapazität</th><th>Auslastung</th>"
-              "<th>Spitze 12 Monate (erwartet)</th><th>Ø-Fehler 1 Monat</th></tr>"
+              f"<th>Spitze {horizont} Monate (erwartet)</th><th>Ø-Fehler 1 Monat</th></tr>"
               + "".join(f"<tr><td>{escape(v.name)}</td><td>{_z(v.belegt)}</td><td>{_z(v.kapazitaet)}</td><td>{_p(v.auslastung)}</td>"
                         f"<td>{_z(v.spitze_erwartet)} ({ak.monat_text(v.spitze_monat) if v.spitze_monat else '–'})</td>"
                         f"<td>± {_z1(v.mae_1m)}</td></tr>" for v in vergleich) + "</table>")
@@ -364,15 +373,16 @@ h2{{font-size:14px;margin:22px 0 6px}}.u{{color:#5b6880;margin:2px 0 16px}}.ks{{
 .k{{border:1px solid #dde3ec;border-radius:8px;padding:10px}}.t{{color:#5b6880;font-size:11px}}.w{{font-size:20px;font-weight:600}}
 .w span{{font-size:11px;color:#5b6880;font-weight:400}}.b,.v{{font-size:11px;color:#3b4a63}}ul{{padding-left:18px;line-height:1.55}}
 table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}th,td{{text-align:left;padding:4px 8px;border-bottom:1px solid #dde3ec;font-size:12px}}
-th{{color:#5b6880;font-weight:600}}.sz{{background:#fffaeb;border:1px solid #fedf89;padding:6px 10px;border-radius:6px}}
+th{{color:#5b6880;font-weight:600}}tr.fort td{{color:#5b6880;font-style:italic}}.sz{{background:#fffaeb;border:1px solid #fedf89;padding:6px 10px;border-radius:6px}}
 @media print{{body{{margin:12mm}}}}</style>
 <h1>{escape(titel)}</h1><p class="u">Ist bis {ex.stichtag:%d.%m.%Y}, danach Prognose · Kapazität {_z(kap)} Plätze ·
 Modell: {escape(pg.modell or '–')} · erstellt {date.today():%d.%m.%Y}</p>{szen}
 <div class="ks">{kp}</div><h2>Erkenntnisse</h2><ul>{er}</ul>
-<h2>Nächste 12 Monate</h2><table><tr><th>Monat</th><th>Erwartet</th><th>80 %-Band</th><th>95 %-Band</th><th>Gebucht</th>
+<h2>Nächste {len(zs)} Monate</h2><table><tr><th>Monat</th><th>Erwartet</th><th>80 %-Band</th><th>95 %-Band</th><th>Gebucht</th>
 <th>Reserve</th><th>Einschätzung</th></tr>{rows}</table>{sv}
 <p class="u" style="margin-top:14px">Erwartet = Ø belegte Plätze (Modell + Verträge, nie unter dem gebuchten Bestand) · Gebucht =
-bereits bekannter Bestand · Reserve = Kapazität − Erwartet · Einschätzung nach oberer 80 %-Grenze (≥ 70 % knapp, ≥ 85 % kritisch).</p>
+bereits bekannter Bestand · Reserve = Kapazität − Erwartet · Einschätzung nach oberer 80 %-Grenze (≥ 70 % knapp, ≥ 85 % kritisch) – eine
+Schwellenprüfung, keine Wahrscheinlichkeit.{' ¹ Ab Monat 13 rechnerisch fortgeschrieben: Der Backtest prüft nur bis 12 Monate.' if len(zs) > 12 else ''}</p>
 </html>"""
 
 

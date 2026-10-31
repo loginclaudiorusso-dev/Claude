@@ -78,7 +78,7 @@ def test_szenario_vergleich_ausgang_gegen_szenario():
     assert all(z.ausgang == z.szenario and not z.schlechter for z in gleich)
     eng = {z.titel: z for z in an.szenario_vergleich(pg, 110, 10)}
     assert eng["Kapazität"].schlechter and eng["Auslastungsannahme"].szenario == "+10 %"
-    assert eng["Monate mit Kapazitätsrisiko"].schlechter
+    assert eng["Monate an der Warnschwelle"].schlechter          # 0.39: ehrlicher Name (Schwellenprüfung)
 
 
 def test_vorjahr_ordnet_kalendermonate_zu_und_zeigt_luecken():

@@ -216,7 +216,12 @@ def _prognose(ds, standort: str, brutto: bool, zurueck: int, vor: int) -> Progno
     for m in monate:
         mp = alle.get(m)
         if mp:
-            zeilen.append(PZeile(m, mp["art"], _f(mp["erwartet"]), _f(mp["lo80"]), _f(mp["hi80"]), _f(mp["lo95"]),
+            # 0.39: Die untere Bandgrenze fällt nie unter den bereits gebuchten Bestand (der steht fest) – das Modell
+            # im Hauptprogramm schneidet sie nur bei 0 ab.
+            boden = mp["gesichert"] if (mp["gesichert"] is not None and mp["art"] != "ist") else None
+            lo80 = max(mp["lo80"], boden) if boden is not None else mp["lo80"]
+            lo95 = max(mp["lo95"], boden) if boden is not None else mp["lo95"]
+            zeilen.append(PZeile(m, mp["art"], _f(mp["erwartet"]), _f(lo80), _f(mp["hi80"]), _f(lo95),
                                  _f(mp["hi95"]), _f(mp["gesichert"]) if mp["gesichert"] is not None else None,
                                  _f(mp["ist"]) if mp["ist"] is not None else None, _f(mp["vertraege"])))
     m = ds.prognose.modelle.get(standort)

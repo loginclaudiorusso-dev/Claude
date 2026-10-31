@@ -240,6 +240,7 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     o["tooltip"][":formatter"] = _formatter(zs, kap, t, zs_sz if aktiv else None, kap_sz)
     li = max((i for i, z in enumerate(zs) if z.art == "ist"), default=None)
     leer_ = [None] * len(zs)
+    fort_ab = (li + 1 if li is not None else 0) + 12      # ab hier nur fortgeschrieben (Backtest prüft 12 Monate)
 
     def prog(feld):
         w = [None if z.art == "ist" else round(getattr(z, feld), 1) for z in zs]
@@ -282,6 +283,12 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
                                  "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
                                            "formatter": "Prognose →"},
                                  "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
+    if fort_ab < len(zs) and zeig(2):
+        reihen.append({"name": "", "type": "line", "data": leer_, "silent": True, "showSymbol": False,
+                       "markArea": {"silent": True, "itemStyle": {"color": _rgba(t["text3"], .07)},
+                                    "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
+                                              "formatter": "ab Monat 13: nur fortgeschrieben, nicht geprüft"},
+                                    "data": [[{"xAxis": labels[fort_ab]}, {"xAxis": labels[-1]}]]}})
     if li is not None and li + 1 < len(zs) and zeig(2):  # Stichtag-Marker trennt Vergangenheit und Zukunft
         reihen[4]["markLine"] = {"silent": True, "symbol": "none", "animationDelay": 1400, "animationDuration": 500,
                                  "lineStyle": {"color": t["text2"], "type": [2, 3], "width": 1.2},
@@ -559,7 +566,7 @@ def _daten_rechnen(ds, stand, standort: str, brutto: bool, horizont: int, uwt: b
         pg = type(voll)(**{**voll.__dict__, "zeilen": voll.zeilen[a_:]})
     d = {"pg": pg, "pg_lang": voll, "stichtag": ds.stichtag, "ds": ds, "gruppen": g,
          "gruppen_da": standort in an.GRUPPEN_STANDORTE,
-         "sv": an.standort_vergleich(ds, brutto, min(12, horizont), gruppen_fn=gruppen_fuer)}
+         "sv": an.standort_vergleich(ds, brutto, horizont, gruppen_fn=gruppen_fuer)}
     if pg and g:                            # immer: „Nach Status“ schaltet ohne Neuladen um
         d["sm"] = an.status_monate(pg, g)
     if pg and g and standort == GOSLAR:
@@ -626,7 +633,7 @@ def zeichnen(a) -> None:
         return a.daten.get("kontingent") or an.kontingent_vorschlag(sm, kap_echt)
 
     def ex():
-        return an.executive(ds, a.aw_standort, a.aw_brutto, pg, zustand["kap"], zustand["offset"], min(12, a.aw_horizont),
+        return an.executive(ds, a.aw_standort, a.aw_brutto, pg, zustand["kap"], zustand["offset"], a.aw_horizont,
                             a.daten.get("gruppen"))
 
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
@@ -1258,10 +1265,12 @@ def _kpi_karte(k: an.Kpi) -> None:
             with ui.element("div").classes("m-xk-vgl"):
                 ui.icon({1: "north_east", -1: "south_east"}.get(k.richtung, "east"))
                 ui.label(k.vergleich)
+        if k.hinweis:                                  # Erklärung sichtbar – nicht nur beim Darüberfahren
+            ui.label(k.hinweis).classes("m-xk-hinweis")
 
 
 def _sz_vergleich(pg, zustand) -> None:
-    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"])
+    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"], a.aw_horizont)
     with ui.element("div").classes("m-xs-tab"):
         for t in ("", "Ausgang (echt)", "Szenario"):
             ui.label(t).classes("m-zweite")
@@ -1333,11 +1342,15 @@ def _tabelle(a, box, pg, zustand) -> None:
             for s in spalten:
                 attr(ui.label(TAB_SPALTEN[s][0]), title=TAB_SPALTEN[s][1])
         stufe = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit"}
-        for z in zs:
-            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+        for i, z in enumerate(zs):
+            with ui.element("div").classes("m-raster m-zeile" + (" m-fortgeschrieben" if i >= 12 else "")).style(
+                    f"grid-template-columns:{sp}"):
                 for s in spalten:
                     if s == "monat":
-                        ui.label(ak.monat_text(z.monat) + (" · laufend" if z.art == "laufend" else "")).classes("m-name")
+                        m_ = ui.label(ak.monat_text(z.monat) + (" · laufend" if z.art == "laufend" else "")
+                                      + (" · fortgeschrieben" if i >= 12 else "")).classes("m-name")
+                        if i >= 12:
+                            attr(m_, title="Der Backtest prüft nur bis 12 Monate – dieser Monat ist rechnerisch fortgeschrieben.")
                     elif s == "erwartet":
                         ui.label(_z(z.erwartet)).classes("m-mono")
                     elif s == "b80":
@@ -1430,7 +1443,8 @@ def _export_menue(a, pg, zustand, box, ex) -> None:
                 rueck=False)
 
     def summary():
-        html = an.summary_html(ex(), pg, a.aw_standort, a.aw_brutto, zustand["kap"], zustand["offset"], a.daten["sv"])
+        html = an.summary_html(ex(), pg, a.aw_standort, a.aw_brutto, zustand["kap"], zustand["offset"], a.daten["sv"],
+                               a.aw_horizont)
         seiten.html_drucken(a, html, f"Executive_Summary_{konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)}")
 
     with knopf("Export", None, "", "ios_share"):
