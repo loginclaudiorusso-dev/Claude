@@ -1136,3 +1136,28 @@ button.m-rv-monat { cursor: pointer; } button.m-rv-monat:hover { border-color: v
 .m-rv-monat.eng { border-left-color: var(--orange); } .m-rv-monat.gesperrt { opacity: .55; border-left-style: dashed; }
 .m-rv-monat.belegt { border-left-color: var(--akzent); } .m-rv-monat.bester { box-shadow: 0 0 0 1px var(--akzent) inset; }
 """
+CSS += """
+/* 0.41: Steuerung – Jahresplan als Gantt (Etagen × Monate) */
+.m-zeile-flex { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.m-gantt { display: grid; gap: 4px; margin-top: 8px; }
+.m-gantt-zeile { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 10px; align-items: center; min-height: 34px; }
+.m-gantt.kompakt .m-gantt-zeile { grid-template-columns: minmax(120px, 160px) 1fr; min-height: 28px; }
+.m-gantt-titel { display: grid; line-height: 1.2; min-width: 0; }
+.m-gantt-titel .m-name, .m-gantt-titel .m-zweite { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-gantt-spur { position: relative; height: 26px; border-radius: var(--r);
+  background: repeating-linear-gradient(90deg, var(--fl2) 0, var(--fl2) calc(100% / 12 - 1px), var(--rand) calc(100% / 12 - 1px), var(--rand) calc(100% / 12)); }
+.m-gantt-kopf .m-gantt-spur { background: none; height: 18px; }
+.m-gantt-kopf > .q-label, .m-gantt-kopf > div:first-child { color: var(--text3); font-size: 11.5px; }
+.m-gantt-monat { position: absolute; top: 0; width: calc(100% / 12); text-align: center; color: var(--text3); font-size: 11.5px; }
+.m-gantt-vorlauf { position: absolute; top: 5px; bottom: 5px; border-radius: 4px;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--akzent) 22%, transparent) 0 4px, transparent 4px 8px); }
+.m-gantt-bau { position: absolute; top: 2px; bottom: 2px; border-radius: 5px; font: inherit; font-size: 11px; cursor: pointer;
+  color: var(--akzent-text); background: var(--akzent); border: 1px solid var(--akzent); padding: 0 6px; overflow: hidden;
+  white-space: nowrap; text-align: left; min-width: 10px; }
+.m-gantt-bau.vorschlag { background: color-mix(in srgb, var(--akzent) 14%, transparent); color: var(--text); border: 1.5px dashed var(--akzent); }
+.m-gantt-bau.eng { border-color: var(--orange); }
+.m-gantt-bau:hover, .m-gantt-bau:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.m-gantt-heute { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--rot); opacity: .7; }
+.m-gantt-legende { display: flex; flex-wrap: wrap; gap: 14px; color: var(--text3); font-size: 11.5px; margin-top: 6px; }
+.m-gantt-legende .eng { color: var(--orange); }
+"""

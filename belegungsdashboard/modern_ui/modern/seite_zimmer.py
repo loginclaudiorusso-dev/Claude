@@ -12,32 +12,22 @@ from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
-             "maengel": "Defekte Zimmer", "aenderungen": "Änderungen", "renovierung": "Renovierung"}
+             "maengel": "Defekte Zimmer", "aenderungen": "Änderungen"}
+# 0.41: „Renovierung“ ist nach Steuerung → Renovierung umgezogen (strategisch, selten genutzt).
+
+
+def _ansicht(a) -> str:
+    v = a.ansicht_von("zimmer", "uebersicht")
+    return v if v in ANSICHTEN else "uebersicht"
 
 
 def daten(a) -> None:
-    ansicht = a.ansicht_von("zimmer", "uebersicht")
+    ansicht = _ansicht(a)
     if ansicht == "uebersicht":
         a.daten = {"haeuser": zk.uebersicht(a.stand, a.zu_tag), "np": None}
         return
     if ansicht == "maengel":
         a.daten = zk.maengel_liste(a.stand, a.heute)
-        return
-    if ansicht == "renovierung":
-        from . import renovierung_kern as rk
-
-        p = rk.parameter()
-        if getattr(a, "rv_jahr", None) is None:
-            a.rv_jahr = a.heute.year + 1 if a.heute.month >= 10 else a.heute.year
-        fl = rk.flure(a.stand, a.heute, p)
-        beste = {}
-        for f in fl:
-            fs = rk.monatsfenster(a.stand, f, a.rv_jahr, p)
-            beste[f.schluessel] = (fs, rk.bester_monat(fs, a.heute))
-        if getattr(a, "rv_flur", None) not in beste:
-            a.rv_flur = fl[0].schluessel if fl else None
-        a.daten = {"p": p, "flure": fl, "beste": beste, "pakete": rk.pakete(fl, p),
-                   "jahr": rk.jahresuebersicht(a.stand, a.rv_jahr, p), "plan": rk.plan()}
         return
     if ansicht == "aenderungen":
         from . import aenderungen_kern as ak
@@ -60,7 +50,7 @@ def daten(a) -> None:
 
 
 def zeichnen(a) -> None:
-    ansicht = a.ansicht_von("zimmer", "uebersicht")
+    ansicht = _ansicht(a)
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v))
     if ansicht == "uebersicht":
@@ -69,8 +59,6 @@ def zeichnen(a) -> None:
         _maengel(a)
     elif ansicht == "aenderungen":
         _aenderungen(a)
-    elif ansicht == "renovierung":
-        _renovierung(a)
     elif ansicht == "zeitstrahl":
         seiten.zs_zeichnen(a)
         _klickbar(a)
@@ -78,211 +66,6 @@ def zeichnen(a) -> None:
         _karten(a)
     else:
         _liste(a)
-
-
-def _euro(x: float) -> str:
-    return f"{x:,.0f} €".replace(",", ".")
-
-
-def _kosten_text(k: tuple) -> str:
-    return _euro(k[0]) if k[0] == k[1] else f"{_euro(k[0])} – {_euro(k[1])}"
-
-
-def _renovierung(a) -> None:
-    """Welcher Flur als Nächstes? Und wann im Jahr? – unverbindliche Planung, nichts wird gesperrt."""
-    from . import renovierung_kern as rk
-
-    d = a.daten
-    p, fl, jahr = d["p"], d["flure"], a.rv_jahr
-    with a.leiste:
-        segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, jahr,
-                 lambda j: a.setzen(rv_jahr=j, nur_seite=True), sofort=True)
-        ui.label(f"Budget {_euro(p['budget'])} je Jahr · Dauer {p['dauer_tage']} Tage · Belegungsstopp {p['vorlauf_tage']} Tage "
-                 f"vorher · Häuser {', '.join(p['haeuser'])}").classes("m-kpi")
-        knopf("Annahmen …", lambda: _rv_annahmen(a), "", "tune").style("margin-left:auto")
-
-        async def export():
-            try:
-                text, pfad = await run.io_bound(rk.excel_speichern, a.stand, jahr)
-            except Exception as exc:             # noqa: BLE001
-                a.toast(f"Nicht gespeichert: {exc}", fehler=True)
-                return
-            a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text}: {pfad}", rueck=False)
-        knopf("Excel", export, "", "table_view")
-    with a.inhalt:
-        with ui.element("div").classes("m-rv"):
-            ui.label("Unverbindliche Planung: Hier wird nichts gesperrt, niemand umgezogen und keine Buchung verschoben. "
-                     "Bewertet werden nur vorhandene Daten – fehlt etwas, steht es als Lücke da.").classes("m-ptext")
-            # Empfehlung
-            with ui.element("section").classes("m-block m-breit"):
-                ui.label("Welcher Flur als Nächstes?").classes("m-btitel")
-                ui.label("Bedarf = Punkte je Zimmer aus Mängeln (Stufe 3/2/1, Renovierung nötig, länger als 90 Tage offen); "
-                         f"in den letzten {rk.FRISCH_JAHRE} Jahren renovierte Zimmer senken ihn. Machbarkeit = bester Monat "
-                         f"{jahr} nach bekannten Buchungen.").classes("m-zweite").style("white-space:normal")
-                sp = "40px minmax(150px, 1fr) 90px 72px minmax(210px, 2fr) minmax(170px, 1.2fr) 175px minmax(160px, 1fr)"
-                if fl and max(f.bedarf for f in fl) <= 0:
-                    ui.label("Für diese Flure sind keine offenen Mängel erfasst – die Reihenfolge ist deshalb noch keine "
-                             "Empfehlung. Mängel und Renovierungsdaten pflegen (Zimmerkarte, Defekte Zimmer, Renovierungsliste), "
-                             "dann ordnet sich die Liste nach Bedarf.").classes("m-pille warn").style("white-space:normal")
-                with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-                    for t in ("", "Flur", "Zimmer", "Bedarf", "Warum", "Datenlage · Besonderheiten", "Kosten (Annahme)",
-                              f"Bester Monat {jahr}"):
-                        ui.label(t)
-                for i, f in enumerate(fl, 1):
-                    fs, best = d["beste"][f.schluessel]
-                    z = ui.element("div").classes("m-raster m-zeile m-rv-zeile" + (" an" if f.schluessel == a.rv_flur else "")).style(
-                        f"grid-template-columns:{sp}")
-                    with z:
-                        ui.label(str(i)).classes("m-mono")
-                        ui.label(f.text).classes("m-name")
-                        ui.label(f"{len(f.zimmer)} · {f.betten} B.").classes("m-mono")
-                        ui.label(f"{f.bedarf:g}").classes("m-mono" + (" m-krit" if f.bedarf >= 10 else " m-warn" if f.bedarf >= 4 else ""))
-                        attr(ui.label("; ".join(t for _p, t in f.gruende) or "keine offenen Mängel").classes("m-zweite"),
-                             title="\n".join(f"{p_:+g} P. – {t}" for p_, t in f.gruende))
-                        attr(ui.label(" · ".join(f.luecken + f.sonder) or "–").classes("m-zweite"),
-                             title="\n".join(f.luecken + f.sonder))
-                        ui.label(_kosten_text(f.kosten)).classes("m-mono")
-                        ui.label(f"{rk.MONATE[best.start.month - 1]}: " + (f"{best.betroffen} betroffen" if best.betroffen else "frei")
-                                 + (f", {best.mieter} Mieter" if best.mieter else "") if best else "kein Monat möglich").classes(
-                            "m-zweite")
-                    z.on("click", lambda f=f: a.setzen(rv_flur=f.schluessel, laden=False))
-            with ui.element("div").classes("m-zwei"):
-                # Budget-Pakete
-                with ui.element("section").classes("m-block"):
-                    ui.label(f"Was passt ins Budget ({_euro(p['budget'])})?").classes("m-btitel")
-                    ui.label("Je Haus die bedürftigsten Flure, solange die obere Kostenschätzung ins Budget passt.").classes(
-                        "m-zweite").style("white-space:normal")
-                    for pk in d["pakete"]:
-                        with ui.element("div").classes("m-rv-paket"):
-                            ui.label(pk.titel).classes("m-name")
-                            ui.label(", ".join(f.text.replace("Haus ", "") for f in pk.flure)).classes("m-zweite")
-                            ui.label(f"{pk.zimmer} Zimmer · {pk.betten} Betten · {_kosten_text(pk.kosten)} · Bedarf {pk.bedarf:g}").classes(
-                                "m-mono")
-                # Jahresplan
-                with ui.element("section").classes("m-block"):
-                    ui.label(f"Jahresplan {jahr} (vorgemerkt, unverbindlich)").classes("m-btitel")
-                    summe = [sum(m["zimmer"] for m in d["jahr"]), sum(m["betten"] for m in d["jahr"]),
-                             sum(m["kosten"][0] for m in d["jahr"]), sum(m["kosten"][1] for m in d["jahr"])]
-                    with ui.element("div").classes("m-rv-jahr"):
-                        for m in d["jahr"]:
-                            with ui.element("div").classes("m-rv-monat" + (" belegt" if m["flure"] else "")
-                                                           + (" gesperrt" if m["monat"] in (p.get("gesperrt") or []) else "")):
-                                ui.label(rk.MONATE[m["monat"] - 1]).classes("m-zweite")
-                                ui.label(f"{len(m['flure'])} Flur" + ("e" if len(m["flure"]) != 1 else "")).classes("m-name")
-                                ui.label(f"{m['zimmer']} Zi. · {m['betten']} B.").classes("m-zweite")
-                    ui.label(f"Jahr {jahr}: {summe[0]} Zimmer · {summe[1]} Betten · Kosten {_kosten_text((summe[2], summe[3]))}"
-                             + (f" – über Budget!" if p["budget"] and summe[3] > p["budget"] else "")).classes(
-                        "m-ptext" + (" m-krit" if p["budget"] and summe[3] > p["budget"] else ""))
-                    for e in [x for x in d["plan"] if x["start"][:4] == str(jahr)]:
-                        with ui.element("div").classes("m-liste-zeile"):
-                            ui.label(rk.flur_text_schluessel(e["flur"])).classes("m-name")
-                            ui.label(f"{date.fromisoformat(e['start']):%d.%m.} – {date.fromisoformat(e['ende']):%d.%m.%Y}").classes("m-mono")
-                            knopf("", lambda e=e: a.aendern(rk.entfernen_schritt, e["flur"], e["start"]), "leise", "delete",
-                                  "Vormerkung entfernen")
-            # Monate für den gewählten Flur
-            f = next((x for x in fl if x.schluessel == a.rv_flur), None)
-            if f:
-                fs, best = d["beste"][f.schluessel]
-                with ui.element("section").classes("m-block m-breit"):
-                    ui.label(f"{f.text}: Monate {jahr}").classes("m-btitel")
-                    ui.label(f"Bauzeitraum je ab Monatsanfang, {p['dauer_tage']} Tage. Betroffen = wohnt im Bauzeitraum (Umzug) "
-                             "oder reist darin an (umleiten) – nur bekannte Buchungen. „Frei im Haus“ = Zimmer im selben Haus, "
-                             "die im ganzen Zeitraum frei sind. Klick: Einzelheiten und vormerken.").classes("m-zweite").style(
-                        "white-space:normal")
-                    with ui.element("div").classes("m-rv-jahr"):
-                        for fe in fs:
-                            k = ui.element("button").classes(f"m-rv-monat {fe.stufe}" + (" bester" if best is fe else ""))
-                            with k:
-                                ui.label(rk.MONATE[fe.start.month - 1] + (" ★" if best is fe else "")).classes("m-zweite")
-                                ui.label({"gesperrt": "gesperrt", "frei": "frei"}.get(fe.stufe, f"{fe.betroffen} betroffen")).classes(
-                                    "m-name")
-                                ui.label(f"Stopp ab {fe.stopp_ab:%d.%m.}" + (f" · {fe.mieter} Mieter" if fe.mieter else "")).classes(
-                                    "m-zweite")
-                                ui.label(f"{fe.frei_im_haus} frei im Haus").classes("m-zweite")
-                            k.on("click", lambda fe=fe, f=f: _rv_fenster(a, f, fe))
-
-
-def _rv_fenster(a, f, fe) -> None:
-    from . import renovierung_kern as rk
-
-    def bauen():
-        ui.label(f"{f.text} · {fe.start:%d.%m.} – {fe.ende:%d.%m.%Y}").classes("m-name")
-        ui.label(f"Belegungsstopp ab {fe.stopp_ab:%d.%m.%Y}: ab dann niemanden mehr in diesen Flur planen. "
-                 f"{fe.frei_im_haus} Zimmer im selben Haus sind im ganzen Bauzeitraum frei.").classes("m-ptext")
-        if fe.gesperrt:
-            ui.label("Dieser Monat ist in den Annahmen gesperrt.").classes("m-pille warn")
-        for titel, liste, spalte in (("Wohnt im Bauzeitraum – Umzug nötig", fe.umzug, "bis"),
-                                     ("Reist im Bauzeitraum an – umleiten", fe.umleiten, "ab"),
-                                     ("Zwischen Stopp und Baubeginn neu im Flur – besser woanders hin", fe.nach_stopp, "ab")):
-            if not liste:
-                continue
-            ui.label(f"{titel} ({len(liste)})").classes("m-ktitel")
-            for name, zimmer, tag, gruppe in liste:
-                with ui.element("div").classes("m-liste-zeile"):
-                    ui.label(name).classes("m-name")
-                    ui.label(f"{zimmer} · {gruppe or '–'} · {spalte} {tag:%d.%m.%Y}").classes("m-zweite")
-        if not (fe.umzug or fe.umleiten or fe.nach_stopp):
-            ui.label("Nach den bekannten Buchungen ist niemand betroffen.").classes("m-pille ok")
-        if fe.mieter:
-            ui.label(f"{fe.mieter} Mietverhältnis(se) betroffen – Umzug ist eine Frage des Vertrags.").classes("m-pille warn")
-        ui.label("Vormerken speichert nur diesen Plan-Eintrag (unverbindlich). Es wird nichts gesperrt und niemand "
-                 "umgezogen – Belegungsstopp und Umzüge bitte selbst einplanen.").classes("m-zweite").style("white-space:normal")
-
-        async def merken():
-            if await a.aendern(rk.vormerken_schritt, f.schluessel, fe.start, fe.ende):
-                a.panel_zu()
-        with ui.element("div").classes("m-paktionen"):
-            knopf("Für diesen Zeitraum vormerken", merken, "primaer", "bookmark_add")
-            knopf("Abbrechen", a.panel_zu, "leise")
-
-    a.panel(f"Renovierung {rk.MONATE[fe.start.month - 1]} {fe.start.year}", bauen, breit=True)
-
-
-def _rv_annahmen(a) -> None:
-    from . import renovierung_kern as rk
-
-    p = rk.parameter()
-
-    def bauen():
-        ui.label("Planungsannahmen – nur für Empfehlung und Jahresplan. Kosten erscheinen nur so, wie sie hier stehen.").classes(
-            "m-ptext")
-        felder = {}
-        with ui.element("div").classes("m-kap"):
-            ui.label("Haus").classes("m-zweite")
-            ui.label("Flur (€)").classes("m-zweite")
-            ui.label("je Zimmer von – bis (€)").classes("m-zweite")
-            for h in p["haeuser"]:
-                k = p["kosten"][h]
-                ui.label(f"Haus {h}").classes("m-name")
-                felder[(h, "flur")] = ui.number(value=k["flur"], min=0, step=1000, format="%d").classes("m-feld").props(
-                    "dense outlined dark")
-                with ui.element("div").style("display:flex; gap:6px"):
-                    felder[(h, "zimmer_min")] = ui.number(value=k["zimmer_min"], min=0, step=100, format="%d").classes(
-                        "m-feld").props("dense outlined dark")
-                    felder[(h, "zimmer_max")] = ui.number(value=k["zimmer_max"], min=0, step=100, format="%d").classes(
-                        "m-feld").props("dense outlined dark")
-        budget = ui.number("Budget je Jahr (€)", value=p["budget"], min=0, step=5000, format="%d").classes("m-feld").props(
-            "dense outlined dark")
-        dauer = ui.number("Dauer je Flur (Tage)", value=p["dauer_tage"], min=7, max=180, step=1, format="%d").classes(
-            "m-feld").props("dense outlined dark")
-        vorlauf = ui.number("Belegungsstopp vorher (Tage)", value=p["vorlauf_tage"], min=0, max=365, step=7, format="%d").classes(
-            "m-feld").props("dense outlined dark")
-        gesperrt = ui.select({i + 1: m for i, m in enumerate(rk.MONATE)}, value=list(p.get("gesperrt") or []), multiple=True,
-                             label="Gesperrte Monate (keine Renovierung)").classes("m-feld").props(
-            'dense outlined dark use-chips popup-content-class="m-popup"')
-
-        async def speichern():
-            neu = {**p, "budget": int(budget.value or 0), "dauer_tage": int(dauer.value or 30),
-                   "vorlauf_tage": int(vorlauf.value or 0), "gesperrt": sorted(gesperrt.value or []),
-                   "kosten": {h: {s: int(felder[(h, s)].value or 0) for s in ("flur", "zimmer_min", "zimmer_max")}
-                              for h in p["haeuser"]}}
-            if await a.aendern(rk.parameter_schritt, neu):
-                a.panel_zu()
-        with ui.element("div").classes("m-paktionen"):
-            knopf("Speichern", speichern, "primaer", "check")
-            knopf("Abbrechen", a.panel_zu, "leise")
-
-    a.panel("Renovierung – Annahmen", bauen)
 
 
 def _aenderungen(a) -> None:

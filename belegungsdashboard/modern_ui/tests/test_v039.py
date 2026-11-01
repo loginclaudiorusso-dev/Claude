@@ -79,12 +79,12 @@ def test_flur_bedarf_nachvollziehbar_und_luecken(leer):
     maengel.setzen(f2.zimmer[1].id, "renovierung", True, h)
     fl = rk.flure(zp.laden(), h)
     f2 = next(f for f in fl if f.schluessel == "2|3|")
-    assert fl[0] is f2 and f2.bedarf == round(10 * (3 + 1 + 4) / len(f2.zimmer), 1)
+    assert fl[0] is f2 and f2.bedarf == round(10 * (1.5 + .5 + 4) / len(f2.zimmer), 1)     # 0.41: Mängel schwächer
     assert any("Renovierung nötig" in t for _p, t in f2.gruende) and any("unbewohnbar" in t for _p, t in f2.gruende)
     assert any("ohne Renovierungsvermerk" in l for l in f2.luecken)          # Lücke statt Schätzung
-    assert f2.kosten == (100000, 100000)
+    assert f2.kosten.bau == 100000 and "Haus 2: Möbelpreis je Zimmer fehlt" in f2.kosten.luecken
     f6 = next(f for f in fl if f.haus == "6")
-    assert f6.kosten == (10000 + 3000 * len(f6.zimmer), 10000 + 4000 * len(f6.zimmer))
+    assert f6.kosten.bau == 30000 and f6.kosten.aufbau == 500 * len(f6.zimmer)
     assert any("nur Männer" in s for s in f6.sonder)
 
 
@@ -107,23 +107,21 @@ def test_zeitfenster_umzug_umleiten_stopp(leer):
     assert rk.bester_monat(fs, date(2030, 1, 1)).stufe == "frei"
 
 
-def test_pakete_budget_und_vormerken_mit_rueckgaengig(leer):
+def test_ziel_und_vormerken_mit_rueckgaengig(leer):
     from belegung import zimmerplan as zp
     from modern import kern
     from modern import renovierung_kern as rk
 
     st = zp.laden()
     fl = rk.flure(st, date(2030, 1, 1))
-    pk = {p.titel.split(":")[0]: p for p in rk.pakete(fl)}
-    assert len(pk["Haus 2"].flure) == 1 and pk["Haus 2"].kosten[1] <= 100000
-    assert len(pk["Haus 6"].flure) == 2 and pk["Haus 6"].kosten[1] <= 100000      # 2 Etagen à ~40.000 €
+    aw = rk.ziel_auswahl(fl, rk.parameter(), 2030, 9)
+    assert aw and aw[-1].zimmer >= 9
     assert rk.plan() == []
     rk.vormerken_schritt("2|3|", date(2030, 7, 1), date(2030, 7, 30))
     j = rk.jahresuebersicht(zp.laden(), 2030)
-    assert j[6]["flure"] == ["Haus 2 · 3. OG"] and j[6]["kosten"] == (100000, 100000) and j[5]["zimmer"] == 0
+    assert j[6]["flure"] == ["Haus 2 · 3. OG"] and j[6]["kosten"] > 100000 and j[5]["zimmer"] == 0
     ok, _t = kern.rueckgaengig()
     assert ok and rk.plan() == []
-    rk.parameter_schritt({**rk.parameter(), "budget": 50000, "gesperrt": [7, 8]})
+    rk.parameter_schritt({**rk.parameter(), "gesperrt": [7, 8]})
     p = rk.parameter()
-    assert p["budget"] == 50000 and rk.fenster(st, fl[0], date(2030, 7, 1), p).stufe == "gesperrt"
-    assert not [x for x in rk.pakete(fl, p) if x.titel.startswith("Haus 2")]    # 100.000 € passen nicht in 50.000 €
+    assert rk.fenster(st, fl[0], date(2030, 7, 1), p).stufe == "gesperrt"
