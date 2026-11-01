@@ -446,15 +446,20 @@ def bericht_html(c: dict) -> str:
     budget = p.get("modus") != "ziel"
     t = rk.tsd
     k = v.kosten if v else rk.Kosten(0, jahr)
-    antrag = rk.moebelantrag(v)
+    antrag = c.get("antrag") or rk.moebelantrag(v)
+    bereits = c.get("bereits") or {}
     bau_von, bau_bis = k.spanne_von("bau")
+    bau_ges = k.instandhaltung + bereits.get("bau", 0)
+    bau_von, bau_bis = bau_von + bereits.get("bau", 0), bau_bis + bereits.get("bau", 0)
     geschaetzt = k.geschaetzt
     # --- Seite 1
     massn = "".join(f"<tr><td>{e(z.titel)}</td><td>{z.start:%m/%Y}</td><td class=r>{t(z.kosten.instandhaltung)}</td>"
                     f"<td class=r>{t(z.kosten.investition)}</td></tr>" for z in zeilen) or "<tr><td colspan=4>Keine Maßnahme.</td></tr>"
     bb = p.get("budget_bau")
-    beschluss = (f"Die Geschäftsführung gibt für {jahr} die Renovierung „{e(v.titel if v else '–')}“ frei: "
-                 f"<b>Bau {t(k.instandhaltung)}</b>" + (f" aus dem Baubudget von {t(bb)}" if budget and bb is not None else "")
+    beschluss = (f"Die Geschäftsführung gibt für {jahr} die unten aufgeführten Maßnahmen frei"
+                 + (" (bereits vorgemerkt" + (f" + Vorschlag „{e(v.titel)}“" if v and v.massnahmen else "") + ")"
+                    if bereits.get("anzahl") else f" (Vorschlag „{e(v.titel if v else '–')}“)") + ": "
+                 f"<b>Bau {t(bau_ges)}</b>" + (f" aus dem Baubudget von {t(bb)}" if budget and bb is not None else "")
                  + f" und beantragt <b>Möbel {t(antrag['summe'])}</b> (Spanne {rk.spanne_text(antrag['von'], antrag['bis'])}).")
     a_heute = rk.a_zimmer([f for f in (c.get("fl") or [])]) if c.get("fl") else None
     warum = []
@@ -565,7 +570,7 @@ border: 1px solid #c9a227; padding: 4px 8px; margin: 4px 0; font-weight: 600 }} 
 <div class="kopf">Stand {heute:%d.%m.%Y} · INNternat · unverbindliche Planung · Beträge auf 1.000 € gerundet</div>{band}
 <div class="box"><b>Beschlussvorschlag:</b> {beschluss}</div>{gewaehlt_hinweis}
 <div class="zwei"><div><h2>Beträge {jahr}</h2><table><tr><th>Kostenstelle</th><th class=r>erwartet</th><th class=r>Spanne</th></tr>
-<tr><td>Bau (Maler, Boden, Nebenkosten)</td><td class=r>{t(k.instandhaltung)}</td><td class=r>{rk.spanne_text(bau_von, bau_bis)}</td></tr>
+<tr><td>Bau (Maler, Boden, Nebenkosten)</td><td class=r>{t(bau_ges)}</td><td class=r>{rk.spanne_text(bau_von, bau_bis)}</td></tr>
 <tr><td>Möbel (Antrag)</td><td class=r>{t(antrag['summe'])}</td><td class=r>{rk.spanne_text(antrag['von'], antrag['bis'])}</td></tr>
 <tr><td class=s>davon für die Bau-Maßnahmen / nur Möbel</td><td class=r colspan=2>{t(antrag['bau_mass'])} / {t(antrag['nur_moebel'])}</td></tr></table></div>
 <div><h2>Maßnahmen</h2><table><tr><th>Was</th><th>Ab</th><th class=r>Bau</th><th class=r>Möbel</th></tr>{massn}</table></div></div>

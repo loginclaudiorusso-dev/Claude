@@ -265,3 +265,27 @@ def test_angebot_summe_mit_vielen_leerzeichen_und_fuer_alle_haeuser(leer):
     p = rk.angebot_uebernehmen(rk.parameter(), {**m, "haus": "alle", "datum": ""})
     assert all(p["kosten"][h]["moebel_zimmer"] == 500 for h in p["haeuser"])
     assert all(rk.herkunft(p, h, "moebel_zimmer") == "angebot" for h in p["haeuser"])
+
+
+def test_selbst_gewaehlte_etage_zaehlt_im_antrag_und_in_der_vorlage(leer):
+    """0.45: Eine selbst vorgemerkte ganze Etage verbraucht Baubudget und steht im Möbelantrag und in der Vorlage."""
+    from belegung import zimmerplan as zp
+    from modern import renovierung_kern as rk
+    from modern import seite_steuerung as ss
+    from modern import steuerung_kern as sk
+
+    st = zp.laden()
+    p = _p(rk, budget_bau=200000)
+    f = next(x for x in rk.flure(st, date(2030, 1, 1), p) if x.schluessel == "2|6|")
+    rk.vormerken_schritt(f.schluessel, date(2031, 3, 1), date(2031, 3, 30))
+    z = [x for x in rk.jahresplan(st, 2031, None, p) if x.start.year == 2031]
+    assert len(z) == 1 and z[0].art == "etage" and z[0].zimmer == len(f.zimmer)
+    bereits = {"bau": z[0].kosten.instandhaltung, "moebel": z[0].kosten.investition, "zimmer": z[0].zimmer, "anzahl": 1,
+               "moebel_von": z[0].kosten.spanne_von("moebel")[0], "moebel_bis": z[0].kosten.spanne_von("moebel")[1]}
+    ant = ss._antrag(None, bereits)
+    assert ant["summe"] == pytest.approx(z[0].kosten.investition)
+    html = sk.bericht_html({"standort": "Goslar", "heute": date(2030, 11, 1), "jahr": 2031, "p": p, "fl": [], "kz": [],
+                            "li": sk.Linie(), "guete": None, "varianten": [], "empfehlung": "", "zeilen": z,
+                            "strategien": [], "entscheidungen": [], "luecken": [], "kern": None, "bereits": bereits,
+                            "antrag": ant})
+    assert "bereits vorgemerkt" in html and rk.tsd(z[0].kosten.instandhaltung) in html
