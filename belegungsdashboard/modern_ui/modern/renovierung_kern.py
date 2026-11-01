@@ -321,7 +321,7 @@ def spanne_text(von: float, bis: float) -> str:
 
 # ---- Angebot einlesen ------------------------------------------------------------------------------
 
-# Abstand bis zur Zahl großzügig: PDF-Texte im Layout-Modus haben dort oft Dutzende Leerzeichen („Nettosumme   =   EUR   91.796,52“)
+# Abstand bis zur Zahl großzügig: PDF-Texte im Layout-Modus haben dort oft Dutzende Leerzeichen („Nettosumme   =   EUR   12.345,67“)
 _SUMME = re.compile(r"(?:Nettosumme|Netto-?Summe|Summe\s+netto|Gesamt\s*netto|Nettobetrag|Warenwert\s+o\.?\s*MwSt\.?)"
                     r"[^\d\n]{0,200}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
 _BRUTTO = re.compile(r"(?:Bruttosumme|Brutto-?Summe|Gesamtbetrag|Summe\s+brutto|Gesamt\s*brutto)"
