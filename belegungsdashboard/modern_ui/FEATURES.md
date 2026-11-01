@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.40.1)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.41.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -27,7 +27,6 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - „x von y bezugsfertig“ je Anreisetag mit fehlenden Punkten und Vorbereitungsliste
 
 ## Zimmer
-- Renovierung (Haus 2/6, unverbindlich): Flur-Empfehlung nach Bedarf mit Gründen und Datenlücken, Budget-Pakete, Monate je Flur (Umzüge, Umleitungen, Belegungsstopp, Mieter), Jahresplan mit Kosten, Excel
 - Änderungen je Zeitraum (Zuteilungen, Umzüge/Auszüge, Mängel) mit Excel-Export
 - Übersicht als Kacheln je Haus/Etage, Stichtag wählbar, mehrere Kacheln kombinierbar, Filter nach Mangelart, Status „nicht bezugsfertig“
 - Karten- und Listenansicht mit Filtern (Boden, Renovierung, Merkmale, Personengruppe, Mängel …)
@@ -88,6 +87,17 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Zimmer-Stammdaten, Sicherung und Verlauf
 - Windows-Meldungen (fällige Termine, Reinigung, Facility-Checks), „Mit Windows starten“
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
+
+## Steuerung (Leitung, ganz unten in der Seitenleiste)
+- Rechnet erst beim Öffnen – der Tagesbetrieb bleibt schnell; gilt für Goslar
+- Übersicht: 4 Kennzahlen, Diagramm Ist/Prognose/Spanne/Vorjahr/Kapazität minus Baustellen, Jahresplan, Szenarien, „Zu entscheiden“; Bericht als Druckansicht/PDF
+- Renovierung (Haus 2/6, unverbindlich): Zimmerziel je Jahr mit Zyklus und zwei Rundungsvorschlägen, Kosten aus Angeboten (Bau je Etage, Möbel/Aufbau je Zimmer, Nebenkosten, Puffer, Vorsteuerquote, Preissteigerung), Angebot-PDF einlesen mit Prüfung
+- Jahresplan als Gantt (Belegungsstopp, Bauzeit, Vorschläge gestrichelt), Übernehmen mit Bestätigung, alle Vorschläge auf einmal
+- Ausweichprüfung je Person über alle Häuser; Monate ohne klaren Unterschied als „gleichwertig“
+- Etagen nach Bedarf (Alter seit Renovierung, „Renovierung nötig“, Mängel schwächer) mit Gründen und Datenlücken, Excel
+- Szenarien 1/2/3 Etagen je Jahr: Kosten, Sperr-Zimmermonate, Jahre bis durch, Zyklus
+- Prognosegüte mit getrennter Prüfung, Satz in Plätzen; Buchungsstände monatlich gesammelt
+- Kennzahlen aus vorhandenen Daten, fehlende Daten benannt
 
 ## Übergreifend
 - Laptop-tauglich: unter 1200 px schmale Seitenleiste automatisch, Tabellen scrollen waagerecht, kompaktere Tageszentrale

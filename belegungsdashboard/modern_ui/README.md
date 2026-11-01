@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.40.1
+# Neue Oberfläche (modern_ui) – Version 0.41.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -29,6 +29,7 @@ Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\S
 | **Daten & Import** | Anreiselisten, UWT, Gebäudeplan (prüfen und übernehmen), ZKL mit Abgleich, Zimmer-Pivot, Belegungs-Pivot (auch vom Server), Kapazitäten, Mieten/Anreisen für die Statistik, manuelle Einträge |
 | **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen, **wo steht das?** je Haus) · *Zimmer* (Haus, Suche, **nur ohne Ausstattung**, Ausstattung ändern, kopieren) · ***Übersicht je Haus*** · Inventarliste drucken (alle oder je Haus), **Excel** |
 | **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI mit **Verbindung testen**) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
+| **Steuerung** (Leitung, ganz unten) | *Übersicht* · *Prognose* · *Renovierung* · *Szenarien* · *Kennzahlen* · Bericht drucken/PDF – siehe „neu in 0.41“ |
 
 **Kennzahlen sind Knöpfe** (neu in 0.5): Ein Klick filtert (z. B. Zimmer-Übersicht „frei“, Reinigung „erledigt“,
 defekte Zimmer „dringend“, Anreise „ohne Zimmer“, Mieter „Mail offen“) oder springt an die passende Stelle (auf
@@ -47,6 +48,49 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Steuerung für die Leitung (neu in 0.41)
+
+Für die strategische Planung – selten gebraucht, deshalb **ein einziger Eintrag ganz unten in der Seitenleiste**
+(Gruppe „Leitung“). Die Seite rechnet erst, wenn sie geöffnet wird; Start und Tagesbetrieb merken davon nichts.
+Sie gilt für Goslar (Prognose, Haus 2 und 6). Die Gruppe „Täglich“ heißt jetzt „Betrieb“.
+
+* **Übersicht** (5 Minuten): vier Kennzahlen (höchste Belegung, Monate an der Warnschwelle, Renovierung geplant/Ziel,
+  Kosten mit Bau/Möbel getrennt), ein Diagramm mit Ist, Prognose samt Spanne, **Vorjahr** und der **Kapazität minus
+  Baustellen** (knickt ein, wenn eine Etage gesperrt ist), der Jahresplan, die Szenarien und „Zu entscheiden“.
+  **Bericht drucken / PDF** gibt das als eine Querformat-Seite aus.
+* **Renovierung** (bisher unter Zimmer):
+  * **Zimmerziel statt Budget:** „9 Zimmer je Jahr“ ≙ „jedes Zimmer etwa alle N Jahre“. Weil die Angebote je Etage
+    gelten, werden ganze Etagen nach Bedarf gewählt; geht das Ziel nicht auf, stehen zwei Vorschläge da (knapp
+    darunter, knapp darüber) – mit Kosten. Vorausgewählt ist der, der näher am Ziel liegt.
+  * **Kosten aus Angeboten:** je Haus Bau (Maler/Boden) je Etage, Möbel und Aufbau je Zimmer, Bauzeit; dazu
+    Nebenkosten % (Elektro, Sanitär …), Puffer %, Preissteigerung je Jahr ab Preisstand und eine **Vorsteuerquote**
+    (0 % = Umsatzsteuer ist Kosten, also brutto; mit der Buchhaltung klären). Ausgewiesen getrennt:
+    Bau + Nebenkosten (Instandhaltung) und Möbel + Aufbau (Investition). **„Angebot einlesen (PDF)“** liest die
+    Nettosumme, erkennt Bau oder Möbel, Haus und bei Möbeln die Zimmerzahl – zur Prüfung, gespeichert wird erst nach
+    „Übernehmen“ und nur der Betrag (im Datenordner, nie im Programm). Fehlende Preise stehen als Lücke da.
+  * **Jahresplan als Gantt:** Zeilen = Etagen, schraffiert = Belegungsstopp, Balken = Bauzeit; **Vorschläge
+    gestrichelt**, vorgemerkte ausgefüllt. Klick → Kosten und „Bestätigen und vormerken“; „Alle Vorschläge
+    übernehmen …“ zeigt die Liste und speichert nach Bestätigung (ein Rückgängig).
+  * **Ausweichprüfung:** Für jede Person, die im Bauzeitraum im Flur wohnt oder anreist, wird ein passendes freies
+    Zimmer in **allen** Häusern gesucht – wie beim Zuteilen (Gruppe, „nur Männer“, Gäste-, EMR-, Doppelzimmer).
+    Fehlt eins, wird der Monat orange („eng“) und die Person steht in der Liste.
+  * **Monatswahl ehrlich:** Sagen die Buchungen nichts (z. B. für das übernächste Jahr), hilft die Prognose – aber
+    nur, wenn ihr Abstand größer ist als die halbe Spanne. Sonst heißen die Monate „gleichwertig“ (≈) und der früheste
+    wird vorgeschlagen.
+  * **Bedarf:** über 15 Jahre nicht renoviert (2 P.), „Renovierung nötig“ (4 P.), offene Mängel jetzt schwächer
+    (0,5–1,5 P., sie messen auch das Reparaturtempo), in den letzten 5 Jahren renoviert (−3 P.); dazu Ø Jahre seit
+    Renovierung. Gespeicherte Kostenannahmen von 0.39/0.40 (Flur-Pauschale) werden nicht übernommen – bitte die
+    Angebote einlesen oder eintragen.
+* **Szenarien:** 1 / 2 / 3 Etagen je Jahr – Zimmer, Kosten, Sperr-Zimmermonate, Jahre bis jede Etage dran war, Zyklus.
+* **Prognose:** 12 Monate Ist, 24 Monate Prognose mit Vorjahr und Baustellen-Kapazität. **Güte ehrlich:** Die
+  Rückblick-Monate werden geteilt – die älteren bestimmen die Spanne, die jüngsten 6 prüfen sie. Für die Leitung ein
+  Satz: „lag im Schnitt um ±X Plätze daneben“. **Buchungsstände** werden ab jetzt einmal im Monat festgehalten
+  (Grundlage für ein späteres Pickup-Modell). Die ausführliche Prognose bleibt unter Auswertung.
+* **Kennzahlen** nur aus vorhandenen Daten: verfügbare Betten (ohne defekte und Baustellen), Auslastung darauf,
+  Belegtage je Gruppe, Ausfalltage durch Defekte mit Ø Tagen bis bezugsfertig, Ø Jahre seit Renovierung, Zimmer
+  innerhalb des Zyklus. Was neue Daten bräuchte (Erlöse, Abweisungen, Zustandsnote, Pickup), steht als Lücke da.
+* **Engpässe** bleiben im Tagesbetrieb unter Auswertung → Zimmer & Engpässe.
 
 ## Haus 6 neu aufgeteilt, Flur = Etage (neu in 0.40)
 
@@ -727,4 +771,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1` (jeweils auch als Zip in `Sicherung`).
