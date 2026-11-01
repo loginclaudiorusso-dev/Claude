@@ -321,9 +321,11 @@ def spanne_text(von: float, bis: float) -> str:
 
 # ---- Angebot einlesen ------------------------------------------------------------------------------
 
-_SUMME = re.compile(r"(?:Nettosumme|Summe\s+netto|Netto(?:betrag|summe)?|Warenwert\s+o\.?\s*MwSt\.?|Zwischensumme)"
-                    r"[^\d\n]{0,30}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
-_BRUTTO = re.compile(r"(?:Bruttosumme|Gesamtbetrag|Summe\s+brutto)[^\d\n]{0,30}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
+# Abstand bis zur Zahl großzügig: PDF-Texte im Layout-Modus haben dort oft Dutzende Leerzeichen („Nettosumme   =   EUR   91.796,52“)
+_SUMME = re.compile(r"(?:Nettosumme|Netto-?Summe|Summe\s+netto|Gesamt\s*netto|Nettobetrag|Warenwert\s+o\.?\s*MwSt\.?)"
+                    r"[^\d\n]{0,200}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
+_BRUTTO = re.compile(r"(?:Bruttosumme|Brutto-?Summe|Gesamtbetrag|Summe\s+brutto|Gesamt\s*brutto)"
+                     r"[^\d\n]{0,200}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
 _STUECK = re.compile(r"^\s*(\d{1,3})\s+St(?:ü|ue|u)?ck\b", re.I | re.M)
 _HAUS = re.compile(r"(?:Geb(?:ä|ae)ude|Haus)\s*(\d+(?:\.\d)?)", re.I)
 _POS = re.compile(r"^\s*(\d{1,3})\s+(?:ca\.\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})\s*(m²|m2|qm|lfm|Stk\.?|Stck\.?|Stück|Std\.?|kg)\s+"
@@ -390,6 +392,10 @@ def angebot_lesen(pfad) -> dict:
 
 def angebot_uebernehmen(p: dict, ang: dict) -> dict:
     """Ein bestätigtes Angebot in die Annahmen übernehmen (Bau je Etage + Einheitspreise bzw. Möbel je Zimmer)."""
+    if str(ang.get("haus") or "") == "alle":                  # z. B. Möbel: gleiche Ausstattung in allen Häusern
+        for haus in p["haeuser"]:
+            p = angebot_uebernehmen(p, {**ang, "haus": haus})
+        return p
     neu = {**p, "kosten": {h: dict(v) for h, v in p["kosten"].items()}, "angebote": list(p.get("angebote") or [])}
     h = str(ang.get("haus") or "")
     if h not in neu["kosten"]:

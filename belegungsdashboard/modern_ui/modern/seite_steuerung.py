@@ -529,7 +529,7 @@ def _renovierung(a) -> None:
             if "monate" in d:
                 with ui.expansion(f"Monate {d['monate'][0].text}").classes("m-block m-breit m-rv-exp"):
                     _monate(a, *d["monate"])
-            liste = _annahmen_liste(p)
+            liste = _annahmen_liste(p, fl)
             with ui.expansion(f"Annahmen ({len(liste)})").classes("m-block m-breit m-rv-exp"):
                 for text, hk in liste:
                     with ui.element("div").classes("m-liste-zeile"):
@@ -539,14 +539,16 @@ def _renovierung(a) -> None:
                 knopf("Annahmen & Angebote ändern …", lambda: _annahmen(a), "leise", "tune")
 
 
-def _annahmen_liste(p: dict) -> list[tuple[str, str]]:
+def _annahmen_liste(p: dict, fl: list | None = None) -> list[tuple[str, str]]:
     erg = []
     for h in p["haeuser"]:
         k = p["kosten"][h]
+        groessen = sorted(len(f.zimmer) for f in fl or [] if f.haus == h)
+        n = groessen[len(groessen) // 2] if groessen else 9            # typische Etage des Hauses
         erg.append((f"Haus {h}: Bau je Etage {rk.euro(k.get('bau_etage') or 0)} netto", rk.herkunft(p, h, "bau_etage")))
         erg.append((f"Haus {h}: Möbel je Zimmer {rk.euro(k.get('moebel_zimmer') or 0)} netto, Aufbau "
                     f"{rk.euro(k.get('aufbau_zimmer') or 0)}", rk.herkunft(p, h, "moebel_zimmer")))
-        je, hk, wie = rk.bau_je_einzelzimmer(p, h, 9)
+        je, hk, wie = rk.bau_je_einzelzimmer(p, h, n)
         erg.append((f"Haus {h}: Einzelzimmer-Bau {rk.euro(je)} je Zimmer ({wie})", hk))
         erg.append((f"Haus {h}: Bauzeit einer Etage {k.get('dauer_tage', 30)} Tage", ""))
     erg += [(f"Puffer Bau {p.get('puffer_bau_pct')} %, Möbel {p.get('puffer_moebel_pct')} %", ""),
@@ -989,12 +991,15 @@ def _angebot_pruefen(a, ang: dict) -> None:
     def bauen():
         ui.label(f"Aus „{ang.get('datei', '')}“ erkannt – bitte prüfen. Gespeichert werden nur die Beträge in den Annahmen, "
                  "die Datei selbst nicht.").classes("m-ptext")
-        haus = ui.select({h: f"Haus {h}" for h in p["haeuser"]}, value=ang["haus"] if ang["haus"] in p["haeuser"] else None,
+        haus = ui.select({**{h: f"Haus {h}" for h in p["haeuser"]}, "alle": "für alle Häuser"},
+                         value=ang["haus"] if ang["haus"] in p["haeuser"] else ("alle" if ang["art"] == "moebel" else None),
                          label="Haus").classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
         art = ui.select({"bau": "Bau (Maler/Boden) je Etage", "moebel": "Möbel"}, value=ang["art"], label="Art").classes(
             "m-feld").props('dense outlined dark popup-content-class="m-popup"')
         netto = ui.number("Nettosumme (€)", value=ang["netto"], min=0, step=100, format="%.2f").classes("m-feld").props(
             "dense outlined dark")
+        if not ang["netto"]:
+            ui.label("Die Nettosumme wurde im PDF nicht gefunden – bitte eintragen.").classes("m-pille warn")
         zimmer = ui.number("Für wie viele Zimmer (nur Möbel)", value=ang.get("zimmer") or 0, min=0, step=1,
                            format="%d").classes("m-feld").props("dense outlined dark")
         ein = {}

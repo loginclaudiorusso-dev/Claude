@@ -244,3 +244,24 @@ def test_schaetzanteil_und_spanne_beim_zusammenrechnen(leer):
     s = a.plus(b)
     assert 0 < s.geschaetzt < 1 and s.geschaetzt == pytest.approx((a.ungewiss + b.ungewiss) / s.summe) and a.ungewiss < a.summe
     assert s.spanne[1] - s.summe == pytest.approx(a.u_bau + a.u_moebel + b.u_bau + b.u_moebel)
+
+
+def test_angebot_summe_mit_vielen_leerzeichen_und_fuer_alle_haeuser(leer):
+    """0.44.1: PDF-Text im Layout-Modus – zwischen „Nettosumme“ und Betrag stehen viele Leerzeichen."""
+    from modern import renovierung_kern as rk
+
+    bau = ("Objekt: Musterbau, Gebäude 2, Etage 1\n Eventualpositionen sind nicht im Nettopreis\n"
+           " Summe Seite 1 :" + " " * 90 + "0,00\n"
+           "Nettosumme" + " " * 100 + "=   EUR" + " " * 16 + "12.345,67\n"
+           "19,00% USt" + " " * 100 + "+   EUR(Eigene UStIDNr.: XX)2.345,68\n"
+           "Bruttosumme" + " " * 96 + "=   EUR" + " " * 17 + "14.691,35\n")
+    a = rk.angebot_auswerten(bau)
+    assert a["netto"] == 12345.67 and a["haus"] == "2" and a["art"] == "bau"
+    nur_brutto = "Bruttosumme" + " " * 120 + "= EUR 1.190,00"
+    assert rk.angebot_auswerten(nur_brutto)["netto"] == 1000.0
+    moebel = "   9 Stück   Bettgestell   10,00 €\n" + " " * 60 + "Warenwert o. MwSt." + " " * 40 + "4.500,00 €"
+    m = rk.angebot_auswerten(moebel)
+    assert m["netto"] == 4500.0 and m["zimmer"] == 9
+    p = rk.angebot_uebernehmen(rk.parameter(), {**m, "haus": "alle", "datum": ""})
+    assert all(p["kosten"][h]["moebel_zimmer"] == 500 for h in p["haeuser"])
+    assert all(rk.herkunft(p, h, "moebel_zimmer") == "angebot" for h in p["haeuser"])
