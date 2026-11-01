@@ -1,23 +1,24 @@
-"""Flurweise Renovierung: Welche Etage als Nächstes – wann – was kostet es – wohin mit den Bewohnern?
-(Steuerung → Renovierung; seit 0.41 nicht mehr unter Zimmer.)
+"""Renovierung (Steuerung → Renovierung): Welche Etagen bzw. Zimmer – wann – was kostet es – wohin mit den Bewohnern?
 
-Ein Flur ist hier die ganze Etage (Haus 2 und Haus 6 – Ost und West lassen sich baulich nicht trennen).
+Ein Flur ist die ganze Etage (Haus 2 und Haus 6). Nur Planung: Hier wird nichts gesperrt, niemand umgezogen und keine
+Buchung verschoben. Gespeichert werden nur Annahmen und – nach Bestätigung – Vormerkungen
+(``importe/modern_renovierung.json``, nur im Datenordner, nie im Programm).
 
-Nur Planung: Hier wird nichts gesperrt, niemand umgezogen und keine Buchung verschoben. Gespeichert werden nur die
-Planungsannahmen und – nach Bestätigung – vorgemerkte Renovierungen in einer eigenen Datei
-(``importe/modern_renovierung.json``, liegt nur im Datenordner, nie im Programm). Bewertet werden vorhandene Daten:
+0.44 – Grundsätze:
 
-* **Bedarf** (Zustand) – Jahre seit der letzten Renovierung (wo bekannt), Mängel „Renovierung nötig“, offene Mängel nach
-  Stufe (schwächer gewichtet: sie messen auch, wie schnell repariert wird). Fehlt ein Renovierungsdatum, steht es als
-  **Lücke** da, nicht geschätzt.
-* **Machbarkeit** (je Monat) – wer im Bauzeitraum im Flur wohnt (Umzug) oder anreist (umleiten), ab wann ein
-  Belegungsstopp nötig ist und ob für **jede** betroffene Person ein passendes freies Zimmer in **allen** Häusern da ist
-  (Gruppe, „nur Männer“, Gäste-/EMR-/Doppelzimmer – wie beim Zuteilen). Nur bekannte Buchungen.
-* **Kosten** – aus den Angeboten bzw. Annahmen je Haus: Bau (Maler/Boden) je Etage, Möbel und Aufbau je Zimmer,
-  Nebenkosten und Puffer in %, Preissteigerung je Jahr, nicht abziehbare Umsatzsteuer über die Vorsteuerquote.
-  Möbel/Aufbau (Investition) und Bau (Instandhaltung) werden getrennt ausgewiesen.
-* **Ziel** – „Zimmer je Jahr“ statt Budget; daraus folgen Etagen (ganze Etagen, zwei Rundungsvorschläge), Kosten und der
-  Renovierungszyklus („jedes Zimmer etwa alle N Jahre“).
+* **Bedarf getrennt nach Bau und Möbel, in Klassen A (jetzt) / B (1–3 Jahre) / C (später)** – aus Mängelarten
+  (Boden, Wand, Schimmel, Geruch → Bau; Möbel, Matratze → Möbel; „Renovierung nötig“ → beides), Jahren seit der
+  Renovierung und der Zustandsnote der Etage. In den letzten 5 Jahren renoviert = kein Bau (harte Regel), Möbel geht.
+  Gewichte 100/10/1: erst alle A, dann B, dann C.
+* **Baubudget = feste Grenze, die verfällt** → es soll möglichst voll in gedeckten Bedarf gehen; ein Rest ist ein
+  Warnhinweis. **Möbel = Antrag**: INNternat rechnet den Möbelbedarf aus (für die Bau-Maßnahmen + „nur Möbel“ für
+  Klasse-A-Zimmer); eine realistische Obergrenze ist optional.
+* **Auswahl**: jede Etagenkombination im Baubudget, aufgefüllt mit Einzelzimmern nach Bedarf je Euro – die beste
+  Gesamtlösung gewinnt. Etagen ohne machbaren Monat und Reserve-Etagen (Kernbestand) fallen vorher heraus.
+* **Kosten mit Herkunft** (Angebot / Eingabe / Schätzung / Platzhalter), Puffer je Budget, Spanne statt Scheingenauigkeit.
+  Einzelzimmer aus Einheitspreisen des Angebots × Zimmerfläche, sonst anteilig + Aufschlag (Schätzung).
+* **Termine**: Etagen in den besten Monat (Ausweich → Warnschwelle → Umzüge); ohne Buchungen „nicht prüfbar“.
+  Einzelzimmer gebündelt in Kampagnen je Haus, frühestens nach der Möbel-Lieferzeit.
 
 Rein, ohne NiceGUI.
 """
@@ -36,33 +37,45 @@ DATEI = f"{speicher.IMPORT_ORDNER}/modern_renovierung.json"
 MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
 UST = 0.19
 
-# Planungsannahmen – alle in der Oberfläche änderbar. Keine Angebotswerte im Programm: Die echten Preise kommen über
-# „Angebot einlesen“ bzw. die Eingabe und liegen nur im Datenordner.
+_HAUS_STANDARD = {"bau_etage": 0, "bau_zimmer": 0, "moebel_zimmer": 0, "aufbau_zimmer": 500, "dauer_tage": 30,
+                  "zimmer_boden_m2": 0, "zimmer_wand_m2": 0, "zimmer_tueren": 1,
+                  "einheit_boden": 0, "einheit_wand": 0, "einheit_tuer": 0}
+# Keine Angebotswerte im Programm: Die echten Preise kommen über „Angebot einlesen“ bzw. die Eingabe (Datenordner).
 STANDARD = {
     "haeuser": ["2", "6"],
-    "kosten": {"2": {"bau_etage": 100000, "bau_zimmer": 0, "moebel_zimmer": 0, "aufbau_zimmer": 500, "dauer_tage": 30},
-               "6": {"bau_etage": 30000, "bau_zimmer": 0, "moebel_zimmer": 0, "aufbau_zimmer": 500, "dauer_tage": 30}},
-    "einzel_aufschlag_pct": 25,   # Einzelzimmer: Bau anteilig aus der Etage + Aufschlag (kleiner Auftrag), wenn kein eigener Preis
+    "kosten": {"2": {**_HAUS_STANDARD, "bau_etage": 100000}, "6": {**_HAUS_STANDARD, "bau_etage": 30000}},
+    "einzel_aufschlag_pct": 25,   # Einzelzimmer ohne Einheitspreise: anteilig aus der Etage + Aufschlag (Schätzung)
     "moebel_tage": 3,             # Möbeltausch: so viele Tage muss das Zimmer leer sein
-    "zimmer_tage": 14,            # Einzelzimmer komplett (Maler/Boden + Möbel)
-    "modus": "ziel",              # ziel = nach Zimmerziel | budget = nach verfügbarem Budget
-    "ziel_zimmer": 9,             # Zimmer je Jahr
-    "budget_bau": None,           # Budget je Jahr für Bau + Nebenkosten (Instandhaltung) – None = nicht angegeben
-    "budget_moebel": None,        # Budget je Jahr für Möbel + Aufbau – eigene Kostenstelle, None = nicht angegeben
-    "neben_pct": 0,               # Elektro, Sanitär, Brandschutz, Entsorgung, Bauleitung – in % vom Bau
-    "puffer_pct": 10,             # Unvorhergesehenes, in % von allem
-    "vorsteuer_pct": 0,           # 0 = Umsatzsteuer ist voll Kosten (brutto), 100 = voll abziehbar (netto)
-    "preis_pct": 3,               # Preissteigerung je Jahr ab Preisstand
+    "zimmer_tage": 14,            # Einzelzimmer komplett
+    "lieferzeit_tage": 28,        # Möbel-Lieferzeit ab Bestellung
+    "modus": "budget",            # budget = Baubudget fest | ziel = Zimmerziel
+    "ziel_zimmer": 9,
+    "budget_bau": None,           # feste Grenze je Jahr (verfällt)
+    "moebel_obergrenze": None,    # optional: was realistisch genehmigt wird (weiche Grenze)
+    "neben_pct": 0,               # Elektro, Sanitär, Entsorgung … in % vom Bau
+    "puffer_bau_pct": 0,          # Puffer nur, wenn gewollt – sonst gilt der Angebotspreis
+    "puffer_moebel_pct": 0,
+    "vorsteuer_pct": 0,           # 0 = Umsatzsteuer ist voll Kosten (brutto)
+    "preis_pct": 3,               # Preissteigerung Bau je Jahr
+    "preis_moebel_pct": 3,        # Preissteigerung Möbel je Jahr
     "preisstand": 0,              # Jahr der Preise (0 = laufendes Jahr)
     "vorlauf_tage": 56,           # Belegungsstopp vor Baubeginn
-    "gesperrt": [],               # Monate (1–12), in denen nicht renoviert werden soll
-    "angebote": [],               # eingelesene Angebote: {haus, art (bau|moebel), netto, zimmer, datum, datei}
+    "gesperrt": [],               # Monate (1–12) ohne Renovierung
+    "haus_vorrang": "",           # "" | "2" | "6"
+    "kernbestand": False,         # Reserve-Etagen von der Renovierung ausnehmen
+    "kern_puffer_pct": 5,         # Sicherheitspuffer auf den Spitzenbedarf
+    "typ_reserve_pct": 3,         # Reserve für Zimmertypen (nur Männer, EMR, Doppel …)
+    "angebote": [],               # eingelesene Angebote: {haus, art, netto, zimmer, datum, datei}
+    "herkunft": {},               # "Haus.Feld" → "eingabe" (von Hand geändert)
 }
 KURZ_GRUPPEN = ("EMR", "ASS", "UWT", "Gast")
-KURZ_TAGE = 56
-FRISCH_JAHRE = 5                  # in den letzten 5 Jahren renoviert → senkt den Bedarf
-ALT_JAHRE = 15                    # älter als 15 Jahre → Bedarf
-ALT_TAGE = 90                     # Mangel seit mehr als 90 Tagen offen → +0,5
+FRISCH_JAHRE = 5
+BAU_MAENGEL = {"boden_kaputt", "boden_dreckig", "wand", "schimmel", "geruch"}
+MOEBEL_MAENGEL = {"moebel", "matratze"}
+KLASSEN_WERT = {"A": 100, "B": 10, "C": 1, None: 0}
+UNSICHER = {"angebot": .10, "eingabe": .15, "schaetzung": .25, "platzhalter": .40}
+HERKUNFT_TEXT = {"angebot": "Angebot", "eingabe": "Eingabe", "schaetzung": "Schätzung", "platzhalter": "Platzhalter"}
+ARTEN = {"etage": "ganze Etage", "zimmer": "Einzelzimmer komplett", "moebel": "nur Möbel tauschen"}
 
 
 # ---- Ablage -------------------------------------------------------------------------------
@@ -73,15 +86,19 @@ def _roh() -> dict:
 
 def parameter() -> dict:
     roh = _roh().get("parameter") or {}
-    p = {**STANDARD, **roh}
-    kosten = {}
+    p = {**STANDARD, **{k: v for k, v in roh.items() if k in STANDARD}}
+    if "moebel_obergrenze" not in roh and roh.get("budget_moebel") is not None:     # 0.42/0.43: Möbelbudget → Obergrenze
+        p["moebel_obergrenze"] = roh["budget_moebel"]
+    if "modus" not in roh:
+        p["modus"] = "budget"
+    kosten_ = {}
     for h in p["haeuser"]:
         alt = (roh.get("kosten") or {}).get(h) or {}
-        if "bau_etage" not in alt:                 # Annahmen von 0.39/0.40 (Flur-Pauschale + je Zimmer) nicht übernehmen
+        if "bau_etage" not in alt:                 # Annahmen von 0.39/0.40 (Flur-Pauschale) nicht übernehmen
             alt = {}
-        kosten[h] = {**STANDARD["kosten"].get(h, {"bau_etage": 0, "moebel_zimmer": 0, "aufbau_zimmer": 0, "dauer_tage": 30}),
-                     **alt}
-    p["kosten"] = kosten
+        kosten_[h] = {**_HAUS_STANDARD, **STANDARD["kosten"].get(h, {}), **alt}
+    p["kosten"] = kosten_
+    p["herkunft"] = dict(p.get("herkunft") or {})
     if not p.get("preisstand"):
         p["preisstand"] = date.today().year
     return p
@@ -94,101 +111,192 @@ def parameter_speichern(p: dict) -> str:
     return "Planungsannahmen gespeichert"
 
 
+def herkunft(p: dict, haus: str, feld: str) -> str:
+    """angebot | eingabe | platzhalter – woher ein Kostenwert stammt."""
+    art = "moebel" if feld == "moebel_zimmer" else "bau" if feld.startswith(("bau_etage", "einheit_")) else ""
+    if art and any(str(a.get("haus")) == haus and a.get("art") == art for a in p.get("angebote") or []):
+        return "angebot"
+    if p.get("herkunft", {}).get(f"{haus}.{feld}") == "eingabe":
+        return "eingabe"
+    std = (STANDARD["kosten"].get(haus) or _HAUS_STANDARD).get(feld, _HAUS_STANDARD.get(feld))
+    wert = (p["kosten"].get(haus) or {}).get(feld)
+    return "platzhalter" if wert == std or not wert else "eingabe"
+
+
+def herkunft_merken(alt: dict, neu: dict) -> dict:
+    """Von Hand geänderte Kostenwerte als „Eingabe“ kennzeichnen."""
+    h = dict(neu.get("herkunft") or alt.get("herkunft") or {})
+    for haus, werte in (neu.get("kosten") or {}).items():
+        for feld, wert in werte.items():
+            if (alt.get("kosten", {}).get(haus) or {}).get(feld) != wert:
+                h[f"{haus}.{feld}"] = "eingabe"
+    return {**neu, "herkunft": h}
+
+
 # ---- Kosten -------------------------------------------------------------------------------------
 
 @dataclass
 class Kosten:
     zimmer: int
     jahr: int
-    bau: float = 0.0              # Maler/Boden je Etage (netto, mit Preissteigerung)
-    neben: float = 0.0            # Nebenkosten (netto)
-    moebel: float = 0.0           # Möbel (netto)
-    aufbau: float = 0.0           # Aufbau (netto)
-    puffer: float = 0.0           # Puffer (netto)
-    ust: float = 0.0              # nicht abziehbare Umsatzsteuer
+    bau: float = 0.0              # Maler/Boden (netto, mit Preissteigerung)
+    neben: float = 0.0
+    moebel: float = 0.0
+    aufbau: float = 0.0
+    puffer_bau: float = 0.0
+    puffer_moebel: float = 0.0
+    ust_bau: float = 0.0          # nicht abziehbare Umsatzsteuer auf den Bau-Teil
+    ust_moebel: float = 0.0
     luecken: list = field(default_factory=list)
-    art: str = "etage"            # etage | zimmer (Einzelzimmer komplett) | moebel (nur Möbel tauschen)
-    herleitung: list = field(default_factory=list)   # (Text, Betrag) – Schritt für Schritt, für Panel und Bericht
+    art: str = "etage"
+    herleitung: list = field(default_factory=list)   # (Text, Betrag)
+    herkunft_bau: str = "platzhalter"
+    herkunft_moebel: str = "platzhalter"
+    basis_bau: float = 0.0        # Bau netto wie im Angebot (ohne Steigerung, Nebenkosten, Puffer)
+    ust_satz: float = 0.0         # nicht abziehbarer Steuersatz
+    u_bau: float = 0.0            # Unsicherheit (± €) des Bau-Teils – addiert sich beim Zusammenrechnen
+    u_moebel: float = 0.0
+    ungewiss: float = 0.0         # Betrag, der nicht aus einem Angebot stammt
+
+    def _unsicherheit(self) -> "Kosten":
+        self.u_bau = self.instandhaltung * UNSICHER.get(self.herkunft_bau, .4)
+        self.u_moebel = self.investition * UNSICHER.get(self.herkunft_moebel, .4)
+        self.ungewiss = ((self.instandhaltung if self.herkunft_bau != "angebot" else 0)
+                         + (self.investition if self.herkunft_moebel != "angebot" else 0))
+        return self
+
+    @property
+    def basis_brutto(self) -> float:
+        """Bau so, wie er im Angebot steht (inkl. nicht abziehbarer Steuer) – zum Abgleich mit dem Angebot."""
+        return self.basis_bau * (1 + self.ust_satz)
+
+    @property
+    def puffer(self) -> float:
+        return self.puffer_bau + self.puffer_moebel
+
+    @property
+    def ust(self) -> float:
+        return self.ust_bau + self.ust_moebel
 
     @property
     def netto(self) -> float:
         return self.bau + self.neben + self.moebel + self.aufbau + self.puffer
 
     @property
-    def summe(self) -> float:
-        """Was es das Haus kostet: netto + nicht abziehbare Umsatzsteuer."""
-        return self.netto + self.ust
-
-    def _anteil(self, teil: float) -> float:
-        basis = self.bau + self.neben + self.moebel + self.aufbau
-        return self.summe * teil / basis if basis else 0.0
-
-    @property
     def instandhaltung(self) -> float:
-        """Bau + Nebenkosten (anteilig Puffer und Steuer) – Aufwand."""
-        return self._anteil(self.bau + self.neben)
+        """Bau-Budget: Bau + Nebenkosten + Bau-Puffer + darauf nicht abziehbare Steuer."""
+        return self.bau + self.neben + self.puffer_bau + self.ust_bau
 
     @property
     def investition(self) -> float:
-        """Möbel + Aufbau (anteilig Puffer und Steuer) – ob aktiviert wird, entscheidet die Buchhaltung."""
-        return self._anteil(self.moebel + self.aufbau)
+        """Möbel-Budget: Möbel + Aufbau + Möbel-Puffer + Steuer."""
+        return self.moebel + self.aufbau + self.puffer_moebel + self.ust_moebel
+
+    @property
+    def summe(self) -> float:
+        return self.instandhaltung + self.investition
 
     @property
     def je_zimmer(self) -> float:
         return self.summe / self.zimmer if self.zimmer else 0.0
 
+    @property
+    def spanne(self) -> tuple[float, float]:
+        """(von, bis) – Unsicherheit nach Herkunft der Werte (Angebot ±10 % … Platzhalter ±40 %)."""
+        d = self.u_bau + self.u_moebel
+        return self.summe - d, self.summe + d
+
+    def spanne_von(self, teil: str) -> tuple[float, float]:
+        wert = self.instandhaltung if teil == "bau" else self.investition
+        u = self.u_bau if teil == "bau" else self.u_moebel
+        return wert - u, wert + u
+
+    @property
+    def geschaetzt(self) -> float:
+        """Anteil (0–1) der Summe, der nicht aus einem Angebot stammt."""
+        return self.ungewiss / self.summe if self.summe else 0.0
+
     def plus(self, o: "Kosten") -> "Kosten":
+        schlechter = lambda a, b: max(a, b, key=lambda h: UNSICHER.get(h, .4)) if (a and b) else (a or b)
         return Kosten(self.zimmer + o.zimmer, max(self.jahr, o.jahr), self.bau + o.bau, self.neben + o.neben,
-                      self.moebel + o.moebel, self.aufbau + o.aufbau, self.puffer + o.puffer, self.ust + o.ust,
-                      sorted(set(self.luecken) | set(o.luecken)), self.art if self.art == o.art else "gemischt")
+                      self.moebel + o.moebel, self.aufbau + o.aufbau, self.puffer_bau + o.puffer_bau,
+                      self.puffer_moebel + o.puffer_moebel, self.ust_bau + o.ust_bau, self.ust_moebel + o.ust_moebel,
+                      sorted(set(self.luecken) | set(o.luecken)), self.art if self.art == o.art else "gemischt", [],
+                      schlechter(self.herkunft_bau if self.instandhaltung else "", o.herkunft_bau if o.instandhaltung else "")
+                      or "angebot",
+                      schlechter(self.herkunft_moebel if self.investition else "", o.herkunft_moebel if o.investition else "")
+                      or "angebot", self.basis_bau + o.basis_bau, max(self.ust_satz, o.ust_satz),
+                      self.u_bau + o.u_bau, self.u_moebel + o.u_moebel, self.ungewiss + o.ungewiss)
 
 
-def preisfaktor(p: dict, jahr: int) -> float:
-    return (1 + float(p.get("preis_pct") or 0) / 100) ** max(0, jahr - int(p.get("preisstand") or jahr))
+def preisfaktor(p: dict, jahr: int, moebel: bool = False) -> float:
+    pct = p.get("preis_moebel_pct") if moebel else p.get("preis_pct")
+    return (1 + float(pct or 0) / 100) ** max(0, jahr - int(p.get("preisstand") or jahr))
 
 
-def bau_je_einzelzimmer(p: dict, haus: str, n_etage: int) -> tuple[float, bool]:
-    """(Bau netto je Einzelzimmer, geschätzt?) – eigener Preis oder anteilig aus dem Etagenangebot + Aufschlag."""
+def bau_je_einzelzimmer(p: dict, haus: str, n_etage: int) -> tuple[float, str, str]:
+    """(Bau netto je Einzelzimmer, Herkunft, Erklärung): eigener Preis › Einheitspreise × Zimmerfläche ›
+    anteilig aus der Etage + Aufschlag (Schätzung)."""
     k = p["kosten"].get(haus) or {}
     if k.get("bau_zimmer"):
-        return float(k["bau_zimmer"]), False
-    return float(k.get("bau_etage") or 0) / max(1, n_etage) * (1 + float(p.get("einzel_aufschlag_pct") or 0) / 100), True
+        return float(k["bau_zimmer"]), "eingabe", "eigener Preis je Einzelzimmer"
+    if k.get("zimmer_boden_m2") and (k.get("einheit_boden") or k.get("einheit_wand")):
+        je = (float(k.get("zimmer_boden_m2") or 0) * float(k.get("einheit_boden") or 0)
+              + float(k.get("zimmer_wand_m2") or 0) * float(k.get("einheit_wand") or 0)
+              + float(k.get("zimmer_tueren") or 0) * float(k.get("einheit_tuer") or 0))
+        hk = "angebot" if herkunft(p, haus, "einheit_boden") == "angebot" else "eingabe"
+        return je, hk, (f"Einheitspreise × Fläche: Boden {k.get('zimmer_boden_m2')} m² × {euro2(k.get('einheit_boden'))}, "
+                        f"Wand/Decke {k.get('zimmer_wand_m2')} m² × {euro2(k.get('einheit_wand'))}, "
+                        f"{k.get('zimmer_tueren')} Tür × {euro2(k.get('einheit_tuer'))}")
+    je = float(k.get("bau_etage") or 0) / max(1, n_etage) * (1 + float(p.get("einzel_aufschlag_pct") or 0) / 100)
+    return je, "schaetzung", f"anteilig aus der Etage + {p.get('einzel_aufschlag_pct')} % Aufschlag"
 
 
 def kosten(p: dict, haus: str, zimmer: int, jahr: int | None = None, art: str = "etage", n_etage: int | None = None) -> Kosten:
-    """Kosten einer Maßnahme im Jahr ``jahr`` (Preisstand + Steigerung): ``etage`` = ganze Etage mit ``zimmer`` Zimmern,
-    ``zimmer`` = so viele Einzelzimmer komplett (Bau anteilig), ``moebel`` = nur Möbel tauschen."""
+    """Kosten einer Maßnahme im Jahr ``jahr``: ``etage`` = ganze Etage, ``zimmer`` = Einzelzimmer komplett,
+    ``moebel`` = nur Möbel tauschen. Puffer je Budget, Steuer laut Vorsteuerquote, Herkunft je Teil."""
     jahr = jahr or int(p.get("preisstand") or date.today().year)
     k = p["kosten"].get(haus) or {}
-    f = preisfaktor(p, jahr)
+    fb, fm = preisfaktor(p, jahr), preisfaktor(p, jahr, True)
     h = []
+    hk_bau = "angebot"
     if art == "etage":
         bau0 = float(k.get("bau_etage") or 0)
-        h.append(("Angebot/Annahme Bau (Maler, Boden) je Etage, netto", bau0))
+        hk_bau = herkunft(p, haus, "bau_etage")
+        h.append((f"Bau (Maler, Boden) je Etage, netto [{HERKUNFT_TEXT[hk_bau]}]", bau0))
     elif art == "zimmer":
-        je, geschaetzt = bau_je_einzelzimmer(p, haus, n_etage or zimmer)
+        je, hk_bau, wie = bau_je_einzelzimmer(p, haus, n_etage or zimmer)
         bau0 = je * zimmer
-        h.append((f"Bau je Einzelzimmer {euro(je)} × {zimmer}" + (f" (anteilig aus der Etage + {p.get('einzel_aufschlag_pct')} % "
-                  "Aufschlag – Schätzung)" if geschaetzt else ""), bau0))
+        h.append((f"Bau je Einzelzimmer {euro(je)} × {zimmer} ({wie}) [{HERKUNFT_TEXT[hk_bau]}]", bau0))
     else:
         bau0 = 0.0
-    erg = Kosten(zimmer, jahr, bau0 * f, art=art)
-    if f != 1 and bau0:
-        h.append((f"Preissteigerung bis {jahr} (× {f:.3f})", erg.bau - bau0))
+    hk_m = herkunft(p, haus, "moebel_zimmer")
+    erg = Kosten(zimmer, jahr, bau0 * fb, art=art, herkunft_bau=hk_bau, herkunft_moebel=hk_m, basis_bau=bau0,
+                 ust_satz=UST * (1 - float(p.get("vorsteuer_pct") or 0) / 100))
+    if fb != 1 and bau0:
+        h.append((f"Preissteigerung Bau bis {jahr} (× {fb:.3f})", erg.bau - bau0))
     erg.neben = erg.bau * float(p.get("neben_pct") or 0) / 100
     if erg.neben:
         h.append((f"Nebenkosten {p.get('neben_pct')} % vom Bau", erg.neben))
-    erg.moebel = float(k.get("moebel_zimmer") or 0) * zimmer * f
-    erg.aufbau = float(k.get("aufbau_zimmer") or 0) * zimmer * f
-    h.append((f"Möbel {euro(float(k.get('moebel_zimmer') or 0))} × {zimmer} Zimmer", erg.moebel))
+    erg.moebel = float(k.get("moebel_zimmer") or 0) * zimmer * fm
+    erg.aufbau = float(k.get("aufbau_zimmer") or 0) * zimmer * fm
+    h.append((f"Möbel {euro(float(k.get('moebel_zimmer') or 0))} × {zimmer} Zimmer [{HERKUNFT_TEXT[hk_m]}]"
+              + (f", Preissteigerung × {fm:.3f}" if fm != 1 else ""), erg.moebel))
     h.append((f"Aufbau {euro(float(k.get('aufbau_zimmer') or 0))} × {zimmer} Zimmer", erg.aufbau))
-    erg.puffer = (erg.bau + erg.neben + erg.moebel + erg.aufbau) * float(p.get("puffer_pct") or 0) / 100
-    erg.ust = (erg.bau + erg.neben + erg.moebel + erg.aufbau + erg.puffer) * UST * (1 - float(p.get("vorsteuer_pct") or 0) / 100)
-    h.append((f"Puffer {p.get('puffer_pct')} % für Unvorhergesehenes", erg.puffer))
+    erg.puffer_bau = (erg.bau + erg.neben) * float(p.get("puffer_bau_pct") or 0) / 100
+    erg.puffer_moebel = (erg.moebel + erg.aufbau) * float(p.get("puffer_moebel_pct") or 0) / 100
+    satz = UST * (1 - float(p.get("vorsteuer_pct") or 0) / 100)
+    erg.ust_bau = (erg.bau + erg.neben + erg.puffer_bau) * satz
+    erg.ust_moebel = (erg.moebel + erg.aufbau + erg.puffer_moebel) * satz
+    if erg.puffer_bau:
+        h.append((f"Puffer Bau {p.get('puffer_bau_pct')} % (Untergrund, Feuchte, Elektro)", erg.puffer_bau))
+    if erg.puffer_moebel:
+        h.append((f"Puffer Möbel {p.get('puffer_moebel_pct')} % (Fracht, Preisänderung)", erg.puffer_moebel))
     h.append((f"Umsatzsteuer 19 %, davon nicht abziehbar {100 - float(p.get('vorsteuer_pct') or 0):g} %", erg.ust))
     erg.herleitung = h
-    if art != "moebel" and not k.get("bau_etage") and not (art == "zimmer" and k.get("bau_zimmer")):
-        erg.luecken.append(f"Haus {haus}: Baukosten je Etage fehlen")
+    erg._unsicherheit()
+    if art != "moebel" and hk_bau in ("platzhalter",):
+        erg.luecken.append(f"Haus {haus}: Baukosten sind ein Platzhalter – Angebot einlesen")
     if not k.get("moebel_zimmer"):
         erg.luecken.append(f"Haus {haus}: Möbelpreis je Zimmer fehlt")
     return erg
@@ -198,6 +306,19 @@ def euro(x: float) -> str:
     return f"{x:,.0f} €".replace(",", ".")
 
 
+def euro2(x) -> str:
+    return f"{float(x or 0):,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def tsd(x: float) -> str:
+    """Auf 1.000 € gerundet: „95 T€“."""
+    return f"{round(x / 1000):,} T€".replace(",", ".")
+
+
+def spanne_text(von: float, bis: float) -> str:
+    return f"{tsd(von)}–{tsd(bis)}" if round(von / 1000) != round(bis / 1000) else tsd(von)
+
+
 # ---- Angebot einlesen ------------------------------------------------------------------------------
 
 _SUMME = re.compile(r"(?:Nettosumme|Summe\s+netto|Netto(?:betrag|summe)?|Warenwert\s+o\.?\s*MwSt\.?|Zwischensumme)"
@@ -205,15 +326,47 @@ _SUMME = re.compile(r"(?:Nettosumme|Summe\s+netto|Netto(?:betrag|summe)?|Warenwe
 _BRUTTO = re.compile(r"(?:Bruttosumme|Gesamtbetrag|Summe\s+brutto)[^\d\n]{0,30}?(\d{1,3}(?:\.\d{3})*,\d{2})", re.I)
 _STUECK = re.compile(r"^\s*(\d{1,3})\s+St(?:ü|ue|u)?ck\b", re.I | re.M)
 _HAUS = re.compile(r"(?:Geb(?:ä|ae)ude|Haus)\s*(\d+(?:\.\d)?)", re.I)
+_POS = re.compile(r"^\s*(\d{1,3})\s+(?:ca\.\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})\s*(m²|m2|qm|lfm|Stk\.?|Stck\.?|Stück|Std\.?|kg)\s+"
+                  r"(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*€?\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*€?\s*$", re.I | re.M)
+_BODEN = re.compile(r"Boden|Belag|Sockel|Ausgleich|grundier|Spachtel|Streifen|Profil|Teppich|Textil|Vinyl", re.I)
+_WAND = re.compile(r"Wand|Decke|Tapete|Raufaser|Anstrich|Dämm|Daemm|Kleber|Heizk", re.I)
+_TUER = re.compile(r"T(?:ü|ue)r", re.I)
 
 
 def _zahl(t: str) -> float:
     return float(t.replace(".", "").replace(",", "."))
 
 
+def positionen(text: str) -> list[dict]:
+    """Angebotspositionen: {menge, einheit, text, einzel, betrag, gruppe (boden|wand|tuer|sonst)}."""
+    erg = []
+    for m in _POS.finditer(text):
+        menge, einheit, txt = _zahl(m.group(2)), m.group(3).lower().rstrip("."), m.group(4).strip()
+        gruppe = "tuer" if _TUER.search(txt) else "wand" if _WAND.search(txt) else "boden" if _BODEN.search(txt) else "sonst"
+        erg.append({"menge": menge, "einheit": "m²" if einheit in ("m2", "qm", "m²") else einheit, "text": txt,
+                    "einzel": _zahl(m.group(5)), "betrag": _zahl(m.group(6)), "gruppe": gruppe})
+    return erg
+
+
+def einheitspreise(pos: list[dict]) -> dict:
+    """€/m² Boden, €/m² Wand+Decke, € je Tür aus den Positionen eines Bau-Angebots. Material und Nebenarbeiten der
+    Gruppe sind eingerechnet (Summe der Gruppe ÷ größte m²-Menge der Gruppe); „sonstige“ Positionen anteilig."""
+    def gruppe(g):
+        teile = [x for x in pos if x["gruppe"] == g]
+        flaeche = max((x["menge"] for x in teile if x["einheit"] == "m²"), default=0)
+        return sum(x["betrag"] for x in teile), flaeche
+    sb, fb = gruppe("boden")
+    sw, fw = gruppe("wand")
+    st = [x for x in pos if x["gruppe"] == "tuer"]
+    sonst = sum(x["betrag"] for x in pos if x["gruppe"] == "sonst")
+    faktor = 1 + sonst / (sb + sw) if sb + sw else 1
+    return {"einheit_boden": round(sb / fb * faktor, 2) if fb else 0, "einheit_wand": round(sw / fw * faktor, 2) if fw else 0,
+            "einheit_tuer": round(st[0]["einzel"], 2) if st else 0, "boden_m2": fb, "wand_m2": fw}
+
+
 def angebot_auswerten(text: str) -> dict:
-    """Aus dem Text eines Angebots: Nettosumme, Art (Bau oder Möbel), Haus, bei Möbeln die Zimmerzahl (häufigste
-    Stückzahl). Nur Vorschlag – die Oberfläche zeigt es vor dem Speichern zur Bestätigung."""
+    """Aus dem Text eines Angebots: Nettosumme, Art (Bau oder Möbel), Haus, bei Möbeln die Zimmerzahl, bei Bau die
+    Einheitspreise. Nur Vorschlag – die Oberfläche zeigt es vor dem Speichern zur Bestätigung."""
     netto = [_zahl(m) for m in _SUMME.findall(text)]
     brutto = [_zahl(m) for m in _BRUTTO.findall(text)]
     if not netto and brutto:
@@ -222,8 +375,11 @@ def angebot_auswerten(text: str) -> dict:
     stueck = [int(x) for x in _STUECK.findall(text)]
     zimmer = max(set(stueck), key=stueck.count) if stueck else 0
     haus = _HAUS.search(text)
-    return {"netto": netto[-1] if netto else 0.0, "art": "moebel" if moebel else "bau",
-            "haus": haus.group(1) if haus else "", "zimmer": zimmer if moebel else 0}
+    erg = {"netto": netto[-1] if netto else 0.0, "art": "moebel" if moebel else "bau",
+           "haus": haus.group(1) if haus else "", "zimmer": zimmer if moebel else 0}
+    if not moebel:
+        erg.update(einheitspreise(positionen(text)))
+    return erg
 
 
 def angebot_lesen(pfad) -> dict:
@@ -233,7 +389,7 @@ def angebot_lesen(pfad) -> dict:
 
 
 def angebot_uebernehmen(p: dict, ang: dict) -> dict:
-    """Ein bestätigtes Angebot in die Annahmen übernehmen (Bau je Etage bzw. Möbel je Zimmer)."""
+    """Ein bestätigtes Angebot in die Annahmen übernehmen (Bau je Etage + Einheitspreise bzw. Möbel je Zimmer)."""
     neu = {**p, "kosten": {h: dict(v) for h, v in p["kosten"].items()}, "angebote": list(p.get("angebote") or [])}
     h = str(ang.get("haus") or "")
     if h not in neu["kosten"]:
@@ -245,6 +401,9 @@ def angebot_uebernehmen(p: dict, ang: dict) -> dict:
         neu["kosten"][h]["moebel_zimmer"] = round(float(ang["netto"]) / n, 2)
     else:
         neu["kosten"][h]["bau_etage"] = round(float(ang["netto"]), 2)
+        for f in ("einheit_boden", "einheit_wand", "einheit_tuer"):
+            if ang.get(f):
+                neu["kosten"][h][f] = round(float(ang[f]), 2)
     neu["angebote"] = [x for x in neu["angebote"] if not (x.get("haus") == h and x.get("art") == ang["art"])]
     neu["angebote"].append({k: ang.get(k) for k in ("haus", "art", "netto", "zimmer", "datum", "datei")})
     if ang.get("datum"):
@@ -252,8 +411,20 @@ def angebot_uebernehmen(p: dict, ang: dict) -> dict:
     return neu
 
 
-ARTEN = {"etage": "ganze Etage", "zimmer": "Einzelzimmer komplett", "moebel": "nur Möbel tauschen"}
+def angebote_alt(p: dict, heute: date, monate: int = 12) -> list[str]:
+    """Angebote, die älter als ``monate`` sind (Datum beim Einlesen)."""
+    erg = []
+    for a in p.get("angebote") or []:
+        try:
+            d = date.fromisoformat(str(a.get("datum") or "")[:10])
+        except ValueError:
+            continue
+        if (heute - d).days > monate * 30.5:
+            erg.append(f"Haus {a.get('haus')} {'Möbel' if a.get('art') == 'moebel' else 'Bau'} vom {d:%d.%m.%Y}")
+    return erg
 
+
+# ---- Vormerkungen ------------------------------------------------------------------------------------
 
 def plan() -> list[dict]:
     """Vorgemerkte Renovierungen: {flur: "2|3|", start, ende (ISO), art (etage|zimmer|moebel), zimmer: [IDs], notiz}."""
@@ -286,7 +457,7 @@ def entfernen(flur: str, start: str, art: str | None = None) -> str:
     return f"{flur_text_schluessel(flur)}: Vormerkung entfernt"
 
 
-# ---- Flure und Bedarf -----------------------------------------------------------------------
+# ---- Etagen und Bedarf (Klassen) -------------------------------------------------------------------
 
 def schluessel(haus: str, etage: str, flur: str) -> str:
     return f"{haus}|{etage}|{flur}"
@@ -295,125 +466,6 @@ def schluessel(haus: str, etage: str, flur: str) -> str:
 def flur_text_schluessel(k: str) -> str:
     haus, etage, flur = (k.split("|") + ["", "", ""])[:3]
     return f"Haus {haus} · {zp.etage_text(etage)}" + (f" {flur}" if flur else "")
-
-
-@dataclass
-class Flur:
-    schluessel: str
-    haus: str
-    etage: str
-    flur: str
-    zimmer: list = field(default_factory=list)     # zp.Zimmer
-    bedarf: float = 0.0                            # Punkte je Zimmer (vergleichbar zwischen großen und kleinen Fluren)
-    gruende: list = field(default_factory=list)    # (Punkte, Text) – nachvollziehbar
-    luecken: list = field(default_factory=list)    # fehlende Daten
-    reno_bekannt: int = 0                          # Zimmer mit Renovierungsvermerk
-    alter: float | None = None                     # Ø Jahre seit Renovierung (nur bekannte)
-    sonder: list = field(default_factory=list)     # z. B. „EMR-Zimmer (10)“
-    kosten: Kosten | None = None
-    punkte: dict = field(default_factory=dict)     # Zimmer-ID → (Bedarfspunkte, [Gründe]) – für Einzelzimmer-Maßnahmen
-    zustand: int | None = None                     # Zustandsnote der Etage (1 sehr gut … 5 sehr schlecht), falls erfasst
-
-    @property
-    def text(self) -> str:
-        return flur_text_schluessel(self.schluessel)
-
-    @property
-    def betten(self) -> int:
-        return sum(z.betten for z in self.zimmer)
-
-    @property
-    def ampel(self) -> str:
-        return "krit" if self.bedarf >= 10 else "warn" if self.bedarf >= 4 else "ok"
-
-
-def flure(stand: zp.Planstand, heute: date | None = None, p: dict | None = None) -> list[Flur]:
-    """Alle Flure der gewählten Häuser mit nachvollziehbarem Bedarf – höchster Bedarf zuerst."""
-    from belegung import maengel as mg
-    from belegung import zimmerliste as zl
-
-    heute = heute or date.today()
-    p = p or parameter()
-    offen = mg.offen_je_zimmer()
-    noten = zustandsnoten()
-    je: dict[str, Flur] = {}
-    for z in stand.zimmer:
-        if not z.aktiv or z.haus not in p["haeuser"]:
-            continue
-        k = schluessel(z.haus, z.etage, "")            # ein Flur = die ganze Etage (Ost/West gehören baulich zusammen)
-        je.setdefault(k, Flur(k, z.haus, z.etage, "")).zimmer.append(z)
-    for f in je.values():
-        n = len(f.zimmer)
-        punkte: dict[str, float] = {}
-        texte: dict[str, int] = {}
-        frisch, alt, ohne_datum, unbew, jahre = 0, 0, 0, 0, []
-        for z in f.zimmer:
-            f.punkte[z.id] = _zimmer_punkte(z, offen.get(z.id, []), heute)
-            for m in offen.get(z.id, []):
-                if m.art == "renovierung":
-                    punkte["reno"] = punkte.get("reno", 0) + 4
-                    texte["reno"] = texte.get("reno", 0) + 1
-                else:                                  # 0.41: schwächer – Mängel messen auch das Reparaturtempo
-                    punkte[f"s{m.stufe}"] = punkte.get(f"s{m.stufe}", 0) + m.stufe / 2
-                    texte[f"s{m.stufe}"] = texte.get(f"s{m.stufe}", 0) + 1
-                if (heute - m.seit).days > ALT_TAGE:
-                    punkte["lang"] = punkte.get("lang", 0) + .5
-                    texte["lang"] = texte.get("lang", 0) + 1
-            if z.id in stand.lage.unbewohnbar:
-                unbew += 1
-            if z.renoviert:
-                f.reno_bekannt += 1
-                d = zl.reno_datum(z)
-                if d is None:
-                    ohne_datum += 1
-                    continue
-                j = (heute - d).days / 365.25
-                jahre.append(j)
-                if j < FRISCH_JAHRE:
-                    frisch += 1
-                elif j >= ALT_JAHRE:
-                    alt += 1
-        if frisch:
-            punkte["frisch"] = -3 * frisch
-        if alt:
-            punkte["alt"] = 2 * alt
-        f.zustand = noten.get(f.schluessel)
-        if f.zustand and NOTE_PUNKTE.get(f.zustand):
-            punkte["note"] = NOTE_PUNKTE[f.zustand] * n
-            for zid, (pk, tx) in f.punkte.items():
-                f.punkte[zid] = (pk + NOTE_PUNKTE[f.zustand], tx + [f"Zustandsnote {f.zustand}"])
-        namen = {"reno": "Mangel „Renovierung nötig“ (je 4 P.)", "alt": f"Zimmer seit über {ALT_JAHRE} Jahren nicht renoviert (je 2 P.)",
-                 "s3": "Mängel, die unbewohnbar machen (je 1,5 P.)", "s2": "dringende Mängel (je 1 P.)",
-                 "s1": "leichte Mängel (je 0,5 P.)", "lang": f"davon länger als {ALT_TAGE} Tage offen (je +0,5 P.)",
-                 "note": f"Zimmer, Zustandsnote {f.zustand} der Etage (je {NOTE_PUNKTE.get(f.zustand or 3, 0):+g} P.)"}
-        f.gruende = [(punkte[k], f"{texte.get(k, alt if k == 'alt' else n if k == 'note' else 0)} {namen[k]}")
-                     for k in ("reno", "alt", "note", "s3", "s2", "s1", "lang") if k in punkte]
-        if frisch:
-            f.gruende.append((punkte["frisch"], f"{frisch} Zimmer in den letzten {FRISCH_JAHRE} Jahren renoviert (je −3 P.)"))
-        if unbew:
-            f.gruende.append((0, f"{unbew} Zimmer derzeit unbewohnbar"))
-        f.bedarf = round(10 * sum(punkte.values()) / n, 1) if n else 0.0
-        f.alter = round(sum(jahre) / len(jahre), 1) if jahre else None
-        if f.reno_bekannt < n:
-            f.luecken.append(f"{n - f.reno_bekannt} von {n} Zimmern ohne Renovierungsvermerk – unbekannt, nicht „nie“")
-        if ohne_datum:
-            f.luecken.append(f"{ohne_datum} Zimmer „renoviert“ ohne Datum")
-        emr = sum(1 for z in f.zimmer if zp.nur_emr(z))
-        if emr:
-            f.sonder.append(f"{emr} reine EMR-Zimmer")
-        if any(zp.nur_kurz(z) for z in f.zimmer):
-            f.sonder.append("Etage für Kurzmaßnahmen/Allergiker")
-        if g := sum(1 for z in f.zimmer if z.gaeste):
-            f.sonder.append(f"{g} Gästezimmer")
-        if nm := sum(1 for z in f.zimmer if z.nur_maenner):
-            f.sonder.append(f"{nm} „nur Männer“ (Bad über den Flur)")
-        if dz := sum(1 for z in f.zimmer if z.betten > 1):
-            f.sonder.append(f"{dz} Doppelzimmer")
-        f.kosten = kosten(p, f.haus, n)
-    return sorted(je.values(), key=lambda f: (-f.bedarf, f.haus, zp._etage_sort(f.etage), f.flur))
-
-
-NOTE_PUNKTE = {1: -2, 2: -1, 3: 0, 4: 2, 5: 4}     # Zustandsnote je Zimmer der Etage
 
 
 def zustandsnoten() -> dict:
@@ -428,30 +480,194 @@ def zustandsnoten_speichern(noten: dict) -> str:
     return f"Zustandsnoten für {len(roh['zustand'])} Etagen gespeichert"
 
 
-def _zimmer_punkte(z, maengel_: list, heute: date) -> tuple[float, list]:
-    """Bedarf eines einzelnen Zimmers – gleiche Punkte wie für die Etage."""
+@dataclass
+class ZBedarf:
+    """Bedarf eines Zimmers: Klasse A/B/C/None je Bau und Möbel, Gründe, Bau gesperrt (frisch renoviert)."""
+    bau: str | None = None
+    moebel: str | None = None
+    gruende: list = field(default_factory=list)
+    frisch: bool = False
+    alter: float | None = None
+
+    @property
+    def wert_bau(self) -> int:
+        return 0 if self.frisch else KLASSEN_WERT[self.bau]
+
+    @property
+    def wert_moebel(self) -> int:
+        return KLASSEN_WERT[self.moebel]
+
+    @property
+    def a(self) -> bool:
+        return (self.bau == "A" and not self.frisch) or self.moebel == "A"
+
+
+def _max_klasse(*k):
+    for x in ("A", "B", "C"):
+        if x in k:
+            return x
+    return None
+
+
+def zimmer_bedarf(z, maengel_: list, heute: date, note: int | None) -> ZBedarf:
+    """Klassen je Zimmer. Bau: A = „Renovierung nötig“, Schimmel, Note 5, ≥ 20 Jahre; B = Note 4, ≥ 15 Jahre, Boden-/
+    Wand-/Geruchsmangel; C = Note 3, ≥ 10 Jahre. Möbel: A = Möbel-/Matratzenmangel, „Renovierung nötig“; B = ≥ 15
+    Jahre; C = ≥ 10 Jahre. In den letzten 5 Jahren renoviert: kein Bau."""
     from belegung import zimmerliste as zl
 
-    pk, tx = 0.0, []
-    for m in maengel_:
-        if m.art == "renovierung":
-            pk += 4
-            tx.append("Renovierung nötig")
-        else:
-            pk += m.stufe / 2
-            tx.append(f"Mangel Stufe {m.stufe}")
-        if (heute - m.seit).days > ALT_TAGE:
-            pk += .5
+    zb = ZBedarf()
+    bau, mob = [], []
+    arten = {m.art for m in maengel_}
+    if "renovierung" in arten:
+        bau.append("A"), mob.append("A"), zb.gruende.append("Renovierung nötig")
+    if "schimmel" in arten:
+        bau.append("A"), zb.gruende.append("Schimmel")
+    if arten & (BAU_MAENGEL - {"schimmel"}):
+        bau.append("B"), zb.gruende.append("Boden/Wand/Geruch")
+    if arten & MOEBEL_MAENGEL:
+        mob.append("A"), zb.gruende.append("Möbel/Matratze")
+    if note:
+        bau.append({5: "A", 4: "B", 3: "C"}.get(note))
+        if note >= 4:
+            zb.gruende.append(f"Zustandsnote {note}")
     d = zl.reno_datum(z) if z.renoviert else None
     if d:
         j = (heute - d).days / 365.25
+        zb.alter = round(j, 1)
         if j < FRISCH_JAHRE:
-            pk -= 3
-            tx.append(f"renoviert vor {j:.0f} J.")
-        elif j >= ALT_JAHRE:
-            pk += 2
-            tx.append(f"seit {j:.0f} J. nicht renoviert")
-    return pk, tx
+            zb.frisch = True
+            zb.gruende.append(f"renoviert vor {max(j, 0):.0f} J. – kein Bau")
+        else:
+            bau.append("A" if j >= 20 else "B" if j >= 15 else "C" if j >= 10 else None)
+            mob.append("B" if j >= 15 else "C" if j >= 10 else None)
+            if j >= 15:
+                zb.gruende.append(f"seit {j:.0f} J. nicht renoviert")
+    zb.bau, zb.moebel = _max_klasse(*bau), _max_klasse(*mob)
+    return zb
+
+
+@dataclass
+class Flur:
+    schluessel: str
+    haus: str
+    etage: str
+    flur: str
+    zimmer: list = field(default_factory=list)     # zp.Zimmer
+    bedarf: float = 0.0                            # Ø Wert je Zimmer (für die Reihenfolge)
+    gruende: list = field(default_factory=list)    # (Wert, Text)
+    luecken: list = field(default_factory=list)
+    reno_bekannt: int = 0
+    alter: float | None = None
+    sonder: list = field(default_factory=list)
+    kosten: Kosten | None = None
+    bedarfe: dict = field(default_factory=dict)    # Zimmer-ID → ZBedarf
+    zustand: int | None = None
+
+    @property
+    def text(self) -> str:
+        return flur_text_schluessel(self.schluessel)
+
+    @property
+    def betten(self) -> int:
+        return sum(z.betten for z in self.zimmer)
+
+    @property
+    def wert(self) -> float:
+        return sum(b.wert_bau + b.wert_moebel for b in self.bedarfe.values())
+
+    def klassen(self, art: str = "bau") -> dict:
+        erg = {"A": 0, "B": 0, "C": 0}
+        for b in self.bedarfe.values():
+            k = b.bau if art == "bau" and not b.frisch else b.moebel if art == "moebel" else None
+            if k:
+                erg[k] += 1
+        return erg
+
+    @property
+    def klassen_text(self) -> str:
+        teile = []
+        for art, name in (("bau", "Bau"), ("moebel", "Möbel")):
+            k = self.klassen(art)
+            if any(k.values()):
+                teile.append(f"{name} " + " ".join(f"{x}{n}" for x, n in k.items() if n))
+        return " · ".join(teile) or "kein Bedarf erfasst"
+
+    @property
+    def ampel(self) -> str:
+        if any(b.a for b in self.bedarfe.values()):
+            return "krit"
+        return "warn" if any("B" in (b.bau, b.moebel) for b in self.bedarfe.values()) else "ok"
+
+    @property
+    def sonderzimmer(self) -> bool:
+        """EMR-, Gäste- oder Kurzmaßnahmen-Etage – nie als Reserve vorschlagen."""
+        return any(zp.nur_emr(z) or z.gaeste or zp.nur_kurz(z) for z in self.zimmer)
+
+
+def flure(stand: zp.Planstand, heute: date | None = None, p: dict | None = None, offen: dict | None = None,
+          noten: dict | None = None) -> list[Flur]:
+    """Alle Etagen der gewählten Häuser mit Bedarf je Zimmer – höchster Bedarf zuerst."""
+    from belegung import maengel as mg
+    from belegung import zimmerliste as zl
+
+    heute = heute or date.today()
+    p = p or parameter()
+    offen = mg.offen_je_zimmer() if offen is None else offen
+    noten = zustandsnoten() if noten is None else noten
+    je: dict[str, Flur] = {}
+    for z in stand.zimmer:
+        if not z.aktiv or z.haus not in p["haeuser"]:
+            continue
+        k = schluessel(z.haus, z.etage, "")
+        je.setdefault(k, Flur(k, z.haus, z.etage, "")).zimmer.append(z)
+    for f in je.values():
+        n = len(f.zimmer)
+        f.zustand = noten.get(f.schluessel)
+        jahre, ohne_datum, unbew = [], 0, 0
+        for z in f.zimmer:
+            f.bedarfe[z.id] = b = zimmer_bedarf(z, offen.get(z.id, []), heute, f.zustand)
+            if b.alter is not None:
+                jahre.append(b.alter)
+            if z.renoviert:
+                f.reno_bekannt += 1
+                if zl.reno_datum(z) is None:
+                    ohne_datum += 1
+            if z.id in stand.lage.unbewohnbar:
+                unbew += 1
+        for art, name in (("bau", "Bau"), ("moebel", "Möbel")):
+            for kl, anz in f.klassen(art).items():
+                if anz:
+                    f.gruende.append((KLASSEN_WERT[kl] * anz, f"{anz} × {name} Klasse {kl}"))
+        frisch = sum(1 for b in f.bedarfe.values() if b.frisch)
+        if frisch:
+            f.gruende.append((0, f"{frisch} Zimmer in den letzten {FRISCH_JAHRE} Jahren renoviert – dort kein Bau"))
+        if unbew:
+            f.gruende.append((0, f"{unbew} Zimmer derzeit unbewohnbar"))
+        f.bedarf = round(f.wert / n, 1) if n else 0.0
+        f.alter = round(sum(jahre) / len(jahre), 1) if jahre else None
+        if f.reno_bekannt < n:
+            f.luecken.append(f"{n - f.reno_bekannt} von {n} Zimmern ohne Renovierungsdatum – unbekannt, nicht „nie“")
+        if ohne_datum:
+            f.luecken.append(f"{ohne_datum} Zimmer „renoviert“ ohne Datum")
+        if not f.zustand:
+            f.luecken.append("keine Zustandsnote")
+        if emr := sum(1 for z in f.zimmer if zp.nur_emr(z)):
+            f.sonder.append(f"{emr} reine EMR-Zimmer")
+        if any(zp.nur_kurz(z) for z in f.zimmer):
+            f.sonder.append("Etage für Kurzmaßnahmen/Allergiker")
+        if g := sum(1 for z in f.zimmer if z.gaeste):
+            f.sonder.append(f"{g} Gästezimmer")
+        if nm := sum(1 for z in f.zimmer if z.nur_maenner):
+            f.sonder.append(f"{nm} „nur Männer“ (eigenes Bad über den Flur)")
+        if dz := sum(1 for z in f.zimmer if z.betten > 1):
+            f.sonder.append(f"{dz} Doppelzimmer")
+        f.kosten = kosten(p, f.haus, n)
+    return sorted(je.values(), key=lambda f: (-f.bedarf, f.haus, zp._etage_sort(f.etage), f.flur))
+
+
+def a_zimmer(fl: list[Flur], ohne: set | None = None) -> int:
+    """Zimmer mit Klasse A (Bau oder Möbel), ohne die in ``ohne``."""
+    return sum(1 for f in fl for zid, b in f.bedarfe.items() if b.a and zid not in (ohne or set()))
 
 
 # ---- Machbarkeit je Zeitfenster ---------------------------------------------------------------
@@ -473,6 +689,7 @@ class Fenster:
     prognose: tuple | None = None                   # (erwartet, lo80, hi80) Standort – nur Orientierung
     engpass: bool = False                           # obere Prognose erreicht die Warnschwelle der (verringerten) Kapazität
     gleichwertig: bool = False                      # Unterschied zu anderen Monaten kleiner als die Unsicherheit
+    pruefbar: bool = True                           # liegt der Monat noch im Bereich bekannter Buchungen?
 
     @property
     def betroffen(self) -> int:
@@ -483,7 +700,7 @@ class Fenster:
         if self.gesperrt:
             return "gesperrt"
         if not self.betroffen:
-            return "frei"
+            return "frei" if self.pruefbar else "offen"
         return "eng" if self.ohne_ausweich else "ok"
 
 
@@ -520,7 +737,8 @@ def fenster(stand: zp.Planstand, f: Flur, start: date, p: dict | None = None, oh
     p = p or parameter()
     dauer = int((p["kosten"].get(f.haus) or {}).get("dauer_tage") or p.get("dauer_tage") or 30)
     ende = start + timedelta(days=dauer - 1)
-    fe = Fenster(start, ende, start - timedelta(days=int(p["vorlauf_tage"])), gesperrt=start.month in (p.get("gesperrt") or []))
+    fe = Fenster(start, ende, start - timedelta(days=int(p["vorlauf_tage"])), gesperrt=start.month in (p.get("gesperrt") or []),
+                 pruefbar=start <= buchungshorizont(stand))
     ids = {z.id for z in f.zimmer}
     personen = []
     for z in f.zimmer:
@@ -543,6 +761,19 @@ def fenster(stand: zp.Planstand, f: Flur, start: date, p: dict | None = None, oh
                           and z.id not in stand.lage.unbewohnbar and stand.lage.freie_betten(z.id, start, ende) > 0)
     _ausweichen(stand, fe, personen, ids | (ohne or set()))
     return fe
+
+
+_HORIZONT: dict = {}
+
+
+def buchungshorizont(stand: zp.Planstand) -> date:
+    """Bis wann Buchungen bekannt sind (späteste bekannte Anreise) – danach sagt die Ausweichprüfung nichts."""
+    if _HORIZONT.get("id") is not stand:
+        tage = [b.von for b in getattr(stand, "bedarf", []) or []]
+        tage += [b.von for v in stand.lage.belegungen.values() for b in v if b.art in ("belegt", "geplant") and b.name
+                 and b.name != zp.PIVOT_NAME]
+        _HORIZONT.update(id=stand, wert=max(tage) if tage else date.today())
+    return _HORIZONT["wert"]
 
 
 def monatsfenster(stand: zp.Planstand, f: Flur, jahr: int, p: dict | None = None,
@@ -582,7 +813,7 @@ def bester_monat(fs: list[Fenster], heute: date) -> Fenster | None:
     return min(top, key=lambda x: x.start)
 
 
-# ---- Ziel, Vorschläge, Szenarien -------------------------------------------------------------------
+# ---- Ziel ------------------------------------------------------------------------------------------
 
 @dataclass
 class Auswahl:
@@ -633,73 +864,6 @@ def zyklus(fl: list[Flur], zimmer_je_jahr: float) -> float | None:
     return round(bestand(fl) / zimmer_je_jahr, 1) if zimmer_je_jahr > 0 else None
 
 
-@dataclass
-class Szenario:
-    titel: str
-    etagen: int
-    zimmer: int
-    kosten: Kosten
-    sperr_zimmermonate: float
-    jahre_bis_durch: int
-    zyklus: float | None
-
-
-def szenarien(fl: list[Flur], p: dict, jahr: int, etagen=(1, 2, 3)) -> list[Szenario]:
-    """Vergleich: n Etagen je Jahr (nach Bedarf) – Kosten je Jahr, Zimmer, Sperr-Zimmermonate, Jahre bis alle
-    Etagen einmal dran waren, Zyklus."""
-    erg = []
-    for n in etagen:
-        gew = fl[:n]
-        if not gew:
-            continue
-        aw = _auswahl("", gew, p, jahr)
-        sperr = sum(len(f.zimmer) * int((p["kosten"].get(f.haus) or {}).get("dauer_tage") or 30) / 30 for f in gew)
-        titel = {1: "Konservativ", 2: "Normal", 3: "Beschleunigt"}.get(n, f"{n} Etagen")
-        erg.append(Szenario(f"{titel}: {n} Etage{'n' if n > 1 else ''} je Jahr", n, aw.zimmer, aw.kosten, round(sperr, 1),
-                            math.ceil(len(fl) / n), zyklus(fl, aw.zimmer)))
-    return erg
-
-
-def budget_auswahl(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None = None,
-                   budget_moebel: float | None = None) -> Auswahl | None:
-    """Welche Etagen passen in die beiden Budgets (Bau und Möbel getrennt)? Gesucht wird die Kombination mit dem
-    meisten Bedarf (Punkte × Zimmer), bei Gleichstand mit den meisten Zimmern, dann die günstigere. ``None`` als
-    Budget = keine Grenze. Ergebnis ``None``, wenn keine Etage hineinpasst."""
-    bb = p.get("budget_bau") if budget_bau is None else budget_bau
-    bm = p.get("budget_moebel") if budget_moebel is None else budget_moebel
-    kand = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl][:16]          # 2^16 Kombinationen – schnell genug
-    bau = [k.instandhaltung for _f, k in kand]
-    mob = [k.investition for _f, k in kand]
-    punkte = [max(0.0, f.bedarf) * len(f.zimmer) for f, _k in kand]
-    zimmer = [len(f.zimmer) for f, _k in kand]
-    best, best_wert = 0, None
-    for maske in range(1, 1 << len(kand)):
-        sb = sm = sp = sz = 0.0
-        for i in range(len(kand)):
-            if maske >> i & 1:
-                sb += bau[i]
-                sm += mob[i]
-                sp += punkte[i]
-                sz += zimmer[i]
-        if (bb is not None and sb > bb + .5) or (bm is not None and sm > bm + .5):
-            continue
-        wert = (round(sp, 3), sz, -(sb + sm))
-        if best_wert is None or wert > best_wert:
-            best, best_wert = maske, wert
-    if not best:
-        return None
-    gew = [kand[i][0] for i in range(len(kand)) if best >> i & 1]
-    gew.sort(key=lambda f: fl.index(f))
-    aw = _auswahl("", gew, p, jahr)
-    aw.titel = f"{aw.zimmer} Zimmer im Budget"
-    return aw
-
-
-def guenstigste(fl: list[Flur], p: dict, jahr: int) -> tuple[Flur, Kosten] | None:
-    erg = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl]
-    return min(erg, key=lambda x: x[1].summe) if erg else None
-
-
 def engpass_markieren(fs: list[Fenster], f: Flur, kap: float | None, belegt: list | None = None,
                       warn_anteil: float = .95) -> None:
     """Monat ist ein Engpass, wenn die obere Prognose die Warnschwelle der Kapazität erreicht – Kapazität minus diese
@@ -713,18 +877,18 @@ def engpass_markieren(fs: list[Fenster], f: Flur, kap: float | None, belegt: lis
         fe.engpass = fe.prognose[2] >= (kap - weg) * warn_anteil
 
 
-# ---- Einzelzimmer und Varianten -----------------------------------------------------------------
 
-DECKUNG = {"etage": 1.0, "zimmer": 1.0, "moebel": .5}   # nur Möbel: Wände und Böden bleiben – halber Bedarf gedeckt
 
+# ---- Maßnahmen, Varianten, Auswahl ----------------------------------------------------------------
 
 @dataclass
 class Massnahme:
     art: str                      # etage | zimmer | moebel
     flur: Flur
     zimmer: list                  # zp.Zimmer
-    punkte: float                 # gedeckter Bedarf (Punkte)
+    wert: float                   # gedeckter Bedarf (Klassenwerte)
     kosten: Kosten
+    a_zimmer: int = 0             # davon Klasse-A-Zimmer
 
     @property
     def text(self) -> str:
@@ -740,18 +904,23 @@ class Variante:
     erklaerung: str
     massnahmen: list = field(default_factory=list)
     hinweis: str = ""
+    rest_bau: float | None = None
 
     @property
     def zimmer(self) -> int:
         return sum(len(m.zimmer) for m in self.massnahmen)
 
     @property
-    def punkte(self) -> float:
-        return round(sum(m.punkte for m in self.massnahmen), 1)
+    def wert(self) -> float:
+        return sum(m.wert for m in self.massnahmen)
+
+    @property
+    def a_zimmer(self) -> int:
+        return sum(m.a_zimmer for m in self.massnahmen)
 
     @property
     def kosten(self) -> Kosten:
-        k = Kosten(0, 0)
+        k = Kosten(0, 0, herkunft_bau="", herkunft_moebel="")
         for m in self.massnahmen:
             k = k.plus(m.kosten)
         return k
@@ -769,92 +938,240 @@ class Variante:
         return round(s, 1)
 
 
-def _etage_massnahme(p, f: Flur, jahr: int) -> Massnahme:
-    return Massnahme("etage", f, list(f.zimmer), round(sum(pk for pk, _t in f.punkte.values()), 1), kosten(p, f.haus, len(f.zimmer), jahr))
+def _wert(b: ZBedarf, art: str) -> float:
+    return (b.wert_bau if art != "moebel" else 0) + b.wert_moebel
 
 
-def _auffuellen(fl: list[Flur], p: dict, jahr: int, frei: set, bb: float | None, bm: float | None, arten: tuple,
-                ziel: int | None) -> list[Massnahme]:
-    """Einzelzimmer mit dem höchsten Bedarf, solange die Budgets (bzw. das Zimmerziel) reichen. ``arten``: welche
-    Maßnahmen erlaubt sind, in Vorrang-Reihenfolge (z. B. erst „Zimmer komplett“, sonst „nur Möbel“)."""
-    kand = sorted(((pk, f, z) for f in fl for z in f.zimmer if z.id in frei for pk, _t in [f.punkte.get(z.id, (0, []))]
-                   if pk > 0), key=lambda x: (-x[0], x[1].haus, x[2].id))
+def _massnahme(p, f: Flur, zimmer: list, art: str, jahr: int) -> Massnahme:
+    bs = [f.bedarfe.get(z.id) or ZBedarf() for z in zimmer]
+    k = kosten(p, f.haus, len(zimmer), jahr, art, len(f.zimmer))
+    return Massnahme(art, f, list(zimmer), sum(_wert(b, art) for b in bs), k,
+                     sum(1 for b in bs if (b.a if art != "moebel" else b.moebel == "A")))
+
+
+def _gruppieren(p, liste: list, jahr: int) -> list[Massnahme]:
+    """(Flur, Zimmer, Art) → Maßnahmen je Etage und Art."""
     je: dict[tuple, list] = {}
-    rest_b, rest_m, n = bb, bm, 0
-    for pk, f, z in kand:
-        if ziel is not None and n >= ziel:
-            break
-        for art in arten:
-            k = kosten(p, f.haus, 1, jahr, art, len(f.zimmer))
-            if (rest_b is not None and k.instandhaltung > rest_b + .5) or (rest_m is not None and k.investition > rest_m + .5):
-                continue
-            rest_b = None if rest_b is None else rest_b - k.instandhaltung
-            rest_m = None if rest_m is None else rest_m - k.investition
-            je.setdefault((f.schluessel, art), [f, []])[1].append((z, pk))
-            n += 1
-            break
+    for f, z, art in liste:
+        je.setdefault((f.schluessel, art), [f, []])[1].append(z)
+    return [_massnahme(p, f, zs, art, jahr) for (_s, art), (f, zs) in je.items()]
+
+
+def _zimmer_kandidaten(fl: list[Flur], frei: set, p: dict, jahr: int, art: str) -> list[tuple]:
+    """(Wert je €, Wert, Bau-€, Möbel-€, Flur, Zimmer) – nur Zimmer mit Bedarf in dieser Art."""
     erg = []
-    for (_s, art), (f, zs) in je.items():
-        erg.append(Massnahme(art, f, [z for z, _pk in zs], round(DECKUNG[art] * sum(pk for _z, pk in zs), 1),
-                             kosten(p, f.haus, len(zs), jahr, art, len(f.zimmer))))
+    cache: dict[tuple, Kosten] = {}
+    for f in fl:
+        for z in f.zimmer:
+            if z.id not in frei:
+                continue
+            b = f.bedarfe.get(z.id) or ZBedarf()
+            w = _wert(b, art)
+            if art == "zimmer" and not b.wert_bau:
+                continue                                  # ohne Bau-Bedarf kein „komplett“
+            if w <= 0:
+                continue
+            k = cache.setdefault((f.haus, art, len(f.zimmer)), kosten(p, f.haus, 1, jahr, art, len(f.zimmer)))
+            preis = k.instandhaltung if art == "zimmer" else k.investition
+            erg.append((w / max(preis, 1), w, k.instandhaltung, k.investition, f, z))
+    return sorted(erg, key=lambda x: (-x[0], -x[1], x[4].haus, x[5].id))
+
+
+def _fuellen(kand: list, rest_b: float | None, rest_m: float | None, belegt: set, ziel: int | None = None):
+    """Gierig nach Bedarf je €: (Auswahl[(Flur, Zimmer)], Rest Bau, Rest Möbel)."""
+    wahl = []
+    for _r, _w, kb, km, f, z in kand:
+        if z.id in belegt or (ziel is not None and len(wahl) >= ziel):
+            continue
+        if (rest_b is not None and kb > rest_b + .5) or (rest_m is not None and km > rest_m + .5):
+            continue
+        rest_b = None if rest_b is None else rest_b - kb
+        rest_m = None if rest_m is None else rest_m - km
+        wahl.append((f, z))
+        belegt = belegt | {z.id}
+    return wahl, rest_b, rest_m
+
+
+def _moebel_a(fl: list[Flur], belegt: set) -> list[tuple]:
+    """Zimmer mit Möbel-Klasse A, die noch keine Maßnahme haben → „nur Möbel“ (Teil des Möbelantrags)."""
+    return [(f, z, "moebel") for f in fl for z in f.zimmer if z.id not in belegt and (f.bedarfe.get(z.id) or ZBedarf()).moebel == "A"]
+
+
+def optimieren(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None, moebel_grenze: float | None,
+               ziel: int | None = None, mit_etagen: bool = True, mit_zimmern: bool = True, vorrang: str = "") -> tuple[list, float | None]:
+    """Beste Kombination aus ganzen Etagen und Einzelzimmern: jede Etagenkombination im Baubudget (bzw. bis zum
+    Zimmerziel), Rest gierig mit Einzelzimmern nach Bedarf je €. Ziel: meister Bedarf (Vorrang-Haus zuerst), dann
+    mehr Zimmer, dann mehr Baubudget genutzt. Ergebnis: ([(Flur, Zimmer, Art)], Rest Bau)."""
+    etagen = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl][:16] if mit_etagen else []
+    alle = {z.id for f in fl for z in f.zimmer}
+    kand = _zimmer_kandidaten(fl, alle, p, jahr, "zimmer") if mit_zimmern else []
+    best, best_wert, best_rest = [], None, budget_bau
+    if budget_bau is None and ziel is None and moebel_grenze is None:
+        return [(f, z, "etage") for f, _k in etagen for z in f.zimmer], None      # keine Grenze: alle Etagen
+
+    def kombis(i: int, gew: list, sb: float, sm: float, nz: int):
+        """Alle Etagenkombinationen, die in Budget bzw. Ziel passen (Äste, die schon zu teuer sind, werden abgeschnitten)."""
+        yield gew, sb, sm, nz
+        for j in range(i, len(etagen)):
+            f, k = etagen[j]
+            sb2, sm2, nz2 = sb + k.instandhaltung, sm + k.investition, nz + len(f.zimmer)
+            if budget_bau is not None and sb2 > budget_bau + .5:
+                continue
+            if moebel_grenze is not None and sm2 > moebel_grenze + .5:
+                continue
+            if ziel is not None and nz >= ziel:
+                continue                                  # Ziel schon erreicht: keine weitere Etage
+            yield from kombis(j + 1, gew + [(f, k)], sb2, sm2, nz2)
+
+    for gew, sb, sm, nz in kombis(0, [], 0.0, 0.0, 0):
+        belegt = {z.id for f, _k in gew for z in f.zimmer}
+        rest_b = None if budget_bau is None else budget_bau - sb
+        rest_m = None if moebel_grenze is None else moebel_grenze - sm
+        einzel, rest_b, _rm = _fuellen(kand, rest_b, rest_m, belegt, None if ziel is None else max(0, ziel - nz))
+        if budget_bau is None and ziel is None:
+            einzel = []                                   # ohne Grenze und ohne Ziel: nur Etagen
+        liste = [(f, z, "etage") for f, _k in gew for z in f.zimmer] + [(f, z, "zimmer") for f, z in einzel]
+        w_v = sum(_wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") for f, z, _a in liste if f.haus == vorrang)
+        w = sum(_wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") for f, z, _a in liste)
+        genutzt = (budget_bau - rest_b) if budget_bau is not None and rest_b is not None else sb
+        wert = (w_v, w, len(liste), genutzt if budget_bau is not None else -genutzt)
+        if best_wert is None or wert > best_wert:
+            best, best_wert, best_rest = liste, wert, rest_b
+    return best, best_rest
+
+
+def _als_massnahmen(p, liste: list, jahr: int) -> list[Massnahme]:
+    etagen: dict[str, Flur] = {}
+    rest = []
+    for f, z, art in liste:
+        if art == "etage":
+            etagen[f.schluessel] = f
+        else:
+            rest.append((f, z, art))
+    return [_massnahme(p, f, f.zimmer, "etage", jahr) for f in etagen.values()] + _gruppieren(p, rest, jahr)
+
+
+def machbare_etagen(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date, p: dict) -> set[str]:
+    """Etagen mit mindestens einem Monat, in dem gebaut werden kann (nicht gesperrt, Vorlauf reicht, Ausweich für
+    alle). Ohne Buchungen gilt ein Monat als machbar (nicht prüfbar)."""
+    erg = set()
+    for f in fl:
+        for m in range(1, 13):
+            fe = fenster(stand, f, date(jahr, m, 1), p)
+            if not fe.gesperrt and fe.stopp_ab >= heute and not fe.ohne_ausweich:
+                erg.add(f.schluessel)
+                break
     return erg
 
 
-def varianten(fl: list[Flur], p: dict, jahr: int, ziel: int | None = None, schon: set | None = None) -> tuple[list[Variante], str]:
-    """Vergleich: nur ganze Etagen · Etagen + Einzelzimmer · nur Einzelzimmer · nur Möbel tauschen. Budget-Modus:
-    beide Budgets; Ziel-Modus: Zimmerziel. Empfehlung = meister gedeckter Bedarf, dann mehr Zimmer, dann günstiger.
-    ``schon``: Zimmer-IDs, die im Jahr schon vorgemerkt sind (zählen nicht noch einmal)."""
-    budget = p.get("modus") == "budget"
+def varianten(fl: list[Flur], p: dict, jahr: int, ziel: int | None = None, schon: set | None = None,
+              machbar: set | None = None, reserve: set | None = None, budget_faktor: float = 1.0) -> tuple[list[Variante], str]:
+    """Varianten des Jahres. Budget-Modus: Baubudget fest (soll voll genutzt werden), Möbel als Antrag (optionale
+    Obergrenze). Ziel-Modus: Zimmerziel. ``schon``: im Jahr vorgemerkte Zimmer; ``machbar``: Etagen mit machbarem
+    Monat; ``reserve``: Reserve-Etagen (Kernbestand) – fallen heraus. Empfehlung = rechnerisch beste Variante."""
+    budget = p.get("modus") != "ziel"
     bb = p.get("budget_bau") if budget else None
-    bm = p.get("budget_moebel") if budget else None
+    bb = None if bb is None else bb * budget_faktor
+    mg = p.get("moebel_obergrenze") if budget else None
     ziel = None if budget else int(ziel if ziel is not None else p.get("ziel_zimmer") or 0)
-    schon = schon or set()
-    fl_etage = [f for f in fl if not any(z.id in schon for z in f.zimmer)]
-    alle = {z.id for f in fl for z in f.zimmer} - schon
-    if budget:
-        aw = budget_auswahl(fl_etage, p, jahr)
-    else:
-        opt = ziel_auswahl(fl_etage, p, jahr, ziel)
-        aw = min(opt, key=lambda a: (abs(a.zimmer - ziel), -a.zimmer)) if opt else None
-    etagen = [_etage_massnahme(p, f, jahr) for f in (aw.flure if aw else [])]
-    a = Variante("etagen", "Nur ganze Etagen", "Ganze Etagen nach Bedarf – so, wie die Angebote gelten. Ein Flur ist danach "
-                 "komplett neu; Belegungsstopp und Ausweich für die ganze Etage.", etagen)
-    rest_b = None if bb is None else bb - sum(m.kosten.instandhaltung for m in etagen)
-    rest_m = None if bm is None else bm - sum(m.kosten.investition for m in etagen)
-    frei = alle - {z.id for m in etagen for z in m.zimmer}
-    rest_ziel = None if ziel is None else max(0, ziel - a.zimmer)
-    b = Variante("kombi", "Etagen + Einzelzimmer", "Die Etagen aus Variante A, dazu mit dem Rest einzelne Zimmer mit dem "
-                 "höchsten Bedarf – komplett, wenn das Baubudget reicht, sonst nur Möbel.",
-                 etagen + _auffuellen(fl, p, jahr, frei, rest_b, rest_m, ("zimmer", "moebel"), rest_ziel))
-    c = Variante("zimmer", "Nur Einzelzimmer", "Keine ganze Etage, sondern die bedürftigsten Zimmer einzeln (Maler/Boden "
-                 "anteilig geschätzt + Möbel). Kein Belegungsstopp für ganze Flure, dafür viele kleine Termine.",
-                 _auffuellen(fl, p, jahr, alle, bb, bm, ("zimmer", "moebel"), ziel))
-    d = Variante("moebel", "Nur Möbel tauschen", "Nur neue Möbel für die bedürftigsten Zimmer – braucht nur das "
-                 "Möbelbudget und je Zimmer wenige Tage Leerstand. Wände und Böden bleiben, wie sie sind.",
-                 _auffuellen(fl, p, jahr, alle, None, bm, ("moebel",), ziel))
+    schon, reserve = schon or set(), reserve or set()
+    fl_ok = [f for f in fl if f.schluessel not in reserve]
+    fl_etage = [f for f in fl_ok if not any(z.id in schon for z in f.zimmer)
+                and (machbar is None or f.schluessel in machbar) and (not budget or f.wert > 0)]
+    frei = {z.id for f in fl_ok for z in f.zimmer} - schon
+    fl_z = [Flur(f.schluessel, f.haus, f.etage, f.flur, [z for z in f.zimmer if z.id in frei], bedarfe=f.bedarfe)
+            for f in fl_ok]
+    vorrang = p.get("haus_vorrang") or ""
+
+    def mit_moebel_a(liste):
+        belegt = {z.id for _f, z, _a in liste}
+        return liste + _moebel_a(fl_z, belegt)
+
+    a_liste, a_rest = optimieren(fl_etage, p, jahr, bb, mg, ziel, True, False, vorrang)
+    b_liste, b_rest = optimieren(fl_etage, p, jahr, bb, mg, ziel, True, True, vorrang)
+    b_liste = b_liste if b_liste else []
+    # Einzelzimmer dürfen auch auf Etagen liegen, die selbst nicht machbar sind (kein Belegungsstopp nötig)
+    if fl_z:
+        extra, b_rest2, _m = _fuellen(_zimmer_kandidaten(fl_z, frei, p, jahr, "zimmer"),
+                                      b_rest, None, {z.id for _f, z, _a in b_liste},
+                                      None if ziel is None else max(0, ziel - len(b_liste)))
+        if budget and bb is not None:
+            b_liste += [(f, z, "zimmer") for f, z in extra]
+            b_rest = b_rest2
+    c_liste, c_rest = optimieren(fl_z, p, jahr, bb, mg, ziel, False, True, vorrang)
+    d_kand = _zimmer_kandidaten(fl_z, frei, p, jahr, "moebel")
+    d_wahl, _rb, _rm = _fuellen(d_kand, None, mg, set(), ziel if ziel is not None else None)
+    a = Variante("etagen", "Nur ganze Etagen", "Ganze Etagen nach Bedarf – so, wie die Angebote gelten. Belegungsstopp "
+                 "und Ausweich für die ganze Etage.", _als_massnahmen(p, a_liste, jahr), rest_bau=a_rest)
+    b = Variante("kombi", "Beste Kombination", "Jede mögliche Etagenkombination im Baubudget, der Rest in die "
+                 "bedürftigsten Einzelzimmer (Bedarf je €); dazu „nur Möbel“ für Zimmer mit Möbel-Klasse A.",
+                 _als_massnahmen(p, mit_moebel_a(b_liste), jahr), rest_bau=b_rest)
+    c = Variante("zimmer", "Nur Einzelzimmer", "Keine ganze Etage, sondern die bedürftigsten Zimmer einzeln – kein "
+                 "Belegungsstopp für ganze Flure, dafür Termine je Zimmer (gebündelt in Kampagnen).",
+                 _als_massnahmen(p, mit_moebel_a(c_liste), jahr), rest_bau=c_rest)
+    d = Variante("moebel", "Nur Möbel tauschen", "Nur neue Möbel für Zimmer mit Möbel-Bedarf – braucht kein Baubudget. "
+                 "Wände und Böden bleiben, wie sie sind.", _als_massnahmen(p, [(f, z, "moebel") for f, z in d_wahl], jahr),
+                 rest_bau=bb)
     vs = [a, b, c, d]
-    if not any(pk > 0 for f in fl for pk, _t in f.punkte.values()):
+    if not any(b_.wert_bau + b_.wert_moebel for f in fl for b_ in f.bedarfe.values()):
         for v in (b, c, d):
-            v.hinweis = "Für einzelne Zimmer ist kein Bedarf erfasst (Mängel, Renovierungsdaten, Zustandsnote) – keine Vorschläge."
-    if budget and not etagen:
-        a.hinweis = "Mit diesem Budget passt keine ganze Etage."
-    kandidaten = [v for v in vs if v.massnahmen]
-    empf = max(kandidaten, key=lambda v: (v.punkte, v.zimmer, -v.kosten.summe)).schluessel if kandidaten else ""
+            v.hinweis = "Für einzelne Zimmer ist kein Bedarf erfasst (Mängel, Renovierungsdaten, Zustandsnote)."
+    if budget and not any(f.wert > 0 for f in fl_ok):
+        a.hinweis = "Für keine Etage ist Bedarf erfasst – Renovierungsdaten, Mängel oder Zustandsnoten pflegen."
+    elif budget and bb is not None and not a.massnahmen:
+        a.hinweis = "Mit diesem Baubudget passt keine ganze Etage mit Bedarf."
+    kandidaten = [v for v in vs[:3] if v.massnahmen]
+    empf = max(kandidaten, key=lambda v: (v.wert, v.zimmer, -(v.rest_bau or 0))).schluessel if kandidaten else (
+        "moebel" if d.massnahmen else "")
     return vs, empf
 
 
-# ---- Szenarien über mehrere Jahre ------------------------------------------------------------------
+def robustheit(fl: list[Flur], p: dict, jahr: int, empf: str, **kw) -> str:
+    """Bleibt die Empfehlung, wenn alle Kosten 15 % höher bzw. niedriger sind? (= Budget ÷ 1,15 bzw. ÷ 0,85)"""
+    vs, e = varianten(fl, p, jahr, budget_faktor=1, **kw)
+    basis = {(m.art, m.flur.schluessel, len(m.zimmer)) for v in vs if v.schluessel == e for m in v.massnahmen}
+    saetze = []
+    for faktor, text in ((1 / 1.15, "15 % teurer"), (1 / 0.85, "15 % günstiger")):
+        vs2, e2 = varianten(fl, p, jahr, budget_faktor=faktor, **kw)
+        v2 = next((v for v in vs2 if v.schluessel == e2), None)
+        andere = {(m.art, m.flur.schluessel, len(m.zimmer)) for m in (v2.massnahmen if v2 else [])}
+        if e2 != e:
+            saetze.append(f"wenn alles {text} ist, wäre „{v2.titel if v2 else '–'}“ vorn")
+        elif {x for x in andere if x[0] == "etage"} != {x for x in basis if x[0] == "etage"}:
+            saetze.append(f"wenn alles {text} ist, ändern sich die Etagen")
+    if p.get("modus") == "ziel" or p.get("budget_bau") is None:
+        return "Ohne Baubudget hängt die Auswahl nicht an den Preisen."
+    return "Empfehlung stabil bei Kosten ±15 %." if not saetze else "Achtung: " + "; ".join(saetze) + "."
+
+
+def moebelantrag(v: Variante | None) -> dict:
+    """Was beantragt werden muss: Möbel für die Bau-Maßnahmen + „nur Möbel“ – mit Spanne."""
+    if not v:
+        return {"summe": 0.0, "bau_mass": 0.0, "nur_moebel": 0.0, "von": 0.0, "bis": 0.0}
+    bm = sum(m.kosten.investition for m in v.massnahmen if m.art != "moebel")
+    nm = sum(m.kosten.investition for m in v.massnahmen if m.art == "moebel")
+    von = sum(m.kosten.spanne_von("moebel")[0] for m in v.massnahmen)
+    bis = sum(m.kosten.spanne_von("moebel")[1] for m in v.massnahmen)
+    return {"summe": bm + nm, "bau_mass": bm, "nur_moebel": nm, "von": von, "bis": bis}
+
+
+def guenstigste(fl: list[Flur], p: dict, jahr: int) -> tuple[Flur, Kosten] | None:
+    erg = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl]
+    return min(erg, key=lambda x: x[1].instandhaltung) if erg else None
+
+
+# ---- Strategien über mehrere Jahre (mit Alterung) ------------------------------------------------------
 
 @dataclass
 class Strategie:
     schluessel: str
     titel: str
     erklaerung: str
-    jahre: list = field(default_factory=list)       # je Jahr: {jahr, text, zimmer, bau, moebel, summe, sperr}
+    jahre: list = field(default_factory=list)       # {jahr, text, zimmer, bau, moebel, summe, sperr, a_offen}
     bestand: int = 0
-    bedarf_gesamt: float = 0.0
-    bedarf_gedeckt: float = 0.0
+    a_start: int = 0
     zimmer_ids: set = field(default_factory=set)
+    zusatz: str = ""
 
     @property
     def zimmer(self) -> int:
@@ -876,87 +1193,119 @@ class Strategie:
         return round(self.bestand / self.je_jahr, 1) if self.je_jahr else None
 
     @property
+    def a_ende(self) -> int:
+        return self.jahre[-1]["a_offen"] if self.jahre else self.a_start
+
+    @property
     def deutung(self) -> str:
         n = len(self.jahre)
-        if not self.zimmer:
-            return f"In {n} Jahren würde nichts erneuert."
-        teile = [f"In {n} Jahren {self.zimmer} von {self.bestand} Zimmern ({self.anteil:.0f} %) erneuert für "
-                 f"{euro(self.summe('summe'))} (Bau {euro(self.summe('bau'))}, Möbel {euro(self.summe('moebel'))})."]
-        if self.bedarf_gesamt > 0:
-            teile.append(f"Gedeckt wird {100 * self.bedarf_gedeckt / self.bedarf_gesamt:.0f} % des heute erfassten Bedarfs.")
-        if self.zyklus:
-            teile.append(f"Bei diesem Tempo ist jedes Zimmer etwa alle {self.zyklus:g} Jahre dran.")
-        teile.append(f"Gesperrt: im Schnitt {self.summe('sperr') / n:.1f} Zimmer-Monate je Jahr.")
+        teile = [f"Klasse-A-Zimmer: heute {self.a_start}, nach {n} Jahren {self.a_ende}."]
+        if self.zimmer:
+            teile.append(f"{self.zimmer} von {self.bestand} Zimmern ({self.anteil:.0f} %) erneuert für "
+                         f"{tsd(self.summe('summe'))} (Bau {tsd(self.summe('bau'))}, Möbel {tsd(self.summe('moebel'))}).")
+            if self.zyklus:
+                teile.append(f"Bei diesem Tempo ist jedes Zimmer etwa alle {self.zyklus:g} Jahre dran.")
+        else:
+            teile.append("Es wird nichts erneuert.")
+        if self.zusatz:
+            teile.append(self.zusatz)
         return " ".join(teile)
 
 
-def szenarien_mehrjahr(fl: list[Flur], p: dict, start_jahr: int, jahre: int = 5) -> list[Strategie]:
-    """Strategien über ``jahre`` Jahre – jede Etage bzw. jedes Zimmer höchstens einmal, Preise mit Steigerung je Jahr."""
+def _altern(fl: list[Flur], heute: date, p: dict, offen: dict, noten: dict) -> list[Flur]:
+    """Bedarf neu einstufen, wie er in ``heute`` wäre (Zimmer werden älter, offene Mängel bleiben)."""
+    from types import SimpleNamespace
+
+    stand = SimpleNamespace(zimmer=[z for f in fl for z in f.zimmer], lage=SimpleNamespace(unbewohnbar=set()))
+    return flure(stand, heute, p, offen, noten)
+
+
+def strategien(fl: list[Flur], p: dict, start_jahr: int, heute: date, jahre: int = 5, reserve: set | None = None,
+               kern_text: str = "") -> list[Strategie]:
+    """Nichtstun · Empfohlen · Kürzung −20 % · Beschleunigt (+50 %) · Kernbestand. Jahr für Jahr: Bedarf altert,
+    erneuerte Zimmer zählen als frisch (kein Bau-Bedarf mehr, kein A)."""
+    from belegung import maengel as mg
+
+    offen = mg.offen_je_zimmer()
+    noten = zustandsnoten()
     bestand_ = bestand(fl)
-    gesamt = sum(pk for f in fl for pk, _t in f.punkte.values() if pk > 0)
-    pk_je = {zid: pk for f in fl for zid, (pk, _t) in f.punkte.items()}
-    ziel = int(p.get("ziel_zimmer") or 9)
-    modus_text = (f"Budget je Jahr: Bau {euro(p['budget_bau']) if p.get('budget_bau') is not None else 'ohne Grenze'}, "
-                  f"Möbel {euro(p['budget_moebel']) if p.get('budget_moebel') is not None else 'ohne Grenze'}"
-                  if p.get("modus") == "budget" else f"Zimmerziel {ziel} je Jahr")
+    a0 = a_zimmer(fl)
 
-    def neu(schl, titel, erkl):
-        return Strategie(schl, titel, erkl, bestand=bestand_, bedarf_gesamt=gesamt)
+    def lauf(schl, titel, erkl, faktor: float | None, res: set | None = None, zusatz: str = "") -> Strategie:
+        s = Strategie(schl, titel, erkl, bestand=bestand_ - sum(len(f.zimmer) for f in fl if f.schluessel in (res or set())),
+                      a_start=a0, zusatz=zusatz)
+        for i, j in enumerate(range(start_jahr, start_jahr + jahre)):
+            stichtag = date(j, 1, 1) if j > heute.year else heute
+            fl_j = _altern(fl, stichtag, p, offen, noten)
+            for f in fl_j:                                   # erneuerte Zimmer: frisch
+                for zid in list(f.bedarfe):
+                    if zid in s.zimmer_ids:
+                        f.bedarfe[zid] = ZBedarf(frisch=True)
+            massnahmen = []
+            if faktor is not None:
+                pj = dict(p)
+                if pj.get("modus") == "ziel":
+                    pj["ziel_zimmer"] = round(int(p.get("ziel_zimmer") or 0) * faktor)
+                vs, e = varianten(fl_j, pj, j, schon=set(s.zimmer_ids), reserve=res, budget_faktor=faktor)
+                massnahmen = next((v.massnahmen for v in vs if v.schluessel == e), [])
+            neu_ids = {z.id for m in massnahmen for z in m.zimmer} - s.zimmer_ids
+            s.zimmer_ids |= neu_ids
+            k = Kosten(0, j, herkunft_bau="", herkunft_moebel="")
+            for m in massnahmen:
+                k = k.plus(m.kosten)
+            a_offen = sum(1 for f in fl_j for zid, b in f.bedarfe.items() if b.a and zid not in s.zimmer_ids)
+            s.jahre.append({"jahr": j, "text": "; ".join(m.text for m in massnahmen) or "nichts", "zimmer": len(neu_ids),
+                            "bau": k.instandhaltung, "moebel": k.investition, "summe": k.summe,
+                            "sperr": Variante("", "", "", massnahmen).sperr_zimmermonate(p), "a_offen": a_offen})
+        return s
 
-    def buchen(s: Strategie, jahr: int, massnahmen: list):
-        neu_ids = [z.id for m in massnahmen for z in m.zimmer if z.id not in s.zimmer_ids]
-        s.zimmer_ids.update(neu_ids)
-        art_je = {z.id: m.art for m in massnahmen for z in m.zimmer}
-        s.bedarf_gedeckt += sum(DECKUNG[art_je[z]] * max(0.0, pk_je.get(z, 0)) for z in neu_ids)
-        k = Kosten(0, jahr)
-        for m in massnahmen:
-            k = k.plus(m.kosten)
-        v = Variante("", "", "", massnahmen)
-        s.jahre.append({"jahr": jahr, "text": "; ".join(m.text for m in massnahmen) or "nichts – passt nicht ins Budget bzw. kein erfasster Bedarf", "zimmer": len(neu_ids),
-                        "bau": k.instandhaltung, "moebel": k.investition, "summe": k.summe, "sperr": v.sperr_zimmermonate(p)})
-
-    erg = []
-    s = neu("eingestellt", "Wie eingestellt (empfohlene Variante)", f"Jedes Jahr die empfohlene Variante – {modus_text}.")
-    for j in range(start_jahr, start_jahr + jahre):
-        vs, empf = varianten(fl, p, j, schon=s.zimmer_ids)
-        buchen(s, j, next((v.massnahmen for v in vs if v.schluessel == empf), []))
-    erg.append(s)
-    for n, titel in ((1, "Konservativ: 1 Etage je Jahr"), (2, "Zügig: 2 Etagen je Jahr")):
-        s = neu(f"etage{n}", titel, f"Jedes Jahr die {n} bedürftigste(n) noch offene(n) Etage(n), ganz.")
-        for j in range(start_jahr, start_jahr + jahre):
-            offen = [f for f in fl if not any(z.id in s.zimmer_ids for z in f.zimmer)][:n]
-            buchen(s, j, [_etage_massnahme(p, f, j) for f in offen])
-        erg.append(s)
-    s = neu("moebel", f"Nur Möbel: {ziel} Zimmer je Jahr", "Nur Möbel tauschen in den bedürftigsten Zimmern; Wände und "
-            "Böden bleiben. Günstig und kaum Leerstand – der bauliche Zustand verbessert sich aber nicht.")
-    reihe = [(f, z) for f in fl for z in sorted(f.zimmer, key=lambda z: -pk_je.get(z.id, 0))]
-    reihe.sort(key=lambda x: -pk_je.get(x[1].id, 0))
-    for j in range(start_jahr, start_jahr + jahre):
-        wahl = [(f, z) for f, z in reihe if z.id not in s.zimmer_ids][:ziel]
-        je: dict[str, list] = {}
-        for f, z in wahl:
-            je.setdefault(f.schluessel, [f, []])[1].append(z)
-        buchen(s, j, [Massnahme("moebel", f, zs, sum(pk_je.get(z.id, 0) for z in zs),
-                                kosten(p, f.haus, len(zs), j, "moebel")) for f, zs in je.values()])
-    erg.append(s)
-    s = neu("warten", "Ein Jahr warten, dann 1 Etage je Jahr", "Zeigt, was Aufschieben kostet: dieselben Etagen ein Jahr "
-            f"später, mit {p.get('preis_pct')} % Preissteigerung – und ein Jahr länger mit dem heutigen Zustand.")
-    buchen(s, start_jahr, [])
-    for j in range(start_jahr + 1, start_jahr + jahre):
-        offen = [f for f in fl if not any(z.id in s.zimmer_ids for z in f.zimmer)][:1]
-        buchen(s, j, [_etage_massnahme(p, f, j) for f in offen])
-    erg.append(s)
+    erg = [lauf("nichts", "Nichtstun", "Keine Renovierung – zeigt, wie der Bedarf mit dem Alter der Zimmer wächst.", None),
+           lauf("empfohlen", "Empfohlen", "Jedes Jahr die rechnerisch beste Variante mit dem eingestellten Budget bzw. Ziel.", 1.0),
+           lauf("kuerzung", "Kürzung −20 %", "Wie „Empfohlen“, aber mit 20 % weniger Budget bzw. Zimmerziel.", .8),
+           lauf("schneller", "Beschleunigt +50 %", "Wie „Empfohlen“, aber mit 50 % mehr Budget bzw. Zimmerziel.", 1.5)]
+    if reserve:
+        erg.append(lauf("kern", "Kernbestand", "Wie „Empfohlen“, aber Reserve-Etagen werden nicht renoviert, nur in "
+                        "Betrieb gehalten.", 1.0, reserve, kern_text))
     return erg
 
 
-def _freies_fenster(stand: zp.Planstand, z, ab: date, bis: date, tage: int, gesperrt: list) -> tuple[date, date] | None:
-    d = ab
+# ---- Termine für Einzelzimmer: Kampagnen ----------------------------------------------------------------
+
+def _frei_ab(stand: zp.Planstand, z, d: date, tage: int) -> bool:
+    return stand.lage.freie_betten(z.id, d, d + timedelta(days=tage - 1)) >= z.betten
+
+
+def kampagnen(stand: zp.Planstand, zimmer: list, ab: date, bis: date, tage: int, gesperrt: list,
+              hoechstens: int = 2) -> tuple[list[tuple], list]:
+    """Einzelzimmer gebündelt: je Kampagne der Wochenbeginn, an dem die meisten Zimmer gleichzeitig leer sind.
+    Höchstens ``hoechstens`` Kampagnen; was übrig bleibt, einzeln im ersten Leerstand. → ([(Zimmer, von, bis)], ohne)."""
+    offen = list(zimmer)
+    erg = []
+    starts = []
+    d = ab + timedelta(days=(7 - ab.weekday()) % 7)
     while d + timedelta(days=tage - 1) <= bis:
-        e = d + timedelta(days=tage - 1)
-        if d.month not in gesperrt and stand.lage.freie_betten(z.id, d, e) >= z.betten:
-            return d, e
-        d += timedelta(days=1)
-    return None
+        if d.month not in gesperrt:
+            starts.append(d)
+        d += timedelta(days=7)
+    for _k in range(hoechstens):
+        if not offen or not starts:
+            break
+        best = max(starts, key=lambda s: (sum(1 for z in offen if _frei_ab(stand, z, s, tage)), -s.toordinal()))
+        drin = [z for z in offen if _frei_ab(stand, z, best, tage)]
+        if not drin:
+            break
+        erg += [(z, best, best + timedelta(days=tage - 1)) for z in drin]
+        offen = [z for z in offen if z not in drin]
+    ohne = []
+    for z in offen:
+        d = ab
+        while d + timedelta(days=tage - 1) <= bis and not (d.month not in gesperrt and _frei_ab(stand, z, d, tage)):
+            d += timedelta(days=1)
+        if d + timedelta(days=tage - 1) <= bis:
+            erg.append((z, d, d + timedelta(days=tage - 1)))
+        else:
+            ohne.append(z)
+    return erg, ohne
 
 
 @dataclass
@@ -964,30 +1313,31 @@ class Vorschlag:
     flur: Flur
     fenster: Fenster | None
     art: str = "etage"
-    teile: list = field(default_factory=list)       # Einzelzimmer: (Zimmer, von, bis) – leer = kein Fenster gefunden
+    teile: list = field(default_factory=list)       # Einzelzimmer: (Zimmer, von, bis)
     ohne_fenster: list = field(default_factory=list)
 
 
 def vorschlaege_variante(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date, p: dict, prognose: dict | None,
                          v: Variante | None, kap: float | None = None) -> list[Vorschlag]:
-    """Etagen wie bisher (bester Monat), Einzelzimmer: je Zimmer der erste Leerstand im Jahr, der lang genug ist."""
+    """Etagen: bester Monat. Einzelzimmer: Kampagnen je Haus und Art, frühestens nach Bestellung + Möbel-Lieferzeit."""
     if v is None:
         return []
     etagen = [m.flur for m in v.massnahmen if m.art == "etage"]
     erg = vorschlaege(stand, fl, jahr, heute, p, prognose, Auswahl("", etagen, 0, Kosten(0, jahr)), kap) if etagen else []
-    ab = max(date(jahr, 1, 1), heute + timedelta(days=14))
+    ab = max(date(jahr, 1, 1), heute + timedelta(days=int(p.get("lieferzeit_tage") or 28) + 14))
+    je_haus: dict[tuple, list] = {}
     for m in v.massnahmen:
-        if m.art == "etage":
-            continue
-        tage = int(p.get("zimmer_tage") or 14) if m.art == "zimmer" else int(p.get("moebel_tage") or 3)
-        vs = Vorschlag(m.flur, None, m.art)
-        for z in m.zimmer:
-            fe = _freies_fenster(stand, z, ab, date(jahr, 12, 31), tage, p.get("gesperrt") or [])
-            if fe:
-                vs.teile.append((z, *fe))
-            else:
-                vs.ohne_fenster.append(z)
-        erg.append(vs)
+        if m.art != "etage":
+            je_haus.setdefault((m.flur.haus, m.art), []).append(m)
+    for (_haus, art), ms in je_haus.items():
+        tage = int(p.get("zimmer_tage") or 14) if art == "zimmer" else int(p.get("moebel_tage") or 3)
+        alle = [z for m in ms for z in m.zimmer]
+        teile, ohne = kampagnen(stand, alle, ab, date(jahr, 12, 31), tage, p.get("gesperrt") or [])
+        nach_flur = {z.id: m.flur for m in ms for z in m.zimmer}
+        for m in ms:
+            vs = Vorschlag(m.flur, None, art, [t for t in teile if nach_flur[t[0].id] is m.flur],
+                           [z for z in ohne if nach_flur[z.id] is m.flur])
+            erg.append(vs)
     return erg
 
 
@@ -1033,6 +1383,7 @@ class PlanZeile:
     engpass: bool = False
     art: str = "etage"
     teile: list = field(default_factory=list)      # Einzelzimmer: (Zimmer-ID, kurz, von, bis, Betten)
+    pruefbar: bool = True
 
     @property
     def titel(self) -> str:
@@ -1072,7 +1423,7 @@ def jahresplan(stand: zp.Planstand, jahr: int, vorschl: list[Vorschlag] | None =
         fe, f = v.fenster, v.flur
         erg.append(PlanZeile(f.schluessel, f.text, len(f.zimmer), f.betten, fe.start, fe.ende, fe.stopp_ab, "vorschlag",
                              kosten(p, f.haus, len(f.zimmer), jahr), fe.gleichwertig, len(fe.ohne_ausweich),
-                             fe.engpass))
+                             fe.engpass, pruefbar=fe.pruefbar))
     for (schl, art, status), teile in gruppen.items():
         n = len(teile)
         start, ende = min(t[2] for t in teile), max(t[3] for t in teile)
@@ -1201,6 +1552,7 @@ def parameter_schritt(p: dict) -> str:
     from .kern import _schritt
 
     erg = []
+    p = herkunft_merken(parameter(), p)
     _schritt("Renovierung: Planungsannahmen", lambda: erg.append(parameter_speichern(p)), [DATEI])
     return erg[0]
 

@@ -26,7 +26,7 @@ def _belegung(zid, name, von, bis, art="belegt", massnahme="GS RVL"):
 def test_kostenmodell_steuer_puffer_preissteigerung(leer):
     from modern import renovierung_kern as rk
 
-    p = {**rk.parameter(), "preisstand": 2030, "preis_pct": 10, "puffer_pct": 10, "neben_pct": 20, "vorsteuer_pct": 0,
+    p = {**rk.parameter(), "preisstand": 2030, "preis_pct": 10, "puffer_bau_pct": 10, "puffer_moebel_pct": 10, "neben_pct": 20, "vorsteuer_pct": 0,
          "kosten": {"6": {"bau_etage": 10000, "moebel_zimmer": 1000, "aufbau_zimmer": 100, "dauer_tage": 30}}}
     k = rk.kosten(p, "6", 2, 2030)
     assert (k.bau, k.neben, k.moebel, k.aufbau) == (10000, 2000, 2000, 200)
@@ -42,7 +42,7 @@ def test_angebot_auswerten_und_uebernehmen(leer):
 
     bau = rk.angebot_auswerten("Objekt: Musterbau, Gebäude 6, Etage 3\nPos 01 ...\nNettosumme = EUR 12.345,67\n"
                                "Bruttosumme = EUR 14.691,35")
-    assert bau == {"netto": 12345.67, "art": "bau", "haus": "6", "zimmer": 0}
+    assert {k: bau[k] for k in ("netto", "art", "haus", "zimmer")} == {"netto": 12345.67, "art": "bau", "haus": "6", "zimmer": 0}
     moebel = rk.angebot_auswerten("  4 Stück  Bettgestell  10,00 €\n  4 Stück Matratze\n  8 Stück Kopfteil\n"
                                   "Warenwert o. MwSt.   4.000,00 €")
     assert moebel["art"] == "moebel" and moebel["netto"] == 4000.0 and moebel["zimmer"] == 4
@@ -88,29 +88,6 @@ def test_bester_monat_gleichwertig_ohne_klaren_abstand():
     klar = [fe(1, (100, 98, 102)), fe(2, (60, 58, 62)), fe(3, (100, 98, 102))]
     best = rk.bester_monat(klar, date(2030, 1, 1))
     assert best.start.month == 2 and not best.gleichwertig
-
-
-def test_ziel_szenarien_vorschlaege_jahresplan(leer):
-    from belegung import zimmerplan as zp
-    from modern import renovierung_kern as rk
-
-    st = zp.laden()
-    p = rk.parameter()
-    fl = rk.flure(st, date(2030, 1, 1), p)
-    aw = rk.ziel_auswahl(fl, p, 2031, 30)
-    assert len(aw) == 2 and aw[0].zimmer < 30 <= aw[1].zimmer                 # knapp darunter / knapp darüber
-    sz = rk.szenarien(fl, p, 2031)
-    assert [s.etagen for s in sz] == [1, 2, 3] and sz[0].jahre_bis_durch == len(fl)
-    assert sz[0].zyklus == rk.zyklus(fl, sz[0].zimmer)
-    vs = rk.vorschlaege(st, fl, 2031, date(2030, 1, 1), p, auswahl=aw[1])
-    monate = [v.fenster.start.month for v in vs if v.fenster]
-    assert len(monate) == len(set(monate)) == len(aw[1].flure)                # keine zwei Baustellen im selben Monat
-    zeilen = rk.jahresplan(st, 2031, vs, p)
-    assert all(z.status == "vorschlag" for z in zeilen)
-    assert rk.gesperrte_betten(zeilen, date(2031, monate[0], 1)) > 0
-    rk.vormerken_mehrere_schritt([(v.flur.schluessel, v.fenster.start, v.fenster.ende) for v in vs])
-    assert len(rk.plan()) == len(vs) and all(z.status == "vorgemerkt" for z in rk.jahresplan(st, 2031, None, p))
-    assert rk.vorschlaege(st, fl, 2031, date(2030, 1, 1), p, auswahl=aw[1]) == []    # schon vorgemerkt
 
 
 def _pg(rueck):

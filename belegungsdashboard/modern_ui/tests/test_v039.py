@@ -79,9 +79,9 @@ def test_flur_bedarf_nachvollziehbar_und_luecken(leer):
     maengel.setzen(f2.zimmer[1].id, "renovierung", True, h)
     fl = rk.flure(zp.laden(), h)
     f2 = next(f for f in fl if f.schluessel == "2|3|")
-    assert fl[0] is f2 and f2.bedarf == round(10 * (1.5 + .5 + 4) / len(f2.zimmer), 1)     # 0.41: Mängel schwächer
-    assert any("Renovierung nötig" in t for _p, t in f2.gruende) and any("unbewohnbar" in t for _p, t in f2.gruende)
-    assert any("ohne Renovierungsvermerk" in l for l in f2.luecken)          # Lücke statt Schätzung
+    assert fl[0] is f2 and f2.klassen("bau")["A"] == 2 and f2.klassen("moebel")["A"] == 1     # 0.44: Klassen A/B/C
+    assert any("Bau Klasse A" in t for _p, t in f2.gruende) and any("unbewohnbar" in t for _p, t in f2.gruende)
+    assert any("ohne Renovierungsdatum" in l for l in f2.luecken)            # Lücke statt Schätzung
     assert f2.kosten.bau == 100000 and "Haus 2: Möbelpreis je Zimmer fehlt" in f2.kosten.luecken
     f6 = next(f for f in fl if f.haus == "6")
     assert f6.kosten.bau == 30000 and f6.kosten.aufbau == 500 * len(f6.zimmer)
@@ -104,7 +104,8 @@ def test_zeitfenster_umzug_umleiten_stopp(leer):
     assert [x[0] for x in fe.nach_stopp] == ["Miete, Mia"] and fe.stopp_ab == date(2030, 4, 6)
     assert fe.betroffen == 2 and fe.stufe == "ok" and fe.frei_im_haus > 2
     fs = rk.monatsfenster(st, f, 2032)
-    assert rk.bester_monat(fs, date(2030, 1, 1)).stufe == "frei"
+    best = rk.bester_monat(fs, date(2030, 1, 1))
+    assert best.stufe == "offen" and not best.pruefbar                # 0.44: hinter den Buchungen nicht prüfbar
 
 
 def test_ziel_und_vormerken_mit_rueckgaengig(leer):

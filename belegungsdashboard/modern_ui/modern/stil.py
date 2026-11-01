@@ -1175,3 +1175,15 @@ button.m-pille.m-klickbar:hover, button.m-pille.m-klickbar:focus-visible { borde
   text-decoration: underline dotted; }
 .m-link-knopf:hover, .m-link-knopf:focus-visible { text-decoration: underline; }
 """
+CSS += """
+/* 0.44: Herkunft, Platzhalter-Hinweis, Empfehlung, Warnzeichen im Gantt */
+.m-pille.m-hk { font-size: 10.5px; padding: 1px 6px; }
+.m-pille.neutral { background: color-mix(in srgb, var(--text3) 14%, transparent); color: var(--text2); }
+.m-rv-banner { border: 1.5px solid var(--orange); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+.m-rv-empf { border: 1.5px solid var(--akzent); }
+.m-rv-exp .q-expansion-item__container > .q-item { font-weight: 600; padding-left: 4px; }
+.m-gantt-bau.aus { border: 2px solid var(--orange); }
+.m-gantt-bau.warn { box-shadow: 0 0 0 2px color-mix(in srgb, var(--rot) 70%, transparent) inset; }
+.m-gantt-bau.offen { background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--text3) 35%, transparent) 5px 7px); }
+.m-rv-monat.offen { border-left-color: var(--text3); border-left-style: dotted; }
+"""
