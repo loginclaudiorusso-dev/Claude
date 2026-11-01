@@ -66,8 +66,10 @@ def main() -> None:
             import webview  # noqa: F401
         except ImportError:
             nativ = False
+    # reconnect_timeout: Rechnet das Programm einmal länger (großer Datenstand), bleibt die Seite stehen, statt nach 3 s
+    # leer neu aufgebaut zu werden („nur noch Hintergrund“).
     einstellungen = dict(title="Belegung", dark=True, reload=False, language="de",
-                         show_welcome_message=False, host="127.0.0.1")
+                         show_welcome_message=False, host="127.0.0.1", reconnect_timeout=30)
     minimiert = "--minimiert" in sys.argv          # „Mit Windows starten“: als Symbol in der Taskleiste, meldet Fälliges
     if nativ:
         if minimiert:

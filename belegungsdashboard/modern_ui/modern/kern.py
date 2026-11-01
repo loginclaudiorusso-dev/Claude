@@ -673,7 +673,11 @@ def termin_erledigt(tid: str) -> str:
 
 
 def rueckgaengig() -> tuple[bool, str]:
-    return aenderungen.rueckgaengig("Neue Oberfläche")
+    erg = aenderungen.rueckgaengig("Neue Oberfläche")
+    from . import regeln_kern
+
+    regeln_kern.neu_lesen()                   # z. B. Haus-6-Aufteilung zurückgeschaltet
+    return erg
 
 
 # ---------------------------------------------------------------------------------------

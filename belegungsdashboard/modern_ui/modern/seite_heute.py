@@ -72,7 +72,7 @@ def _woche(stand, heute: date) -> list[dict]:
         gruppen = an.get(tag, [])
         n, mit = sum(a.personen for a in gruppen), sum(a.mit_zimmer for a in gruppen)
         bereit = None
-        if n:
+        if n and i <= 3:                       # bezugsfertig nur für die nächsten 3 Tage (teure Prüfung, dort zählt es)
             try:
                 b = kern.bereitschaft(stand, kern.zeilen(stand, tag.isoformat(), heute), tag)
                 bereit = (b.bereit, b.n)

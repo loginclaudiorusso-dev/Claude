@@ -17,6 +17,8 @@ Rein, ohne NiceGUI.
 
 from __future__ import annotations
 
+import time
+
 from belegung import speicher
 from belegung import zimmerplan as zp
 
@@ -28,14 +30,20 @@ HAUPT = "Reha"                                    # Gruppe „Hauptmaßnahme“
 
 _ORIG: dict = {}
 _RENOVIERT: set[tuple[str, str]] = set()          # (Haus, Etage) – alle Zimmer mit Renovierungsvermerk
-_CACHE: dict = {"mtime": None, "an": False}
+_CACHE: dict = {"mtime": None, "an": False, "geprueft": 0.0}
+PRUEF_ABSTAND_S = 2.0                              # Einstellungsdatei höchstens alle 2 s ansehen (erlaubt() läuft sehr oft)
 _ERZWINGEN: dict = {"wert": None}                  # Vorschau: Regel vorübergehend an/aus
 
 
 def an() -> bool:
-    """Eingeschaltet? (aus den Einstellungen, nur neu gelesen, wenn die Datei sich geändert hat – auch nach Rückgängig)"""
+    """Eingeschaltet? Wird beim Zuteilen hunderttausendfach gefragt – deshalb nur alle ``PRUEF_ABSTAND_S`` Sekunden
+    nachsehen, ob sich die Einstellungsdatei geändert hat (nach Schalten/Rückgängig sofort über ``neu_lesen``)."""
     if _ERZWINGEN["wert"] is not None:
         return _ERZWINGEN["wert"]
+    jetzt = time.monotonic()
+    if jetzt - _CACHE["geprueft"] < PRUEF_ABSTAND_S:
+        return _CACHE["an"]
+    _CACHE["geprueft"] = jetzt
     try:
         mtime = speicher.pfad(speicher.EINSTELLUNGEN).stat().st_mtime_ns
     except OSError:
@@ -43,6 +51,11 @@ def an() -> bool:
     if mtime != _CACHE["mtime"]:
         _CACHE.update(mtime=mtime, an=bool(speicher.einstellungen().get(EINSTELLUNG, False)))
     return _CACHE["an"]
+
+
+def neu_lesen() -> None:
+    """Nach Schalten, Rückgängig oder Standortwechsel: beim nächsten Aufruf die Einstellung frisch lesen."""
+    _CACHE.update(mtime=None, geprueft=0.0)
 
 
 def bad_ueber_flur(z) -> bool:
@@ -88,6 +101,7 @@ def anwenden(orig: dict | None = None) -> None:
         _ORIG.update({k: orig[k] for k in ("standard", "erlaubt", "wert") if k in orig})
     zp.standard_zimmer = _standard_zimmer
     zp.erlaubt, zp.zimmer_wert_details = _erlaubt, _wert          # wirken nur, wenn eingeschaltet (an())
+    neu_lesen()
 
 
 def zuruecksetzen() -> None:
@@ -112,6 +126,7 @@ def setzen(wert: bool) -> str:
 
     _schritt("Haus 6: Aufteilung " + ("an" if wert else "aus"), lambda: speicher.einstellung_setzen(EINSTELLUNG, bool(wert)),
              [speicher.EINSTELLUNGEN])
+    neu_lesen()
     return ("Haus 6: Hauptmaßnahmen in Zimmern mit eigenem Bad, Vorrang für Mieter (x01/x02) und UWT (x08/x09) auf "
             "renovierten Etagen" if wert else "Haus 6: wieder die bisherigen Regeln (nur Mieter und UWT)")
 
