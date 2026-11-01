@@ -133,6 +133,12 @@ class Ansicht:
 
         self.heute = date.today()
         self.stand = zp.laden()
+        try:
+            from . import regeln_kern
+
+            regeln_kern.aktualisieren(self.stand)          # Haus 6: welche Etagen sind renoviert?
+        except Exception:                      # noqa: BLE001 – Zusatz, darf das Laden nie verhindern
+            log.exception("Haus-6-Regel")
         self.ohne_daten = self.stand.plan is None and not self.stand.bedarf
         self.karten = kern.karten(self.stand, self.heute)
         try:

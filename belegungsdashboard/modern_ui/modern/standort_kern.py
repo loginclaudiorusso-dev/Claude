@@ -160,13 +160,18 @@ def _anpassen(s: Standort) -> None:
 
     if not _ORIGINAL:
         _ORIGINAL.update(zimmer=gebaeudeplan._ZIMMER, haus=gebaeudeplan._HAUS, gaeste=zp.GAESTEZIMMER,
-                         erlaubt=zp.erlaubt, mitgeliefert=zp.mitgelieferte_zimmer, haus_sort=zp._haus_sort)
+                         erlaubt=zp.erlaubt, mitgeliefert=zp.mitgelieferte_zimmer, haus_sort=zp._haus_sort,
+                         standard=zp.standard_zimmer, wert=zp.zimmer_wert_details)
+    from . import regeln_kern
+
     if s.kurz == "GS":
         gebaeudeplan._ZIMMER, gebaeudeplan._HAUS = _ORIGINAL["zimmer"], _ORIGINAL["haus"]
         zp.GAESTEZIMMER, zp.erlaubt, zp.mitgelieferte_zimmer = (_ORIGINAL["gaeste"], _ORIGINAL["erlaubt"],
                                                                  _ORIGINAL["mitgeliefert"])
         zp._haus_sort = _ORIGINAL["haus_sort"]
+        regeln_kern.anwenden({k: _ORIGINAL[k] for k in ("standard", "erlaubt", "wert")})   # Haus 6 (Goslar)
         return
+    zp.standard_zimmer, zp.zimmer_wert_details = _ORIGINAL["standard"], _ORIGINAL["wert"]
     gebaeudeplan._ZIMMER, gebaeudeplan._HAUS = re.compile(s.zimmer_muster), re.compile(s.haus_muster)
     zp.GAESTEZIMMER = []                        # Goslar: Gästezimmer Haus 2, 6. OG – gibt es hier nicht
     zp.erlaubt = _erlaubt_neutral

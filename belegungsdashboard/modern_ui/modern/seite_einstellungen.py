@@ -3,7 +3,7 @@ Sicherung & Verlauf. Gespeichert wird in denselben Einstellungen wie im Hauptpro
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from nicegui import run, ui
 
@@ -132,6 +132,59 @@ def _windows(a) -> None:
              "Hauptprogramm gleichzeitig läuft.").classes("m-zweite")
     _briefing(a)
     _outlook_vorschau(a)
+    _haus6(a)
+
+
+def _haus6(a) -> None:
+    """Haus 6: Aufteilung je Etage (schaltbar) – mit Vorschau, was sich an den Vorschlägen ändert."""
+    from . import regeln_kern as rk
+    from . import standort_kern
+
+    if not standort_kern.ist_goslar():
+        return
+    ui.label("Haus 6: Aufteilung je Etage").classes("m-btitel").style("margin-top:14px")
+    ui.label("Je Etage 9 Zimmer: x01, x02, x08, x09 mit Bad über den Flur (nur Männer), die übrigen 5 mit eigenem Bad. "
+             "Eingeschaltet dürfen Hauptmaßnahmen in die Zimmer mit eigenem Bad; auf renovierten Etagen bekommen Mieter "
+             "bevorzugt x01/x02 und UWT x08/x09 (nicht reserviert, nur Vorrang). Das Hauptprogramm kennt diese Aufteilung "
+             "nicht – zuteilen dann nur hier.").classes("m-ptext")
+    renoviert = sorted(rk._RENOVIERT, key=lambda x: int(x[1]) if x[1].isdigit() else 0)
+    ui.label("Renovierte Etagen (alle Zimmer mit Renovierungsvermerk): "
+             + (", ".join(f"{e}. OG" for _h, e in renoviert) if renoviert else "noch keine")).classes("m-zweite").style(
+        "white-space:normal")
+    with ui.element("div").classes("m-schalter"):
+        an = rk.an()
+        ui.label("Eingeschaltet" if an else "Aus – bisherige Regeln (nur Mieter und UWT)").classes(
+            "m-pille " + ("ok" if an else "neutral"))
+        knopf("Vorschau und " + ("ausschalten" if an else "einschalten") + " …", lambda: _haus6_vorschau(a, not an),
+              "primaer" if not an else "", "preview")
+
+
+async def _haus6_vorschau(a, neu: bool) -> None:
+    from . import regeln_kern as rk
+
+    diff = await run.io_bound(rk.vorschau, a.stand, a.heute)
+
+    def bauen():
+        ui.label("Was sich an den Vorschlägen für Anreisen der nächsten 8 Wochen ohne Zimmer ändern würde "
+                 "(gespeicherte Zimmer bleiben, wie sie sind):").classes("m-ptext")
+        if not diff:
+            ui.label("Keine Änderung an den aktuellen Vorschlägen.").classes("m-pille ok")
+        for name, tag, vorher, nachher in diff[:40]:
+            with ui.element("div").classes("m-liste-zeile"):
+                ui.label(name).classes("m-name")
+                ui.label(f"{date.fromisoformat(tag):%d.%m.} · ohne Regel {vorher} → mit Regel {nachher}").classes("m-mono")
+        if len(diff) > 40:
+            ui.label(f"+{len(diff) - 40} weitere").classes("m-zweite")
+
+        async def los():
+            if await a.aendern(rk.setzen, neu):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Einschalten" if neu else "Ausschalten", los, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+
+    a.panel("Haus 6: Aufteilung je Etage", bauen, breit=True)
 
 
 def _outlook_vorschau(a) -> None:

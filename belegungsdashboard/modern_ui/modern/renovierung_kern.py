@@ -1,5 +1,7 @@
 """Flurweise Renovierung: Welcher Flur als Nächstes – und wann im Jahr? (Zimmer → Renovierung)
 
+Ein Flur ist hier die ganze Etage (Haus 2 und Haus 6 – Ost und West lassen sich baulich nicht trennen).
+
 Nur Planung: Hier wird nichts gesperrt, niemand umgezogen und keine Buchung verschoben. Gespeichert werden nur die
 Planungsannahmen (Kosten, Budget, Dauer …) und – nach Bestätigung – vorgemerkte Renovierungen in einer eigenen Datei
 (``importe/modern_renovierung.json``). Bewertet werden ausschließlich vorhandene Daten:
@@ -30,8 +32,8 @@ MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt",
 # Planungsannahmen – alle in der Oberfläche änderbar; Kosten nur, was angegeben wurde
 STANDARD = {
     "haeuser": ["2", "6"],
-    "kosten": {"2": {"flur": 100000, "zimmer_min": 0, "zimmer_max": 0},       # Haus 2: rund 100.000 € je Flur inkl. Zimmer
-               "6": {"flur": 10000, "zimmer_min": 3000, "zimmer_max": 4000}},  # Haus 6: Flur ~10.000 € + 3.000–4.000 € je Zimmer
+    "kosten": {"2": {"flur": 100000, "zimmer_min": 0, "zimmer_max": 0},       # Haus 2: rund 100.000 € je Etage inkl. Zimmer
+               "6": {"flur": 10000, "zimmer_min": 3000, "zimmer_max": 4000}},  # Haus 6: Flur ~10.000 € + 3.000–4.000 € je Zimmer (9 Zimmer ≈ 40.000 €)
     "budget": 100000,             # je Jahr
     "dauer_tage": 30,
     "vorlauf_tage": 56,           # Belegungsstopp vor Baubeginn (kurze Aufenthalte sind dann von selbst weg)
@@ -135,8 +137,8 @@ def flure(stand: zp.Planstand, heute: date | None = None, p: dict | None = None)
     for z in stand.zimmer:
         if not z.aktiv or z.haus not in p["haeuser"]:
             continue
-        k = schluessel(*z.flur_schluessel)
-        je.setdefault(k, Flur(k, z.haus, z.etage, z.flur)).zimmer.append(z)
+        k = schluessel(z.haus, z.etage, "")            # ein Flur = die ganze Etage (Ost/West gehören baulich zusammen)
+        je.setdefault(k, Flur(k, z.haus, z.etage, "")).zimmer.append(z)
     for f in je.values():
         n = len(f.zimmer)
         punkte: dict[str, float] = {}
@@ -297,7 +299,7 @@ def jahresuebersicht(stand: zp.Planstand, jahr: int, p: dict | None = None) -> l
     p = p or parameter()
     nach_schl = {}
     for z in stand.zimmer:
-        nach_schl.setdefault(schluessel(*z.flur_schluessel), []).append(z)
+        nach_schl.setdefault(schluessel(z.haus, z.etage, ""), []).append(z)
     monate = [{"monat": m, "flure": [], "zimmer": 0, "betten": 0, "kosten": (0, 0)} for m in range(1, 13)]
     for e in plan():
         s, en = date.fromisoformat(e["start"]), date.fromisoformat(e["ende"])
