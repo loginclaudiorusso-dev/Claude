@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.42.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.43.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -65,7 +65,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Prognose als Executive-Dashboard: 12/24/36 Monate, 80/95-%-Bänder, Backtest
 - Szenarien mit Schattenkurve (z. B. ±10 %, Kapazitätskürzung), Kontingente für UWT/Mieter
 - Standorte parallel, Netto/Brutto, Präsentationsmodus, Export
-- Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel)
+- Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel); Klick zeigt je Woche freie Zimmer je Tag, welche Zimmer frei/belegt und von wem
 
 ## Daten & Import
 - Bad Pyrmont/Weser-Ems: Anreiselisten als PDF „Teilnehmer Beginn“ (K = Internat, Abreise = Maßnahmeende, ohne Geburtsdatum)
@@ -90,15 +90,18 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 
 ## Steuerung (Leitung, ganz unten in der Seitenleiste)
 - Rechnet erst beim Öffnen – der Tagesbetrieb bleibt schnell; gilt für Goslar
-- Übersicht: 4 Kennzahlen, Diagramm Ist/Prognose/Spanne/Vorjahr/Kapazität minus Baustellen, Jahresplan, Szenarien, „Zu entscheiden“; Bericht als Druckansicht/PDF
+- Übersicht: 4 Kennzahlen, Diagramm Ist/Prognose/Spanne/Vorjahr/Kapazität minus Baustellen, Jahresplan, Szenarien, „Zu entscheiden“
+- Entscheidungsvorlage als PDF: Empfehlung mit Beschlussfeld, Varianten, Zeitplan, Kostenherleitung, Szenarien, Kennzahlen, Annahmen, Begriffe – mit Lesehilfen
 - Renovierung (Haus 2/6, unverbindlich): Zimmerziel je Jahr mit Zyklus und zwei Rundungsvorschlägen, Kosten aus Angeboten (Bau je Etage, Möbel/Aufbau je Zimmer, Nebenkosten, Puffer, Vorsteuerquote, Preissteigerung), Angebot-PDF einlesen mit Prüfung
+- Maßnahmen: ganze Etage, Einzelzimmer komplett (Bau anteilig/eigener Preis), nur Möbel tauschen; vier Wege im Vergleich mit ★ Empfehlung; Einzelzimmer im ersten passenden Leerstand
+- Kosten im Jahresplan aufgeschlüsselt, Herleitung Schritt für Schritt per Klick
 - Planen nach Budget: zwei getrennte Budgets (Bau / Möbel), INNternat wählt die Etagen mit dem meisten Bedarf im Budget und die Monate mit den wenigsten Engpässen (Ausweich, Warnschwelle, Umzüge)
 - Jahresplan als Gantt (Belegungsstopp, Bauzeit, Vorschläge gestrichelt), Übernehmen mit Bestätigung, alle Vorschläge auf einmal
 - Ausweichprüfung je Person über alle Häuser; Monate ohne klaren Unterschied als „gleichwertig“
 - Etagen nach Bedarf (Alter seit Renovierung, „Renovierung nötig“, Mängel schwächer) mit Gründen und Datenlücken, Excel
-- Szenarien 1/2/3 Etagen je Jahr: Kosten, Sperr-Zimmermonate, Jahre bis durch, Zyklus
+- Szenarien über 5 Jahre (wie eingestellt, 1/2 Etagen, nur Möbel, ein Jahr warten) mit Jahr-für-Jahr, Deutung und Diagrammen
 - Prognosegüte mit getrennter Prüfung, Satz in Plätzen; Buchungsstände monatlich gesammelt
-- Kennzahlen aus vorhandenen Daten, fehlende Daten benannt
+- Kennzahlen aus vorhandenen Daten; Werte eingeben: Tagessätze (Erlös, Leerstandskosten), Abweisungen, Zustandsnoten je Etage
 
 ## Übergreifend
 - Laptop-tauglich: unter 1200 px schmale Seitenleiste automatisch, Tabellen scrollen waagerecht, kompaktere Tageszentrale

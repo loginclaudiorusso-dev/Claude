@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.42.0
+# Neue Oberfläche (modern_ui) – Version 0.43.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,41 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Einzelzimmer, Wege im Vergleich, Entscheidungsvorlage (neu in 0.43)
+
+**Renovierung – nicht nur ganze Etagen.** Drei Arten von Maßnahmen:
+* **ganze Etage** (wie die Angebote gelten),
+* **Einzelzimmer komplett** – Maler/Boden anteilig aus dem Etagenangebot + Aufschlag (Standard 25 %, kleiner Auftrag),
+  oder ein eigener Preis je Haus („Bau je Einzelzimmer“ unter Annahmen),
+* **nur Möbel tauschen** – nur Möbel + Aufbau, braucht nur das Möbelbudget und wenige Tage Leerstand.
+
+**Wege im Vergleich** (für Zimmerziel und Budget): *Nur ganze Etagen* · *Etagen + Einzelzimmer* (der Rest geht in die
+bedürftigsten Zimmer) · *Nur Einzelzimmer* · *Nur Möbel*. Je Weg: Zimmer, gedeckter Bedarf, Bau, Möbel, Rest der
+Budgets, Sperr-Zimmermonate. **★ Empfehlung** = meister gedeckter Bedarf, dann mehr Zimmer, dann günstiger; „nur
+Möbel“ zählt halb, weil Wände und Böden bleiben. Klick wählt einen anderen Weg. Einzelzimmer kommen in den ersten
+Leerstand im Jahr, der lang genug ist (Einzelzimmer 14, Möbel 3 Tage – änderbar).
+
+**Kosten nachvollziehbar.** Im Jahresplan steht je Maßnahme Gesamt, Bau und Möbel; Klick zeigt die Herleitung Schritt
+für Schritt: Angebot/Annahme Bau → Preissteigerung → Nebenkosten → Möbel → Aufbau → Puffer → Umsatzsteuer. Darum
+liegt eine Etage über dem reinen Maler-/Bodenangebot. Solange kein Angebot eingelesen ist, rechnet INNternat mit der
+Platzhalter-Annahme (Haus 2: 100.000 € netto je Etage).
+
+**Szenarien über 5 Jahre:** wie eingestellt (jedes Jahr die empfohlene Variante), 1 bzw. 2 Etagen je Jahr, nur Möbel,
+ein Jahr warten. Je Strategie: Zimmer, Anteil am Bestand, Kosten, je Zimmer, Zyklus, Sperr-Zimmermonate, Jahr-für-Jahr
+und ein Satz „was heißt das“; dazu Kosten und Zimmer kumuliert als Diagramm.
+
+**Kennzahlen – Werte eingeben …:** Tagessätze je Gruppe (→ Erlös 12 Monate, Ø je Belegtag, Leerstandskosten),
+Abweisungen „kein Zimmer frei“ je Monat, **Zustandsnote je Etage** (1–5, fließt in den Bedarf: 4 → +2, 5 → +4 je
+Zimmer). Zum Ausprobieren gehen erfundene Zahlen; Rückgängig wie immer.
+
+**Entscheidungsvorlage (PDF)** statt Kurzbericht: Worum es geht, Empfehlung mit Beschlussfeld, Varianten, Zeitplan,
+Herleitung der Kosten, Belegung und Kapazität, Szenarien, Kennzahlen, Annahmen, Begriffe – jeder Abschnitt mit „So zu
+lesen“. Ist bewusst ein anderer Weg gewählt, steht das dabei.
+
+Die Kopfleiste der Steuerung hat keinen Hinweistext mehr. **Auswertung → Zimmer & Engpässe:** Klick auf die EMR- oder
+Doppelzimmer-Zahl bzw. auf „knapp – EMR“ zeigt die Woche im Detail: freie Zimmer je Tag, welche Zimmer ganz/teilweise
+frei sind und wer wann drin ist (probeweise zugeteilte Anreisen markiert).
 
 ## Renovierung nach Budget – Bau und Möbel getrennt (neu in 0.42)
 
@@ -792,4 +827,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0` (jeweils auch als Zip in `Sicherung`).
