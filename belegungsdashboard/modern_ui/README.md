@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.43.0
+# Neue Oberfläche (modern_ui) – Version 0.44.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,49 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Steuerung überarbeitet: Klassen, Baubudget fest, Möbelantrag, Kernbestand (neu in 0.44)
+
+**Beträge, die man wiedererkennt.** Die Bau-Spalte zeigt den Preis **so, wie er im Angebot steht** (inkl. nicht
+abziehbarer Steuer) – daneben getrennt „Bau im Planjahr“ (mit Preissteigerung) und Möbel. Jede Zahl trägt ihre
+Herkunft: *Angebot*, *Eingabe*, *Schätzung* oder *Platzhalter*. Hat ein Haus noch kein eingelesenes Angebot, steht oben
+ein deutlicher Hinweis („Haus 2: kein Bau-Angebot – Platzhalter 100.000 € netto je Etage“) mit Knopf zum Einlesen.
+Puffer gibt es je Budget (Bau/Möbel) und sie stehen standardmäßig auf **0 %** – sonst gilt der Angebotspreis.
+Beträge auf 1.000 € gerundet, mit Spanne (Angebot ±10 %, Eingabe ±15 %, Schätzung ±25 %, Platzhalter ±40 %).
+
+**Bedarf in Klassen statt Punkten**, getrennt für Bau und Möbel: **A** = jetzt (Renovierung nötig, Schimmel, Note 5,
+≥ 20 Jahre; Möbel/Matratze defekt), **B** = in 1–3 Jahren (Note 4, ≥ 15 Jahre, Boden/Wand), **C** = später.
+In den letzten 5 Jahren renoviert = kein Bau (Möbel gehen). Erst alle A, dann B, dann C.
+
+**Baubudget fest, Möbel als Antrag.** Das Baubudget ist die Grenze, die verfällt – INNternat verplant es möglichst voll
+in gedeckten Bedarf; ein Rest steht als Hinweis da. Den Möbelbedarf rechnet INNternat aus (für die Bau-Maßnahmen +
+„nur Möbel“ für Zimmer mit dringendem Möbelbedarf) – das ist der Antrag; eine realistische Obergrenze ist optional.
+Baubudget ist jetzt die Standard-Vorgabe; Zimmerziel bleibt wählbar. Dazu „Reihenfolge: Haus 2/6 zuerst“.
+
+**Beste Kombination.** Jede Etagenkombination im Baubudget wird mit Einzelzimmern nach Bedarf je € aufgefüllt; die
+beste Gesamtlösung gewinnt („Rechnerisch beste Variante unter den Annahmen“). Etagen ohne Bedarf oder ohne machbaren
+Monat fallen vorher heraus. Ein Satz zeigt, ob die Empfehlung bei Kosten ±15 % stabil bleibt.
+
+**Einzelzimmer mit Einheitspreisen.** Beim Einlesen eines Bau-Angebots liest INNternat die Positionen und errechnet
+€/m² Boden, €/m² Wand+Decke und € je Tür. Mit den Zimmerflächen (unter Annahmen je Haus) wird ein Einzelzimmer daraus
+gerechnet; ohne Flächen bleibt es eine gekennzeichnete Schätzung.
+
+**Termine.** Hinter den bekannten Buchungen heißt ein Monat „nicht prüfbar“ (grau) statt grün. Zeichen im Plan:
+⚑ = Ausweichzimmer fehlt, ▲ = Warnschwelle. Einzelzimmer werden in höchstens zwei **Kampagnen** je Haus gebündelt,
+frühestens nach Bestellung + Möbel-Lieferzeit (Standard 4 Wochen). Bauzeit einer Etage: 1 Monat (Haus 2 und 6).
+
+**Kernbestand und Reserve.** Kern = Spitzenbedarf (obere Prognose) + Ausfallreserve + Typen-Reserve + Puffer; der Rest
+ist Reserve. INNternat schlägt **ganze** Reserve-Etagen vor (teuerste je Zimmer, keine EMR-/Gäste-/Kurzmaßnahmen-
+Etagen) und zeigt, wie viele Betten bei +10 % Nachfrage fehlen würden. Mit dem Häkchen „Reserve-Etagen nicht
+renovieren“ fallen sie aus der Planung – die Entscheidung trifft die Geschäftsführung.
+
+**Strategie 5 Jahre** mit Alterung: Nichtstun · Empfohlen · Kürzung −20 % · Beschleunigt +50 % · Kernbestand – je mit
+offenen A-Zimmern heute → am Ende, Zimmer, Bau, Möbel, Zyklus.
+
+**Entscheidungsvorlage:** Seite 1 = Kurzfassung (Beschlussvorschlag, Beträge je Kostenstelle mit Spanne, Maßnahmen,
+Warum, Wenn nicht, Wenn −20 %, Risiken, nächste Schritte mit Datum und Frist, Beschlussfeld für Bau und Möbel),
+danach Anhang A–H mit allen Erläuterungen. Ansichten heißen jetzt Übersicht · Renovierung · Strategie 5 Jahre ·
+Belegung · Kennzahlen; Varianten, Bedarf je Etage und Annahmen sind eingeklappt.
 
 ## Einzelzimmer, Wege im Vergleich, Entscheidungsvorlage (neu in 0.43)
 
@@ -827,4 +870,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0` (jeweils auch als Zip in `Sicherung`).

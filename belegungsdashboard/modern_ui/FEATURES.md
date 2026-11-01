@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.43.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.44.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -89,19 +89,18 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
 ## Steuerung (Leitung, ganz unten in der Seitenleiste)
-- Rechnet erst beim Öffnen – der Tagesbetrieb bleibt schnell; gilt für Goslar
-- Übersicht: 4 Kennzahlen, Diagramm Ist/Prognose/Spanne/Vorjahr/Kapazität minus Baustellen, Jahresplan, Szenarien, „Zu entscheiden“
-- Entscheidungsvorlage als PDF: Empfehlung mit Beschlussfeld, Varianten, Zeitplan, Kostenherleitung, Szenarien, Kennzahlen, Annahmen, Begriffe – mit Lesehilfen
-- Renovierung (Haus 2/6, unverbindlich): Zimmerziel je Jahr mit Zyklus und zwei Rundungsvorschlägen, Kosten aus Angeboten (Bau je Etage, Möbel/Aufbau je Zimmer, Nebenkosten, Puffer, Vorsteuerquote, Preissteigerung), Angebot-PDF einlesen mit Prüfung
-- Maßnahmen: ganze Etage, Einzelzimmer komplett (Bau anteilig/eigener Preis), nur Möbel tauschen; vier Wege im Vergleich mit ★ Empfehlung; Einzelzimmer im ersten passenden Leerstand
-- Kosten im Jahresplan aufgeschlüsselt, Herleitung Schritt für Schritt per Klick
-- Planen nach Budget: zwei getrennte Budgets (Bau / Möbel), INNternat wählt die Etagen mit dem meisten Bedarf im Budget und die Monate mit den wenigsten Engpässen (Ausweich, Warnschwelle, Umzüge)
-- Jahresplan als Gantt (Belegungsstopp, Bauzeit, Vorschläge gestrichelt), Übernehmen mit Bestätigung, alle Vorschläge auf einmal
-- Ausweichprüfung je Person über alle Häuser; Monate ohne klaren Unterschied als „gleichwertig“
-- Etagen nach Bedarf (Alter seit Renovierung, „Renovierung nötig“, Mängel schwächer) mit Gründen und Datenlücken, Excel
-- Szenarien über 5 Jahre (wie eingestellt, 1/2 Etagen, nur Möbel, ein Jahr warten) mit Jahr-für-Jahr, Deutung und Diagrammen
-- Prognosegüte mit getrennter Prüfung, Satz in Plätzen; Buchungsstände monatlich gesammelt
-- Kennzahlen aus vorhandenen Daten; Werte eingeben: Tagessätze (Erlös, Leerstandskosten), Abweisungen, Zustandsnoten je Etage
+- Ansichten: Übersicht · Renovierung · Strategie 5 Jahre · Belegung · Kennzahlen; rechnet erst beim Öffnen; gilt für Goslar
+- Übersicht: Bau verplant/Budget, Möbelantrag mit Spanne, offene Klasse-A-Zimmer heute → nach Plan, Monate an der Warnschwelle; Empfehlung, Diagramm (Ist/Prognose/Vorjahr/Kapazität minus Baustellen), Zeitplan, Strategien, „Zu entscheiden“
+- Renovierung: Baubudget als feste Grenze (Standard) oder Zimmerziel; Möbelbedarf als Antrag; Haus-Vorrang; Kernbestand-Häkchen
+- Bedarf in Klassen A/B/C, getrennt für Bau und Möbel; frisch renoviert = kein Bau
+- Maßnahmen: ganze Etage, Einzelzimmer komplett, nur Möbel; beste Kombination (Etagen + Einzelzimmer nach Bedarf je €), Robustheitssatz
+- Kosten mit Herkunft (Angebot/Eingabe/Schätzung/Platzhalter), Bau „laut Angebot“ separat, Puffer je Budget (Standard 0 %), Spanne, T€-Rundung, Hinweis bei Platzhaltern
+- Angebot-PDF einlesen: Summe, Haus, Möbel-Zimmerzahl, Einheitspreise (Boden/Wand/Tür) aus den Positionen; Einzelzimmer = Einheitspreise × Fläche
+- Zeitplan als Gantt: Belegungsstopp, Bauzeit, Vorschläge gestrichelt, ⚑ Ausweich fehlt, ▲ Warnschwelle, grau = nicht prüfbar; Einzelzimmer in Kampagnen nach Möbel-Lieferzeit; Übernehmen mit Bestätigung
+- Kernbestand und Reserve mit Vorschlag ganzer Reserve-Etagen und Fehlbetten bei +10 % Nachfrage
+- Strategie 5 Jahre mit Alterung: Nichtstun, Empfohlen, −20 %, +50 %, Kernbestand
+- Entscheidungsvorlage (PDF): 1 Seite Kurzfassung mit Beschlussfeld (Bau/Möbel) + Anhang A–H mit Erläuterungen
+- Kennzahlen: verfügbare Betten, Auslastung, Belegtage je Gruppe, Ausfalltage, offene A-Zimmer, Zyklus, Kernbestand, Reserve; Werte eingeben (Tagessätze, Abweisungen, Zustandsnoten)
 
 ## Übergreifend
 - Laptop-tauglich: unter 1200 px schmale Seitenleiste automatisch, Tabellen scrollen waagerecht, kompaktere Tageszentrale
