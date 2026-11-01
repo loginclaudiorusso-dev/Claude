@@ -1161,3 +1161,17 @@ CSS += """
 .m-gantt-legende { display: flex; flex-wrap: wrap; gap: 14px; color: var(--text3); font-size: 11.5px; margin-top: 6px; }
 .m-gantt-legende .eng { color: var(--orange); }
 """
+CSS += """
+/* 0.43: Varianten-Vergleich, Einzelzimmer im Gantt */
+.m-rv-varianten { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 6px; }
+.m-rv-var { min-height: 120px; align-content: start; }
+.m-gantt-bau.klein { padding: 0; top: 6px; bottom: 6px; border-radius: 3px; }
+"""
+CSS += """
+/* 0.43: Engpässe klickbar */
+button.m-pille.m-klickbar { font: inherit; cursor: pointer; border: 1px solid transparent; }
+button.m-pille.m-klickbar:hover, button.m-pille.m-klickbar:focus-visible { border-color: var(--akzent); }
+.m-link-knopf { font: inherit; font-size: 12px; background: none; border: none; padding: 0 2px; cursor: pointer; color: var(--akzent);
+  text-decoration: underline dotted; }
+.m-link-knopf:hover, .m-link-knopf:focus-visible { text-decoration: underline; }
+"""

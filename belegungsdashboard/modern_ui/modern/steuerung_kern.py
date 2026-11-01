@@ -158,6 +158,31 @@ class Kennzahl:
     quelle: str = ""               # woher (für die Nachvollziehbarkeit)
 
 
+WERTE = f"{speicher.IMPORT_ORDNER}/modern_steuerung.json"
+GRUPPEN = ("Reha", "RVL", "RVT", "ASS", "EMR", "UWT", "Mieter", "Gast")
+
+
+def werte() -> dict:
+    """Eigene Eingaben für die Kennzahlen: Tagessätze je Gruppe (€ je Belegtag), Abweisungen je Monat."""
+    roh = speicher.lesen(WERTE, {})
+    return {"tagessaetze": {g: float(v) for g, v in (roh.get("tagessaetze") or {}).items() if v},
+            "abweisungen": {m: int(v) for m, v in (roh.get("abweisungen") or {}).items() if v is not None}}
+
+
+def werte_speichern(w: dict) -> str:
+    speicher.schreiben(WERTE, {"tagessaetze": {g: float(v) for g, v in (w.get("tagessaetze") or {}).items() if v},
+                               "abweisungen": {m: int(v) for m, v in (w.get("abweisungen") or {}).items() if v}})
+    return "Werte für die Kennzahlen gespeichert"
+
+
+def werte_schritt(w: dict) -> str:
+    from .kern import _schritt
+
+    erg = []
+    _schritt("Steuerung: Werte für Kennzahlen", lambda: erg.append(werte_speichern(w)), [WERTE])
+    return erg[0]
+
+
 def kennzahlen(stand, heute: date, fl: list, plan_zeilen: list, p: dict) -> list[Kennzahl]:
     from belegung import maengel as mg
     from belegung import zimmerplan as zp
@@ -190,6 +215,27 @@ def kennzahlen(stand, heute: date, fl: list, plan_zeilen: list, p: dict) -> list
                 g = zp.belegung_gruppe(b) or "sonstige"
                 tage[g] = tage.get(g, 0) + (e - a).days + 1
     gesamt = sum(tage.values())
+    w = werte()
+    saetze = w["tagessaetze"]
+    if gesamt and saetze:
+        bekannt = {g: t for g, t in tage.items() if g in saetze}
+        erloes = sum(t * saetze[g] for g, t in bekannt.items())
+        tage_b = sum(bekannt.values())
+        schnitt = erloes / tage_b if tage_b else 0
+        erg.append(Kennzahl("Erlös (12 Monate)", f"{erloes:,.0f} €".replace(",", "."),
+                            f"Ø {schnitt:,.0f} € je Belegtag".replace(",", ".") + (
+                                f" · ohne Satz: {', '.join(sorted(set(tage) - set(saetze)))}" if set(tage) - set(saetze) else ""),
+                            "", "Belegtage × eingetragene Tagessätze"))
+        leer = max(0, verfuegbar * 365 - gesamt)
+        erg.append(Kennzahl("Leerstandskosten (12 Monate, Schätzung)", f"{leer * schnitt:,.0f} €".replace(",", "."),
+                            f"{leer:,} freie Betttage × Ø-Satz".replace(",", "."), "",
+                            "verfügbare Betten × 365 − Belegtage, bewertet mit dem Ø-Tagessatz"))
+    ab = w["abweisungen"]
+    letzte = [f"{(date(heute.year, heute.month, 1) - timedelta(days=31 * i)):%Y-%m}" for i in range(12)]
+    if ab:
+        n = sum(ab.get(m, 0) for m in letzte)
+        erg.append(Kennzahl("Abweisungen (12 Monate)", str(n), "„kein Zimmer frei“ – eingetragen je Monat",
+                            "krit" if n >= 10 else "warn" if n else "", "eigene Zählung"))
     if gesamt:
         teile = sorted(tage.items(), key=lambda x: -x[1])
         erg.append(Kennzahl("Belegtage je Gruppe (12 Monate)", f"{gesamt:,}".replace(",", "."),
@@ -233,10 +279,21 @@ def kennzahlen(stand, heute: date, fl: list, plan_zeilen: list, p: dict) -> list
     return erg
 
 
-LUECKEN = [("Erlös je Belegtag, Leerstandskosten", "Tagessätze je Kostenträger und Mietpreise"),
-           ("Abweisungen („kein Zimmer frei“), externe Unterbringung", "eine Zählung im Tagesbetrieb bzw. Hotelkosten"),
-           ("Zustandsnote je Etage", "eine jährliche Begehung (Note 1–5)"),
-           ("Pickup (erwarteter Zugang nach Vorlauf)", "einige Monate Buchungsstände – werden ab jetzt monatlich gesammelt")]
+def luecken() -> list[tuple[str, str]]:
+    """Was noch fehlt – und wo man es einträgt."""
+    from . import renovierung_kern as rk
+
+    w = werte()
+    erg = []
+    if not w["tagessaetze"]:
+        erg.append(("Erlös je Belegtag, Leerstandskosten", "Tagessätze je Gruppe – unter „Werte eingeben …“"))
+    if not w["abweisungen"]:
+        erg.append(("Abweisungen („kein Zimmer frei“)", "Anzahl je Monat – unter „Werte eingeben …“"))
+    if not rk.zustandsnoten():
+        erg.append(("Zustandsnote je Etage", "eine Begehung (Note 1–5) – unter „Werte eingeben …“"))
+    if len(buchungsstaende()) < 12:
+        erg.append(("Pickup (erwarteter Zugang nach Vorlauf)", "mindestens 12 Monatsstände – werden automatisch gesammelt"))
+    return erg
 
 
 # ---- Bericht (eine Seite, zum Drucken bzw. als PDF) -------------------------------------------------
@@ -274,40 +331,146 @@ def _svg_linie(li: Linie, breite: int = 680, hoehe: int = 200) -> str:
             + achse + "</svg>")
 
 
-def bericht_html(standort: str, heute: date, kz: list[Kennzahl], li: Linie, g: Guete, zeilen: list, szen: list,
-                 p: dict, entscheidungen: list[str]) -> str:
+def bericht_html(c: dict) -> str:
+    """Entscheidungsvorlage (A4, mehrseitig, zum Drucken bzw. als PDF): Empfehlung, Varianten, Zeitplan, Kosten mit
+    Herleitung, Belegung, Szenarien, Kennzahlen – jeweils mit Erklärung, was es bedeutet und wie es zustande kommt.
+
+    ``c``: standort, heute, jahr, p, kz, li, guete, varianten, empfehlung, zeilen, strategien, entscheidungen, luecken."""
     from html import escape as e
 
     from . import renovierung_kern as rk
 
-    karten = "".join(f'<div class="k"><div class="t">{e(k.titel)}</div><div class="w {k.stufe}">{e(k.wert)}</div>'
-                     f'<div class="u">{e(k.unter)}</div></div>' for k in kz[:4])
-    plan = "".join(f"<tr><td>{e(z.text)}</td><td>{'vorgemerkt' if z.status == 'vorgemerkt' else 'Vorschlag'}</td>"
-                   f"<td>{z.stopp_ab:%d.%m.}</td><td>{z.start:%d.%m.} – {z.ende:%d.%m.%Y}</td><td>{z.zimmer}</td>"
-                   f"<td class='r'>{rk.euro(z.kosten.summe)}</td></tr>" for z in zeilen) or \
-        "<tr><td colspan=6>Noch nichts geplant.</td></tr>"
-    sz = "".join(f"<tr><td>{e(s.titel)}</td><td>{s.zimmer}</td><td class='r'>{rk.euro(s.kosten.summe)}</td>"
-                 f"<td>{s.sperr_zimmermonate:g}</td><td>{s.jahre_bis_durch}</td><td>{'–' if s.zyklus is None else f'{s.zyklus:g}'}</td></tr>"
-                 for s in szen)
-    ent = "".join(f"<li>{e(t)}</li>" for t in entscheidungen) or "<li>Keine offenen Entscheidungen.</li>"
-    annahmen = (f"Kosten mit Preisstand {p['preisstand']}, +{p['preis_pct']} % je Jahr, Nebenkosten {p['neben_pct']} %, "
-                f"Puffer {p['puffer_pct']} %, Vorsteuerquote {p['vorsteuer_pct']} % (0 % = brutto). Prognose: Plätze laut "
-                "Pivot; ab Monat 13 nur fortgeschrieben. Alle Renovierungen unverbindlich.")
-    return f"""<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Steuerung {e(standort)} {heute:%d.%m.%Y}</title>
-<style>@page {{ size: A4 landscape; margin: 12mm }} body {{ font: 11px 'Segoe UI', sans-serif; color: #222; margin: 0 }}
-h1 {{ font-size: 17px; margin: 0 0 2px }} h2 {{ font-size: 12px; margin: 10px 0 4px }} .s {{ color: #666 }}
-.ks {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 }} .k {{ border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px }}
-.t, .u {{ color: #555; font-size: 10px }} .w {{ font-size: 18px; font-weight: 600 }} .w.warn {{ color: #a66a00 }} .w.krit {{ color: #b3261e }}
-.zwei {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px }} table {{ border-collapse: collapse; width: 100% }}
-td, th {{ border-bottom: 1px solid #e3e3e3; padding: 3px 4px; text-align: left }} th {{ font-weight: 600; color: #444 }} .r {{ text-align: right }}
-.leg span {{ margin-right: 12px }} ul {{ margin: 0; padding-left: 16px }}</style></head><body>
-<h1>Steuerung · {e(standort)}</h1><div class="s">Stand {heute:%d.%m.%Y} · nur zur Planung, keine Buchung</div>
-<div class="ks">{karten}</div>
-<h2>Belegung: Ist, Prognose (80-%-Spanne), Vorjahr, Kapazität mit Baustellen</h2>{_svg_linie(li)}
-<div class="leg s"><span>━ Ist</span><span style="color:#3b6ea5">╍ Prognose</span><span style="color:#999">┈ Vorjahr</span>
-<span style="color:#b33">━ Kapazität (minus Baustellen)</span></div><p>{e(g.satz)} {e(g.hinweis)}</p>
-<div class="zwei"><div><h2>Renovierung {zeilen[0].start.year if zeilen else ''}</h2><table><tr><th>Etage</th><th>Status</th><th>Stopp ab</th>
-<th>Bau</th><th>Zi.</th><th class="r">Kosten</th></tr>{plan}</table></div>
-<div><h2>Szenarien je Jahr</h2><table><tr><th>Szenario</th><th>Zi.</th><th class="r">Kosten</th><th>Sperr-Zi.-Monate</th>
-<th>Jahre bis durch</th><th>Zyklus (J.)</th></tr>{sz}</table></div></div>
-<h2>Zu entscheiden</h2><ul>{ent}</ul><p class="s">{e(annahmen)}</p></body></html>"""
+    p, jahr, heute = c["p"], c["jahr"], c["heute"]
+    vs = c.get("varianten") or []
+    empf = next((v for v in vs if v.schluessel == c.get("empfehlung")), None)
+    budget = p.get("modus") == "budget"
+    eu = rk.euro
+
+    def erkl(text: str) -> str:
+        return f'<p class="erkl"><b>So zu lesen:</b> {e(text)}</p>'
+
+    # 1 Worum es geht
+    worum = (f"Welche Zimmer bzw. Etagen in Haus {', '.join(p['haeuser'])} sollen {jahr} renoviert werden, wann, und was "
+             "kostet es? " + (f"Vorgabe sind die verfügbaren Budgets: Bau {eu(p['budget_bau']) if p.get('budget_bau') is not None else 'ohne Grenze'}"
+                             f" und Möbel {eu(p['budget_moebel']) if p.get('budget_moebel') is not None else 'ohne Grenze'}. "
+                             if budget else f"Vorgabe ist ein Ziel von {p.get('ziel_zimmer')} Zimmern im Jahr. ")
+             + "INNternat vergleicht dafür vier Wege und schlägt Termine vor, an denen möglichst niemand umziehen muss "
+               "und die Belegung nicht an die Warnschwelle kommt. Alles ist unverbindliche Planung.")
+    # 2 Empfehlung
+    if empf:
+        k = empf.kosten
+        rest = ""
+        if budget:
+            rb = None if p.get("budget_bau") is None else p["budget_bau"] - k.instandhaltung
+            rm = None if p.get("budget_moebel") is None else p["budget_moebel"] - k.investition
+            rest = (f" Rest Bau {eu(rb)}" if rb is not None else "") + (f", Rest Möbel {eu(rm)}" if rm is not None else "") + "."
+        empfehlung = (f"<p><b>Variante „{e(empf.titel)}“:</b> {e(empf.erklaerung)}</p><ul>"
+                      + "".join(f"<li>{e(m.text)} – {eu(m.kosten.summe)}</li>" for m in empf.massnahmen)
+                      + f"</ul><p><b>{empf.zimmer} Zimmer, {eu(k.summe)}</b> (Bau {eu(k.instandhaltung)}, Möbel "
+                      f"{eu(k.investition)}).{e(rest)} Gedeckter Bedarf: {empf.punkte:g} Punkte.</p>")
+        andere = next((v for v in vs if v.schluessel == c.get("empfohlen")), None)
+        if andere and andere is not empf:
+            empfehlung += (f"<p class=s>Hinweis: Nach den Regeln von INNternat (meister Bedarf, dann mehr Zimmer, dann "
+                           f"günstiger) läge „{e(andere.titel)}“ vorn – gewählt wurde bewusst „{e(empf.titel)}“.</p>")
+    else:
+        empfehlung = "<p>Keine Variante möglich – Budget zu klein oder keine Kosten eingetragen.</p>"
+    beschluss = ('<table class="beschluss"><tr><td>☐ Zustimmung zur Empfehlung</td><td>☐ Zustimmung mit Änderungen: '
+                 '__________________</td><td>☐ Ablehnung / zurückstellen</td></tr><tr><td colspan="3">Datum, Unterschrift: '
+                 '________________________________________</td></tr></table>')
+    # 3 Varianten
+    vz = "".join(f"<tr{' class=empf' if empf and v is empf else ''}><td>{e(v.titel)}{' ★' if empf and v is empf else ''}</td>"
+                 f"<td class=r>{v.zimmer}</td><td class=r>{v.punkte:g}</td><td class=r>{eu(v.kosten.instandhaltung)}</td>"
+                 f"<td class=r>{eu(v.kosten.investition)}</td><td class=r>{eu(v.kosten.summe)}</td>"
+                 f"<td class=r>{v.sperr_zimmermonate(p):g}</td></tr>" + (f"<tr><td colspan=7 class=s>{e(v.erklaerung)} {e(v.hinweis)}</td></tr>")
+                 for v in vs)
+    # 4 Zeitplan
+    zp_ = "".join(f"<tr><td>{e(z.titel)}</td><td>{'vorgemerkt' if z.status == 'vorgemerkt' else 'Vorschlag'}</td>"
+                  f"<td>{f'{z.stopp_ab:%d.%m.%Y}' if z.art == 'etage' else '–'}</td><td>{z.start:%d.%m.} – {z.ende:%d.%m.%Y}</td><td class=r>{z.zimmer}</td>"
+                  f"<td>{'Warnschwelle! ' if z.engpass else ''}{f'{z.ohne_ausweich} ohne Ausweich' if z.ohne_ausweich else ''}"
+                  f"{'gleichwertige Monate' if z.gleichwertig else ''}</td><td class=r>{eu(z.kosten.summe)}</td></tr>"
+                  + (f"<tr><td colspan=7 class=s>Zimmer: {e(', '.join(f'{t[1]} ab {t[2]:%d.%m.}' for t in z.teile))}</td></tr>" if z.teile else "")
+                  for z in c.get("zeilen") or []) or "<tr><td colspan=7>Nichts geplant.</td></tr>"
+    # 5 Kosten-Herleitung (je Art ein Beispiel)
+    beispiele = {}
+    for z in c.get("zeilen") or []:
+        beispiele.setdefault(z.art, z)
+    herl = ""
+    for art, z in beispiele.items():
+        rows = "".join(f"<tr><td>{e(t)}</td><td class=r>{eu(b)}</td></tr>" for t, b in z.kosten.herleitung if b)
+        herl += (f"<h3>{e(z.titel)}</h3><table>{rows}<tr class=sum><td>Gesamt (wie es bei uns zählt)</td><td class=r>"
+                 f"{eu(z.kosten.summe)}</td></tr><tr><td>davon Bau + Nebenkosten (Instandhaltung)</td><td class=r>"
+                 f"{eu(z.kosten.instandhaltung)}</td></tr><tr><td>davon Möbel + Aufbau</td><td class=r>{eu(z.kosten.investition)}"
+                 f"</td></tr></table>")
+    # 6 Szenarien
+    sz = "".join(f"<tr><td>{e(s.titel)}</td><td class=r>{s.zimmer}</td><td class=r>{s.anteil:.0f} %</td>"
+                 f"<td class=r>{eu(s.summe('summe'))}</td><td class=r>{eu(s.summe('summe') / s.zimmer) if s.zimmer else '–'}</td>"
+                 f"<td class=r>{'–' if s.zyklus is None else f'{s.zyklus:g}'}</td><td class=r>{s.summe('sperr'):g}</td></tr>"
+                 f"<tr><td colspan=7 class=s>{e(s.deutung)}</td></tr>" for s in c.get("strategien") or [])
+    # 7 Kennzahlen
+    kz = "".join(f"<tr><td>{e(k.titel)}</td><td class=r><b>{e(k.wert)}</b></td><td class=s>{e(k.unter)}"
+                 f"{(' · Quelle: ' + e(k.quelle)) if k.quelle else ''}</td></tr>" for k in c.get("kz") or [])
+    luecken_ = "".join(f"<li>{e(t)} – braucht: {e(b)}</li>" for t, b in c.get("luecken") or [])
+    ent = "".join(f"<li>{e(t)}</li>" for t in c.get("entscheidungen") or []) or "<li>Keine.</li>"
+    g = c.get("guete")
+    annahmen = (f"Preisstand {p['preisstand']}, +{p['preis_pct']} % Preissteigerung je Jahr · Nebenkosten {p['neben_pct']} % "
+                f"vom Bau · Puffer {p['puffer_pct']} % · Vorsteuerquote {p['vorsteuer_pct']} % (0 % = die Umsatzsteuer ist "
+                f"voll Kosten) · Einzelzimmer: Bau anteilig aus dem Etagenangebot + {p.get('einzel_aufschlag_pct')} % · "
+                f"Belegungsstopp {p['vorlauf_tage']} Tage vor Baubeginn · Bauzeit je Etage "
+                + ", ".join(f"Haus {h}: {p['kosten'][h].get('dauer_tage', 30)} Tage" for h in p["haeuser"])
+                + f" · Einzelzimmer {p.get('zimmer_tage')} Tage, Möbeltausch {p.get('moebel_tage')} Tage Leerstand.")
+    glossar = [
+        ("Bedarf (Punkte)", "Je Zimmer: „Renovierung nötig“ 4, seit über 15 Jahren nicht renoviert 2, Zustandsnote 4/5 der "
+                            "Etage +2/+4, offene Mängel 0,5–1,5, in den letzten 5 Jahren renoviert −3. Nur Möbel deckt die "
+                            "Hälfte, weil Wände und Böden bleiben."),
+        ("Belegungsstopp", "Ab diesem Tag wird niemand mehr neu in die Etage geplant, damit sie zum Baubeginn leer ist."),
+        ("Ausweich", "Für jede Person, die im Bauzeitraum dort wohnt oder anreist, wird ein passendes freies Zimmer in allen "
+                     "Häusern gesucht – nach denselben Regeln wie beim Zuteilen."),
+        ("Warnschwelle", "95 % der Kapazität. Die obere Prognose-Spanne darf sie im Baumonat nicht erreichen; die Kapazität "
+                         "zählt dabei ohne die gesperrten Zimmer."),
+        ("80-%-Spanne", "Bereich, in dem die Belegung nach den bisherigen Prognosefehlern meist liegt – kein Versprechen."),
+        ("Gleichwertig", "Zwei Monate unterscheiden sich weniger als die Unsicherheit der Prognose; dann ist die Wahl frei."),
+        ("Sperr-Zimmermonate", "Zimmer × Monate, die wegen Bauarbeiten nicht belegt werden können."),
+        ("Zyklus", "Bei gleichem Tempo ist jedes Zimmer etwa alle N Jahre einmal dran."),
+        ("Vorsteuerquote", "Anteil der Umsatzsteuer, den die Einrichtung zurückbekommt. 0 % = brutto zählt."),
+    ]
+    gl = "".join(f"<tr><td><b>{e(a)}</b></td><td>{e(b)}</td></tr>" for a, b in glossar)
+    return f"""<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Entscheidungsvorlage Renovierung {jahr}</title>
+<style>@page {{ size: A4; margin: 14mm 14mm 16mm }} body {{ font: 10.5px/1.45 'Segoe UI', sans-serif; color: #1d1d1d; margin: 0 }}
+h1 {{ font-size: 18px; margin: 0 }} h2 {{ font-size: 13px; margin: 16px 0 4px; border-bottom: 1.5px solid #3b6ea5; padding-bottom: 2px }}
+h3 {{ font-size: 11px; margin: 8px 0 2px }} .s {{ color: #555; font-size: 9.5px }} .kopf {{ color: #555; margin-bottom: 8px }}
+table {{ border-collapse: collapse; width: 100%; margin: 4px 0 }} td, th {{ border-bottom: 1px solid #e2e2e2; padding: 3px 4px;
+text-align: left; vertical-align: top }} th {{ color: #444; font-weight: 600; background: #f3f5f8 }} .r {{ text-align: right; white-space: nowrap }}
+tr.empf td {{ background: #eef4fb; font-weight: 600 }} tr.sum td {{ font-weight: 700; border-top: 1.5px solid #888 }}
+.erkl {{ background: #f6f6f2; border-left: 3px solid #b9a24a; padding: 4px 8px; margin: 4px 0; font-size: 9.5px }}
+.box {{ border: 1.5px solid #3b6ea5; border-radius: 6px; padding: 6px 10px; margin: 6px 0 }}
+.beschluss td {{ border: 1px solid #bbb; padding: 8px }} .seite {{ page-break-before: always }} ul {{ margin: 2px 0; padding-left: 16px }}
+.leg span {{ margin-right: 12px }}</style></head><body>
+<h1>Entscheidungsvorlage: Zimmerrenovierung {jahr} · {e(c.get('standort', ''))}</h1>
+<div class="kopf">Stand {heute:%d.%m.%Y} · erstellt mit INNternat · unverbindliche Planung, keine Buchung</div>
+<h2>1. Worum es geht</h2><p>{e(worum)}</p>
+<h2>2. Empfehlung und Beschluss</h2><div class="box">{empfehlung}</div>{beschluss}
+{erkl("Empfohlen wird die Variante, die den meisten erfassten Bedarf deckt; bei Gleichstand die mit mehr Zimmern, dann die günstigere. Nur Möbel zählt halb, weil Wände und Böden bleiben.")}
+<h2>3. Die Varianten im Vergleich</h2><table><tr><th>Variante</th><th class=r>Zimmer</th><th class=r>Bedarf</th><th class=r>Bau</th>
+<th class=r>Möbel</th><th class=r>Gesamt</th><th class=r>Sperr-Zi.-Mon.</th></tr>{vz}</table>
+{erkl("Alle Varianten nutzen dieselben Preise und Budgets. „Bedarf“ = gedeckte Punkte (siehe Glossar). „Sperr-Zimmermonate“ zeigt, wie viel Belegungskapazität die Bauarbeiten kosten. Einzelzimmer-Bau ist aus dem Etagenangebot geschätzt – vor einer Beauftragung ein eigenes Angebot einholen.")}
+<h2>4. Zeitplan {jahr}</h2><table><tr><th>Maßnahme</th><th>Status</th><th>Belegungsstopp ab</th><th>Bauzeit</th><th class=r>Zi.</th>
+<th>Hinweise</th><th class=r>Kosten</th></tr>{zp_}</table>
+{erkl("Termine sind so gewählt, dass (1) alle Betroffenen ein passendes Ausweichzimmer haben, (2) die Belegung im Baumonat unter der Warnschwelle bleibt, (3) möglichst wenige umziehen müssen. Einzelzimmer werden in den ersten Leerstand gelegt, der lang genug ist. Zwei Etagen liegen nie im selben Monat.")}
+<h2 class="seite">5. Wie die Kosten zustande kommen</h2>{herl or '<p>Keine Maßnahme im Plan.</p>'}
+{erkl("Ausgangspunkt sind die eingelesenen Angebote (netto). Darauf kommen die Preissteigerung bis zum Baujahr, Nebenkosten, Möbel und Aufbau je Zimmer, ein Puffer für Unvorhergesehenes und – je nach Vorsteuerquote – die Umsatzsteuer. Darum liegt die Summe über dem reinen Maler-/Bodenangebot.")}
+<h2>6. Belegung und Kapazität</h2>{_svg_linie(c["li"])}
+<div class="leg s"><span>━ Ist</span><span style="color:#3b6ea5">╍ Prognose mit 80-%-Spanne</span><span style="color:#999">┈ Vorjahr</span>
+<span style="color:#b33">━ Kapazität minus Baustellen</span></div>
+<p>{e(g.satz if g else '')} {e(g.hinweis if g else '')}</p>
+{erkl("Die rote Linie knickt dort ein, wo Zimmer wegen Bauarbeiten fehlen. Liegt die blaue Spanne darüber oder nahe dran, wird es eng. Ab dem 13. Monat ist die Prognose nur fortgeschrieben und unsicherer.")}
+<h2>7. Szenarien über {len((c.get('strategien') or [None])[0].jahre) if c.get('strategien') else 5} Jahre</h2>
+<table><tr><th>Strategie</th><th class=r>Zimmer</th><th class=r>Bestand</th><th class=r>Kosten</th><th class=r>je Zimmer</th>
+<th class=r>Zyklus (J.)</th><th class=r>Sperr-Zi.-Mon.</th></tr>{sz}</table>
+{erkl("Jede Strategie wird Jahr für Jahr durchgerechnet; jede Etage bzw. jedes Zimmer zählt höchstens einmal, Preise steigen je Jahr. „Bestand“ = Anteil der Zimmer in Haus 2 und 6, die in dieser Zeit erneuert werden. „Ein Jahr warten“ zeigt, was Aufschieben kostet.")}
+<h2 class="seite">8. Kennzahlen</h2><table>{kz}</table>
+{erkl("Nur aus vorhandenen Daten gerechnet. Erlös und Leerstandskosten erscheinen, sobald Tagessätze eingetragen sind; Abweisungen, sobald sie gezählt werden.")}
+{('<h3>Was noch fehlt</h3><ul>' + luecken_ + '</ul>') if luecken_ else ''}
+<h2>9. Offene Punkte</h2><ul>{ent}</ul>
+<h2>10. Annahmen</h2><p>{e(annahmen)}</p>
+<h2>11. Begriffe</h2><table>{gl}</table>
+</body></html>"""

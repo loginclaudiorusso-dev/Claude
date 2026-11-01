@@ -763,11 +763,22 @@ def aw_zeichnen(a) -> None:
                             ui.label(str(w.frei_nach)).classes("m-mono")
                         for art, wert in (("emr", w.emr), ("doppel", w.doppel)):
                             with ui.element("div"):
-                                ui.label(str(wert)).classes(f"m-pille {STUFE_AW[w.stufen.get(art, 'ok')]}")
-                        eng = [n for art, n in (("gesamt", "Zimmer"), ("emr", "EMR"), ("doppel", "Doppelzimmer"))
+                                pil = ui.element("button").classes(f"m-pille m-klickbar {STUFE_AW[w.stufen.get(art, 'ok')]}")
+                                attr(pil, title="Klick: wo genau frei bzw. knapp")
+                                with pil:
+                                    ui.label(str(wert))
+                                pil.on("click", lambda w=w, art=art: _engpass_panel(a, w, art))
+                        eng = [(art, n) for art, n in (("gesamt", "Zimmer"), ("emr", "EMR"), ("doppel", "Doppelzimmer"))
                                if w.stufen.get(art, "ok") != "ok"]
-                        ui.label({"ok": "ok", "knapp": "knapp", "kritisch": "kritisch"}[w.stufe] + (" – " + ", ".join(eng) if eng else "")
-                                 ).classes("m-zweite" + (" m-krit" if w.stufe == "kritisch" else " m-warn" if w.stufe == "knapp" else ""))
+                        with ui.element("div").classes("m-zeile-flex").style("gap:4px"):
+                            ui.label({"ok": "ok", "knapp": "knapp", "kritisch": "kritisch"}[w.stufe] + (" –" if eng else "")).classes(
+                                "m-zweite" + (" m-krit" if w.stufe == "kritisch" else " m-warn" if w.stufe == "knapp" else ""))
+                            for art, n in eng:
+                                lk = ui.element("button").classes("m-link-knopf")
+                                attr(lk, title=f"Wo ist es bei {n} knapp?")
+                                with lk:
+                                    ui.label(n)
+                                lk.on("click", lambda w=w, art=art: _engpass_panel(a, w, art))
             with ui.element("section").classes("m-block"):
                 ui.label("Was gezählt wird").classes("m-btitel")
                 for art, text in eintragen.ENGPASS_ERKLAERUNG.items():
@@ -783,6 +794,55 @@ def aw_zeichnen(a) -> None:
                                 ui.element("div").classes("m-bar akzent").style(f"width:{max(1, h.quote)}%")
                             ui.label(f"{h.quote} %").classes("m-mono")
                         ui.label(f"{h.belegt} belegt · {h.frei} frei · {h.gesperrt} gesperrt").classes("m-zweite")
+
+
+def _engpass_panel(a, w, art: str) -> None:
+    """Einzelheiten einer Woche: freie Zimmer je Tag, welche Zimmer frei, teilweise frei, belegt – und von wem."""
+    from belegung import eintragen
+
+    aw: sk.Auswertung = a.daten
+    if w.montag is None:
+        return
+    d = sk.engpass_detail(a.stand, aw.lage, w.montag, art, a.heute)
+    namen = {"gesamt": "Zimmer", "emr": "EMR-Zimmer", "doppel": "Doppelzimmer (UWT)"}
+
+    def bauen():
+        ui.label(f"{w.kw}: {namen[art]} – nach Planung").classes("m-name")
+        ui.label(eintragen.ENGPASS_ERKLAERUNG.get(art, "")).classes("m-zweite").style("white-space:normal")
+        knapp, kritisch = eintragen.grenzen()[art]
+        ui.label(f"Knapp unter {knapp}, kritisch unter {kritisch} freien Zimmern (Einstellungen).").classes("m-zweite")
+        ui.label("Frei je Tag").classes("m-ktitel")
+        with ui.element("div").classes("m-zeile-flex"):
+            for t, n in d["tage"]:
+                stufe = "krit" if n < kritisch else "warn" if n < knapp else "ok"
+                with ui.element("div").classes("m-rv-monat").style("min-width:64px"):
+                    ui.label(f"{['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][t.weekday()]} {t:%d.%m.}").classes("m-zweite")
+                    ui.label(str(n)).classes(f"m-name m-{stufe}" if stufe != "ok" else "m-name")
+        gruppen = (("Frei die ganze Woche", [z for z in d["zimmer"] if z.frei_tage == z.tage and z.tage]),
+                   ("Teilweise frei", [z for z in d["zimmer"] if 0 < z.frei_tage < z.tage]),
+                   ("Belegt bzw. geplant", [z for z in d["zimmer"] if z.frei_tage == 0]))
+        for titel, zs in gruppen:
+            if not zs:
+                continue
+            ui.label(f"{titel} ({len(zs)})").classes("m-ktitel")
+            for z in zs:
+                with ui.element("div").classes("m-liste-zeile"):
+                    ui.label(z.kurz).classes("m-name").style("min-width:70px")
+                    if z.wer:
+                        ui.label("; ".join(f"{n} {v:%d.%m.}–{b:%d.%m.}" + (" (probeweise)" if pr else "")
+                                           for n, v, b, pr in z.wer)).classes("m-zweite").style("white-space:normal")
+                    else:
+                        ui.label(f"frei an {z.frei_tage} von {z.tage} Tagen").classes("m-zweite")
+        ui.label("„probeweise“ = Anreise ohne Zimmer, für diese Auswertung nach den Regeln zugeteilt – nichts gespeichert.").classes(
+            "m-xk-hinweis")
+        async def zeitstrahl():
+            a.panel_zu()
+            await a.oeffnen("zimmer", ansicht="zeitstrahl")
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Zum Zeitstrahl", zeitstrahl, "leise", "view_timeline")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel(f"Engpass {w.kw}", bauen, breit=True)
 
 
 # =======================================================================================

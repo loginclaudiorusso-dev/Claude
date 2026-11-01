@@ -307,6 +307,7 @@ class WZeile:
     doppel: int
     stufe: str            # ok | knapp | kritisch
     stufen: dict = field(default_factory=dict)   # je Art (gesamt, emr, doppel)
+    montag: date | None = None
 
 
 @dataclass
@@ -329,6 +330,7 @@ class Auswertung:
     haeuser: list[HausZeile]
     offen: int
     ohne_platz: int
+    lage: object = None           # Lage nach Planung (probeweise zugeteilt) – für die Einzelheiten je Woche
 
 
 def auswertung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12) -> Auswertung:
@@ -336,8 +338,8 @@ def auswertung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12)
 
     heute = heute or date.today()
     np_ = eintragen.nach_planung(stand, heute, wochen)
-    ws = [WZeile(j.text, j.gesamt, n.gesamt, n.emr, n.doppel, n.gesamtstufe, {a: n.stufe(a) for a in ("gesamt", "emr", "doppel")})
-          for j, n in np_.wochen]
+    ws = [WZeile(j.text, j.gesamt, n.gesamt, n.emr, n.doppel, n.gesamtstufe, {a: n.stufe(a) for a in ("gesamt", "emr", "doppel")},
+                 j.montag) for j, n in np_.wochen]
     hs: dict[str, HausZeile] = {}
     for z in stand.zimmer:
         if not z.aktiv or z.gaeste:
@@ -351,7 +353,44 @@ def auswertung(stand: zp.Planstand, heute: date | None = None, wochen: int = 12)
             h.frei += 1
         else:
             h.belegt += 1
-    return Auswertung(ws, [hs[k] for k in sorted(hs, key=zp._haus_sort)], np_.offen, np_.ohne_platz)
+    return Auswertung(ws, [hs[k] for k in sorted(hs, key=zp._haus_sort)], np_.offen, np_.ohne_platz, np_.lage)
+
+
+@dataclass
+class EngpassZimmer:
+    kurz: str
+    haus: str
+    etage: str
+    frei_tage: int                # von den gezählten Tagen der Woche
+    tage: int
+    wer: list                     # (Name, von, bis, probeweise?) – wer die Woche über drin ist
+
+
+def engpass_detail(stand: zp.Planstand, lage, montag: date, art: str, heute: date | None = None) -> dict:
+    """Wo genau ist es in der Woche knapp? Je Tag die freien Zimmer der Art, je Zimmer frei/teilweise/belegt mit
+    Bewohnern – nach Planung (probeweise zugeteilte Anreisen sind markiert)."""
+    heute = heute or date.today()
+    lage = lage or stand.lage
+    tage = [montag + timedelta(days=i) for i in range(7) if montag + timedelta(days=i) >= heute]
+    zimmer = [z for z in lage.zimmer.values() if z.aktiv and not z.gaeste]
+    if art == "emr":
+        zimmer = [z for z in zimmer if zp.erlaubt(z, "EMR")]
+    elif art == "doppel":
+        zimmer = [z for z in zimmer if z.betten > 1 and zp.erlaubt(z, "UWT")]
+    echt = {id(b) for v in stand.lage.belegungen.values() for b in v}
+    je_tag = [(t, sum(1 for z in zimmer if lage.status_am(z.id, t)[0] == "frei")) for t in tage]
+    liste = []
+    for z in zimmer:
+        frei = sum(1 for t in tage if lage.status_am(z.id, t)[0] == "frei")
+        wer = []
+        if tage:
+            for b in lage.belegungen.get(z.id, []):
+                if b.bis >= tage[0] and b.von <= tage[-1] and b.art in ("belegt", "geplant", "gesperrt"):
+                    name = zp.anzeige_name(b.name) if b.name else ("gesperrt" + (f" ({b.grund})" if b.grund else ""))
+                    wer.append((name, b.von, b.bis, id(b) not in echt))
+        liste.append(EngpassZimmer(z.kurz, z.haus, z.etage, frei, len(tage), wer))
+    liste.sort(key=lambda x: (-x.frei_tage, zp._haus_sort(x.haus), zp._etage_sort(x.etage), x.kurz))
+    return {"tage": je_tag, "zimmer": liste, "art": art}
 
 
 # ---------------------------------------------------------------------------------------

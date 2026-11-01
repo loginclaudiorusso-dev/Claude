@@ -143,8 +143,9 @@ def test_buchungsstand_einmal_je_monat_und_linie(leer):
     i = li.monate.index(date(2031, 3, 1))
     assert li.kapazitaet[i] == 111 and li.kapazitaet[i - 1] == 120 and li.vorjahr[i] == 100.0
     assert sk.warnmonate(li) == [date(2031, 3, 1)]                             # 112 ≥ 95 % von 111, aber < 95 % von 120
-    html = sk.bericht_html("Goslar", date(2030, 12, 5), [sk.Kennzahl("A", "1")], li, sk.guete(pg), [z], [], rk.parameter(),
-                           ["Etwas entscheiden"])
+    html = sk.bericht_html({"standort": "Goslar", "heute": date(2030, 12, 5), "jahr": 2031, "p": rk.parameter(),
+                            "kz": [sk.Kennzahl("A", "1")], "li": li, "guete": sk.guete(pg), "zeilen": [z],
+                            "entscheidungen": ["Etwas entscheiden"]})
     assert "<svg" in html and "Etwas entscheiden" in html and "Haus 6 · 3. OG" in html
 
 
@@ -160,7 +161,7 @@ def test_kennzahlen_aus_vorhandenen_daten(leer):
     kz = {k.titel: k for k in sk.kennzahlen(st, date(2030, 6, 1), rk.flure(st, date(2030, 6, 1), p), [], p)}
     assert kz["Verfügbare Betten heute"].wert == str(sum(x.betten for x in st.zimmer if x.aktiv))
     assert "100 %" in kz["Belegtage je Gruppe (12 Monate)"].unter
-    assert "Zimmer innerhalb des Zyklus" in kz and sk.LUECKEN
+    assert "Zimmer innerhalb des Zyklus" in kz and sk.luecken()
 
 
 def test_navigation_steuerung_unten_und_zimmer_ohne_renovierung():
