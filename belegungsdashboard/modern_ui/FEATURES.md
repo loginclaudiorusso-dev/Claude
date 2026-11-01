@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.41.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.42.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -92,6 +92,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Rechnet erst beim Öffnen – der Tagesbetrieb bleibt schnell; gilt für Goslar
 - Übersicht: 4 Kennzahlen, Diagramm Ist/Prognose/Spanne/Vorjahr/Kapazität minus Baustellen, Jahresplan, Szenarien, „Zu entscheiden“; Bericht als Druckansicht/PDF
 - Renovierung (Haus 2/6, unverbindlich): Zimmerziel je Jahr mit Zyklus und zwei Rundungsvorschlägen, Kosten aus Angeboten (Bau je Etage, Möbel/Aufbau je Zimmer, Nebenkosten, Puffer, Vorsteuerquote, Preissteigerung), Angebot-PDF einlesen mit Prüfung
+- Planen nach Budget: zwei getrennte Budgets (Bau / Möbel), INNternat wählt die Etagen mit dem meisten Bedarf im Budget und die Monate mit den wenigsten Engpässen (Ausweich, Warnschwelle, Umzüge)
 - Jahresplan als Gantt (Belegungsstopp, Bauzeit, Vorschläge gestrichelt), Übernehmen mit Bestätigung, alle Vorschläge auf einmal
 - Ausweichprüfung je Person über alle Häuser; Monate ohne klaren Unterschied als „gleichwertig“
 - Etagen nach Bedarf (Alter seit Renovierung, „Renovierung nötig“, Mängel schwächer) mit Gründen und Datenlücken, Excel
