@@ -54,19 +54,25 @@ def daten(a) -> None:
         pass
     prog = sk.prognose_monate(pg)
     fl = rk.flure(a.stand, a.heute, p)
-    auswahl = rk.ziel_auswahl(fl, p, jahr)
-    ziel = int(p.get("ziel_zimmer") or 0)
-    naechste = min(range(len(auswahl)), key=lambda i: (abs(auswahl[i].zimmer - ziel), -auswahl[i].zimmer)) if auswahl else -1
-    wahl = getattr(a, "st_wahl", None)
-    wahl = naechste if wahl is None or not 0 <= wahl < len(auswahl) else wahl     # Standard: am nächsten am Ziel
-    vs = rk.vorschlaege(a.stand, fl, jahr, a.heute, p, prog, auswahl[wahl] if auswahl else None)
+    kap = float(pg.kapazitaet) if pg and pg.kapazitaet else None
+    if p.get("modus") == "budget":
+        aw = rk.budget_auswahl(fl, p, jahr)
+        auswahl, wahl = ([aw], 0) if aw else ([], -1)
+    else:
+        auswahl = rk.ziel_auswahl(fl, p, jahr)
+        ziel = int(p.get("ziel_zimmer") or 0)
+        naechste = min(range(len(auswahl)), key=lambda i: (abs(auswahl[i].zimmer - ziel), -auswahl[i].zimmer)) if auswahl else -1
+        wahl = getattr(a, "st_wahl", None)
+        wahl = naechste if wahl is None or not 0 <= wahl < len(auswahl) else wahl     # Standard: am nächsten am Ziel
+    vs = rk.vorschlaege(a.stand, fl, jahr, a.heute, p, prog, auswahl[wahl] if auswahl else None, kap)
     zeilen = rk.jahresplan(a.stand, jahr, vs, p)
     kap_zeilen = {(z.flur, z.start): z for y in {a.heute.year, a.heute.year + 1, jahr}
                   for z in rk.jahresplan(a.stand, y, None, p)}
     kap_zeilen.update({(z.flur, z.start): z for z in zeilen})
     li = sk.linie(pg, list(kap_zeilen.values()), 12, 12 if ansicht == "uebersicht" else 24)
     d = {"p": p, "pg": pg, "fehler": fehler, "fl": fl, "auswahl": auswahl, "wahl": wahl, "vs": vs, "zeilen": zeilen,
-         "li": li, "guete": sk.guete(pg), "szen": rk.szenarien(fl, p, jahr), "jahr": jahr}
+         "li": li, "guete": sk.guete(pg), "szen": rk.szenarien(fl, p, jahr), "jahr": jahr,
+         "billig": rk.guenstigste(fl, p, jahr)}
     d["kz"] = sk.kennzahlen(a.stand, a.heute, fl, list(kap_zeilen.values()), p)
     d["entscheidungen"] = _entscheidungen(d, a.heute)
     if ansicht == "renovierung":
@@ -75,6 +81,7 @@ def daten(a) -> None:
         f = next((x for x in fl if x.schluessel == a.rv_flur), None)
         if f:
             fs = rk.monatsfenster(a.stand, f, jahr, p, prog)
+            rk.engpass_markieren(fs, f, kap, rk.jahresplan(a.stand, jahr, None, p))
             d["monate"] = (f, fs, rk.bester_monat(fs, a.heute))
     if ansicht == "prognose":
         d["staende"] = sk.buchungsstaende()
@@ -88,9 +95,21 @@ def _entscheidungen(d: dict, heute: date) -> list[str]:
             fe = v.fenster
             erg.append(f"{v.flur.text}: Vorschlag {rk.MONATE[fe.start.month - 1]} {fe.start.year} übernehmen? Belegungsstopp ab "
                        f"{fe.stopp_ab:%d.%m.%Y}" + (" – Monat gleichwertig zu anderen, frei wählbar" if fe.gleichwertig else "")
-                       + (f" – für {len(fe.ohne_ausweich)} Person(en) fehlt ein Ausweichzimmer" if fe.ohne_ausweich else ""))
+                       + (f" – für {len(fe.ohne_ausweich)} Person(en) fehlt ein Ausweichzimmer" if fe.ohne_ausweich else "")
+                       + (" – Achtung: auch der beste Monat liegt an der Warnschwelle" if fe.engpass else ""))
         else:
             erg.append(f"{v.flur.text}: in {d['jahr']} ist kein Monat möglich (gesperrt oder Vorlauf zu kurz).")
+    p = d["p"]
+    if p.get("modus") == "budget":
+        if not d["auswahl"]:
+            erg.append("Mit dem eingetragenen Budget passt keine ganze Etage – Budget erhöhen oder auf das nächste Jahr "
+                       "schieben.")
+        else:
+            aw = d["auswahl"][0]
+            for name, schl, wert in (("Bau", "budget_bau", aw.kosten.instandhaltung), ("Möbel", "budget_moebel",
+                                                                                         aw.kosten.investition)):
+                if p.get(schl) is not None and p[schl] - wert > 0:
+                    erg.append(f"Budget {name}: {rk.euro(p[schl] - wert)} bleiben übrig (reicht für keine weitere ganze Etage).")
     luecken = sorted({l for f in d["fl"] for l in (f.kosten.luecken if f.kosten else [])})
     if luecken:
         erg.append("Kosten unvollständig: " + "; ".join(luecken) + " – Angebot einlesen oder eintragen.")
@@ -194,11 +213,21 @@ def _uebersicht(a) -> None:
                      "Obere Grenze der 80-%-Spanne – kein Erwartungswert")
                 _kpi("Monate an der Warnschwelle", f"{len(warn)}", "von 12 · Kapazität ohne Baustellen",
                      "warn" if warn else "")
-                _kpi(f"Renovierung {jahr}", f"{geplant} / {ziel} Zimmer", "geplant (vorgemerkt + Vorschläge) / Ziel",
-                     "warn" if geplant < ziel else "")
-                _kpi(f"Kosten {jahr}", rk.euro(kosten), f"Bau {rk.euro(sum(z.kosten.instandhaltung for z in d['zeilen']))} · "
-                     f"Möbel {rk.euro(sum(z.kosten.investition for z in d['zeilen']))}", "",
-                     "inkl. Puffer und nicht abziehbarer Umsatzsteuer (Vorsteuerquote)")
+                bau = sum(z.kosten.instandhaltung for z in d["zeilen"])
+                mob = sum(z.kosten.investition for z in d["zeilen"])
+                if p.get("modus") == "budget":
+                    bb, bm = p.get("budget_bau"), p.get("budget_moebel")
+                    _kpi(f"Renovierung {jahr}", f"{geplant} Zimmer", "geplant (vorgemerkt + Vorschläge) nach Budget")
+                    _kpi(f"Kosten {jahr}", rk.euro(kosten),
+                         f"Bau {rk.euro(bau)}" + (f" von {rk.euro(bb)}" if bb is not None else "") +
+                         f" · Möbel {rk.euro(mob)}" + (f" von {rk.euro(bm)}" if bm is not None else ""),
+                         "warn" if (bb is not None and bau > bb + .5) or (bm is not None and mob > bm + .5) else "",
+                         "Zwei getrennte Budgets: Bau (Maler/Boden, Nebenkosten) und Möbel (Möbel + Aufbau)")
+                else:
+                    _kpi(f"Renovierung {jahr}", f"{geplant} / {ziel} Zimmer", "geplant (vorgemerkt + Vorschläge) / Ziel",
+                         "warn" if geplant < ziel else "")
+                    _kpi(f"Kosten {jahr}", rk.euro(kosten), f"Bau {rk.euro(bau)} · Möbel {rk.euro(mob)}", "",
+                         "inkl. Puffer und nicht abziehbarer Umsatzsteuer (Vorsteuerquote)")
             with ui.element("section").classes("m-block m-breit"):
                 ui.label("Belegung: Ist, Prognose, Vorjahr – und was die Baustellen an Kapazität kosten").classes("m-btitel")
                 _chart(a, li, "280px")
@@ -333,7 +362,7 @@ def _gantt(a, zeilen: list, jahr: int, kompakt: bool = False) -> None:
                         attr(ui.element("div").classes("m-gantt-vorlauf").style(
                             f"left:{pos(z.stopp_ab):.2f}%; width:{pos(z.start) - pos(z.stopp_ab):.2f}%"),
                             title=f"Belegungsstopp ab {z.stopp_ab:%d.%m.%Y}")
-                    b = ui.element("button").classes(f"m-gantt-bau {z.status}" + (" eng" if z.ohne_ausweich else "")).style(
+                    b = ui.element("button").classes(f"m-gantt-bau {z.status}" + (" eng" if z.ohne_ausweich or z.engpass else "")).style(
                         f"left:{pos(z.start):.2f}%; width:{max(1.0, pos(z.ende) - pos(z.start)):.2f}%")
                     attr(b, title=f"{z.text}: {z.start:%d.%m.} – {z.ende:%d.%m.%Y} · "
                                   f"{'vorgemerkt' if z.status == 'vorgemerkt' else 'Vorschlag'}"
@@ -345,7 +374,7 @@ def _gantt(a, zeilen: list, jahr: int, kompakt: bool = False) -> None:
         ui.label("▬ Bauzeit (vorgemerkt)")
         ui.label("┅ Vorschlag").classes("vorschlag")
         ui.label("░ Belegungsstopp (Vorlauf)").classes("vorlauf")
-        ui.label("orange = Ausweichzimmer fehlen").classes("eng")
+        ui.label("orange = Ausweichzimmer fehlen oder Belegung an der Warnschwelle").classes("eng")
 
 
 def _zeile_panel(a, z: rk.PlanZeile) -> None:
@@ -367,6 +396,9 @@ def _zeile_panel(a, z: rk.PlanZeile) -> None:
         if z.gleichwertig:
             ui.label("Nach Buchungen und Prognose sind mehrere Monate gleich gut – der früheste ist gewählt, ein anderer "
                      "passt genauso.").classes("m-zweite").style("white-space:normal")
+        if z.engpass:
+            ui.label("In diesem Monat erreicht die obere Prognose die Warnschwelle der verringerten Kapazität – es war "
+                     "kein besserer Monat frei.").classes("m-pille warn").style("white-space:normal")
         if z.ohne_ausweich:
             ui.label(f"Für {z.ohne_ausweich} betroffene Person(en) ist im Bauzeitraum kein passendes Zimmer frei.").classes(
                 "m-pille warn")
@@ -435,30 +467,40 @@ def _renovierung(a) -> None:
         with ui.element("div").classes("m-rv"):
             ui.label("Unverbindliche Planung: Hier wird nichts gesperrt, niemand umgezogen und keine Buchung verschoben.").classes(
                 "m-ptext")
-            # Ziel
-            with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"Ziel {jahr}: {ziel} Zimmer" + (f" ≙ jedes Zimmer etwa alle {zy:g} Jahre "
-                                                         f"({rk.bestand(fl)} Zimmer in Haus {', '.join(p['haeuser'])})" if zy else "")).classes(
-                    "m-btitel")
-                with ui.element("div").classes("m-zeile-flex"):
-                    for i, aw in enumerate(d["auswahl"]):
-                        b = ui.element("button").classes("m-rv-monat" + (" bester" if i == d["wahl"] else ""))
-                        with b:
-                            ui.label(aw.titel).classes("m-name")
-                            ui.label(aw.text).classes("m-zweite")
-                            ui.label(f"{rk.euro(aw.kosten.summe)} · {rk.euro(aw.kosten.je_zimmer)} je Zimmer").classes("m-mono")
-                        b.on("click", lambda i=i: a.setzen(st_wahl=i, nur_seite=True))
-                    zahl = ui.number("Zimmer je Jahr", value=ziel, min=0, max=500, step=1, format="%d").classes(
-                        "m-feld").props("dense outlined dark").style("max-width:150px")
+            # Planen nach Ziel oder Budget
+            with ui.element("div").classes("m-zeile-flex"):
+                ui.label("Planen nach").classes("m-zweite")
 
-                    async def ziel_setzen():
-                        neu = int(zahl.value or 0)
-                        if neu != ziel:
-                            a.st_wahl = None
-                            await a.aendern(rk.parameter_schritt, {**p, "ziel_zimmer": neu})
-                    knopf("Ziel übernehmen", ziel_setzen, "leise", "check")
-                ui.label("Ganze Etagen nach Bedarf – die Angebote gelten je Etage. Geht das Ziel nicht auf, stehen zwei "
-                         "Vorschläge da: knapp darunter und knapp darüber.").classes("m-zweite").style("white-space:normal")
+                async def modus(v):
+                    a.st_wahl = None
+                    await a.aendern(rk.parameter_schritt, {**p, "modus": v})
+                segmente({"ziel": "Zimmerziel", "budget": "Budget (Bau und Möbel getrennt)"}, p.get("modus") or "ziel", modus)
+            if p.get("modus") == "budget":
+                _budget_block(a, d, p, fl, jahr)
+            else:
+                with ui.element("section").classes("m-block m-breit"):
+                    ui.label(f"Ziel {jahr}: {ziel} Zimmer" + (f" ≙ jedes Zimmer etwa alle {zy:g} Jahre "
+                                                             f"({rk.bestand(fl)} Zimmer in Haus {', '.join(p['haeuser'])})" if zy else "")).classes(
+                        "m-btitel")
+                    with ui.element("div").classes("m-zeile-flex"):
+                        for i, aw in enumerate(d["auswahl"]):
+                            b = ui.element("button").classes("m-rv-monat" + (" bester" if i == d["wahl"] else ""))
+                            with b:
+                                ui.label(aw.titel).classes("m-name")
+                                ui.label(aw.text).classes("m-zweite")
+                                ui.label(f"{rk.euro(aw.kosten.summe)} · {rk.euro(aw.kosten.je_zimmer)} je Zimmer").classes("m-mono")
+                            b.on("click", lambda i=i: a.setzen(st_wahl=i, nur_seite=True))
+                        zahl = ui.number("Zimmer je Jahr", value=ziel, min=0, max=500, step=1, format="%d").classes(
+                            "m-feld").props("dense outlined dark").style("max-width:150px")
+
+                        async def ziel_setzen():
+                            neu = int(zahl.value or 0)
+                            if neu != ziel:
+                                a.st_wahl = None
+                                await a.aendern(rk.parameter_schritt, {**p, "ziel_zimmer": neu})
+                        knopf("Ziel übernehmen", ziel_setzen, "leise", "check")
+                    ui.label("Ganze Etagen nach Bedarf – die Angebote gelten je Etage. Geht das Ziel nicht auf, stehen zwei "
+                             "Vorschläge da: knapp darunter und knapp darüber.").classes("m-zweite").style("white-space:normal")
             # Gantt
             with ui.element("section").classes("m-block m-breit"):
                 with ui.element("div").classes("m-zeile-flex"):
@@ -508,6 +550,44 @@ def _renovierung(a) -> None:
                 "m-xk-hinweis")
 
 
+def _budget_block(a, d, p, fl, jahr) -> None:
+    """Zwei getrennte Budgets: Bau (Maler/Boden + Nebenkosten) und Möbel (+ Aufbau) – je Kostenstelle."""
+    aw = d["auswahl"][0] if d["auswahl"] else None
+    with ui.element("section").classes("m-block m-breit"):
+        ui.label(f"Budget {jahr}: Welche Etagen passen hinein – und wann mit den wenigsten Engpässen?").classes("m-btitel")
+        with ui.element("div").classes("m-zeile-flex"):
+            bau = ui.number("Budget Bau (Maler/Boden, Nebenkosten) €", value=p.get("budget_bau"), min=0, step=1000,
+                            format="%.0f").classes("m-feld").props("dense outlined dark clearable").style("flex:1 1 240px; max-width:340px")
+            mob = ui.number("Budget Möbel (Möbel + Aufbau) €", value=p.get("budget_moebel"), min=0, step=500,
+                            format="%.0f").classes("m-feld").props("dense outlined dark clearable").style("flex:1 1 240px; max-width:340px")
+
+            async def setzen():
+                neu = {**p, "budget_bau": None if bau.value in (None, "") else float(bau.value),
+                       "budget_moebel": None if mob.value in (None, "") else float(mob.value)}
+                await a.aendern(rk.parameter_schritt, neu)
+            knopf("Budget übernehmen", setzen, "leise", "check")
+        ui.label("Beträge so, wie sie bei euch zählen (mit nicht abziehbarer Umsatzsteuer laut Vorsteuerquote, inkl. Puffer). "
+                 "Leeres Feld = keine Grenze. Gesucht wird die Kombination ganzer Etagen mit dem meisten Bedarf, die in "
+                 "beide Budgets passt; die Monate danach so, dass die Belegung möglichst nicht an die Warnschwelle kommt, "
+                 "alle Betroffenen ein Ausweichzimmer haben und möglichst wenige umziehen müssen.").classes(
+            "m-zweite").style("white-space:normal")
+        if aw is None:
+            billig = d.get("billig")
+            ui.label("Mit diesem Budget passt keine ganze Etage." + (
+                f" Günstigste: {billig[0].text} – Bau {rk.euro(billig[1].instandhaltung)}, Möbel "
+                f"{rk.euro(billig[1].investition)}." if billig else "")).classes("m-pille warn").style("white-space:normal")
+            return
+        with ui.element("div").classes("m-kpis"):
+            for titel, schl, wert in (("Bau", "budget_bau", aw.kosten.instandhaltung),
+                                      ("Möbel", "budget_moebel", aw.kosten.investition)):
+                budget = p.get(schl)
+                _kpi(f"{titel}: verplant", rk.euro(wert),
+                     f"von {rk.euro(budget)} · Rest {rk.euro(budget - wert)}" if budget is not None else "keine Grenze angegeben",
+                     "warn" if budget is not None and wert > budget else "")
+            _kpi("Etagen im Budget", f"{aw.zimmer} Zimmer", aw.text)
+            _kpi("Je Zimmer", rk.euro(aw.kosten.je_zimmer), f"gesamt {rk.euro(aw.kosten.summe)}")
+
+
 def _monate(a, f, fs, best) -> None:
     jahr = fs[0].start.year if fs else a.heute.year
     with ui.element("section").classes("m-block m-breit"):
@@ -521,7 +601,8 @@ def _monate(a, f, fs, best) -> None:
                 k = ui.element("button").classes(f"m-rv-monat {fe.stufe}" + (" bester" if best is fe else ""))
                 with k:
                     ui.label(rk.MONATE[fe.start.month - 1] + (" ★" if best is fe else "")
-                             + (" ≈" if fe.gleichwertig else "")).classes("m-zweite")
+                             + (" ≈" if fe.gleichwertig else "") + (" · Engpass" if fe.engpass else "")).classes(
+                        "m-zweite" + (" m-warn" if fe.engpass else ""))
                     ui.label({"gesperrt": "gesperrt", "frei": "frei"}.get(fe.stufe, f"{fe.betroffen} betroffen")).classes(
                         "m-name")
                     ui.label(f"Stopp ab {fe.stopp_ab:%d.%m.}" + (f" · {fe.mieter} Mieter" if fe.mieter else "")).classes(

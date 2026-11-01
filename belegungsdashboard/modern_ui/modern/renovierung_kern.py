@@ -42,7 +42,10 @@ STANDARD = {
     "haeuser": ["2", "6"],
     "kosten": {"2": {"bau_etage": 100000, "moebel_zimmer": 0, "aufbau_zimmer": 500, "dauer_tage": 30},
                "6": {"bau_etage": 30000, "moebel_zimmer": 0, "aufbau_zimmer": 500, "dauer_tage": 30}},
+    "modus": "ziel",              # ziel = nach Zimmerziel | budget = nach verfügbarem Budget
     "ziel_zimmer": 9,             # Zimmer je Jahr
+    "budget_bau": None,           # Budget je Jahr für Bau + Nebenkosten (Instandhaltung) – None = nicht angegeben
+    "budget_moebel": None,        # Budget je Jahr für Möbel + Aufbau – eigene Kostenstelle, None = nicht angegeben
     "neben_pct": 0,               # Elektro, Sanitär, Brandschutz, Entsorgung, Bauleitung – in % vom Bau
     "puffer_pct": 10,             # Unvorhergesehenes, in % von allem
     "vorsteuer_pct": 0,           # 0 = Umsatzsteuer ist voll Kosten (brutto), 100 = voll abziehbar (netto)
@@ -370,6 +373,7 @@ class Fenster:
     ausweich: dict = field(default_factory=dict)    # Haus → Anzahl der Ausweichzimmer
     gesperrt: bool = False
     prognose: tuple | None = None                   # (erwartet, lo80, hi80) Standort – nur Orientierung
+    engpass: bool = False                           # obere Prognose erreicht die Warnschwelle der (verringerten) Kapazität
     gleichwertig: bool = False                      # Unterschied zu anderen Monaten kleiner als die Unsicherheit
 
     @property
@@ -462,7 +466,7 @@ def bester_monat(fs: list[Fenster], heute: date) -> Fenster | None:
     moeglich = [x for x in fs if not x.gesperrt and x.stopp_ab >= heute]
     if not moeglich:
         return None
-    rang = lambda x: (bool(x.ohne_ausweich), x.betroffen, x.mieter)
+    rang = lambda x: (bool(x.ohne_ausweich), x.engpass, x.betroffen, x.mieter)
     top = [x for x in moeglich if rang(x) == min(rang(y) for y in moeglich)]
     mit = [x for x in top if x.prognose]
     if len(mit) >= 2:
@@ -558,6 +562,59 @@ def szenarien(fl: list[Flur], p: dict, jahr: int, etagen=(1, 2, 3)) -> list[Szen
     return erg
 
 
+def budget_auswahl(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None = None,
+                   budget_moebel: float | None = None) -> Auswahl | None:
+    """Welche Etagen passen in die beiden Budgets (Bau und Möbel getrennt)? Gesucht wird die Kombination mit dem
+    meisten Bedarf (Punkte × Zimmer), bei Gleichstand mit den meisten Zimmern, dann die günstigere. ``None`` als
+    Budget = keine Grenze. Ergebnis ``None``, wenn keine Etage hineinpasst."""
+    bb = p.get("budget_bau") if budget_bau is None else budget_bau
+    bm = p.get("budget_moebel") if budget_moebel is None else budget_moebel
+    kand = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl][:16]          # 2^16 Kombinationen – schnell genug
+    bau = [k.instandhaltung for _f, k in kand]
+    mob = [k.investition for _f, k in kand]
+    punkte = [max(0.0, f.bedarf) * len(f.zimmer) for f, _k in kand]
+    zimmer = [len(f.zimmer) for f, _k in kand]
+    best, best_wert = 0, None
+    for maske in range(1, 1 << len(kand)):
+        sb = sm = sp = sz = 0.0
+        for i in range(len(kand)):
+            if maske >> i & 1:
+                sb += bau[i]
+                sm += mob[i]
+                sp += punkte[i]
+                sz += zimmer[i]
+        if (bb is not None and sb > bb + .5) or (bm is not None and sm > bm + .5):
+            continue
+        wert = (round(sp, 3), sz, -(sb + sm))
+        if best_wert is None or wert > best_wert:
+            best, best_wert = maske, wert
+    if not best:
+        return None
+    gew = [kand[i][0] for i in range(len(kand)) if best >> i & 1]
+    gew.sort(key=lambda f: fl.index(f))
+    aw = _auswahl("", gew, p, jahr)
+    aw.titel = f"{aw.zimmer} Zimmer im Budget"
+    return aw
+
+
+def guenstigste(fl: list[Flur], p: dict, jahr: int) -> tuple[Flur, Kosten] | None:
+    erg = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl]
+    return min(erg, key=lambda x: x[1].summe) if erg else None
+
+
+def engpass_markieren(fs: list[Fenster], f: Flur, kap: float | None, belegt: list | None = None,
+                      warn_anteil: float = .95) -> None:
+    """Monat ist ein Engpass, wenn die obere Prognose die Warnschwelle der Kapazität erreicht – Kapazität minus diese
+    Etage und minus Etagen, die im selben Monat schon im Bau sind (``belegt``: PlanZeilen)."""
+    if not kap:
+        return
+    for fe in fs:
+        if not fe.prognose:
+            continue
+        weg = f.betten + gesperrte_betten(belegt or [], date(fe.start.year, fe.start.month, 1))
+        fe.engpass = fe.prognose[2] >= (kap - weg) * warn_anteil
+
+
 @dataclass
 class Vorschlag:
     flur: Flur
@@ -565,7 +622,7 @@ class Vorschlag:
 
 
 def vorschlaege(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date, p: dict | None = None,
-                prognose: dict | None = None, auswahl: Auswahl | None = None) -> list[Vorschlag]:
+                prognose: dict | None = None, auswahl: Auswahl | None = None, kap: float | None = None) -> list[Vorschlag]:
     """Für die Etagen der Ziel-Auswahl (ohne schon vorgemerkte) je den besten Monat – keine zwei Baustellen im
     selben Monat (die Ausweichzimmer würden doppelt gezählt)."""
     p = p or parameter()
@@ -573,13 +630,17 @@ def vorschlaege(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date, p: 
     belegt_monate = {date.fromisoformat(e["start"]).month for e in plan() if e["start"][:4] == str(jahr)}
     auswahl = auswahl or (ziel_auswahl(fl, p, jahr) or [None])[-1]
     erg = []
+    bau = jahresplan(stand, jahr, None, p) if kap else []          # schon vorgemerkte Baustellen senken die Kapazität
     for f in (auswahl.flure if auswahl else []):
         if f.schluessel in schon:
             continue
         fs = [x for x in monatsfenster(stand, f, jahr, p, prognose) if x.start.month not in belegt_monate]
+        engpass_markieren(fs, f, kap, bau)
         best = bester_monat(fs, heute)
         if best:
             belegt_monate.add(best.start.month)
+            bau.append(PlanZeile(f.schluessel, f.text, len(f.zimmer), f.betten, best.start, best.ende, best.stopp_ab,
+                                 "vorschlag", Kosten(len(f.zimmer), jahr)))
         erg.append(Vorschlag(f, best))
     return erg
 
@@ -599,6 +660,7 @@ class PlanZeile:
     kosten: Kosten
     gleichwertig: bool = False
     ohne_ausweich: int = 0
+    engpass: bool = False
 
 
 def jahresplan(stand: zp.Planstand, jahr: int, vorschl: list[Vorschlag] | None = None,
@@ -622,7 +684,8 @@ def jahresplan(stand: zp.Planstand, jahr: int, vorschl: list[Vorschlag] | None =
             continue
         fe, f = v.fenster, v.flur
         erg.append(PlanZeile(f.schluessel, f.text, len(f.zimmer), f.betten, fe.start, fe.ende, fe.stopp_ab, "vorschlag",
-                             kosten(p, f.haus, len(f.zimmer), jahr), fe.gleichwertig, len(fe.ohne_ausweich)))
+                             kosten(p, f.haus, len(f.zimmer), jahr), fe.gleichwertig, len(fe.ohne_ausweich),
+                             fe.engpass))
     return sorted(erg, key=lambda z: (z.start, z.text))
 
 
