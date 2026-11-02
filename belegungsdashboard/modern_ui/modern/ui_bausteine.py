@@ -42,6 +42,13 @@ def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False) -> None:
                  else "(...args) => emit(...args)")
 
 
+def tabelle(spalten: str, klasse: str = ""):
+    """0.46: Tabellenvorlage – Kopfzeile und Zeilen teilen EIN Spaltenraster (CSS subgrid). So steht die Kopfzeile immer
+    genau über den Werten, auch wenn Spalten nach Inhalt breiter werden. Darin wie gewohnt ``m-raster m-tkopf`` und
+    ``m-raster m-zeile`` anlegen (deren eigene Spaltenangabe wird überschrieben); Sortieren per Klick bleibt."""
+    return ui.element("div").classes(f"m-tab {klasse}".strip()).style(f"grid-template-columns:{spalten}")
+
+
 def leer(text: str) -> None:
     ui.label(text).classes("m-leer")
 

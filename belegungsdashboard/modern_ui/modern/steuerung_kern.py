@@ -589,6 +589,7 @@ border: 1px solid #c9a227; padding: 4px 8px; margin: 4px 0; font-weight: 600 }} 
 <h2 class="seite">D Belegung und Kapazität</h2>{_svg_linie(c["li"]) if c.get("li") else ""}
 <p class=s>━ Ist · ╍ Prognose mit 80-%-Spanne · ┈ Vorjahr · rot: Kapazität minus Baustellen. {e(c["guete"].satz if c.get("guete") else '')}</p>{kern_html}
 <h2>E Strategie 5 Jahre</h2><table><tr><th>Strategie</th><th class=r>A-Zimmer</th><th class=r>Zimmer</th><th class=r>Bau</th><th class=r>Möbel</th><th class=r>Zyklus</th></tr>{sz}</table>
+<p class=s>Planungshorizont: {c["jahr"]} belastbar · {c["jahr"] + 1} wahrscheinlich · {c["jahr"] + 2}–{c["jahr"] + 4} nur Orientierung.</p>
 <h2>F Kennzahlen</h2><table>{kzs}</table>
 <h2>G Annahmen und Datenquellen</h2><p>{e(annahmen)}</p><ul>{''.join(f'<li>{e(x)}</li>' for x in quellen)}</ul>
 {('<ul>' + ''.join(f'<li>{e(a)} – braucht: {e(b)}</li>' for a, b in c.get('luecken') or []) + '</ul>') if c.get('luecken') else ''}

@@ -229,9 +229,24 @@ class Kosten:
                       self.u_bau + o.u_bau, self.u_moebel + o.u_moebel, self.ungewiss + o.ungewiss)
 
 
-def preisfaktor(p: dict, jahr: int, moebel: bool = False) -> float:
+def gueltig_bis(p: dict, haus: str | None, moebel: bool = False) -> date | None:
+    """Bis wann gilt das Angebot (Festpreis)? Eintrag je Haus und Art, sonst None."""
+    if not haus:
+        return None
+    try:
+        return date.fromisoformat(str((p["kosten"].get(haus) or {}).get("gueltig_moebel" if moebel else "gueltig_bau") or "")[:10])
+    except ValueError:
+        return None
+
+
+def preisfaktor(p: dict, jahr: int, moebel: bool = False, haus: str | None = None) -> float:
+    """Preissteigerung ab Preisstand. 0.46: Solange ein Angebot gilt (Festpreis), wird nicht hochgerechnet – erst ab dem
+    Jahr nach Ablauf."""
     pct = p.get("preis_moebel_pct") if moebel else p.get("preis_pct")
-    return (1 + float(pct or 0) / 100) ** max(0, jahr - int(p.get("preisstand") or jahr))
+    basis = int(p.get("preisstand") or jahr)
+    if (g := gueltig_bis(p, haus, moebel)) is not None:
+        basis = max(basis, g.year)
+    return (1 + float(pct or 0) / 100) ** max(0, jahr - basis)
 
 
 def bau_je_einzelzimmer(p: dict, haus: str, n_etage: int) -> tuple[float, str, str]:
@@ -257,7 +272,7 @@ def kosten(p: dict, haus: str, zimmer: int, jahr: int | None = None, art: str = 
     ``moebel`` = nur Möbel tauschen. Puffer je Budget, Steuer laut Vorsteuerquote, Herkunft je Teil."""
     jahr = jahr or int(p.get("preisstand") or date.today().year)
     k = p["kosten"].get(haus) or {}
-    fb, fm = preisfaktor(p, jahr), preisfaktor(p, jahr, True)
+    fb, fm = preisfaktor(p, jahr, False, haus), preisfaktor(p, jahr, True, haus)
     h = []
     hk_bau = "angebot"
     if art == "etage":
@@ -275,6 +290,8 @@ def kosten(p: dict, haus: str, zimmer: int, jahr: int | None = None, art: str = 
                  ust_satz=UST * (1 - float(p.get("vorsteuer_pct") or 0) / 100))
     if fb != 1 and bau0:
         h.append((f"Preissteigerung Bau bis {jahr} (× {fb:.3f})", erg.bau - bau0))
+    elif bau0 and (g := gueltig_bis(p, haus)) and jahr <= g.year:
+        h.append((f"Festpreis – Angebot gilt bis {g:%d.%m.%Y}, keine Preissteigerung", 0.0))
     erg.neben = erg.bau * float(p.get("neben_pct") or 0) / 100
     if erg.neben:
         h.append((f"Nebenkosten {p.get('neben_pct')} % vom Bau", erg.neben))
@@ -381,7 +398,17 @@ def angebot_auswerten(text: str) -> dict:
            "haus": haus.group(1) if haus else "", "zimmer": zimmer if moebel else 0}
     if not moebel:
         erg.update(einheitspreise(positionen(text)))
+    if g := _GUELTIG.search(text):                       # „gültig bis 31.03.2027“, „Bindefrist: …“
+        t, m, j = (int(x) for x in g.group(1, 2, 3))
+        try:
+            erg["gueltig_bis"] = date(j + 2000 if j < 100 else j, m, t).isoformat()
+        except ValueError:
+            pass
     return erg
+
+
+_GUELTIG = re.compile(r"(?:gültig\s+bis(?:\s+zum)?|Bindefrist(?:\s+bis)?|Angebot\s+gilt\s+bis)[:\s]*(\d{1,2})\.(\d{1,2})\.(\d{2,4})",
+                      re.I)
 
 
 def angebot_lesen(pfad) -> dict:
@@ -411,7 +438,12 @@ def angebot_uebernehmen(p: dict, ang: dict) -> dict:
             if ang.get(f):
                 neu["kosten"][h][f] = round(float(ang[f]), 2)
     neu["angebote"] = [x for x in neu["angebote"] if not (x.get("haus") == h and x.get("art") == ang["art"])]
-    neu["angebote"].append({k: ang.get(k) for k in ("haus", "art", "netto", "zimmer", "datum", "datei")})
+    neu["angebote"].append({k: ang.get(k) for k in ("haus", "art", "netto", "zimmer", "datum", "datei", "gueltig_bis")})
+    feld = "gueltig_moebel" if ang["art"] == "moebel" else "gueltig_bau"
+    if ang.get("gueltig_bis"):
+        neu["kosten"][h][feld] = str(ang["gueltig_bis"])[:10]
+    else:
+        neu["kosten"][h].pop(feld, None)
     if ang.get("datum"):
         neu["preisstand"] = int(str(ang["datum"])[:4])
     return neu
@@ -1007,7 +1039,7 @@ def optimieren(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None, moe
                ziel: int | None = None, mit_etagen: bool = True, mit_zimmern: bool = True, vorrang: str = "") -> tuple[list, float | None]:
     """Beste Kombination aus ganzen Etagen und Einzelzimmern: jede Etagenkombination im Baubudget (bzw. bis zum
     Zimmerziel), Rest gierig mit Einzelzimmern nach Bedarf je €. Ziel: meister Bedarf (Vorrang-Haus zuerst), dann
-    mehr Zimmer, dann mehr Baubudget genutzt. Ergebnis: ([(Flur, Zimmer, Art)], Rest Bau)."""
+    mehr Zimmer, dann weniger Geld (0.46: nie nur zum Ausschöpfen). Ergebnis: ([(Flur, Zimmer, Art)], Rest Bau)."""
     etagen = [(f, kosten(p, f.haus, len(f.zimmer), jahr)) for f in fl][:16] if mit_etagen else []
     alle = {z.id for f in fl for z in f.zimmer}
     kand = _zimmer_kandidaten(fl, alle, p, jahr, "zimmer") if mit_zimmern else []
@@ -1040,7 +1072,10 @@ def optimieren(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None, moe
         w_v = sum(_wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") for f, z, _a in liste if f.haus == vorrang)
         w = sum(_wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") for f, z, _a in liste)
         genutzt = (budget_bau - rest_b) if budget_bau is not None and rest_b is not None else sb
-        wert = (w_v, w, len(liste), genutzt if budget_bau is not None else -genutzt)
+        # 0.46: Zimmer ohne Bedarf zählen nicht (außer beim Zimmerziel) – bei gleichem Bedarf die günstigere Lösung,
+        # nie eine Etage nur zum Ausschöpfen des Budgets
+        n = len(liste) if ziel is not None else sum(1 for f, z, _a in liste if _wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") > 0)
+        wert = (w_v, w, n, -genutzt)
         if best_wert is None or wert > best_wert:
             best, best_wert, best_rest = liste, wert, rest_b
     return best, best_rest
@@ -1072,7 +1107,7 @@ def machbare_etagen(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date,
 
 def varianten(fl: list[Flur], p: dict, jahr: int, ziel: int | None = None, schon: set | None = None,
               machbar: set | None = None, reserve: set | None = None, budget_faktor: float = 1.0) -> tuple[list[Variante], str]:
-    """Varianten des Jahres. Budget-Modus: Baubudget fest (soll voll genutzt werden), Möbel als Antrag (optionale
+    """Varianten des Jahres. Budget-Modus: Baubudget fest (Obergrenze – Rest bleibt frei, wenn kein Bedarf passt), Möbel als Antrag (optionale
     Obergrenze). Ziel-Modus: Zimmerziel. ``schon``: im Jahr vorgemerkte Zimmer; ``machbar``: Etagen mit machbarem
     Monat; ``reserve``: Reserve-Etagen (Kernbestand) – fallen heraus. Empfehlung = rechnerisch beste Variante."""
     budget = p.get("modus") != "ziel"

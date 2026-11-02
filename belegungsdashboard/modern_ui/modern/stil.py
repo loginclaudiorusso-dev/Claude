@@ -1187,3 +1187,25 @@ CSS += """
 .m-gantt-bau.offen { background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--text3) 35%, transparent) 5px 7px); }
 .m-rv-monat.offen { border-left-color: var(--text3); border-left-style: dotted; }
 """
+
+CSS += """
+/* 0.46: Tabellenvorlage – ein Raster für Kopf und Zeilen (subgrid), Kopf bleibt beim Scrollen stehen */
+.m-tab { display: grid; min-width: min-content; position: relative; }
+.m-tab > .m-raster { grid-column: 1 / -1; grid-template-columns: subgrid !important; }
+.m-tab > .m-tkopf { position: sticky; top: 0; z-index: 2; }
+.m-tab > .m-zeile:hover { background: var(--fl2); }
+.m-tab .m-mono { white-space: nowrap; }
+.m-tab-scroll { overflow-x: auto; max-width: 100%; }
+"""
+
+CSS += """
+/* 0.46: Steuerung – Zonen Eingabe | Ergebnis | Entscheidung, klickbare Kennzahlen */
+.m-zone { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 -6px; padding-bottom: 6px; border-bottom: 1px solid var(--rand); }
+.m-zone-nr { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  background: var(--akzent); color: var(--akzent-text, #fff); flex: none; align-self: center; }
+.m-zone-t { font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; }
+button.m-kpikarte { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.m-kpi-klick:hover { border-color: var(--akzent) !important; background: var(--fl2); }
+.m-liste-zeile.m-klick { cursor: pointer; border-radius: 8px; }
+.m-liste-zeile.m-klick:hover { background: var(--fl2); }
+"""

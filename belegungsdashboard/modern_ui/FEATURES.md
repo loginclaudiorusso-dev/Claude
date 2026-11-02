@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.45.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.46.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -89,8 +89,14 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
 ## Steuerung (Leitung, ganz unten in der Seitenleiste)
-- Ansichten: Übersicht · Renovierung · Strategie 5 Jahre · Belegung · Kennzahlen; rechnet erst beim Öffnen; gilt für Goslar
-- Übersicht: Bau verplant/Budget, Möbelantrag mit Spanne, offene Klasse-A-Zimmer heute → nach Plan, Monate an der Warnschwelle; Empfehlung, Diagramm (Ist/Prognose/Vorjahr/Kapazität minus Baustellen), Zeitplan, Strategien, „Zu entscheiden“
+- Bereiche nach Fragen: Cockpit · Vorhaben · Zeitplan & Kapazität · Finanzen · Grundlagen; rechnet erst beim Öffnen; gilt für Goslar
+- Cockpit (nur lesen): 5 Kennzahlen (Bau verplant, Bau frei – verfällt am 31.12., Möbelantrag, offene A-Zimmer, Warnmonate), 3 Warnungen, 3 Handlungsempfehlungen; jede Kachel führt zur passenden Ansicht
+- Vorhaben: Liste des Vorgemerkten + Werkzeug „Renovierung planen“ in drei Zonen Eingabe | Ergebnis | Entscheidung
+- Zeitplan & Kapazität: Gantt aller Vorhaben, Belegung Ist/Prognose/Vorjahr/Kapazität minus Baustellen, Prognosegüte, Kernbestand
+- Finanzen: Budget je Topf (Bau, Möbel): Rahmen, vorgemerkt, Vorschlag, frei; Strategie 5 Jahre mit Planungshorizont (belastbar / wahrscheinlich / Orientierung)
+- Grundlagen: Annahmen mit Herkunft, Angebote mit Datum und Gültigkeit, Kennzahlen und Datenlücken
+- Nie nur zum Ausschöpfen: bei gleichem Bedarf die günstigere Lösung, Etagen ohne Bedarf zählen nicht; Restbudget bleibt sichtbar frei
+- Festpreis: solange ein Angebot gilt („gültig bis“, wird im PDF erkannt), keine Preissteigerung
 - Renovierung: Baubudget als feste Grenze (Standard) oder Zimmerziel; Möbelbedarf als Antrag; Haus-Vorrang; Kernbestand-Häkchen
 - Ganze Etage selbst planen: Etage wählen, Kosten und besten Monat sehen, vormerken – Vormerkungen verbrauchen Budget/Ziel, der Vorschlag verteilt den Rest
 - Bedarf in Klassen A/B/C, getrennt für Bau und Möbel; frisch renoviert = kein Bau
@@ -113,7 +119,10 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Alle Listen per Klick auf die Spaltenüberschrift sortierbar (Datum, Zahl, Zimmer natürlich), auch per Tastatur (Tab, Enter)
 - Kleinschrift mit Kontrast ≥ 4,5:1 (WCAG)
 - Zähler an den Menüpunkten, Glocke für ungelesene Neuigkeiten
-- Showcase-Dock: Standort, fünf Hauptbereiche, Rest unter „Mehr“
+- Showcase-Dock: Standort, angeheftete Bereiche (anpassbar), je Gruppe ein Menü, Suche, hell/dunkel; anheften oder automatisch ausblenden (fährt beim Darüberfahren herein, Strg+B)
+- Seitenleiste wie in Office: einklappen, beim Darüberfahren klappt sie über dem Inhalt auf, „Leiste anheften“ hält sie offen (Strg+B)
+- Tabellenvorlage: Kopfzeile und Zeilen teilen ein Spaltenraster – nichts verrutscht
+- Auslastung in der Zimmerliste ohne Gästezimmer (die Gästeetage läuft unabhängig vom Tagesgeschäft)
 - Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 6 Themes (INNternat, Original, inn-tegrativ, Linear Monochrome, Executive Obsidian, Soft Nordic), hell/dunkel, Dichte
 - Haptik: Knöpfe geben beim Drücken nach, Arbeitsbalken beim Speichern, einrastende Bestätigung
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird

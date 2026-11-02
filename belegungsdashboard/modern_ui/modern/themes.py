@@ -28,7 +28,7 @@ THEMES = {
 }
 ALT = {"corporate": "inn", "bento": "obsidian", "editorial": "nordic"}      # Namen aus 0.8
 STANDARD = {"layout": "original", "theme": "original", "modus": "dunkel", "dichte": "normal", "schmal": False,
-            "vollbild": False, "notiz": ""}
+            "vollbild": False, "notiz": "", "dock": None, "dock_fest": True}
 
 # ---------------------------------------------------------------------------------------
 # Paletten (je Theme hell/dunkel) – nur Farben
@@ -185,6 +185,9 @@ def bereinigen(d: dict | None) -> dict:
     erg["schmal"] = bool(d.get("schmal"))
     erg["vollbild"] = bool(d.get("vollbild"))
     erg["notiz"] = str(d.get("notiz") or "")[:5000]
+    dock = d.get("dock")                    # Showcase: angeheftete Bereiche im Dock (None = Standard)
+    erg["dock"] = [str(x) for x in dock][:14] if isinstance(dock, list) else None
+    erg["dock_fest"] = d.get("dock_fest", True) is not False
     return erg
 
 
@@ -216,10 +219,12 @@ def klassen(d: dict) -> list[str]:
         k.append("dichte-kompakt")
     if d["schmal"] or d["layout"] == "canvas":
         k.append("nav-schmal")
+    if d["layout"] == "showcase" and not d["dock_fest"]:
+        k.append("dock-auto")
     return k
 
 
-ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "mod-hell", "mod-dunkel"] + [f"lay-{x}" for x in LAYOUTS]
+ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "mod-hell", "mod-dunkel", "dock-auto"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------
@@ -771,5 +776,44 @@ body.pro.th-innternat.nav-schmal .m-marke .m-standort-pfeil { display: inline-fl
 """
 
 
+def _aufklappen(p: str) -> str:
+    """0.46: Eingeklappte Leiste wie in Office – beim Darüberfahren klappt sie (kurz verzögert) über dem Inhalt auf,
+    nichts verschiebt sich. „Anheften“ hält sie offen."""
+    return f"""
+{p} .m-nav {{ position: relative; z-index: 45; overflow: hidden; white-space: nowrap;
+  transition: width .18s ease, margin .18s ease, box-shadow .18s ease, padding .18s ease; transition-delay: 0s; }}
+{p} .m-nav .m-navpunkt {{ justify-content: flex-start; padding: 6px 0 6px 12px; }}
+{p} .m-nav:hover {{ width: 236px; margin-right: -176px; padding: 14px 10px; box-shadow: 16px 0 36px rgba(0,0,0,.28); transition-delay: .3s; }}
+{p} .m-nav:hover .m-navpunkt {{ padding: 6px 8px; }}
+{p} .m-nav:hover .m-navpunkt > :not(.q-icon):not(.m-zahl) {{ display: block; }}
+{p} .m-nav:hover .m-navpunkt .m-zahl {{ position: static; margin-left: auto !important; }}
+{p} .m-nav:hover .m-navgruppe {{ font-size: 11px !important; height: auto; padding: 10px 8px 4px; margin: 0; background: none; }}
+{p} .m-nav:hover .m-marke {{ justify-content: flex-start; padding: 4px 8px 16px; }}
+{p} .m-nav:hover .m-marke > .m-marke-t {{ display: flex; }}
+{p} .m-nav:hover .m-marke > .m-standort-pfeil {{ display: inline-flex; }}
+{p} .m-nav:hover .m-navpunkt.aktiv::before {{ left: -10px; }}
+"""
+
+
+_ANHEFTEN = (_aufklappen("body.pro.nav-schmal") + "@media (max-width: 1199px) {" + _aufklappen("body.pro.lay-grid") + "}" + """
+body.pro .m-navklapp .q-icon, body.pro.nav-schmal .m-navklapp .q-icon { transform: none !important; }
+@media (prefers-reduced-motion: reduce) { body.pro .m-nav { transition: none !important; } }
+
+/* Showcase-Dock: Gruppenmenüs, rechts Suche / Hell-Dunkel / Anheften */
+body.lay-showcase .m-topnav .m-dock-gruppe .m-dock-pfeil { font-size: 16px !important; margin-left: -2px; opacity: .7; }
+body.lay-showcase .m-topnav .m-dock-rechts { display: inline-flex; align-items: center; gap: 2px; }
+body.lay-showcase .m-topnav .m-nur-symbol { padding: 0 9px; }
+body.lay-showcase .m-topnav .m-dock-pin.an { color: var(--akzent-hell); }
+/* Dock automatisch ausblenden: am oberen Rand bleibt eine Kante, beim Darüberfahren fährt es herein */
+body.lay-showcase.dock-auto .m-topnav { position: fixed; left: 50%; top: 0; margin: 0; z-index: 50; overflow: visible;
+  transform: translate(-50%, calc(-100% + 7px)); transition: transform .2s ease .25s, box-shadow .2s ease .25s; box-shadow: none; }
+body.lay-showcase.dock-auto .m-topnav::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 16px; }
+body.lay-showcase.dock-auto .m-topnav:hover, body.lay-showcase.dock-auto .m-topnav:focus-within {
+  transform: translate(-50%, 12px); transition-delay: 0s; box-shadow: 0 12px 34px rgba(0,0,0,.22); }
+body.lay-showcase.dock-auto .m-kopf { padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { body.lay-showcase.dock-auto .m-topnav { transition: none; } }
+""")
+
+
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT, _LAPTOP])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT, _LAPTOP, _ANHEFTEN])

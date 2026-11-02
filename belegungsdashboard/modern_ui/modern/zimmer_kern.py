@@ -84,12 +84,20 @@ def zaehler(stand: zp.Planstand, haus: str, tag: date, alle: bool = False) -> di
 
 
 def kennzahl_text(zs: list) -> str:
-    """„335 Zimmer · 120 belegt/geplant · 215 frei · Auslastung 36 %“ – wie im Gebäudeplan."""
-    bel = sum(1 for r in zs if r.status in ("belegt", "geplant"))
+    """„335 Zimmer · 120 belegt/geplant · 215 frei · Auslastung 36 %“ – wie im Gebäudeplan. Die Gästeetage läuft
+    unabhängig vom Tagesgeschäft: sie steht in der Liste, zählt aber nicht zur Auslastung."""
+    bel, nutzbar = auslastung_basis(zs)
     frei = sum(1 for r in zs if r.status in ("frei", "teilweise"))
-    nutzbar = sum(1 for r in zs if r.status != "gesperrt")
+    gaeste = sum(1 for r in zs if r.zimmer.gaeste)
     return (f"{len(zs)} Zimmer · {bel} belegt/geplant · {frei} frei"
-            + (f" · Auslastung {bel / nutzbar:.0%}".replace("%", " %") if nutzbar else ""))
+            + (f" · Auslastung {bel / nutzbar:.0%}".replace("%", " %") if nutzbar else "")
+            + (f" (ohne {gaeste} Gästezimmer)" if gaeste and nutzbar else ""))
+
+
+def auslastung_basis(zs: list) -> tuple[int, int]:
+    """(belegt/geplant, nutzbar) für die Auslastung – ohne gesperrte Zimmer und ohne Gästezimmer."""
+    ohne = [r for r in zs if not r.zimmer.gaeste]
+    return (sum(1 for r in ohne if r.status in ("belegt", "geplant")), sum(1 for r in ohne if r.status != "gesperrt"))
 
 
 def _sortiert(stand: zp.Planstand, f: zl.Filter, tag: date) -> list:
@@ -189,10 +197,9 @@ def karten(stand: zp.Planstand, f: zl.Filter, tag: date) -> tuple[list[KHaus], s
         haeuser = {erstes: haeuser[erstes]}
     erg = []
     for haus, zeilen in haeuser.items():
-        bel = sum(1 for r in zeilen if r.status in ("belegt", "geplant"))
-        nutzbar = sum(1 for r in zeilen if r.status != "gesperrt")
+        bel, nutzbar = auslastung_basis(zeilen)
         unter = f"{len(zeilen)} Zimmer · {bel} belegt · " + (f"{bel / nutzbar:.0%}".replace("%", " %") if nutzbar else "–") \
-            + " Auslastung"
+            + " Auslastung" + (" (ohne Gästezimmer)" if any(r.zimmer.gaeste for r in zeilen) else "")
         etagen = []
         for e in sorted({r.zimmer.etage for r in zeilen}, key=zp._etage_sort):
             ez = [r for r in zeilen if r.zimmer.etage == e]

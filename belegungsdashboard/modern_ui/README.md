@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.45.0
+# Neue Oberfläche (modern_ui) – Version 0.46.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -29,7 +29,7 @@ Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\S
 | **Daten & Import** | Anreiselisten, UWT, Gebäudeplan (prüfen und übernehmen), ZKL mit Abgleich, Zimmer-Pivot, Belegungs-Pivot (auch vom Server), Kapazitäten, Mieten/Anreisen für die Statistik, manuelle Einträge |
 | **Inventar** | *Gegenstände* (Bestand, verteilt, im Lager, verteilen/entfernen, **wo steht das?** je Haus) · *Zimmer* (Haus, Suche, **nur ohne Ausstattung**, Ausstattung ändern, kopieren) · ***Übersicht je Haus*** · Inventarliste drucken (alle oder je Haus), **Excel** |
 | **Einstellungen** | *Allgemein* (Zimmerplanung, Erinnerungen, Engpass-Grenzen, KI mit **Verbindung testen**) · *Zimmer-Stammdaten* · *Sicherung & Verlauf* |
-| **Steuerung** (Leitung, ganz unten) | *Übersicht* · *Prognose* · *Renovierung* · *Szenarien* · *Kennzahlen* · Bericht drucken/PDF – siehe „neu in 0.41“ |
+| **Steuerung** (Leitung, ganz unten) | *Cockpit* · *Vorhaben* · *Zeitplan & Kapazität* · *Finanzen* · *Grundlagen* · Entscheidungsvorlage (PDF) – siehe „neu in 0.46“ |
 
 **Kennzahlen sind Knöpfe** (neu in 0.5): Ein Klick filtert (z. B. Zimmer-Übersicht „frei“, Reinigung „erledigt“,
 defekte Zimmer „dringend“, Anreise „ohne Zimmer“, Mieter „Mail offen“) oder springt an die passende Stelle (auf
@@ -48,6 +48,31 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Steuerung nach Fragen gegliedert, Leiste wie in Office, Showcase-Dock (neu in 0.46)
+
+* **Steuerung in fünf Bereichen** – nach Fragen statt nach Werkzeugen:
+  * **Cockpit** (nur lesen): höchstens 5 Kennzahlen, 3 Warnungen, 3 Handlungsempfehlungen. Jede Kachel führt per Klick
+    zur passenden Ansicht.
+  * **Vorhaben**: oben die Liste des Vorgemerkten, darunter das Werkzeug „Renovierung planen“ in drei sichtbar
+    getrennten Zonen: **1 Eingabe** (Vorgabe, eigene Etage) · **2 Ergebnis** (Empfehlung, Varianten, Zeitplan, Etagen)
+    · **3 Entscheidung** (was offen ist, „Alle Vorschläge übernehmen“).
+  * **Zeitplan & Kapazität**: Gantt, Belegung mit Prognose und Kapazität minus Baustellen, Prognosegüte, Kernbestand.
+  * **Finanzen**: Budget je Topf (Bau, Möbel) mit vorgemerkt / Vorschlag / frei, darunter die Strategie über 5 Jahre.
+    Planungshorizont überall sichtbar (auch im PDF): Jahr 1 belastbar, Jahr 2 wahrscheinlich, Jahre 3–5 Orientierung.
+  * **Grundlagen**: Annahmen mit Herkunft, Angebote mit Datum und Gültigkeit, Kennzahlen und Datenlücken.
+* **Festpreis**: Beim Angebot „gültig bis“ eintragen (wird im PDF erkannt). So lange rechnet INNternat keine
+  Preissteigerung darauf, erst ab dem Jahr nach Ablauf.
+* **Nie nur zum Ausschöpfen**: Bei gleichem Bedarf gewinnt die günstigere Lösung, Etagen ohne erfassten Bedarf zählen
+  nicht. Restbudget bleibt sichtbar frei – „verfällt am 31.12.“.
+* **Eine Tabellenvorlage**: Kopfzeile und Zeilen teilen ein Spaltenraster – die Kopfzeile steht immer über den Werten.
+* **Seitenleiste wie in Office** (Layout Enterprise Grid): „Leiste einklappen“ → nur Symbole; beim Darüberfahren klappt
+  sie nach kurzer Verzögerung über dem Inhalt auf (nichts verschiebt sich). „Leiste anheften“ hält sie offen (Strg+B).
+* **Showcase-Dock** mit allen Bereichen: angeheftete Bereiche direkt im Dock, der Rest je Gruppe (Betrieb, Überblick,
+  Verwalten, Leitung) als Menü; rechts Suche, hell/dunkel, Anheften und **Dock anpassen** (welche Bereiche im Dock
+  stehen). Nicht angeheftet blendet sich das Dock aus und fährt beim Darüberfahren herein (Strg+B).
+* **Gästezimmer nicht in der Auslastung**: Sie stehen weiter in den Häusern und Listen, zählen aber nicht in die
+  prozentuale Auslastung der Zimmerliste (Hinweis „ohne … Gästezimmer“).
 
 ## Ganze Etage selbst planen (neu in 0.45)
 
@@ -887,4 +912,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0` (jeweils auch als Zip in `Sicherung`).

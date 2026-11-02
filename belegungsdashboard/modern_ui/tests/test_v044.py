@@ -232,7 +232,7 @@ def test_entscheidungsvorlage_kurzfassung_und_anhang(leer):
 def test_steuerung_ansichten_umbenannt():
     from modern import seite_steuerung as ss
 
-    assert list(ss.ANSICHTEN.values()) == ["Übersicht", "Renovierung", "Strategie 5 Jahre", "Belegung", "Kennzahlen"]
+    assert set(ss.ALT) == {"uebersicht", "renovierung", "szenarien", "prognose", "kennzahlen"}    # 0.46: alte Namen leiten um
 
 
 def test_schaetzanteil_und_spanne_beim_zusammenrechnen(leer):

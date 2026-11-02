@@ -406,12 +406,13 @@ class Ansicht:
                     ui.label("Dunkle Darstellung" if hell else "Helle Darstellung")
                 attr(mo, title="Zwischen hell und dunkel wechseln – wird gespeichert")
                 mo.on("click", lambda: self.design_setzen(modus="dunkel" if self.design["modus"] == "hell" else "hell"))
-            if self.design["layout"] == "grid":
+            if self.design["layout"] == "grid":                     # wie in Office: anheften oder beim Darüberfahren aufklappen
                 schmal = self.design["schmal"]
                 with ui.element("button").classes("m-navpunkt m-navklapp") as k:
-                    ui.icon("keyboard_double_arrow_left")
-                    ui.label("Leiste einklappen")
-                attr(k, title="Leiste ausklappen (Strg+B)" if schmal else "Leiste einklappen (Strg+B)")
+                    ui.icon("push_pin" if schmal else "keyboard_double_arrow_left")
+                    ui.label("Leiste anheften" if schmal else "Leiste einklappen")
+                attr(k, title="Leiste dauerhaft offen halten (Strg+B)" if schmal else
+                     "Leiste einklappen – sie klappt beim Darüberfahren mit der Maus auf (Strg+B)")
                 k.on("click", lambda: self.design_setzen(schmal=not schmal))
         self._topnav_fuellen(dringend)
         self._nav_zahlen_setzen()
@@ -433,13 +434,20 @@ class Ansicht:
                 z.props(remove="title")
             z.set_visibility(n > 0)
 
-    DOCK = ("heute", "anreisen", "zimmer", "reinigung", "auswertung")   # Showcase: direkt im Dock, der Rest unter „Mehr“
+    DOCK = ("heute", "anreisen", "zimmer", "reinigung", "auswertung")   # Showcase: Standard im Dock, der Rest in den Gruppen
+
+    def dock_seiten(self) -> list[str]:
+        gueltig = {k for k, *_r in register.NAV}
+        d = self.design.get("dock")
+        return [k for k in (d if d is not None else self.DOCK) if k in gueltig]
 
     def _topnav_fuellen(self, dringend: int) -> None:
-        """Showcase-Dock: Standort, die fünf Hauptbereiche, „Mehr“ (Termine, Assistenz, Mieter, Verwalten), Suche."""
+        """Showcase-Dock (0.46): Standort · angeheftete Bereiche · je Gruppe ein Menü mit dem Rest (Betrieb, Überblick,
+        Verwalten, Leitung) · rechts Suche, Hell/Dunkel, Anheften und „Dock anpassen“."""
         self.topnav.clear()
         if self.design["layout"] != "showcase":
             return
+        dock = self.dock_seiten()
         aktiv_s = standort_kern.aktiv()
         with self.topnav:
             with ui.element("button").classes("m-marke m-dock-standort") as mk:
@@ -449,9 +457,8 @@ class Ansicht:
                 ui.icon("expand_more").classes("m-standort-pfeil")
                 self._standort_menue()
             ui.element("div").classes("m-trenner")
-            for k, text, icon, _g in register.NAV:
-                if k not in self.DOCK:
-                    continue
+            for k in dock:
+                text, icon = next((t, i) for kk, t, i, _g in register.NAV if kk == k)
                 p = ui.element("button").classes("m-navpunkt" + (" aktiv" if k == self.seite else ""))
                 attr(p, title=text)
                 with p:
@@ -459,33 +466,81 @@ class Ansicht:
                     ui.label(text)
                     self._nav_zahlen.append((k, ui.label("").classes("m-zahl")))
                 p.on("click", lambda k=k: self.seite_wechseln(k))
-            mehr = [x for x in register.NAV if x[0] not in self.DOCK]
-            aktiv = any(k == self.seite for k, *_r in mehr)
-            offen = sum(1 for k, *_r in mehr if (w := self.nav_zahl.get(k)) and w.n)
-            with ui.element("button").classes("m-navpunkt" + (" aktiv" if aktiv else "")) as v:
-                ui.icon("more_horiz")
-                ui.label(next((t for k, t, *_r in mehr if k == self.seite), "Mehr"))
-                if offen:
-                    ui.label("").classes("m-punkt-neu")
-                ui.icon("expand_more")
-                with ui.menu().props('dark class="m-menue"'):
-                    gruppe = None
-                    for k, text, icon, g in mehr:
-                        if g != gruppe:
-                            ui.label(g).classes("m-mgruppe")
-                            gruppe = g
-                        w = self.nav_zahl.get(k)
-                        with ui.menu_item(on_click=lambda k=k: self.seite_wechseln(k)).classes("m-mpunkt"):
-                            ui.icon(icon).classes("m-mhaken" + (" an" if k == self.seite else ""))
-                            ui.label(text)
-                            if w and w.n:
-                                ui.label(str(w.n)).classes("m-zahl" + (" rot" if w.rot else "")).style("margin-left:auto")
-                    ui.label(f"Neue Oberfläche {__version__}").classes("m-zweite").style("padding: 6px 12px 8px")
-            attr(v, title="Termine, Assistenz, Mieter, Daten & Import, Inventar, Einstellungen")
-            with ui.element("button").classes("m-navpunkt m-suche m-nur-symbol") as p:
-                ui.icon("search")
-            attr(p, title="Suchen (Strg+K)")
-            p.on("click", self.suchen)
+            gruppen: dict[str, list] = {}
+            for x in register.NAV:
+                if x[0] not in dock:
+                    gruppen.setdefault(x[3] or "Start", []).append(x)
+            if gruppen:
+                ui.element("div").classes("m-trenner")
+            for g, punkte in gruppen.items():
+                aktiv = next((t for k, t, *_r in punkte if k == self.seite), None)
+                offen = sum(1 for k, *_r in punkte if (w := self.nav_zahl.get(k)) and w.n)
+                with ui.element("button").classes("m-navpunkt m-dock-gruppe" + (" aktiv" if aktiv else "")) as v:
+                    ui.label(aktiv or g)
+                    if offen:
+                        ui.label("").classes("m-punkt-neu")
+                    ui.icon("expand_more").classes("m-dock-pfeil")
+                    with ui.menu().props('dark class="m-menue"'):
+                        ui.label(g).classes("m-mgruppe")
+                        for k, text, icon, _g in punkte:
+                            w = self.nav_zahl.get(k)
+                            with ui.menu_item(on_click=lambda k=k: self.seite_wechseln(k)).classes("m-mpunkt"):
+                                ui.icon(icon).classes("m-mhaken" + (" an" if k == self.seite else ""))
+                                ui.label(text)
+                                if w and w.n:
+                                    ui.label(str(w.n)).classes("m-zahl" + (" rot" if w.rot else "")).style("margin-left:auto")
+                attr(v, title=f"{g}: " + ", ".join(t for _k, t, *_r in punkte))
+            ui.element("div").classes("m-trenner")
+            with ui.element("div").classes("m-dock-rechts"):
+                with ui.element("button").classes("m-navpunkt m-suche m-nur-symbol") as p:
+                    ui.icon("search")
+                attr(p, title="Suchen (Strg+K)")
+                p.on("click", self.suchen)
+                if len(themes.modi(self.design["theme"])) > 1:
+                    hell = self.design["modus"] == "hell"
+                    with ui.element("button").classes("m-navpunkt m-nur-symbol") as mo:
+                        ui.icon("dark_mode" if hell else "light_mode")
+                    attr(mo, title="Dunkle Darstellung" if hell else "Helle Darstellung")
+                    mo.on("click", lambda: self.design_setzen(modus="dunkel" if self.design["modus"] == "hell" else "hell"))
+                fest = self.design["dock_fest"]
+                with ui.element("button").classes("m-navpunkt m-nur-symbol m-dock-pin" + (" an" if fest else "")) as pin:
+                    ui.icon("push_pin")
+                attr(pin, title="Dock angeheftet – klicken: automatisch ausblenden (Strg+B)" if fest
+                     else "Dock blendet sich aus – klicken: dauerhaft anheften (Strg+B)")
+                pin.on("click", lambda: self.design_setzen(dock_fest=not self.design["dock_fest"]))
+                with ui.element("button").classes("m-navpunkt m-nur-symbol") as an:
+                    ui.icon("tune")
+                attr(an, title="Dock anpassen – welche Bereiche direkt im Dock stehen")
+                an.on("click", self._dock_anpassen)
+
+    def _dock_anpassen(self) -> None:
+        """Welche Bereiche stehen direkt im Dock? Der Rest bleibt über die Gruppenmenüs erreichbar."""
+        def bauen():
+            ui.label("Angeheftete Bereiche stehen direkt im Dock; alle anderen erreichst du über die Gruppenmenüs "
+                     "(Betrieb, Überblick, Verwalten, Leitung).").classes("m-ptext")
+            jetzt = set(self.dock_seiten())
+            schalter = {}
+            gruppe = None
+            for k, text, icon, g in register.NAV:
+                if (g or "Start") != gruppe:
+                    gruppe = g or "Start"
+                    ui.label(gruppe).classes("m-mgruppe")
+                schalter[k] = ui.switch(text, value=k in jetzt).props("dense color=indigo-4")
+            fest = ui.switch("Dock immer sichtbar (angeheftet)", value=self.design["dock_fest"]).props("dense color=indigo-4")
+
+            async def speichern():
+                await self.design_setzen(dock=[k for k, *_r in register.NAV if schalter[k].value], dock_fest=bool(fest.value))
+                self.panel_zu()
+
+            async def standard():
+                await self.design_setzen(dock=None, dock_fest=True)
+                self.panel_zu()
+
+            with ui.element("div").classes("m-paktionen"):
+                knopf("Speichern", speichern, "primaer", "check")
+                knopf("Standard", standard, "leise", "restart_alt")
+                knopf("Abbrechen", self.panel_zu, "leise")
+        self.panel("Dock anpassen", bauen)
 
     # ---- AI-Canvas: Prompt-Bar ------------------------------------------------------------
 
@@ -1498,6 +1553,8 @@ class Ansicht:
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
             await self.suchen()
+        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "showcase":
+            await self.design_setzen(dock_fest=not self.design["dock_fest"])
         elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "grid":
             await self.design_setzen(schmal=not self.design["schmal"])
         elif e.key.name == "/" and self.design["layout"] == "canvas":
@@ -1594,7 +1651,8 @@ SORTIER_JS = r"""<script>
     const eltern = kopf.parentElement;
     if (!eltern || zeilenVon(kopf).length < 2) return false;
     const st = getComputedStyle(eltern);
-    return st.display === 'block' || (st.display === 'flex' && st.flexDirection === 'column') || eltern.classList.contains('m-sortiert');
+    return st.display === 'block' || (st.display === 'flex' && st.flexDirection === 'column') || eltern.classList.contains('m-sortiert')
+      || eltern.classList.contains('m-tab');
   };
   let geplant = false;
   const pruefen = () => {

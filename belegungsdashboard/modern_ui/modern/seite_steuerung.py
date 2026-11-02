@@ -14,10 +14,20 @@ from nicegui import run, ui
 from . import renovierung_kern as rk
 from . import seiten, standort_kern
 from . import steuerung_kern as sk
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
-ANSICHTEN = {"uebersicht": "Übersicht", "renovierung": "Renovierung", "szenarien": "Strategie 5 Jahre",
-             "prognose": "Belegung", "kennzahlen": "Kennzahlen"}
+# 0.46: nach Fragen statt nach Werkzeugen – Cockpit (nur lesen) · Vorhaben (planen) · Zeitplan & Kapazität · Finanzen ·
+# Grundlagen. Alte Namen (aus Links anderer Seiten) werden umgeleitet.
+ANSICHTEN = {"cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
+             "grundlagen": "Grundlagen"}
+ALT = {"uebersicht": "cockpit", "renovierung": "vorhaben", "prognose": "zeitplan", "szenarien": "finanzen",
+       "kennzahlen": "grundlagen"}
+
+
+def ansicht(a) -> str:
+    v = a.ansicht_von("steuerung", "cockpit")
+    v = ALT.get(v, v)
+    return v if v in ANSICHTEN else "cockpit"
 GOSLAR = "BFW GS"
 HK_KLASSE = {"angebot": "ok", "eingabe": "neutral", "schaetzung": "warn", "platzhalter": "krit"}
 
@@ -52,7 +62,7 @@ def _platzhalter(p: dict) -> list[str]:
 
 
 def daten(a) -> None:
-    ansicht = a.ansicht_von("steuerung", "uebersicht")
+    ansicht_ = ansicht(a)
     if not standort_kern.ist_goslar():
         a.daten = {"fremd": True}
         return
@@ -99,19 +109,19 @@ def daten(a) -> None:
     kap_zeilen = {(z.flur, z.art, z.start): z for y in {a.heute.year, a.heute.year + 1, jahr}
                   for z in rk.jahresplan(a.stand, y, None, p)}
     kap_zeilen.update({(z.flur, z.art, z.start): z for z in zeilen})
-    li = sk.linie(pg, list(kap_zeilen.values()), 12, 12 if ansicht == "uebersicht" else 24)
+    li = sk.linie(pg, list(kap_zeilen.values()), 12, 12 if ansicht_ == "cockpit" else 24)
     d = {"p": p, "pg": pg, "fehler": fehler, "fl": fl, "varianten": varianten, "empfehlung": empf, "wahl": wahl,
          "gewaehlt": gewaehlt, "vs": vs, "zeilen": zeilen, "li": li, "guete": sk.guete(pg), "jahr": jahr, "kern": kern,
          "robust": rk.robustheit(fl, p_rest, jahr, empf, **kw) if empf else "", "antrag": _antrag(gewaehlt, bereits),
          "platzhalter": _platzhalter(p), "machbar": machbar, "bereits": bereits, "p_rest": p_rest, "prog": prog,
          "kap": kap}
-    if ansicht in ("uebersicht", "szenarien"):
+    if ansicht_ == "finanzen":
         d["strategien"] = rk.strategien(fl, p, jahr, a.heute, 5, reserve_alle,
                                         f"Bei +10 % Nachfrage fehlten {kern.fehlend_plus10} Betten." if kern.etagen else "")
     d["kz"] = sk.kennzahlen(a.stand, a.heute, fl, list(kap_zeilen.values()), p, kern)
     d["luecken"] = sk.luecken()
     d["entscheidungen"] = _entscheidungen(d)
-    if ansicht == "renovierung":
+    if ansicht_ == "vorhaben":
         if getattr(a, "rv_flur", None) not in {f.schluessel for f in fl}:
             a.rv_flur = fl[0].schluessel if fl else None
         f = next((x for x in fl if x.schluessel == a.rv_flur), None)
@@ -119,9 +129,9 @@ def daten(a) -> None:
             fs = rk.monatsfenster(a.stand, f, jahr, p, prog)
             rk.engpass_markieren(fs, f, kap, rk.jahresplan(a.stand, jahr, None, p))
             d["monate"] = (f, fs, rk.bester_monat(fs, a.heute))
-    if ansicht == "prognose":
+    if ansicht_ == "zeitplan":
         d["staende"] = sk.buchungsstaende()
-    if ansicht == "kennzahlen":
+    if ansicht_ == "grundlagen":
         d["werte"] = sk.werte()
         d["noten"] = rk.zustandsnoten()
     a.daten = d
@@ -156,8 +166,9 @@ def _entscheidungen(d: dict) -> list[str]:
             erg.append(f"{v.flur.text}: in {d['jahr']} ist kein Monat möglich (gesperrt oder Vorlauf zu kurz).")
     p, gew = d["p_rest"], d["gewaehlt"]
     if p.get("modus") != "ziel" and gew and p.get("budget_bau") is not None and (gew.rest_bau or 0) > 500:
-        erg.append(f"{rk.tsd(gew.rest_bau)} Baubudget nicht verplant – keine weitere Maßnahme mit erfasstem Bedarf passt "
-                   "hinein. Bedarf pflegen (Zustandsnoten, Renovierungsdaten) oder Klasse-C-Zimmer bewusst dazunehmen.")
+        erg.append(f"{rk.tsd(gew.rest_bau)} Baubudget frei – verfällt am 31.12.{d['jahr']}. Keine weitere Maßnahme mit "
+                   "erfasstem Bedarf passt hinein; INNternat schlägt nichts nur zum Ausschöpfen vor. Bedarf pflegen "
+                   "(Zustandsnoten, Renovierungsdaten) oder eine Etage bewusst selbst planen.")
     if d["wahl"] != d["empfehlung"] and d["empfehlung"]:
         erg.append("Gewählt ist nicht die rechnerisch beste Variante – bewusst so?")
     warn = sk.warnmonate(d["li"])
@@ -170,24 +181,22 @@ def _entscheidungen(d: dict) -> list[str]:
 # ---- Zeichnen -------------------------------------------------------------------------------
 
 def zeichnen(a) -> None:
-    ansicht = a.ansicht_von("steuerung", "uebersicht")
-    if ansicht not in ANSICHTEN:
-        ansicht = "uebersicht"
+    ansicht_ = ansicht(a)
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("steuerung", ansicht=v))
+        segmente(ANSICHTEN, ansicht_, lambda v: a.oeffnen("steuerung", ansicht=v))
     d = a.daten
     if d.get("fremd"):
         with a.inhalt:
             leer("Die Steuerung rechnet für Goslar (Prognose, Renovierung Haus 2 und 6). Bitte oben Standort Goslar wählen.")
         return
     with a.leiste:
-        if ansicht == "szenarien":
-            ui.label("ab").classes("m-zweite")
+        if ansicht_ == "finanzen":
+            ui.label("Planjahr bzw. 5 Jahre ab").classes("m-zweite")
         segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, d["jahr"],
                  lambda j: a.setzen(st_jahr=j, nur_seite=True), sofort=True)
         knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "", "print").style("margin-left:auto")
-    {"uebersicht": _uebersicht, "prognose": _prognose_seite, "renovierung": _renovierung, "szenarien": _szenarien,
-     "kennzahlen": _kennzahlen}[ansicht](a)
+    {"cockpit": _cockpit, "vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
+     "grundlagen": _grundlagen}[ansicht_](a)
 
 
 def _bericht(a) -> None:
@@ -198,10 +207,12 @@ def _bericht(a) -> None:
     seiten.html_drucken(a, html, f"Entscheidungsvorlage_Renovierung_{d['jahr']}")
 
 
-def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "", tipp: str = "") -> None:
-    k = ui.element("div").classes("m-kpikarte")
-    if tipp:
-        attr(k, title=tipp)
+def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "", tipp: str = "", ziel=None) -> None:
+    k = ui.element("button" if ziel else "div").classes("m-kpikarte" + (" m-kpi-klick" if ziel else ""))
+    if tipp or ziel:
+        attr(k, title=(tipp + " · " if tipp else "") + ("Klick: zur Liste" if ziel else ""))
+    if ziel:
+        k.on("click", ziel)
     with k:
         ui.label(titel).classes("m-zweite")
         ui.label(wert).classes("m-kpiwert" + (f" m-{stufe}" if stufe in ("krit", "warn") else ""))
@@ -261,58 +272,228 @@ def _chart(a, li: sk.Linie, hoehe: str = "300px") -> None:
 
 # ---- Übersicht ------------------------------------------------------------------------------
 
-def _uebersicht(a) -> None:
-    d, li, g = a.daten, a.daten["li"], a.daten["guete"]
+def horizont(jahr: int, start: int) -> str:
+    """Planungshorizont: Jahr 1 belastbar, Jahr 2 wahrscheinlich, Jahre 3–5 Orientierung."""
+    n = jahr - start
+    return "belastbar" if n <= 0 else "wahrscheinlich" if n == 1 else "Orientierung"
+
+
+def _zone(nr: str, titel: str, frage: str) -> None:
+    """Sichtbare Trennung der Arbeitsseite: Eingabe | Ergebnis | Entscheidung."""
+    with ui.element("div").classes("m-zone"):
+        ui.label(nr).classes("m-zone-nr")
+        ui.label(titel).classes("m-zone-t")
+        ui.label(frage).classes("m-zweite")
+
+
+def _cockpit(a) -> None:
+    """Nur lesen: höchstens 5 Kennzahlen, 3 Warnungen, 3 Handlungsempfehlungen – jede Kachel führt zur passenden Liste."""
+    d, li = a.daten, a.daten["li"]
     jahr, p, v, ant = d["jahr"], d["p"], d["gewaehlt"], d["antrag"]
     warn = sk.warnmonate(li)
-    k = v.kosten if v else rk.Kosten(0, jahr)
     verplant = sum(z.kosten.instandhaltung for z in d["zeilen"])
     a_heute = rk.a_zimmer(d["fl"])
     a_rest = rk.a_zimmer(d["fl"], {z.id for m in (v.massnahmen if v else []) for z in m.zimmer})
+    bb = p.get("budget_bau")
+
+    def zu(ans: str):
+        return lambda: a.oeffnen("steuerung", ansicht=ans)
+
+    warnungen: list[tuple[str, str, str]] = []           # (Text, Stufe, Ansicht)
+    if bb is not None and verplant > bb + 500:
+        warnungen.append((f"Baubudget {jahr} überschritten um {rk.tsd(verplant - bb)}", "krit", "finanzen"))
+    if warn:
+        warnungen.append((f"Kapazität: {len(warn)} Monat(e) an der Warnschwelle, zuerst {rk.MONATE[warn[0].month - 1]} "
+                          f"{warn[0].year}", "warn", "zeitplan"))
+    if d["platzhalter"]:
+        warnungen.append((f"{len(d['platzhalter'])} Preis(e) ohne Angebot – Summen nur Richtwerte", "warn", "grundlagen"))
+    if alt := rk.angebote_alt(p, a.heute):
+        warnungen.append((f"Angebot älter als 12 Monate: {alt[0]}" + (f" (+{len(alt) - 1})" if len(alt) > 1 else ""),
+                          "warn", "grundlagen"))
+    if d["luecken"]:
+        warnungen.append((f"{len(d['luecken'])} Datenlücke(n) – Ergebnisse weniger belastbar", "neutral", "grundlagen"))
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
-            _platzhalter_banner(a, d)
             if d["fehler"]:
                 ui.label(d["fehler"]).classes("m-pille warn").style("white-space:normal")
             with ui.element("div").classes("m-kpis"):
-                bb = p.get("budget_bau")
                 if p.get("modus") != "ziel":
                     _kpi(f"Bau {jahr}: verplant", rk.tsd(verplant),
-                         (f"von {rk.tsd(bb)} Budget · " + (f"Rest {rk.tsd(bb - verplant)}" if verplant <= bb + 500 else
-                                                             f"überschritten um {rk.tsd(verplant - bb)}"))
-                         if bb is not None else "kein Baubudget eingetragen",
-                         "krit" if bb is not None and verplant > bb + 500 else "warn" if bb is not None and bb - verplant > 500 else "",
-                         "Vormerkungen + Vorschläge · Baubudget = feste Grenze, die verfällt")
+                         f"von {rk.tsd(bb)} Budget" if bb is not None else "kein Baubudget eingetragen",
+                         "krit" if bb is not None and verplant > bb + 500 else "", "Vormerkungen + Vorschläge", zu("finanzen"))
+                    if bb is not None:
+                        frei = bb - verplant
+                        _kpi(f"Bau {jahr}: frei", rk.tsd(max(0.0, frei)) if frei >= -500 else f"−{rk.tsd(-frei)}",
+                             f"verfällt am 31.12.{jahr}" if frei > 500 else "ausgeschöpft" if frei >= -500 else "überschritten",
+                             "krit" if frei < -500 else "", "Baubudget = feste Grenze, die verfällt", zu("finanzen"))
                 else:
-                    _kpi(f"Renovierung {jahr}", f"{v.zimmer if v else 0} / {p.get('ziel_zimmer')} Zimmer", "Ziel")
+                    _kpi(f"Renovierung {jahr}", f"{v.zimmer if v else 0} / {p.get('ziel_zimmer')} Zimmer", "Ziel", "", "",
+                         zu("vorhaben"))
                 _kpi(f"Möbel {jahr}: Antrag", rk.tsd(ant["summe"]), f"Spanne {rk.spanne_text(ant['von'], ant['bis'])}", "",
-                     "Möbel für die Bau-Maßnahmen + „nur Möbel“ für Zimmer mit dringendem Möbelbedarf")
-                _kpi("Offene Klasse-A-Zimmer", f"{a_heute} → {a_rest}", "heute → nach diesem Plan", "krit" if a_rest else "")
-                _kpi("Monate an der Warnschwelle", f"{len(warn)}", "von 12 · Kapazität ohne Baustellen", "warn" if warn else "")
-            if v:
-                _empfehlung_karte(a, d, kompakt=True)
-            with ui.element("section").classes("m-block m-breit"):
-                ui.label("Belegung: Ist, Prognose, Vorjahr – und was die Baustellen an Kapazität kosten").classes("m-btitel")
-                _chart(a, li, "260px")
-                ui.label(f"{g.satz} Ab Monat 13 nur fortgeschrieben. {d['kern'].text if d['kern'].gesamt else ''}").classes(
-                    "m-zweite").style("white-space:normal")
+                     "Möbel für die Bau-Maßnahmen + „nur Möbel“ für Zimmer mit dringendem Möbelbedarf", zu("finanzen"))
+                _kpi("Offene Klasse-A-Zimmer", f"{a_heute} → {a_rest}", "heute → nach diesem Plan", "krit" if a_rest else "",
+                     "", zu("vorhaben"))
+                _kpi("Monate an der Warnschwelle", f"{len(warn)}", "von 12 · inkl. Baustellen", "warn" if warn else "", "",
+                     zu("zeitplan"))
             with ui.element("div").classes("m-zwei"):
                 with ui.element("section").classes("m-block"):
-                    ui.label(f"Renovierung {jahr}").classes("m-btitel")
-                    _gantt(a, d["zeilen"], jahr, kompakt=True)
-                    knopf("Zur Planung", lambda: a.oeffnen("steuerung", ansicht="renovierung"), "leise", "arrow_forward")
+                    ui.label("Warnungen").classes("m-btitel")
+                    if not warnungen:
+                        ui.label("Keine.").classes("m-pille ok")
+                    for text, stufe, ans in warnungen[:3]:
+                        z = ui.element("div").classes("m-liste-zeile m-klick")
+                        with z:
+                            ui.icon({"krit": "error", "warn": "warning"}.get(stufe, "info")).classes(
+                                {"krit": "m-krit", "warn": "m-warn"}.get(stufe, "m-zweite"))
+                            ui.label(text).style("white-space:normal")
+                        z.on("click", zu(ans))
+                    if len(warnungen) > 3:
+                        ui.label(f"+ {len(warnungen) - 3} weitere").classes("m-zweite")
                 with ui.element("section").classes("m-block"):
-                    ui.label("Strategie 5 Jahre").classes("m-btitel")
-                    _strategie_tabelle(d["strategien"], kompakt=True)
-                    knopf("Alle Strategien", lambda: a.oeffnen("steuerung", ansicht="szenarien"), "leise", "arrow_forward")
+                    ui.label("Handlungsempfehlungen").classes("m-btitel")
+                    es = d["entscheidungen"]
+                    if not es:
+                        ui.label("Nichts offen.").classes("m-pille ok")
+                    for t in es[:3]:
+                        z = ui.element("div").classes("m-liste-zeile m-klick")
+                        with z:
+                            ui.icon("help_outline").classes("m-zweite")
+                            ui.label(t).style("white-space:normal")
+                        z.on("click", zu("vorhaben"))
+                    if len(es) > 3:
+                        with ui.expansion(f"Alle {len(es)} anzeigen").classes("m-rv-exp"):
+                            for t in es[3:]:
+                                with ui.element("div").classes("m-liste-zeile"):
+                                    ui.icon("help_outline").classes("m-zweite")
+                                    ui.label(t).style("white-space:normal")
+            if v:
+                _empfehlung_karte(a, d, kompakt=True)
+            ui.label("Das Cockpit zeigt nur – geplant wird unter „Vorhaben“. Jede Kachel führt zur passenden Ansicht.").classes(
+                "m-xk-hinweis")
+
+
+def _vorhaben(a) -> None:
+    """Vorhaben: was vorgemerkt ist (Liste) + Werkzeug „Renovierung planen“ (Eingabe | Ergebnis | Entscheidung)."""
+    d = a.daten
+    vor = [z for z in d["zeilen"] if z.status == "vorgemerkt"]
+    with a.inhalt:
+        with ui.element("div").classes("m-rv"):
             with ui.element("section").classes("m-block m-breit"):
-                ui.label("Zu entscheiden").classes("m-btitel")
-                if not d["entscheidungen"]:
-                    ui.label("Nichts offen.").classes("m-pille ok")
-                for t in d["entscheidungen"]:
-                    with ui.element("div").classes("m-liste-zeile"):
-                        ui.icon("help_outline").classes("m-zweite")
-                        ui.label(t).style("white-space:normal")
+                ui.label(f"Vorgemerkt {d['jahr']} ({len(vor)})").classes("m-btitel")
+                if not vor:
+                    ui.label("Noch nichts vorgemerkt – unten planen und übernehmen.").classes("m-zweite")
+                else:
+                    with tabelle("minmax(180px, 2fr) auto auto auto auto auto auto"):
+                        with ui.element("div").classes("m-raster m-tkopf"):
+                            for t in ("Maßnahme", "Art", "Zeitraum", "Zimmer", "Bau", "Möbel", "Herkunft Bau"):
+                                ui.label(t)
+                        for z in vor:
+                            r = ui.element("div").classes("m-raster m-zeile m-rv-zeile")
+                            with r:
+                                ui.label(z.titel).classes("m-name")
+                                ui.label(rk.ARTEN.get(z.art, z.art) if z.art != "etage" else "ganze Etage").classes("m-zweite")
+                                ui.label(f"{z.start:%d.%m.} – {z.ende:%d.%m.%Y}").classes("m-mono")
+                                ui.label(str(z.zimmer)).classes("m-mono")
+                                ui.label(rk.euro(z.kosten.instandhaltung)).classes("m-mono")
+                                ui.label(rk.euro(z.kosten.investition)).classes("m-mono")
+                                with ui.element("div"):
+                                    if z.kosten.instandhaltung:
+                                        _hk(z.kosten.herkunft_bau)
+                            r.on("click", lambda z=z: _zeile_panel(a, z))
+                ui.label("Ab der nächsten Version: weitere Vorhabenarten (z. B. Brandschutz, Technik) mit Kostenpositionen und "
+                         "Status – hier in derselben Liste.").classes("m-xk-hinweis")
+    _renovierung(a)
+
+
+def _zeitplan(a) -> None:
+    d = a.daten
+    with a.inhalt:
+        with ui.element("div").classes("m-rv"):
+            with ui.element("section").classes("m-block m-breit"):
+                ui.label(f"Zeitplan {d['jahr']} – alle Vorhaben").classes("m-btitel")
+                _gantt(a, d["zeilen"], d["jahr"])
+                knopf("Planen", lambda: a.oeffnen("steuerung", ansicht="vorhaben"), "leise", "arrow_forward")
+    _prognose_seite(a)
+
+
+def _finanzen(a) -> None:
+    d = a.daten
+    p, jahr, ant, ber = d["p"], d["jahr"], d["antrag"], d["bereits"]
+    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"])
+    bb = p.get("budget_bau")
+    with a.inhalt:
+        with ui.element("div").classes("m-rv"):
+            with ui.element("section").classes("m-block m-breit"):
+                ui.label(f"Budget {jahr} je Topf").classes("m-btitel")
+                with tabelle("minmax(160px, 1.4fr) auto auto auto auto minmax(180px, 2fr)"):
+                    with ui.element("div").classes("m-raster m-tkopf"):
+                        for t in ("Topf", "Budget / Rahmen", "Vorgemerkt", "Vorschlag", "Frei", "Hinweis"):
+                            ui.label(t)
+                    with ui.element("div").classes("m-raster m-zeile"):
+                        ui.label("Bau (Instandhaltung)").classes("m-name")
+                        ui.label(rk.euro(bb) if bb is not None else "–").classes("m-mono")
+                        ui.label(rk.euro(ber["bau"])).classes("m-mono")
+                        ui.label(rk.euro(verplant - ber["bau"])).classes("m-mono")
+                        frei = (bb - verplant) if bb is not None else None
+                        ui.label("–" if frei is None else rk.euro(frei)).classes(
+                            "m-mono" + (" m-krit" if frei is not None and frei < -500 else ""))
+                        ui.label("feste Grenze · verfällt am 31.12." + str(jahr) if bb is not None else
+                                 "kein Baubudget eingetragen (Vorhaben → Vorgabe)").classes("m-zweite")
+                    mg = p.get("moebel_obergrenze")
+                    with ui.element("div").classes("m-raster m-zeile"):
+                        ui.label("Möbel (Antrag)").classes("m-name")
+                        ui.label(rk.euro(mg) if mg is not None else "ohne Obergrenze").classes("m-mono")
+                        ui.label(rk.euro(ber["moebel"])).classes("m-mono")
+                        ui.label(rk.euro(ant["summe"] - ber["moebel"])).classes("m-mono")
+                        ui.label("–" if mg is None else rk.euro(mg - ant["summe"])).classes("m-mono")
+                        ui.label(f"Antrag gesamt {rk.tsd(ant['summe'])}, Spanne {rk.spanne_text(ant['von'], ant['bis'])}").classes(
+                            "m-zweite")
+                ui.label("Vorgemerkt = schon geplant · Vorschlag = gewählte Variante für den Rest. Gebunden / abgerechnet / "
+                         "bezahlt folgen mit Aufträgen und Rechnungen in einer der nächsten Versionen.").classes("m-xk-hinweis")
+            ui.label(f"Planungshorizont: {jahr} belastbar · {jahr + 1} wahrscheinlich · {jahr + 2}–{jahr + 4} Orientierung").classes(
+                "m-pille neutral")
+    _szenarien(a)
+
+
+def _grundlagen(a) -> None:
+    d = a.daten
+    p, fl = d["p"], d["fl"]
+    with a.leiste:
+        knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "tune")
+    with a.inhalt:
+        with ui.element("div").classes("m-rv"):
+            _platzhalter_banner(a, d)
+            with ui.element("div").classes("m-zwei"):
+                with ui.element("section").classes("m-block"):
+                    liste = _annahmen_liste(p, fl)
+                    ui.label(f"Annahmen ({len(liste)})").classes("m-btitel")
+                    for text, hk in liste:
+                        with ui.element("div").classes("m-liste-zeile"):
+                            ui.label(text).classes("m-zweite").style("white-space:normal")
+                            if hk:
+                                _hk(hk)
+                    knopf("Annahmen & Angebote ändern …", lambda: _annahmen(a), "leise", "tune")
+                with ui.element("section").classes("m-block"):
+                    ang = p.get("angebote") or []
+                    ui.label(f"Angebote ({len(ang)})").classes("m-btitel")
+                    if not ang:
+                        ui.label("Noch kein Angebot eingelesen.").classes("m-zweite")
+                    alt = set(rk.angebote_alt(p, a.heute))
+                    for x in ang:
+                        art = "Möbel" if x.get("art") == "moebel" else "Bau"
+                        g = x.get("gueltig_bis") or ""
+                        abgelaufen = bool(g) and g < a.heute.isoformat()
+                        with ui.element("div").classes("m-liste-zeile"):
+                            ui.label(f"Haus {x.get('haus')} · {art}").classes("m-name")
+                            ui.label(rk.euro(float(x.get("netto") or 0)) + " netto").classes("m-mono")
+                            ui.label((f"vom {x.get('datum')}" if x.get("datum") else "ohne Datum")
+                                     + (f" · gültig bis {g}" if g else " · Gültigkeit unbekannt")).classes(
+                                "m-zweite" + (" m-warn" if abgelaufen else ""))
+                            if abgelaufen:
+                                ui.label("abgelaufen – wird hochgerechnet").classes("m-pille warn")
+                            elif any(s.startswith(f"Haus {x.get('haus')} {art}") for s in alt):
+                                ui.label("älter als 12 Monate").classes("m-pille warn")
+    _kennzahlen(a)
 
 
 def _prognose_seite(a) -> None:
@@ -352,21 +533,22 @@ def _prognose_seite(a) -> None:
 
 def _strategie_tabelle(strategien, kompakt: bool = False) -> None:
     sp = "minmax(150px, 2fr) 90px 60px 90px 90px 64px" + ("" if kompakt else " 70px")
-    with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-        for t in ("Strategie", "A-Zimmer", "Zimmer", "Bau", "Möbel", "Zyklus") + (() if kompakt else ("Sperr",)):
-            ui.label(t)
-    for s in strategien or []:
-        z = ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}")
-        attr(z, title=s.deutung)
-        with z:
-            ui.label(s.titel).classes("m-name")
-            ui.label(f"{s.a_start} → {s.a_ende}").classes("m-mono" + (" m-krit" if s.a_ende > s.a_start else ""))
-            ui.label(str(s.zimmer)).classes("m-mono")
-            ui.label(rk.tsd(s.summe("bau"))).classes("m-mono")
-            ui.label(rk.tsd(s.summe("moebel"))).classes("m-mono")
-            ui.label("–" if s.zyklus is None else f"{s.zyklus:g} J.").classes("m-mono")
-            if not kompakt:
-                ui.label(f"{s.summe('sperr'):g}").classes("m-mono")
+    with tabelle(sp):
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("Strategie", "A-Zimmer", "Zimmer", "Bau", "Möbel", "Zyklus") + (() if kompakt else ("Sperr",)):
+                ui.label(t)
+        for s in strategien or []:
+            z = ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}")
+            attr(z, title=s.deutung)
+            with z:
+                ui.label(s.titel).classes("m-name")
+                ui.label(f"{s.a_start} → {s.a_ende}").classes("m-mono" + (" m-krit" if s.a_ende > s.a_start else ""))
+                ui.label(str(s.zimmer)).classes("m-mono")
+                ui.label(rk.tsd(s.summe("bau"))).classes("m-mono")
+                ui.label(rk.tsd(s.summe("moebel"))).classes("m-mono")
+                ui.label("–" if s.zyklus is None else f"{s.zyklus:g} J.").classes("m-mono")
+                if not kompakt:
+                    ui.label(f"{s.summe('sperr'):g}").classes("m-mono")
 
 
 def _szenarien(a) -> None:
@@ -410,19 +592,21 @@ def _szenarien(a) -> None:
                     ui.label(s.titel).classes("m-btitel")
                     ui.label(s.erklaerung).classes("m-zweite").style("white-space:normal")
                     ui.label(s.deutung).classes("m-ptext").style("white-space:normal")
-                    sp = "60px minmax(220px, 3fr) 60px 90px 90px 60px 60px"
-                    with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-                        for t in ("Jahr", "Maßnahmen", "Zimmer", "Bau", "Möbel", "Sperr", "A offen"):
-                            ui.label(t)
-                    for j in s.jahre:
-                        with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
-                            ui.label(str(j["jahr"])).classes("m-mono")
-                            attr(ui.label(j["text"]).classes("m-zweite"), title=j["text"])
-                            ui.label(str(j["zimmer"])).classes("m-mono")
-                            ui.label(rk.tsd(j["bau"])).classes("m-mono")
-                            ui.label(rk.tsd(j["moebel"])).classes("m-mono")
-                            ui.label(f"{j['sperr']:g}").classes("m-mono")
-                            ui.label(str(j["a_offen"])).classes("m-mono")
+                    sp = "auto minmax(220px, 3fr) auto auto auto auto auto"
+                    with tabelle(sp):
+                        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+                            for t in ("Jahr", "Maßnahmen", "Zimmer", "Bau", "Möbel", "Sperr", "A offen"):
+                                ui.label(t)
+                        for j in s.jahre:
+                            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                                attr(ui.label(f"{j['jahr']} · {horizont(j['jahr'], d['jahr'])}").classes("m-mono"),
+                                 title="Jahr 1 belastbar · Jahr 2 wahrscheinlich · Jahre 3–5 Orientierung")
+                                attr(ui.label(j["text"]).classes("m-zweite"), title=j["text"])
+                                ui.label(str(j["zimmer"])).classes("m-mono")
+                                ui.label(rk.tsd(j["bau"])).classes("m-mono")
+                                ui.label(rk.tsd(j["moebel"])).classes("m-mono")
+                                ui.label(f"{j['sperr']:g}").classes("m-mono")
+                                ui.label(str(j["a_offen"])).classes("m-mono")
 
 
 # ---- Kennzahlen -----------------------------------------------------------------------------------
@@ -608,8 +792,11 @@ def _renovierung(a) -> None:
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             _platzhalter_banner(a, d)
+            ui.label("Werkzeug: Renovierung planen").classes("m-btitel").style("font-size:17px")
+            _zone("1", "Eingabe", "Was soll passieren? Budget oder Ziel, Planjahr, eigene Etagen")
             _vorgabe_block(a, d, p, fl, jahr)
             _etage_waehlen(a, d, p, fl, jahr)
+            _zone("2", "Ergebnis", "Was schlägt INNternat vor, was kostet es, wann geht es?")
             _empfehlung_karte(a, d)
             with ui.expansion(f"Varianten {jahr} vergleichen").classes("m-block m-breit m-rv-exp"):
                 _varianten_block(a, d, p)
@@ -621,14 +808,20 @@ def _renovierung(a) -> None:
             if "monate" in d:
                 with ui.expansion(f"Monate {d['monate'][0].text}").classes("m-block m-breit m-rv-exp"):
                     _monate(a, *d["monate"])
-            liste = _annahmen_liste(p, fl)
-            with ui.expansion(f"Annahmen ({len(liste)})").classes("m-block m-breit m-rv-exp"):
-                for text, hk in liste:
+            _zone("3", "Entscheidung", "Was wird übernommen? Erst dann ändert sich der Plan")
+            with ui.element("section").classes("m-block m-breit"):
+                es = d["entscheidungen"]
+                if not es:
+                    ui.label("Nichts offen.").classes("m-pille ok")
+                for t in es:
                     with ui.element("div").classes("m-liste-zeile"):
-                        ui.label(text).classes("m-zweite").style("white-space:normal")
-                        if hk:
-                            _hk(hk)
-                knopf("Annahmen & Angebote ändern …", lambda: _annahmen(a), "leise", "tune")
+                        ui.icon("help_outline").classes("m-zweite")
+                        ui.label(t).style("white-space:normal")
+                with ui.element("div").classes("m-zeile-flex"):
+                    if [x for x in d["vs"] if x.fenster or x.teile]:
+                        knopf("Alle Vorschläge übernehmen …", lambda: _alle_uebernehmen(a, d["vs"]), "primaer", "bookmark_add")
+                    knopf("Annahmen ansehen (Grundlagen)", lambda: a.oeffnen("steuerung", ansicht="grundlagen"), "leise",
+                          "arrow_forward")
 
 
 def _annahmen_liste(p: dict, fl: list | None = None) -> list[tuple[str, str]]:
@@ -744,31 +937,32 @@ def _etagen_block(a, d, p, fl, jahr) -> None:
     if fl and not any(f.wert for f in fl):
         ui.label("Für diese Etagen ist kein Bedarf erfasst (Renovierungsdaten, Zustandsnoten, Mängel) – die Reihenfolge ist "
                  "noch keine Empfehlung.").classes("m-pille warn").style("white-space:normal")
-    sp = "minmax(130px, 1fr) 80px minmax(150px, 1.2fr) 46px minmax(160px, 1.6fr) 170px 110px 110px"
-    with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-        for t in ("Etage", "Zimmer", "Klassen", "Note", "Datenlage · Besonderheiten", "Bau laut Angebot", f"Bau {jahr}",
-                  f"Möbel {jahr}"):
-            ui.label(t)
-    reserve = {f.schluessel for f in d["kern"].etagen}
-    for f in fl:
-        k = rk.kosten(p, f.haus, len(f.zimmer), jahr)
-        z = ui.element("div").classes("m-raster m-zeile m-rv-zeile" + (" an" if f.schluessel == a.rv_flur else "")).style(
-            f"grid-template-columns:{sp}")
-        with z:
-            ui.label(f.text + (" · Reserve" if f.schluessel in reserve else "")
-                     + ("" if f.schluessel in d["machbar"] else " · kein Monat machbar")).classes("m-name")
-            ui.label(f"{len(f.zimmer)} · {f.betten} B.").classes("m-mono")
-            attr(ui.label(f.klassen_text).classes("m-mono" + {"krit": " m-krit", "warn": " m-warn"}.get(f.ampel, "")),
-                 title="\n".join(t for _w, t in f.gruende))
-            ui.label(str(f.zustand) if f.zustand else "–").classes("m-mono")
-            attr(ui.label(" · ".join(f.luecken + f.sonder) or "–").classes("m-zweite"), title="\n".join(f.luecken + f.sonder))
-            with ui.element("div").classes("m-zeile-flex").style("gap:4px; flex-wrap:nowrap"):
-                ui.label(rk.euro(k.basis_brutto)).classes("m-mono")
-                _hk(k.herkunft_bau)
-            attr(ui.label(rk.euro(k.instandhaltung)).classes("m-mono"),
-                 title="\n".join(f"{x}: {rk.euro(b)}" for x, b in k.herleitung if b))
-            ui.label(rk.euro(k.investition)).classes("m-mono")
-        z.on("click", lambda f=f: _etage_panel(a, d, f))
+    sp = "minmax(140px, 1fr) auto minmax(160px, 1.2fr) auto minmax(180px, 1.8fr) auto auto auto"
+    with tabelle(sp):
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("Etage", "Zimmer", "Klassen", "Note", "Datenlage · Besonderheiten", "Bau laut Angebot", f"Bau {jahr}",
+                      f"Möbel {jahr}"):
+                ui.label(t)
+        reserve = {f.schluessel for f in d["kern"].etagen}
+        for f in fl:
+            k = rk.kosten(p, f.haus, len(f.zimmer), jahr)
+            z = ui.element("div").classes("m-raster m-zeile m-rv-zeile" + (" an" if f.schluessel == a.rv_flur else "")).style(
+                f"grid-template-columns:{sp}")
+            with z:
+                ui.label(f.text + (" · Reserve" if f.schluessel in reserve else "")
+                         + ("" if f.schluessel in d["machbar"] else " · kein Monat machbar")).classes("m-name")
+                ui.label(f"{len(f.zimmer)} · {f.betten} B.").classes("m-mono")
+                attr(ui.label(f.klassen_text).classes("m-mono" + {"krit": " m-krit", "warn": " m-warn"}.get(f.ampel, "")),
+                     title="\n".join(t for _w, t in f.gruende))
+                ui.label(str(f.zustand) if f.zustand else "–").classes("m-mono")
+                attr(ui.label(" · ".join(f.luecken + f.sonder) or "–").classes("m-zweite"), title="\n".join(f.luecken + f.sonder))
+                with ui.element("div").classes("m-zeile-flex").style("gap:4px; flex-wrap:nowrap"):
+                    ui.label(rk.euro(k.basis_brutto)).classes("m-mono")
+                    _hk(k.herkunft_bau)
+                attr(ui.label(rk.euro(k.instandhaltung)).classes("m-mono"),
+                     title="\n".join(f"{x}: {rk.euro(b)}" for x, b in k.herleitung if b))
+                ui.label(rk.euro(k.investition)).classes("m-mono")
+            z.on("click", lambda f=f: _etage_panel(a, d, f))
 
 
 def _buendeln(teile: list) -> list[tuple]:
@@ -1105,12 +1299,15 @@ def _angebot_pruefen(a, ang: dict) -> None:
                     ein[s] = ui.number(t, value=ang.get(s) or 0, min=0, step=.5, format="%.2f").classes("m-feld").props(
                         "dense outlined dark")
         datum = ui.input("Angebotsdatum (JJJJ-MM-TT)", value=str(a.heute)).classes("m-feld").props("dense outlined dark")
+        gueltig = ui.input("Gültig bis (Festpreis, leer = unbekannt)", value=ang.get("gueltig_bis") or "").classes(
+            "m-feld").props("dense outlined dark type=date")
+        ui.label("Solange das Angebot gilt, rechnet INNternat keine Preissteigerung darauf.").classes("m-zweite")
 
         async def ok():
             try:
                 neu = rk.angebot_uebernehmen(p, {"haus": haus.value, "art": art.value, "netto": float(netto.value or 0),
                                                  "zimmer": int(zimmer.value or 0), "datum": (datum.value or "")[:10],
-                                                 "datei": ang.get("datei", ""),
+                                                 "datei": ang.get("datei", ""), "gueltig_bis": (gueltig.value or "")[:10],
                                                  **{s: float(f.value or 0) for s, f in ein.items()}})
             except ValueError as exc:
                 a.toast(str(exc), fehler=True)
