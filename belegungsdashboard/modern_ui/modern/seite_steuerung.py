@@ -14,6 +14,7 @@ from nicegui import run, ui
 from . import renovierung_kern as rk
 from . import seiten, standort_kern
 from . import steuerung_kern as sk
+from . import vorhaben_kern as vk
 from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 # 0.46: nach Fragen statt nach Werkzeugen – Cockpit (nur lesen) · Vorhaben (planen) · Zeitplan & Kapazität · Finanzen ·
@@ -91,9 +92,13 @@ def daten(a) -> None:
                "zimmer": sum(z.zimmer for z in vorgemerkt), "anzahl": len(vorgemerkt),
                "moebel_von": sum(z.kosten.spanne_von("moebel")[0] for z in vorgemerkt),
                "moebel_bis": sum(z.kosten.spanne_von("moebel")[1] for z in vorgemerkt)}
+    # 0.47: Vorhaben – gespeicherte + „Renovierung <Jahr>“ aus den Vormerkungen; andere Vorhaben verbrauchen ihren Topf
+    jahre = {int(e["start"][:4]) for e in rk.plan()} | {jahr}
+    vorhaben = vk.alle({y: rk.jahresplan(a.stand, y, None, p) for y in jahre})
+    andere = {t: vk.summe_topf(vorhaben, jahr, t) for t in vk.TOEPFE}
     p_rest = dict(p)
     if p.get("budget_bau") is not None:
-        p_rest["budget_bau"] = max(0.0, p["budget_bau"] - bereits["bau"])
+        p_rest["budget_bau"] = max(0.0, p["budget_bau"] - bereits["bau"] - andere["bau"])
     if p.get("moebel_obergrenze") is not None:
         p_rest["moebel_obergrenze"] = max(0.0, p["moebel_obergrenze"] - bereits["moebel"])
     if p.get("modus") == "ziel":
@@ -114,7 +119,7 @@ def daten(a) -> None:
          "gewaehlt": gewaehlt, "vs": vs, "zeilen": zeilen, "li": li, "guete": sk.guete(pg), "jahr": jahr, "kern": kern,
          "robust": rk.robustheit(fl, p_rest, jahr, empf, **kw) if empf else "", "antrag": _antrag(gewaehlt, bereits),
          "platzhalter": _platzhalter(p), "machbar": machbar, "bereits": bereits, "p_rest": p_rest, "prog": prog,
-         "kap": kap}
+         "kap": kap, "vorhaben": vorhaben, "andere": andere}
     if ansicht_ == "finanzen":
         d["strategien"] = rk.strategien(fl, p, jahr, a.heute, 5, reserve_alle,
                                         f"Bei +10 % Nachfrage fehlten {kern.fehlend_plus10} Betten." if kern.etagen else "")
@@ -291,7 +296,7 @@ def _cockpit(a) -> None:
     d, li = a.daten, a.daten["li"]
     jahr, p, v, ant = d["jahr"], d["p"], d["gewaehlt"], d["antrag"]
     warn = sk.warnmonate(li)
-    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"])
+    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"]) + d["andere"]["bau"]     # + andere Vorhaben im Topf Bau
     a_heute = rk.a_zimmer(d["fl"])
     a_rest = rk.a_zimmer(d["fl"], {z.id for m in (v.massnahmen if v else []) for z in m.zimmer})
     bb = p.get("budget_bau")
@@ -310,6 +315,10 @@ def _cockpit(a) -> None:
     if alt := rk.angebote_alt(p, a.heute):
         warnungen.append((f"Angebot älter als 12 Monate: {alt[0]}" + (f" (+{len(alt) - 1})" if len(alt) > 1 else ""),
                           "warn", "grundlagen"))
+    mit_hinweis = [v for v in d["vorhaben"] if vk.hinweise(v, a.heute)]
+    if mit_hinweis:
+        warnungen.append((f"{len(mit_hinweis)} Vorhaben mit offenem Widerspruch (z. B. {mit_hinweis[0]['titel']})", "warn",
+                          "vorhaben"))
     if d["luecken"]:
         warnungen.append((f"{len(d['luecken'])} Datenlücke(n) – Ergebnisse weniger belastbar", "neutral", "grundlagen"))
     with a.inhalt:
@@ -372,37 +381,215 @@ def _cockpit(a) -> None:
                 "m-xk-hinweis")
 
 
+STATUS_STUFE = {"abgeschlossen": "ok", "abgerechnet": "ok", "freigegeben": "ok", "in Arbeit": "blau", "beauftragt": "blau",
+                "gebunden": "blau", "teilweise bezahlt": "blau", "abgelehnt": "krit"}
+
+
 def _vorhaben(a) -> None:
-    """Vorhaben: was vorgemerkt ist (Liste) + Werkzeug „Renovierung planen“ (Eingabe | Ergebnis | Entscheidung)."""
+    """Vorhaben: Portfolio-Liste (alle Arten, gefiltert) + Werkzeug „Renovierung planen“."""
     d = a.daten
-    vor = [z for z in d["zeilen"] if z.status == "vorgemerkt"]
+    kat = getattr(a, "vh_kat", "")
+    zeilen = vk.liste(d["vorhaben"], a.heute, kat, d["jahr"])
+    with a.leiste:
+        knopf("Neues Vorhaben …", lambda: _vorhaben_panel(a, vk.leer_vorhaben(haus="")), "primaer", "add")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"Vorgemerkt {d['jahr']} ({len(vor)})").classes("m-btitel")
-                if not vor:
-                    ui.label("Noch nichts vorgemerkt – unten planen und übernehmen.").classes("m-zweite")
+                with ui.element("div").classes("m-zeile-flex"):
+                    ui.label(f"Vorhaben {d['jahr']} ({len(zeilen)})").classes("m-btitel")
+                    segmente({"": "Alle", **{k: k for k in vk.KATEGORIEN if any(v.get("kategorie") == k for v in d["vorhaben"])}},
+                             kat, lambda k: a.setzen(vh_kat=k, nur_seite=True), sofort=True)
+                if not zeilen:
+                    ui.label("Noch keine Vorhaben in diesem Jahr. „Neues Vorhaben …“ legt eines an; vorgemerkte Renovierungen "
+                             "erscheinen hier automatisch als „Renovierung <Jahr>“.").classes("m-zweite").style("white-space:normal")
                 else:
-                    with tabelle("minmax(180px, 2fr) auto auto auto auto auto auto"):
+                    with tabelle("minmax(200px, 2fr) auto auto auto auto auto auto auto"):
                         with ui.element("div").classes("m-raster m-tkopf"):
-                            for t in ("Maßnahme", "Art", "Zeitraum", "Zimmer", "Bau", "Möbel", "Herkunft Bau"):
+                            for t in ("Vorhaben", "Kategorie", "Haupttreiber", "Entscheidung", "Umsetzung", "Finanzen", "Kosten",
+                                      "Jahr"):
                                 ui.label(t)
-                        for z in vor:
+                        for z in zeilen:
+                            v = z.v
                             r = ui.element("div").classes("m-raster m-zeile m-rv-zeile")
                             with r:
-                                ui.label(z.titel).classes("m-name")
-                                ui.label(rk.ARTEN.get(z.art, z.art) if z.art != "etage" else "ganze Etage").classes("m-zweite")
-                                ui.label(f"{z.start:%d.%m.} – {z.ende:%d.%m.%Y}").classes("m-mono")
-                                ui.label(str(z.zimmer)).classes("m-mono")
-                                ui.label(rk.euro(z.kosten.instandhaltung)).classes("m-mono")
-                                ui.label(rk.euro(z.kosten.investition)).classes("m-mono")
                                 with ui.element("div"):
-                                    if z.kosten.instandhaltung:
-                                        _hk(z.kosten.herkunft_bau)
-                            r.on("click", lambda z=z: _zeile_panel(a, z))
-                ui.label("Ab der nächsten Version: weitere Vorhabenarten (z. B. Brandschutz, Technik) mit Kostenpositionen und "
-                         "Status – hier in derselben Liste.").classes("m-xk-hinweis")
+                                    ui.label(v["titel"] + (f" · Haus {v['haus']}" if v.get("haus") else "")).classes("m-name")
+                                    if z.hinweise:
+                                        attr(ui.label(f"⚠ {z.hinweise[0]}").classes("m-zweite m-warn"), title="\n".join(z.hinweise))
+                                ui.label(v.get("kategorie", "")).classes("m-zweite")
+                                attr(ui.label(vk.TREIBER.get(v.get("treiber"), "–")).classes(
+                                    "m-pille " + ("krit" if v.get("treiber") == "pflicht" else "neutral")), title=v.get("nachweis", ""))
+                                for s in (z.entscheidung, z.umsetzung, z.finanzen):
+                                    ui.label(s).classes(f"m-pille {STATUS_STUFE.get(s, 'neutral')}")
+                                ui.label(rk.euro(z.summe)).classes("m-mono")
+                                ui.label(", ".join(str(j) for j in z.jahre) or "–").classes("m-mono")
+                            r.on("click", lambda v=v: _vorhaben_panel(a, v))
+                ui.label("Klick: Vorhaben öffnen – Treiber mit Nachweis, Entscheidung, Maßnahmen, Kostenpositionen mit Auftrag und "
+                         "Rechnungen. Umsetzung und Finanzen ergeben sich daraus.").classes("m-xk-hinweis")
     _renovierung(a)
+
+
+def _vorhaben_panel(a, v0: dict) -> None:
+    """Vorhaben bearbeiten. Arbeitskopie ``w`` – gespeichert wird erst mit „Speichern“ (Rückgängig wie immer)."""
+    import copy
+
+    w = copy.deepcopy(v0)
+    abg = bool(w.get("abgeleitet"))
+    p = a.daten["p"]
+    neu = not any(x.get("id") == w["id"] for x in a.daten["vorhaben"])
+
+    def setz(dct, k, umwandeln=None):
+        def f(e):
+            wert = e.value
+            dct[k] = umwandeln(wert) if umwandeln and wert not in (None, "") else wert
+        return f
+
+    def bauen():
+        if abg:
+            ui.label("Abgeleitet aus „Renovierung planen“: Maßnahmen und geplante Beträge kommen aus der Planung. Hier: Treiber, "
+                     "Entscheidung, Aufträge und Rechnungen.").classes("m-pille neutral").style("white-space:normal")
+        ui.label("Allgemein").classes("m-ktitel")
+        ui.input("Titel", value=w["titel"], on_change=setz(w, "titel")).classes("m-feld").props(
+            "dense outlined dark" + (" readonly" if abg else ""))
+        ui.input("Beschreibung", value=w.get("beschreibung", ""), on_change=setz(w, "beschreibung")).classes("m-feld").props(
+            "dense outlined dark")
+        with ui.element("div").classes("m-kap").style("grid-template-columns: repeat(3, 1fr)"):
+            ui.select(vk.KATEGORIEN, value=w.get("kategorie") or "Sonstiges", label="Kategorie",
+                      on_change=setz(w, "kategorie")).classes("m-feld").props(
+                'dense outlined dark popup-content-class="m-popup"' + (" readonly" if abg else ""))
+            ui.select({"": "alle / übergreifend", **{h: f"Haus {h}" for h in p["haeuser"]}}, value=w.get("haus") or "",
+                      label="Haus", on_change=setz(w, "haus")).classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+            ui.select(vk.PRIORITAET, value=w.get("prioritaet") or "mittel", label="Priorität",
+                      on_change=setz(w, "prioritaet")).classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        ui.label("Haupttreiber (genau einer)").classes("m-ktitel")
+        nachweis = None
+
+        def treiber_neu(e):
+            w["treiber"] = e.value
+            nachweis.props(f'label="{vk.NACHWEIS.get(e.value, "Begründung")}"')
+        ui.select(vk.TREIBER, value=w.get("treiber") or None, label="Haupttreiber", on_change=treiber_neu).classes("m-feld").props(
+            'dense outlined dark popup-content-class="m-popup"')
+        nachweis = ui.input(vk.NACHWEIS.get(w.get("treiber"), "Begründung"), value=w.get("nachweis", ""),
+                            on_change=setz(w, "nachweis")).classes("m-feld").props("dense outlined dark")
+        ui.label("Pflicht nur mit Nachweis – sonst Risiko, Qualität usw. Pflicht-Vorhaben stehen in der Liste oben.").classes(
+            "m-zweite")
+        ui.label("Entscheidung").classes("m-ktitel")
+        e = w.setdefault("entscheidung", {"status": "idee", "datum": "", "wer": ""})
+        with ui.element("div").classes("m-kap").style("grid-template-columns: repeat(3, 1fr)"):
+            ui.select(vk.ENTSCHEIDUNG, value=e.get("status") or "idee", label="Status", on_change=setz(e, "status")).classes(
+                "m-feld").props('dense outlined dark popup-content-class="m-popup"')
+            ui.input("Datum", value=e.get("datum", ""), on_change=setz(e, "datum")).classes("m-feld").props(
+                "dense outlined dark type=date")
+            ui.input("Wer (Gremium/Person)", value=e.get("wer", ""), on_change=setz(e, "wer")).classes("m-feld").props(
+                "dense outlined dark")
+        status = ui.label("").classes("m-zweite")
+
+        def status_neu():
+            hs = vk.hinweise(w, a.heute)
+            status.set_text(f"Umsetzung: {vk.umsetzung(w, a.heute)} · Finanzen: {vk.finanzen(w)}"
+                            + ("" if not hs else " · ⚠ " + " ⚠ ".join(hs)))
+        status_neu()
+
+        @ui.refreshable
+        def massnahmen():
+            ui.label(f"Maßnahmen ({len(w['massnahmen'])})").classes("m-ktitel")
+            for m in w["massnahmen"]:
+                with ui.element("div").classes("m-liste-zeile"):
+                    if m.get("abgeleitet"):
+                        ui.label(m["titel"]).classes("m-name")
+                        ui.label(f"{m['von']} – {m['bis']}").classes("m-mono")
+                        continue
+                    ui.input("Maßnahme", value=m.get("titel", ""), on_change=setz(m, "titel")).classes("m-feld").props(
+                        "dense outlined dark").style("flex:2")
+                    ui.input("von", value=m.get("von", ""), on_change=lambda ev, m=m: (setz(m, "von")(ev), status_neu())).classes(
+                        "m-feld").props("dense outlined dark type=date")
+                    ui.input("bis", value=m.get("bis", ""), on_change=lambda ev, m=m: (setz(m, "bis")(ev), status_neu())).classes(
+                        "m-feld").props("dense outlined dark type=date")
+                    knopf("", lambda m=m: (w["massnahmen"].remove(m), massnahmen.refresh(), status_neu()), "leise", "delete",
+                          "Maßnahme entfernen")
+            if not abg:
+                knopf("Maßnahme hinzufügen", lambda: (w["massnahmen"].append({"id": vk._neu_id("m"), "titel": "", "von": "",
+                                                                                "bis": ""}), massnahmen.refresh()),
+                      "leise", "add")
+            else:
+                knopf("In „Renovierung planen“ ändern", lambda: (a.panel_zu(), a.oeffnen("steuerung", ansicht="vorhaben")),
+                      "leise", "edit_calendar")
+        massnahmen()
+
+        @ui.refreshable
+        def kosten():
+            ui.label(f"Kostenpositionen ({len(w['kosten'])}) · geplant {rk.euro(vk.betraege(w)['geplant'])}").classes("m-ktitel")
+            for k in w["kosten"]:
+                with ui.element("div").classes("m-block").style("padding:10px 12px; gap:6px"):
+                    fest = bool(k.get("abgeleitet"))
+                    ro = " readonly" if fest else ""
+                    with ui.element("div").classes("m-kap").style("grid-template-columns: 2fr 1fr 1fr"):
+                        ui.input("Position", value=k.get("titel", ""), on_change=setz(k, "titel")).classes("m-feld").props(
+                            "dense outlined dark" + ro)
+                        ui.number("Betrag €", value=k.get("betrag") or 0, min=0, step=100,
+                                  format="%.2f", on_change=setz(k, "betrag", float)).classes("m-feld").props("dense outlined dark" + ro)
+                        ui.number("Haushaltsjahr", value=k.get("jahr") or a.daten["jahr"], min=2000, max=2100, step=1, format="%d",
+                                  on_change=setz(k, "jahr", int)).classes("m-feld").props("dense outlined dark" + ro)
+                    with ui.element("div").classes("m-kap").style("grid-template-columns: repeat(3, 1fr)"):
+                        ui.select(vk.TOEPFE, value=k.get("topf") or "bau", label="Topf", on_change=setz(k, "topf")).classes(
+                            "m-feld").props('dense outlined dark popup-content-class="m-popup"' + ro)
+                        ui.select(vk.HERKUNFT, value=k.get("herkunft") or "schaetzung", label="Herkunft",
+                                  on_change=setz(k, "herkunft")).classes("m-feld").props('dense outlined dark popup-content-class="m-popup"' + ro)
+                        ui.input("Angebot gültig bis", value=k.get("gueltig_bis", ""), on_change=setz(k, "gueltig_bis")).classes(
+                            "m-feld").props("dense outlined dark type=date" + ro)
+                    au = k.get("auftrag") or {}
+                    with ui.element("div").classes("m-kap").style("grid-template-columns: 1.5fr 1fr 1.5fr"):
+                        def auftrag(feld, umw=None, k=k):
+                            def f(ev):
+                                k["auftrag"] = {**(k.get("auftrag") or {}), feld: umw(ev.value) if umw and ev.value not in (None, "") else ev.value}
+                                status_neu()
+                            return f
+                        ui.number("Auftrag €", value=au.get("betrag") or None, min=0, step=100, format="%.2f",
+                                  on_change=auftrag("betrag", float)).classes("m-feld").props("dense outlined dark clearable")
+                        ui.input("Auftrag am", value=au.get("datum", ""), on_change=auftrag("datum")).classes("m-feld").props(
+                            "dense outlined dark type=date")
+                        ui.input("Bemerkung", value=k.get("bemerkung", ""), on_change=setz(k, "bemerkung")).classes("m-feld").props(
+                            "dense outlined dark" + ro)
+                    for r in k.setdefault("rechnungen", []):
+                        with ui.element("div").classes("m-kap").style("grid-template-columns: 1fr 1fr 1fr auto"):
+                            ui.number("Rechnung €", value=r.get("betrag") or 0, min=0, step=100, format="%.2f",
+                                      on_change=lambda ev, r=r: (setz(r, "betrag", float)(ev), status_neu())).classes("m-feld").props(
+                                "dense outlined dark")
+                            ui.input("Rechnung vom", value=r.get("datum", ""), on_change=setz(r, "datum")).classes("m-feld").props(
+                                "dense outlined dark type=date")
+                            ui.input("bezahlt am", value=r.get("bezahlt_am", ""),
+                                     on_change=lambda ev, r=r: (setz(r, "bezahlt_am")(ev), status_neu())).classes("m-feld").props(
+                                "dense outlined dark type=date")
+                            knopf("", lambda k=k, r=r: (k["rechnungen"].remove(r), kosten.refresh(), status_neu()), "leise",
+                                  "delete", "Rechnung entfernen")
+                    with ui.element("div").classes("m-zeile-flex"):
+                        knopf("Rechnung erfassen", lambda k=k: (k["rechnungen"].append({"betrag": 0, "datum": a.heute.isoformat(),
+                                                                                         "bezahlt_am": ""}), kosten.refresh()),
+                              "leise", "receipt_long")
+                        if not fest:
+                            knopf("Position entfernen", lambda k=k: (w["kosten"].remove(k), kosten.refresh(), status_neu()),
+                                  "leise", "delete")
+            knopf("Kostenposition hinzufügen", lambda: (w["kosten"].append(
+                {"id": vk._neu_id("k"), "titel": "", "betrag": 0.0, "herkunft": "schaetzung", "jahr": a.daten["jahr"],
+                 "topf": "bau", "bemerkung": "", "gueltig_bis": "", "auftrag": None, "rechnungen": []}), kosten.refresh()),
+                "leise", "add")
+        kosten()
+
+        async def speichern():
+            if await a.aendern(vk.speichern_auto_schritt, w):
+                a.panel_zu()
+
+        async def loeschen():
+            if await a.aendern(vk.loeschen_schritt, w["id"], w["titel"]):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "check")
+            if not abg and not neu:
+                knopf("Löschen", loeschen, "leise", "delete")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel(("Neues Vorhaben" if neu and not abg else f"Vorhaben: {w['titel']}"), bauen, breit=True)
 
 
 def _zeitplan(a) -> None:
@@ -410,30 +597,56 @@ def _zeitplan(a) -> None:
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"Zeitplan {d['jahr']} – alle Vorhaben").classes("m-btitel")
+                ui.label(f"Zeitplan {d['jahr']} – Renovierung").classes("m-btitel")
                 _gantt(a, d["zeilen"], d["jahr"])
                 knopf("Planen", lambda: a.oeffnen("steuerung", ansicht="vorhaben"), "leise", "arrow_forward")
+            termine = sorted(((v, m) for v in d["vorhaben"] if not v.get("abgeleitet") for m in v.get("massnahmen") or []
+                              if str(m.get("von") or "")[:4] <= str(d["jahr"]) <= str(m.get("bis") or "")[:4]),
+                             key=lambda x: str(x[1].get("von")))
+            with ui.element("section").classes("m-block m-breit"):
+                ui.label(f"Weitere Vorhaben {d['jahr']} – Termine ({len(termine)})").classes("m-btitel")
+                if not termine:
+                    ui.label("Keine Maßnahmen mit Termin. Termine trägt man im Vorhaben unter „Maßnahmen“ ein.").classes("m-zweite")
+                else:
+                    with tabelle("minmax(180px, 1.5fr) minmax(160px, 1.5fr) auto auto auto"):
+                        with ui.element("div").classes("m-raster m-tkopf"):
+                            for t in ("Vorhaben", "Maßnahme", "von", "bis", "Umsetzung"):
+                                ui.label(t)
+                        for v, m in termine:
+                            r = ui.element("div").classes("m-raster m-zeile m-rv-zeile")
+                            with r:
+                                ui.label(v["titel"]).classes("m-name")
+                                ui.label(m.get("titel") or "–").classes("m-zweite")
+                                for t in (m.get("von"), m.get("bis")):
+                                    ui.label(f"{vk._d(t):%d.%m.%Y}" if vk._d(t) else "–").classes("m-mono")
+                                u = vk.umsetzung(v, a.heute)
+                                ui.label(u).classes(f"m-pille {STATUS_STUFE.get(u, 'neutral')}")
+                            r.on("click", lambda v=v: _vorhaben_panel(a, v))
     _prognose_seite(a)
 
 
 def _finanzen(a) -> None:
     d = a.daten
     p, jahr, ant, ber = d["p"], d["jahr"], d["antrag"], d["bereits"]
-    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"])
+    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"]) + d["andere"]["bau"]     # + andere Vorhaben im Topf Bau
     bb = p.get("budget_bau")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             with ui.element("section").classes("m-block m-breit"):
                 ui.label(f"Budget {jahr} je Topf").classes("m-btitel")
-                with tabelle("minmax(160px, 1.4fr) auto auto auto auto minmax(180px, 2fr)"):
+                an = d["andere"]
+                with tabelle("minmax(160px, 1.4fr) auto auto auto auto auto minmax(180px, 2fr)"):
                     with ui.element("div").classes("m-raster m-tkopf"):
-                        for t in ("Topf", "Budget / Rahmen", "Vorgemerkt", "Vorschlag", "Frei", "Hinweis"):
+                        for t in ("Topf", "Budget / Rahmen", "Renovierung vorgemerkt", "Renovierung Vorschlag",
+                                  "Weitere Vorhaben", "Frei", "Hinweis"):
                             ui.label(t)
+                    reno_bau = verplant - an["bau"]
                     with ui.element("div").classes("m-raster m-zeile"):
                         ui.label("Bau (Instandhaltung)").classes("m-name")
                         ui.label(rk.euro(bb) if bb is not None else "–").classes("m-mono")
                         ui.label(rk.euro(ber["bau"])).classes("m-mono")
-                        ui.label(rk.euro(verplant - ber["bau"])).classes("m-mono")
+                        ui.label(rk.euro(reno_bau - ber["bau"])).classes("m-mono")
+                        ui.label(rk.euro(an["bau"])).classes("m-mono")
                         frei = (bb - verplant) if bb is not None else None
                         ui.label("–" if frei is None else rk.euro(frei)).classes(
                             "m-mono" + (" m-krit" if frei is not None and frei < -500 else ""))
@@ -445,11 +658,23 @@ def _finanzen(a) -> None:
                         ui.label(rk.euro(mg) if mg is not None else "ohne Obergrenze").classes("m-mono")
                         ui.label(rk.euro(ber["moebel"])).classes("m-mono")
                         ui.label(rk.euro(ant["summe"] - ber["moebel"])).classes("m-mono")
-                        ui.label("–" if mg is None else rk.euro(mg - ant["summe"])).classes("m-mono")
-                        ui.label(f"Antrag gesamt {rk.tsd(ant['summe'])}, Spanne {rk.spanne_text(ant['von'], ant['bis'])}").classes(
-                            "m-zweite")
-                ui.label("Vorgemerkt = schon geplant · Vorschlag = gewählte Variante für den Rest. Gebunden / abgerechnet / "
-                         "bezahlt folgen mit Aufträgen und Rechnungen in einer der nächsten Versionen.").classes("m-xk-hinweis")
+                        ui.label(rk.euro(an["moebel"])).classes("m-mono")
+                        ui.label("–" if mg is None else rk.euro(mg - ant["summe"] - an["moebel"])).classes("m-mono")
+                        ui.label(f"Antrag Renovierung {rk.tsd(ant['summe'])}, Spanne {rk.spanne_text(ant['von'], ant['bis'])}"
+                                 ).classes("m-zweite")
+                    if an["sonstiges"]:
+                        with ui.element("div").classes("m-raster m-zeile"):
+                            ui.label("Sonstiges").classes("m-name")
+                            for t in ("–", "–", "–", rk.euro(an["sonstiges"]), "–"):
+                                ui.label(t).classes("m-mono")
+                            ui.label("eigene Finanzierung").classes("m-zweite")
+                b = {k: sum(vk.betraege(v)[k] for v in d["vorhaben"]) for k in ("gebunden", "abgerechnet", "bezahlt")}
+                if any(b.values()):
+                    ui.label(f"Über alle Vorhaben: gebunden (Aufträge) {rk.tsd(b['gebunden'])} · abgerechnet {rk.tsd(b['abgerechnet'])}"
+                             f" · bezahlt {rk.tsd(b['bezahlt'])}").classes("m-ptext")
+                ui.label("Vorgemerkt = schon geplant · Vorschlag = gewählte Variante für den Rest · Weitere Vorhaben = "
+                         "Kostenpositionen anderer Vorhaben in diesem Haushaltsjahr (abgelehnte zählen nicht). Je Topf und Jahr "
+                         "mit Bindung und Zahlungsjahr folgt in der nächsten Version.").classes("m-xk-hinweis")
             ui.label(f"Planungshorizont: {jahr} belastbar · {jahr + 1} wahrscheinlich · {jahr + 2}–{jahr + 4} Orientierung").classes(
                 "m-pille neutral")
     _szenarien(a)

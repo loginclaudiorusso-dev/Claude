@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.46.0
+# Neue Oberfläche (modern_ui) – Version 0.47.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,32 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Vorhaben – Maßnahmen – Kostenpositionen (neu in 0.47)
+
+Steuerung → **Vorhaben** ist jetzt das Portfolio aller Vorhaben, nicht nur der Renovierung.
+
+* **Neues Vorhaben …**: Titel, Kategorie (Renovierung, Möbel, Technik, Brandschutz, Außenanlage, IT, Sonstiges), Haus,
+  Priorität.
+* **Haupttreiber – genau einer**: Pflicht, Risiko, Wirtschaftlichkeit, Kapazität, Qualität. **Pflicht** speichert nur
+  mit Nachweis (Rechtsgrundlage, Vorgabe oder Prüfprotokoll), die anderen mit einer kurzen Begründung. Pflicht-Vorhaben
+  stehen oben in der Liste.
+* **Drei Statusachsen**:
+  * **Entscheidung** von Hand: Idee · in Prüfung · beantragt · freigegeben · abgelehnt, mit Datum und Wer.
+  * **Umsetzung** ergibt sich selbst: offen · terminiert (Maßnahme mit Termin) · beauftragt (Auftrag erfasst) · in Arbeit
+    · abgeschlossen.
+  * **Finanzen** ergeben sich selbst: geschätzt · gebunden (Auftrag) · teilweise bezahlt · abgerechnet.
+  * Widersprüche (z. B. „Idee, aber schon beauftragt“, abgelaufenes Angebot) stehen am Vorhaben und im Cockpit.
+* **Maßnahmen** mit von/bis und **Kostenpositionen** mit Betrag, Herkunft, Haushaltsjahr, Topf (Bau/Möbel/sonstiges),
+  „gültig bis“, Bemerkung, **Auftrag** (Betrag, Datum) und **Rechnungen** (Betrag, Datum, bezahlt am).
+* **Renovierung als Vorhaben**: Die Vormerkungen aus „Renovierung planen“ erscheinen automatisch als
+  „Renovierung <Jahr>“ – Maßnahmen und Beträge kommen weiter aus der Planung (nichts doppelt). Ergänzt werden Treiber,
+  Entscheidung, Aufträge und Rechnungen.
+* **Andere Vorhaben verbrauchen ihren Topf**: Eine Bau-Position 2027 eines anderen Vorhabens zählt im Cockpit
+  („Bau verplant/frei“), unter Finanzen (Spalte „Weitere Vorhaben“) und im Renovierungsvorschlag (verteilt nur den
+  Rest). Abgelehnte Vorhaben zählen nicht.
+* Unter **Zeitplan & Kapazität** stehen die Termine der weiteren Vorhaben.
+* Gespeichert in `importe/modern_vorhaben.json` (mit gesichert), Rückgängig wie immer.
 
 ## Steuerung nach Fragen gegliedert, Leiste wie in Office, Showcase-Dock (neu in 0.46)
 
@@ -912,4 +938,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0` (jeweils auch als Zip in `Sicherung`).
