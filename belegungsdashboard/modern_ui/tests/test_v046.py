@@ -38,7 +38,7 @@ def test_festpreis_solange_das_angebot_gilt(leer):
     assert round(rk.kosten(p, "6", 9, 2032).bau) == 11000                       # ab dem Jahr nach Ablauf +10 %
     assert any("Festpreis" in t for t, _b in rk.kosten(p, "6", 9, 2031).herleitung)
     ohne = rk.angebot_uebernehmen(p, {"haus": "6", "art": "bau", "netto": 10000, "datum": "2030-02-01"})
-    assert "gueltig_bau" not in ohne["kosten"]["6"] and round(rk.kosten(ohne, "6", 9, 2031).bau) == 11000
+    assert ohne["kosten"]["6"]["gueltig_bau"] == "2030-12-31" and round(rk.kosten(ohne, "6", 9, 2031).bau) == 11000   # 0.48
 
 
 def test_gueltig_bis_wird_im_angebot_erkannt():

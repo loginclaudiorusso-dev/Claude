@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.47.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.48.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -97,10 +97,10 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Andere Vorhaben verbrauchen ihren Topf: Baubudget, Cockpit und Finanzen rechnen sie mit, der Renovierungsvorschlag verteilt den Rest
 - Werkzeug „Renovierung planen“ in drei Zonen Eingabe | Ergebnis | Entscheidung
 - Zeitplan & Kapazität: Gantt der Renovierung, Termine weiterer Vorhaben, Belegung Ist/Prognose/Vorjahr/Kapazität minus Baustellen, Prognosegüte, Kernbestand
-- Finanzen: Budget je Topf (Bau, Möbel): Rahmen, vorgemerkt, Vorschlag, frei; Strategie 5 Jahre mit Planungshorizont (belastbar / wahrscheinlich / Orientierung)
+- Finanzen: Budget je Topf (Bau, Möbel/Einrichtung, sonstiges) und Haushaltsjahr (= Kalenderjahr), Planjahr und Folgejahr: Budget, verbraucht (Regel je Topf, Standard beim Auftrag), geplant offen, Vorschlag, frei, gebunden/abgerechnet/bezahlt; Klick zeigt die Positionen; Budget je Jahr & Regeln einstellbar; Freigabe in einer Stufe (Leitung); Strategie 5 Jahre mit Planungshorizont (belastbar / wahrscheinlich / Orientierung)
 - Grundlagen: Annahmen mit Herkunft, Angebote mit Datum und Gültigkeit, Kennzahlen und Datenlücken
 - Nie nur zum Ausschöpfen: bei gleichem Bedarf die günstigere Lösung, Etagen ohne Bedarf zählen nicht; Restbudget bleibt sichtbar frei
-- Festpreis: solange ein Angebot gilt („gültig bis“, wird im PDF erkannt), keine Preissteigerung
+- Festpreis: solange ein Angebot gilt („gültig bis“, wird im PDF erkannt; ohne Angabe bis 31.12. des Angebotsjahres), keine Preissteigerung
 - Renovierung: Baubudget als feste Grenze (Standard) oder Zimmerziel; Möbelbedarf als Antrag; Haus-Vorrang; Kernbestand-Häkchen
 - Ganze Etage selbst planen: Etage wählen, Kosten und besten Monat sehen, vormerken – Vormerkungen verbrauchen Budget/Ziel, der Vorschlag verteilt den Rest
 - Bedarf in Klassen A/B/C, getrennt für Bau und Möbel; frisch renoviert = kein Bau

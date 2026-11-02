@@ -422,8 +422,8 @@ def naechste_schritte(zeilen: list, p: dict, heute: date) -> list[tuple[date, st
         schritte.append((e.stopp_ab, f"Belegungsstopp {e.text} – niemanden mehr neu einplanen", "Internatsverwaltung"))
     beschluss = max(heute, min(d for d, _w, _x in schritte) - timedelta(days=7))
     schritte = [(max(d, heute), w + (" – eigentlich schon fällig" if d < heute else ""), x) for d, w, x in schritte]
-    schritte.append((beschluss, "Beschluss der Geschäftsführung", "Geschäftsführung"))
-    return sorted(schritte, key=lambda s_: (s_[0], s_[1] != "Beschluss der Geschäftsführung"))
+    schritte.append((beschluss, "Beschluss (Leitung)", "Leitung"))
+    return sorted(schritte, key=lambda s_: (s_[0], s_[1] != "Beschluss (Leitung)"))
 
 
 def bericht_html(c: dict) -> str:
@@ -456,7 +456,7 @@ def bericht_html(c: dict) -> str:
     massn = "".join(f"<tr><td>{e(z.titel)}</td><td>{z.start:%m/%Y}</td><td class=r>{t(z.kosten.instandhaltung)}</td>"
                     f"<td class=r>{t(z.kosten.investition)}</td></tr>" for z in zeilen) or "<tr><td colspan=4>Keine Maßnahme.</td></tr>"
     bb = p.get("budget_bau")
-    beschluss = (f"Die Geschäftsführung gibt für {jahr} die unten aufgeführten Maßnahmen frei"
+    beschluss = (f"Die Leitung gibt für {jahr} die unten aufgeführten Maßnahmen frei"
                  + (" (bereits vorgemerkt" + (f" + Vorschlag „{e(v.titel)}“" if v and v.massnahmen else "") + ")"
                     if bereits.get("anzahl") else f" (Vorschlag „{e(v.titel if v else '–')}“)") + ": "
                  f"<b>Bau {t(bau_ges)}</b>" + (f" aus dem Baubudget von {t(bb)}" if budget and bb is not None else "")
@@ -548,7 +548,7 @@ def bericht_html(c: dict) -> str:
         ("Warnschwelle ▲", "95 % der Kapazität ohne gesperrte Zimmer; die obere Prognose darf sie im Baumonat nicht erreichen."),
         ("Nicht prüfbar", "Hinter den bekannten Buchungen kann der Ausweich nicht geprüft werden; dort zählt nur die Prognose."),
         ("Kernbestand", "Spitzenbedarf + Ausfallreserve + Typen-Reserve + Puffer. Der Rest ist Reserve: in Betrieb halten, "
-                        "nicht renovieren – Entscheidung der Geschäftsführung, jährlich neu."),
+                        "nicht renovieren – Entscheidung der Leitung, jährlich neu."),
         ("Sperr-Zimmermonate", "Zimmer × Monate, die wegen Arbeiten nicht belegt werden können."),
         ("Vorsteuerquote", "Anteil der Umsatzsteuer, der zurückkommt. 0 % = brutto zählt."),
     ]

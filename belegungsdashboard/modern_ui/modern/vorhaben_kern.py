@@ -251,6 +251,7 @@ def speichern_auto_schritt(v: dict) -> str:
 
     erg = []
     f = zusatz_speichern if v.get("abgeleitet") else speichern
+    v = freigeben(v, date.today())                       # 0.48: Freigabe ohne Wer/Datum → Entscheider, heute
     _schritt(f"Vorhaben: {v.get('titel', '')}", lambda: erg.append(f(v)), [DATEI])
     return erg[0]
 
@@ -293,3 +294,124 @@ def liste(vorhaben: list[dict], heute: date, kategorie: str = "", jahr: int | No
     prio = {"hoch": 0, "mittel": 1, "niedrig": 2}
     erg.sort(key=lambda z: (z.v.get("treiber") != "pflicht", prio.get(z.v.get("prioritaet"), 1), z.v.get("titel", "")))
     return erg
+
+
+# ---- 0.48: Budget je Topf und Haushaltsjahr ----------------------------------------------------------
+# Haushaltsjahr = Kalenderjahr. Wann ein Topf als verbraucht gilt, ist je Topf einstellbar (Standard: beim Auftrag –
+# so verfällt das Baubudget nicht, wenn im Dezember beauftragt und im Januar gezahlt wird).
+
+REGELN = {"auftrag": "beim Auftrag", "rechnung": "bei Rechnung", "zahlung": "bei Zahlung"}
+EINSTELLUNGEN = {"regel": {"bau": "auftrag", "moebel": "auftrag", "sonstiges": "auftrag"}, "budgets": {},
+                 "entscheider": "Leitung"}
+
+
+def einstellungen() -> dict:
+    roh = _roh().get("einstellungen") or {}
+    return {"regel": {**EINSTELLUNGEN["regel"], **{k: v for k, v in (roh.get("regel") or {}).items() if v in REGELN}},
+            "budgets": {str(j): dict(b) for j, b in (roh.get("budgets") or {}).items()},
+            "entscheider": str(roh.get("entscheider") or EINSTELLUNGEN["entscheider"])}
+
+
+def einstellungen_speichern(e: dict) -> str:
+    roh = _roh()
+    roh["einstellungen"] = {"regel": e["regel"], "budgets": e["budgets"], "entscheider": e.get("entscheider") or "Leitung"}
+    _schreiben(roh)
+    return "Budgetregeln gespeichert"
+
+
+def einstellungen_schritt(e: dict) -> str:
+    from .kern import _schritt
+
+    erg = []
+    _schritt("Budget je Jahr / Regeln", lambda: erg.append(einstellungen_speichern(e)), [DATEI])
+    return erg[0]
+
+
+def budget(jahr: int, topf: str, standard: float | None = None, e: dict | None = None) -> float | None:
+    """Budget eines Topfs im Jahr: eigener Eintrag je Jahr, sonst ``standard`` (z. B. das Baubudget der Vorgabe)."""
+    b = ((e or einstellungen())["budgets"].get(str(jahr)) or {}).get(topf)
+    return float(b) if b not in (None, "") else standard
+
+
+def _jahr_von(t, sonst: int) -> int:
+    d = _d(t)
+    return d.year if d else sonst
+
+
+@dataclass
+class Konto:
+    """Ein Topf in einem Haushaltsjahr. ``verbraucht`` nach der Regel des Topfs; ``offen`` = geplant, aber noch nicht
+    verbraucht (zählt im Haushaltsjahr der Position); ``frei`` = Budget − verbraucht − offen (ohne Vorschläge)."""
+    jahr: int
+    topf: str
+    regel: str
+    budget: float | None = None
+    geplant: float = 0.0
+    gebunden: float = 0.0
+    abgerechnet: float = 0.0
+    bezahlt: float = 0.0
+    verbraucht: float = 0.0
+    offen: float = 0.0
+    positionen: list = field(default_factory=list)       # (Vorhaben-Titel, Position, Betrag, wie)
+
+    @property
+    def belastet(self) -> float:
+        return self.verbraucht + self.offen
+
+    @property
+    def frei(self) -> float | None:
+        return None if self.budget is None else self.budget - self.belastet
+
+
+def konto(vorhaben: list[dict], jahr: int, topf: str, budget_wert: float | None = None, e: dict | None = None) -> Konto:
+    e = e or einstellungen()
+    regel = e["regel"].get(topf, "auftrag")
+    k = Konto(jahr, topf, regel, budget_wert)
+    for v in vorhaben:
+        if (v.get("entscheidung") or {}).get("status") == "abgelehnt":
+            continue
+        for p in v.get("kosten") or []:
+            if p.get("topf") != topf:
+                continue
+            hj = int(p.get("jahr") or jahr)
+            betrag = float(p.get("betrag") or 0)
+            au = p.get("auftrag") or {}
+            rechn = p.get("rechnungen") or []
+            if hj == jahr:
+                k.geplant += betrag
+            if au.get("betrag") and _jahr_von(au.get("datum"), hj) == jahr:
+                k.gebunden += float(au["betrag"])
+            for r in rechn:
+                if _jahr_von(r.get("datum"), hj) == jahr:
+                    k.abgerechnet += float(r.get("betrag") or 0)
+                if r.get("bezahlt_am") and _jahr_von(r.get("bezahlt_am"), hj) == jahr:
+                    k.bezahlt += float(r.get("betrag") or 0)
+            # verbraucht nach Regel: je Ereignis im Jahr des Ereignisses; sonst als „offen“ im Haushaltsjahr
+            if regel == "auftrag" and au.get("betrag"):
+                if _jahr_von(au.get("datum"), hj) == jahr:
+                    k.verbraucht += float(au["betrag"])
+                    k.positionen.append((v.get("titel", ""), p.get("titel", ""), float(au["betrag"]), "Auftrag"))
+                continue
+            ereignisse = [(r, "datum") for r in rechn] if regel == "rechnung" else \
+                         [(r, "bezahlt_am") for r in rechn if r.get("bezahlt_am")] if regel == "zahlung" else []
+            summe_ev = 0.0
+            for r, feld in ereignisse:
+                if _jahr_von(r.get(feld), hj) == jahr:
+                    k.verbraucht += float(r.get("betrag") or 0)
+                    k.positionen.append((v.get("titel", ""), p.get("titel", ""), float(r.get("betrag") or 0), REGELN[regel]))
+                summe_ev += float(r.get("betrag") or 0)
+            rest = max(0.0, betrag - summe_ev) if regel != "auftrag" else betrag
+            if hj == jahr and rest > .5:
+                k.offen += rest
+                k.positionen.append((v.get("titel", ""), p.get("titel", ""), rest, "geplant"))
+    return k
+
+
+def freigeben(v: dict, heute: date, e: dict | None = None) -> dict:
+    """Entscheidung „freigegeben“ ohne Wer/Datum → Entscheider aus den Einstellungen und heute (eine Stufe)."""
+    ent = dict(v.get("entscheidung") or {})
+    if ent.get("status") == "freigegeben":
+        ent.setdefault("wer", "")
+        ent["wer"] = ent["wer"] or (e or einstellungen())["entscheider"]
+        ent["datum"] = ent.get("datum") or heute.isoformat()
+    return {**v, "entscheidung": ent}

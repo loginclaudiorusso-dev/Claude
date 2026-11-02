@@ -226,7 +226,7 @@ def test_entscheidungsvorlage_kurzfassung_und_anhang(leer):
                  "E Strategie 5 Jahre", "H Erläuterungen", "Ohne Beschluss bis"):
         assert teil in html, teil
     schritte = sk.naechste_schritte(zeilen, p, date(2030, 11, 1))
-    assert schritte and schritte[0][1] == "Beschluss der Geschäftsführung"
+    assert schritte and schritte[0][1] == "Beschluss (Leitung)"
 
 
 def test_steuerung_ansichten_umbenannt():

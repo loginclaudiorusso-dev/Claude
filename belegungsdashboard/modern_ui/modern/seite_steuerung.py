@@ -96,11 +96,16 @@ def daten(a) -> None:
     jahre = {int(e["start"][:4]) for e in rk.plan()} | {jahr}
     vorhaben = vk.alle({y: rk.jahresplan(a.stand, y, None, p) for y in jahre})
     andere = {t: vk.summe_topf(vorhaben, jahr, t) for t in vk.TOEPFE}
+    # 0.48: Budget je Topf und Haushaltsjahr – verbraucht nach Regel (Standard: beim Auftrag), offen = geplant
+    ein = vk.einstellungen()
+    budgets = {"bau": vk.budget(jahr, "bau", p.get("budget_bau"), ein),
+               "moebel": vk.budget(jahr, "moebel", p.get("moebel_obergrenze"), ein), "sonstiges": vk.budget(jahr, "sonstiges", None, ein)}
+    konten = {t: vk.konto(vorhaben, jahr, t, budgets[t], ein) for t in vk.TOEPFE}
+    konten2 = {t: vk.konto(vorhaben, jahr + 1, t, vk.budget(jahr + 1, t, None, ein), ein) for t in vk.TOEPFE}
     p_rest = dict(p)
-    if p.get("budget_bau") is not None:
-        p_rest["budget_bau"] = max(0.0, p["budget_bau"] - bereits["bau"] - andere["bau"])
-    if p.get("moebel_obergrenze") is not None:
-        p_rest["moebel_obergrenze"] = max(0.0, p["moebel_obergrenze"] - bereits["moebel"])
+    p_rest["budget_bau"] = None if budgets["bau"] is None else max(0.0, budgets["bau"] - konten["bau"].belastet)
+    if budgets["moebel"] is not None:
+        p_rest["moebel_obergrenze"] = max(0.0, budgets["moebel"] - konten["moebel"].belastet)
     if p.get("modus") == "ziel":
         p_rest["ziel_zimmer"] = max(0, int(p.get("ziel_zimmer") or 0) - bereits["zimmer"])
     varianten, empf = rk.varianten(fl, p_rest, jahr, **kw)
@@ -119,7 +124,10 @@ def daten(a) -> None:
          "gewaehlt": gewaehlt, "vs": vs, "zeilen": zeilen, "li": li, "guete": sk.guete(pg), "jahr": jahr, "kern": kern,
          "robust": rk.robustheit(fl, p_rest, jahr, empf, **kw) if empf else "", "antrag": _antrag(gewaehlt, bereits),
          "platzhalter": _platzhalter(p), "machbar": machbar, "bereits": bereits, "p_rest": p_rest, "prog": prog,
-         "kap": kap, "vorhaben": vorhaben, "andere": andere}
+         "kap": kap, "vorhaben": vorhaben, "andere": andere, "budgets": budgets, "konten": konten, "konten2": konten2,
+         "einstellungen": ein,
+         "vorschlag": {"bau": sum(z.kosten.instandhaltung for z in zeilen if z.status != "vorgemerkt"),
+                       "moebel": sum(z.kosten.investition for z in zeilen if z.status != "vorgemerkt")}}
     if ansicht_ == "finanzen":
         d["strategien"] = rk.strategien(fl, p, jahr, a.heute, 5, reserve_alle,
                                         f"Bei +10 % Nachfrage fehlten {kern.fehlend_plus10} Betten." if kern.etagen else "")
@@ -296,10 +304,10 @@ def _cockpit(a) -> None:
     d, li = a.daten, a.daten["li"]
     jahr, p, v, ant = d["jahr"], d["p"], d["gewaehlt"], d["antrag"]
     warn = sk.warnmonate(li)
-    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"]) + d["andere"]["bau"]     # + andere Vorhaben im Topf Bau
+    verplant = d["konten"]["bau"].belastet + d["vorschlag"]["bau"]          # verbraucht + offen + Vorschlag
     a_heute = rk.a_zimmer(d["fl"])
     a_rest = rk.a_zimmer(d["fl"], {z.id for m in (v.massnahmen if v else []) for z in m.zimmer})
-    bb = p.get("budget_bau")
+    bb = d["budgets"]["bau"]
 
     def zu(ans: str):
         return lambda: a.oeffnen("steuerung", ansicht=ans)
@@ -626,58 +634,114 @@ def _zeitplan(a) -> None:
 
 
 def _finanzen(a) -> None:
+    """Budget je Topf und Haushaltsjahr (= Kalenderjahr): verbraucht nach Regel, geplant offen, Vorschlag, frei."""
     d = a.daten
-    p, jahr, ant, ber = d["p"], d["jahr"], d["antrag"], d["bereits"]
-    verplant = sum(z.kosten.instandhaltung for z in d["zeilen"]) + d["andere"]["bau"]     # + andere Vorhaben im Topf Bau
-    bb = p.get("budget_bau")
+    jahr, ant, ein = d["jahr"], d["antrag"], d["einstellungen"]
+    with a.leiste:
+        knopf("Budget je Jahr & Regeln …", lambda: _budget_panel(a), "", "account_balance_wallet")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
-            with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"Budget {jahr} je Topf").classes("m-btitel")
-                an = d["andere"]
-                with tabelle("minmax(160px, 1.4fr) auto auto auto auto auto minmax(180px, 2fr)"):
-                    with ui.element("div").classes("m-raster m-tkopf"):
-                        for t in ("Topf", "Budget / Rahmen", "Renovierung vorgemerkt", "Renovierung Vorschlag",
-                                  "Weitere Vorhaben", "Frei", "Hinweis"):
-                            ui.label(t)
-                    reno_bau = verplant - an["bau"]
-                    with ui.element("div").classes("m-raster m-zeile"):
-                        ui.label("Bau (Instandhaltung)").classes("m-name")
-                        ui.label(rk.euro(bb) if bb is not None else "–").classes("m-mono")
-                        ui.label(rk.euro(ber["bau"])).classes("m-mono")
-                        ui.label(rk.euro(reno_bau - ber["bau"])).classes("m-mono")
-                        ui.label(rk.euro(an["bau"])).classes("m-mono")
-                        frei = (bb - verplant) if bb is not None else None
-                        ui.label("–" if frei is None else rk.euro(frei)).classes(
-                            "m-mono" + (" m-krit" if frei is not None and frei < -500 else ""))
-                        ui.label("feste Grenze · verfällt am 31.12." + str(jahr) if bb is not None else
-                                 "kein Baubudget eingetragen (Vorhaben → Vorgabe)").classes("m-zweite")
-                    mg = p.get("moebel_obergrenze")
-                    with ui.element("div").classes("m-raster m-zeile"):
-                        ui.label("Möbel (Antrag)").classes("m-name")
-                        ui.label(rk.euro(mg) if mg is not None else "ohne Obergrenze").classes("m-mono")
-                        ui.label(rk.euro(ber["moebel"])).classes("m-mono")
-                        ui.label(rk.euro(ant["summe"] - ber["moebel"])).classes("m-mono")
-                        ui.label(rk.euro(an["moebel"])).classes("m-mono")
-                        ui.label("–" if mg is None else rk.euro(mg - ant["summe"] - an["moebel"])).classes("m-mono")
-                        ui.label(f"Antrag Renovierung {rk.tsd(ant['summe'])}, Spanne {rk.spanne_text(ant['von'], ant['bis'])}"
-                                 ).classes("m-zweite")
-                    if an["sonstiges"]:
-                        with ui.element("div").classes("m-raster m-zeile"):
-                            ui.label("Sonstiges").classes("m-name")
-                            for t in ("–", "–", "–", rk.euro(an["sonstiges"]), "–"):
-                                ui.label(t).classes("m-mono")
-                            ui.label("eigene Finanzierung").classes("m-zweite")
-                b = {k: sum(vk.betraege(v)[k] for v in d["vorhaben"]) for k in ("gebunden", "abgerechnet", "bezahlt")}
-                if any(b.values()):
-                    ui.label(f"Über alle Vorhaben: gebunden (Aufträge) {rk.tsd(b['gebunden'])} · abgerechnet {rk.tsd(b['abgerechnet'])}"
-                             f" · bezahlt {rk.tsd(b['bezahlt'])}").classes("m-ptext")
-                ui.label("Vorgemerkt = schon geplant · Vorschlag = gewählte Variante für den Rest · Weitere Vorhaben = "
-                         "Kostenpositionen anderer Vorhaben in diesem Haushaltsjahr (abgelehnte zählen nicht). Je Topf und Jahr "
-                         "mit Bindung und Zahlungsjahr folgt in der nächsten Version.").classes("m-xk-hinweis")
-            ui.label(f"Planungshorizont: {jahr} belastbar · {jahr + 1} wahrscheinlich · {jahr + 2}–{jahr + 4} Orientierung").classes(
-                "m-pille neutral")
+            for j_, konten, mit_vorschlag in ((jahr, d["konten"], True), (jahr + 1, d["konten2"], False)):
+                with ui.element("section").classes("m-block m-breit"):
+                    ui.label(f"Budget {j_} je Topf · {horizont(j_, jahr)}").classes("m-btitel")
+                    with tabelle("minmax(150px, 1.2fr) auto auto auto auto auto auto auto auto minmax(150px, 1.6fr)"):
+                        with ui.element("div").classes("m-raster m-tkopf"):
+                            for t in ("Topf", "Budget", "Verbraucht", "Geplant offen", "Vorschlag", "Frei", "gebunden",
+                                      "abgerechnet", "bezahlt", "Regel / Hinweis"):
+                                ui.label(t)
+                        for t, kt in konten.items():
+                            vs = d["vorschlag"].get(t, 0.0) if mit_vorschlag else 0.0
+                            if t == "sonstiges" and not (kt.geplant or kt.verbraucht or kt.budget):
+                                continue
+                            frei = None if kt.budget is None else kt.budget - kt.belastet - vs
+                            r = ui.element("div").classes("m-raster m-zeile m-rv-zeile")
+                            with r:
+                                ui.label({"bau": "Bau (Instandhaltung)", "moebel": "Möbel / Einrichtung",
+                                          "sonstiges": "Sonstiges"}[t]).classes("m-name")
+                                ui.label("–" if kt.budget is None else rk.euro(kt.budget)).classes("m-mono")
+                                for w_ in (kt.verbraucht, kt.offen, vs):
+                                    ui.label(rk.euro(w_)).classes("m-mono")
+                                ui.label("–" if frei is None else rk.euro(frei)).classes(
+                                    "m-mono" + (" m-krit" if frei is not None and frei < -500 else ""))
+                                for w_ in (kt.gebunden, kt.abgerechnet, kt.bezahlt):
+                                    ui.label(rk.euro(w_)).classes("m-mono m-zweite")
+                                hinweis = f"verbraucht {vk.REGELN[kt.regel]}"
+                                if t == "bau" and kt.budget is not None:
+                                    hinweis += f" · verfällt am 31.12.{j_}"
+                                if t == "moebel" and mit_vorschlag:
+                                    hinweis += f" · Antrag Renovierung {rk.tsd(ant['summe'])}"
+                                ui.label(hinweis).classes("m-zweite")
+                            r.on("click", lambda kt=kt: _konto_panel(a, kt))
+                    if not mit_vorschlag:
+                        ui.label("Folgejahr: Aufträge, Rechnungen und Zahlungen mit Datum in diesem Jahr (z. B. Schlussrechnung im "
+                                 "Januar) erscheinen hier – bei „beim Auftrag“ verbrauchen sie das Budget des Auftragsjahres, "
+                                 "nicht dieses.").classes("m-xk-hinweis")
+            ui.label("Verbraucht = nach der Regel des Topfs im Jahr des Ereignisses (Standard: beim Auftrag) · Geplant offen = "
+                     "Kostenpositionen dieses Haushaltsjahres, die noch nicht verbraucht sind · Vorschlag = Renovierung, noch "
+                     "nicht vorgemerkt · Frei = Budget − verbraucht − offen − Vorschlag · abgelehnte Vorhaben zählen nicht. "
+                     "Klick auf einen Topf: alle Positionen.").classes("m-xk-hinweis")
+            ui.label(f"Planungshorizont: {jahr} belastbar · {jahr + 1} wahrscheinlich · {jahr + 2}–{jahr + 4} Orientierung · "
+                     f"Freigabe: {ein['entscheider']} (eine Stufe)").classes("m-pille neutral")
     _szenarien(a)
+
+
+def _konto_panel(a, kt) -> None:
+    def bauen():
+        ui.label(f"{vk.TOEPFE[kt.topf]} {kt.jahr}: verbraucht {rk.euro(kt.verbraucht)}, geplant offen {rk.euro(kt.offen)}"
+                 + ("" if kt.budget is None else f", Budget {rk.euro(kt.budget)}")).classes("m-ptext")
+        if not kt.positionen:
+            ui.label("Keine Positionen.").classes("m-zweite")
+        with tabelle("minmax(160px, 1.5fr) minmax(160px, 1.5fr) auto auto"):
+            with ui.element("div").classes("m-raster m-tkopf"):
+                for t in ("Vorhaben", "Position", "Betrag", "zählt als"):
+                    ui.label(t)
+            for v, pos, betrag, wie in kt.positionen:
+                with ui.element("div").classes("m-raster m-zeile"):
+                    ui.label(v).classes("m-name")
+                    ui.label(pos).classes("m-zweite")
+                    ui.label(rk.euro(betrag)).classes("m-mono")
+                    ui.label(wie).classes("m-pille " + ("neutral" if wie == "geplant" else "blau"))
+    a.panel(f"{vk.TOEPFE[kt.topf]} {kt.jahr} – Positionen", bauen, breit=True)
+
+
+def _budget_panel(a) -> None:
+    """Budget je Topf und Jahr, Regel je Topf, wer freigibt."""
+    import copy
+
+    d = a.daten
+    e = copy.deepcopy(d["einstellungen"])
+    jahre = [d["jahr"] - 1, d["jahr"], d["jahr"] + 1, d["jahr"] + 2]
+
+    def bauen():
+        ui.label("Wann gilt ein Topf als verbraucht?").classes("m-ktitel")
+        with ui.element("div").classes("m-kap").style("grid-template-columns: repeat(3, 1fr)"):
+            for t in vk.TOEPFE:
+                ui.select(vk.REGELN, value=e["regel"].get(t, "auftrag"), label=vk.TOEPFE[t],
+                          on_change=lambda ev, t=t: e["regel"].__setitem__(t, ev.value)).classes("m-feld").props(
+                    'dense outlined dark popup-content-class="m-popup"')
+        ui.label("Budget je Haushaltsjahr (= Kalenderjahr). Leer = Bau aus der Vorgabe, Möbel ohne Obergrenze.").classes("m-ktitel")
+        for j in jahre:
+            with ui.element("div").classes("m-kap").style("grid-template-columns: 70px repeat(3, 1fr)"):
+                ui.label(str(j)).classes("m-name").style("align-self:center")
+                b = e["budgets"].setdefault(str(j), {})
+                for t in vk.TOEPFE:
+                    ui.number(f"{vk.TOEPFE[t]} €", value=b.get(t), min=0, step=1000, format="%.0f",
+                              on_change=lambda ev, b=b, t=t: b.__setitem__(t, ev.value)).classes("m-feld").props(
+                        "dense outlined dark clearable")
+        ui.input("Wer gibt frei (eine Stufe)", value=e["entscheider"],
+                 on_change=lambda ev: e.__setitem__("entscheider", ev.value or "Leitung")).classes("m-feld").props(
+            "dense outlined dark")
+        ui.label("Wird beim Freigeben eines Vorhabens eingetragen, wenn dort niemand steht.").classes("m-zweite")
+
+        async def speichern():
+            e["budgets"] = {j: {t: float(x) for t, x in b.items() if x not in (None, "")} for j, b in e["budgets"].items()}
+            e["budgets"] = {j: b for j, b in e["budgets"].items() if b}
+            if await a.aendern(vk.einstellungen_schritt, e):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+    a.panel("Budget je Jahr & Regeln", bauen, breit=True)
 
 
 def _grundlagen(a) -> None:
@@ -1524,7 +1588,7 @@ def _angebot_pruefen(a, ang: dict) -> None:
                     ein[s] = ui.number(t, value=ang.get(s) or 0, min=0, step=.5, format="%.2f").classes("m-feld").props(
                         "dense outlined dark")
         datum = ui.input("Angebotsdatum (JJJJ-MM-TT)", value=str(a.heute)).classes("m-feld").props("dense outlined dark")
-        gueltig = ui.input("Gültig bis (Festpreis, leer = unbekannt)", value=ang.get("gueltig_bis") or "").classes(
+        gueltig = ui.input("Gültig bis (Festpreis; leer = 31.12. des Angebotsjahres)", value=ang.get("gueltig_bis") or "").classes(
             "m-feld").props("dense outlined dark type=date")
         ui.label("Solange das Angebot gilt, rechnet INNternat keine Preissteigerung darauf.").classes("m-zweite")
 

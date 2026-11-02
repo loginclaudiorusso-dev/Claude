@@ -440,6 +440,9 @@ def angebot_uebernehmen(p: dict, ang: dict) -> dict:
     neu["angebote"] = [x for x in neu["angebote"] if not (x.get("haus") == h and x.get("art") == ang["art"])]
     neu["angebote"].append({k: ang.get(k) for k in ("haus", "art", "netto", "zimmer", "datum", "datei", "gueltig_bis")})
     feld = "gueltig_moebel" if ang["art"] == "moebel" else "gueltig_bau"
+    if not ang.get("gueltig_bis") and str(ang.get("datum") or "")[:4].isdigit():
+        ang = {**ang, "gueltig_bis": f"{str(ang['datum'])[:4]}-12-31"}         # 0.48: Angebote gelten meist im laufenden Jahr
+        neu["angebote"][-1]["gueltig_bis"] = ang["gueltig_bis"]
     if ang.get("gueltig_bis"):
         neu["kosten"][h][feld] = str(ang["gueltig_bis"])[:10]
     else:
