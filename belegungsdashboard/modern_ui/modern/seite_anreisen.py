@@ -43,8 +43,9 @@ def mehr_menue(a) -> None:
                 ui.menu_item("Zimmerschilder drucken", lambda: _drucken(a, "schilder"))
                 ui.menu_item("Zimmerliste als Excel …", lambda: _excel(a))
                 ui.separator()
-                ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen",
+                ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen (12 Monate)",
                              lambda: a.setzen(zu_vergangene=not a.zu_vergangene))
+                ui.menu_item("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a))
                 ui.separator()
                 ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
                 ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
@@ -385,3 +386,87 @@ async def _excel(a) -> None:
         return
     a.toast(text if seiten._datei_oeffnen(pfad) else f"{text} – {pfad}", rueck=False)
 
+
+
+def archiv_panel(a) -> None:
+    """Frühere Anreisen über jeden Zeitraum – mit Zimmer (Planung, Gebäudeplan oder Historie), Drucken und Excel."""
+    from datetime import date, timedelta
+
+    from . import seiten
+    from .ui_bausteine import tabelle
+
+    z = {"von": (a.heute - timedelta(days=90)).isoformat(), "bis": a.heute.isoformat(), "text": ""}
+
+    def bauen():
+        ui.label("Alle eingelesenen Anreisen bleiben gespeichert – hier über jeden Zeitraum. Zimmer laut eigener Planung, "
+                 "sonst laut Gebäudeplan oder Zimmerhistorie.").classes("m-ptext")
+        with ui.element("div").classes("m-kap").style("grid-template-columns: 1fr 1fr 2fr"):
+            ui.input("Anreise von", value=z["von"], on_change=lambda e: (z.__setitem__("von", e.value), liste.refresh())).classes(
+                "m-feld").props("dense outlined dark type=date")
+            ui.input("bis", value=z["bis"], on_change=lambda e: (z.__setitem__("bis", e.value), liste.refresh())).classes(
+                "m-feld").props("dense outlined dark type=date")
+            ui.input("Name, Maßnahme, Gruppe oder Zimmer", value="", on_change=lambda e: (z.__setitem__("text", e.value or ""),
+                                                                                       liste.refresh())).classes(
+                "m-feld").props("dense outlined dark clearable")
+
+        def zeitraum():
+            try:
+                von, bis = date.fromisoformat(z["von"]), date.fromisoformat(z["bis"])
+            except (TypeError, ValueError):
+                return None
+            return (von, bis) if von <= bis else (bis, von)
+
+        @ui.refreshable
+        def liste():
+            zr = zeitraum()
+            if zr is None:
+                ui.label("Bitte zwei gültige Daten wählen.").classes("m-zweite")
+                return
+            zs = ank.archiv(a.stand, *zr, z["text"])
+            ohne = sum(1 for x in zs if not x.zimmer)
+            ui.label(f"{len(zs)} Personen an {len({x.anreise for x in zs})} Anreisetagen"
+                     + (f" · {ohne} ohne bekanntes Zimmer" if ohne else "")).classes("m-ktitel")
+            if not zs:
+                ui.label("Keine Anreisen in diesem Zeitraum. Es gibt nur Anreisen, deren Liste in INNternat eingelesen "
+                         "wurde.").classes("m-zweite").style("white-space:normal")
+                return
+            with tabelle("auto minmax(160px, 1.6fr) auto minmax(90px, 1fr) auto auto auto"):
+                with ui.element("div").classes("m-raster m-tkopf"):
+                    for t in ("Anreise", "Name", "Gruppe", "Maßnahme", "Zeitraum", "Zimmer", "laut"):
+                        ui.label(t)
+                for x in zs[:500]:
+                    with ui.element("div").classes("m-raster m-zeile"):
+                        ui.label(f"{x.anreise:%d.%m.%Y}").classes("m-mono")
+                        ui.label(x.name).classes("m-name")
+                        ui.label(x.gruppe).classes("m-zweite")
+                        ui.label(x.massnahme or "–").classes("m-zweite")
+                        ui.label(f"{x.von:%d.%m.%y} – {x.bis:%d.%m.%y}").classes("m-mono")
+                        ui.label(x.zimmer or "–").classes("m-mono")
+                        ui.label(x.quelle).classes("m-zweite")
+            if len(zs) > 500:
+                ui.label(f"Angezeigt: 500 von {len(zs)} – Drucken und Excel enthalten alle.").classes("m-zweite")
+        liste()
+
+        def drucken():
+            if (zr := zeitraum()) is not None:
+                seiten.html_drucken(a, ank.archiv_html(ank.archiv(a.stand, *zr, z["text"]), *zr), f"Anreisen_{zr[0]}_{zr[1]}")
+
+        async def excel():
+            if (zr := zeitraum()) is None:
+                return
+            try:
+                text, pfad = await run.io_bound(ank.archiv_speichern, a.stand, *zr, z["text"])
+            except PermissionError:
+                a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+                return
+            except Exception as exc:          # noqa: BLE001
+                a.toast(f"Nicht gespeichert: {exc}", fehler=True)
+                return
+            a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text} – {pfad}", rueck=False)
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Drucken", drucken, "", "print")
+            knopf("Excel", excel, "", "table_view")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel("Archiv: frühere Anreisen", bauen, breit=True)

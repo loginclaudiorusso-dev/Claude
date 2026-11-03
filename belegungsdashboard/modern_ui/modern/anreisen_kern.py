@@ -11,7 +11,7 @@ from belegung import termine as tm
 from belegung import umzug as um
 from belegung import zimmerplan as zp
 
-from .kern import WT, _schritt, kurz
+from .kern import GRUPPE_KURZ, WT, _schritt, kurz
 
 ZEITRAEUME = {"heute": "Heute", "morgen": "Morgen", "woche": "Diese Woche", "naechste": "Nächste Woche"}
 
@@ -384,3 +384,109 @@ def erinnerung_setzen(schluessel: str, an: bool, tage: int, kanal: str) -> str:
     _schritt("Abreise-Erinnerung", lambda: anreiseliste.person_speichern(neu, p.schluessel), [anreiseliste.DATEI])
     return meldung
 
+
+
+# ---- Archiv: frühere Anreisen mit Zuordnungen (0.49) -------------------------------------------------------------
+# Personen und Zuweisungen werden nie automatisch gelöscht – die normale Auswahl zeigt nur ab 3 Tagen bzw. 12 Monaten
+# zurück. Das Archiv sucht über jeden Zeitraum. Zimmer: eigene Planung › Gebäudeplan (gleicher Name, Zeitraum überlappt)
+# › Zimmerhistorie.
+
+@dataclass
+class ArchivZeile:
+    anreise: date
+    name: str
+    gruppe: str
+    massnahme: str
+    von: date
+    bis: date
+    zimmer: str           # kurz, z. B. „2-301“ – "" = keins bekannt
+    quelle: str           # Planung | Gebäudeplan | Historie | ""
+
+
+def _ueberlappt(a_von: date, a_bis: date, b_von: date, b_bis: date) -> bool:
+    return a_von <= b_bis and b_von <= a_bis
+
+
+def archiv(stand: zp.Planstand, von: date, bis: date, text: str = "") -> list[ArchivZeile]:
+    """Alle Personen mit Anreise im Zeitraum (beide Tage eingeschlossen), nach Anreise und Name; ``text`` filtert nach
+    Name, Maßnahme, Gruppe oder Zimmer."""
+    from . import historie_kern as hk
+
+    nach_name: dict[str, list] = {}
+    for zid, bs in stand.lage.belegungen.items():
+        for b in bs:
+            if b.name:
+                nach_name.setdefault(b.name.strip().lower(), []).append((zid, b))
+    try:
+        hist = hk.alle()
+    except Exception:                      # noqa: BLE001 – Historie ist Zusatz
+        hist = []
+    erg = []
+    for b in stand.bedarf:
+        anr = b.liste_anreise or b.von
+        if not (von <= anr <= bis):
+            continue
+        zimmer, quelle = "", ""
+        if z := stand.zugewiesen(b.schluessel):
+            zimmer, quelle = kurz(z["zimmer"]), "Planung"
+        elif treffer := [zid for zid, x in nach_name.get(b.name.strip().lower(), []) if _ueberlappt(x.von, x.bis, b.von, b.bis)]:
+            zimmer, quelle = kurz(treffer[0]), "Gebäudeplan"
+        elif treffer := [h for h in hist if h.name.strip().lower() == b.name.strip().lower()
+                         and _ueberlappt(date.fromisoformat(h.von), date.fromisoformat(h.bis), b.von, b.bis)]:
+            zimmer, quelle = kurz(treffer[0].zimmer), "Historie"
+        erg.append(ArchivZeile(anr, b.name, GRUPPE_KURZ.get(b.gruppe, b.gruppe), b.massnahme or "", b.von, b.bis, zimmer, quelle))
+    if t := text.strip().lower():
+        erg = [z for z in erg if any(t in s.lower() for s in (z.name, z.massnahme, z.gruppe, z.zimmer))]
+    return sorted(erg, key=lambda z: (z.anreise, z.name.lower()))
+
+
+def archiv_html(zeilen: list[ArchivZeile], von: date, bis: date) -> str:
+    from html import escape as e
+
+    tage: dict[date, list[ArchivZeile]] = {}
+    for z in zeilen:
+        tage.setdefault(z.anreise, []).append(z)
+    teile = []
+    for tag, zs in tage.items():
+        teile.append(f"<h2>Anreise {WT[tag.weekday()]} {tag:%d.%m.%Y} ({len(zs)})</h2><table><tr><th>Name</th><th>Gruppe</th>"
+                     "<th>Maßnahme</th><th>Zeitraum</th><th>Zimmer</th><th>laut</th></tr>"
+                     + "".join(f"<tr><td>{e(z.name)}</td><td>{e(z.gruppe)}</td><td>{e(z.massnahme)}</td>"
+                               f"<td>{z.von:%d.%m.%y} – {z.bis:%d.%m.%y}</td><td>{e(z.zimmer or '–')}</td><td>{e(z.quelle)}</td></tr>"
+                               for z in zs) + "</table>")
+    return (f"<html><head><meta charset='utf-8'><title>Anreisen {von:%d.%m.%Y} – {bis:%d.%m.%Y}</title><style>"
+            "body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;margin:18px} h1{font-size:17px} h2{font-size:13px;margin:16px 0 4px}"
+            "table{border-collapse:collapse;width:100%} th,td{border-bottom:1px solid #ccc;padding:3px 6px;text-align:left}"
+            "th{font-weight:600;color:#444}</style></head><body>"
+            f"<h1>Frühere Anreisen {von:%d.%m.%Y} – {bis:%d.%m.%Y} · {len(zeilen)} Personen</h1>"
+            + ("".join(teile) or "<p>Keine Anreisen in diesem Zeitraum.</p>") + "</body></html>")
+
+
+def archiv_excel(zeilen: list[ArchivZeile], pfad) -> int:
+    import openpyxl
+    from openpyxl.styles import Font
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Anreisen"
+    ws.append(["Anreise", "Name", "Gruppe", "Maßnahme", "von", "bis", "Zimmer", "laut"])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for z in zeilen:
+        ws.append([z.anreise, z.name, z.gruppe, z.massnahme, z.von, z.bis, z.zimmer, z.quelle])
+    for spalte, breite in zip("ABCDEFGH", (11, 28, 9, 16, 11, 11, 9, 12)):
+        ws.column_dimensions[spalte].width = breite
+    for row in ws.iter_rows(min_row=2):
+        for c in (row[0], row[4], row[5]):
+            c.number_format = "DD.MM.YYYY"
+    wb.save(pfad)
+    return len(zeilen)
+
+
+def archiv_speichern(stand: zp.Planstand, von: date, bis: date, text: str = "") -> tuple[str, object]:
+    from pathlib import Path
+
+    zs = archiv(stand, von, bis, text)
+    pfad = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Exporte")) / f"Anreisen_{von:%Y-%m-%d}_bis_{bis:%Y-%m-%d}.xlsx"
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    archiv_excel(zs, pfad)
+    return f"{len(zs)} Personen als Excel gespeichert", pfad

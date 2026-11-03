@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.48.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.49.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -25,6 +25,8 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Hinweise aus der Anreiseliste als Marken (Allergiker, Hilfsmittel, Begleitung); Allergiker-Etage (Haus 2, 1. OG) mit
   Vorrang für Allergiker (auch lange Maßnahmen), eigenem Vorschlag, Warnung und Meldung
 - „x von y bezugsfertig“ je Anreisetag mit fehlenden Punkten und Vorbereitungsliste
+
+- Archiv früherer Anreisen (Mehr → Archiv): beliebiger Zeitraum, Suche nach Name/Maßnahme/Gruppe/Zimmer, Zimmer laut Planung, Gebäudeplan oder Zimmerhistorie; Drucken und Excel
 
 ## Zimmer
 - Änderungen je Zeitraum (Zuteilungen, Umzüge/Auszüge, Mängel) mit Excel-Export
