@@ -71,7 +71,7 @@ def zeichnen(a) -> None:
                    "Je Kurs eine Liste oder die Einheitsliste. Personen werden über die TN-ID wiedererkannt – Abreisen und "
                    "Erinnerungen bleiben bei einem neuen Upload erhalten. Neue Dateien in den Ordnern „Listen“ und „UWT“ "
                    "werden beim Start automatisch eingelesen." if goslar else
-                   "PDF „Teilnehmer Beginn“ aus der Teilnehmerverwaltung: K = wohnt im Internat. Anreise ist der Eintritt, "
+                   "PDF „Teilnehmer Beginn“ aus der Teilnehmerverwaltung: P = Pendler, ohne P Internat (K = Kostenzusage). Anreise ist der Eintritt, "
                    "Abreise das Ende der Maßnahme. Personen werden über Name und Anreisetag wiedererkannt – Abreisen und "
                    "Erinnerungen bleiben bei einem neuen Upload erhalten.",
                    lambda: knopf("Ordner jetzt einlesen", lambda: _ordner(a), "leise", "folder_open",
@@ -134,6 +134,53 @@ def zeichnen(a) -> None:
                        (lambda art=art: knopf("Entfernen", lambda: a.aendern(dk.statistik_loeschen, art), "leise", "delete"))
                        if "noch keine" not in x.stand else None)
             _manuell(a, q["manuell"])
+            _massnahmen_block(a)
+
+
+def _massnahmen_block(a) -> None:
+    """0.50: Quellen der Maßnahmen-Prognose – Maßnahmen-Pivot und Anreiselisten (Word/PDF) für Pendler/Internat."""
+    from . import massnahmen_kern as mk
+
+    st = mk.stand()
+    pv, li = st["pivot"], st["listen"]
+    with ui.element("section").classes("m-block"):
+        ui.label("Maßnahmen-Prognose").classes("m-btitel")
+        ui.label(f"Maßnahmen-Pivot: {pv['kurse']} Kurse, {pv['von'][:10]} – {pv['bis'][:10]} (eingelesen {pv['importiert_am'][:10]})"
+                 if pv else "Maßnahmen-Pivot: noch keiner").classes("m-name")
+        ui.label(f"Anreiselisten: {li['kurse']} Kurse aus {len(li['dateien'])} Datei(en)" if li else
+                 "Anreiselisten (Pendler/Internat): noch keine").classes("m-name")
+        ui.label("Pivot mit Personen und ihren Maßnahmen je Tag (z. B. „pivot_TNHM.xlsx“). Gespeichert werden nur die "
+                 "Teilnehmerzahlen je Kurs und Tag – keine Namen. Anreiselisten „Teilnehmer Beginn“ als Word oder PDF: "
+                 "P = Pendler, ohne P Internat, K = Kostenzusage; übernommen werden nur Zählwerte je Kurs. Große Pivots "
+                 "brauchen ein paar Minuten.").classes("m-ptext")
+
+        async def pivot(dateien):
+            for pfad, name in dateien:
+                a.toast(f"{name} wird gelesen …", rueck=False)
+                try:
+                    erg = await run.io_bound(mk.pivot_lesen, pfad)
+                except Exception as exc:          # noqa: BLE001
+                    a.toast(f"{name}: {exc}", fehler=True)
+                    continue
+                finally:
+                    Path(pfad).unlink(missing_ok=True)
+                await a.aendern(mk.pivot_schritt, erg, name)
+
+        async def listen(dateien):
+            for pfad, name in dateien:
+                try:
+                    kurse = await run.io_bound(mk.listen_lesen, pfad)
+                except Exception as exc:          # noqa: BLE001
+                    a.toast(f"{name}: {exc}", fehler=True)
+                    continue
+                finally:
+                    Path(pfad).unlink(missing_ok=True)
+                await a.aendern(mk.listen_schritt, kurse, name)
+
+        with ui.element("div").classes("m-paktionen"):
+            _hochladen(a, "Maßnahmen-Pivot hochladen", ".xlsx,.xlsm", pivot, False, "primaer")
+            _hochladen(a, "Anreiselisten (Word/PDF)", ".docx,.pdf", listen, True)
+            knopf("Zur Maßnahmen-Prognose", lambda: a.oeffnen("auswertung", ansicht="massnahmen"), "leise", "insights")
 
 
 def _gebaeudeplan_block(a, d, q) -> None:

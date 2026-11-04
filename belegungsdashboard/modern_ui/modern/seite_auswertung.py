@@ -18,7 +18,8 @@ def _T() -> dict:
     return themes.farben(themes.AKTIV)
 
 
-ANSICHTEN = {"lage": "Lage", "belegung": "Belegung", "prognose": "Prognose", "zimmer": "Zimmer & Engpässe"}
+ANSICHTEN = {"lage": "Lage", "belegung": "Belegung", "prognose": "Prognose", "massnahmen": "Maßnahmen",
+             "zimmer": "Zimmer & Engpässe"}
 AMPEL = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit", "unbekannt": "neutral"}
 
 
@@ -32,6 +33,11 @@ def daten(a) -> None:
     ansicht = a.ansicht_von("auswertung", "lage")
     if ansicht == "zimmer":
         seiten.aw_daten(a)
+        return
+    if ansicht == "massnahmen":                 # 0.50: eigene Quelle (Maßnahmen-Pivot), Standort-Pivot nur zum Abgleich
+        from . import seite_massnahmen
+
+        seite_massnahmen.daten(a)
         return
     ds, fehler = ak.datenstand()
     if ds is None:
@@ -52,6 +58,11 @@ def zeichnen(a) -> None:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("auswertung", ansicht=v))
     if ansicht == "zimmer":
         seiten.aw_zeichnen(a)
+        return
+    if ansicht == "massnahmen":
+        from . import seite_massnahmen
+
+        seite_massnahmen.zeichnen(a)
         return
     if ansicht != "prognose":                  # Prognose: Standort, Netto/Brutto und Zeitraum stehen direkt über dem Graph
         with a.leiste:

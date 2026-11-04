@@ -31,7 +31,7 @@ def test_pdf_liste_lesen():
     assert [(l.datum, l.gruppe, len(l.personen)) for l in listen] == [
         (date(2030, 11, 2), "BP KBM 3011", 2), (date(2030, 11, 5), "BP KBM 3011", 1), (date(2030, 11, 9), "BP EMR ASS 301109", 1)]
     p = {x.name: x for l in listen for x in l.personen}
-    assert p["Probe, Paula"].internat and not p["Muster, Max Moritz"].internat
+    assert not p["Probe, Paula"].internat and not p["Muster, Max Moritz"].internat     # 0.50: P = Pendler, K = Kostenzusage
     assert p["Probe, Paula"].abreise == date(2032, 11, 1) and p["Probe, Paula"].anreise == date(2030, 11, 2)
     assert p["von Test, Tina"].bemerkung == "verspäteter Einstieg" and p["von Test, Tina"].internat
     assert p["Beispiel, Bert"].gruppe == "EMR"
@@ -65,4 +65,4 @@ def test_pdf_import_nur_ausserhalb_von_goslar(standorte, monkeypatch):
     dk.anreisen_uebernehmen(v)
     from belegung import zimmerplan as zp
 
-    assert {b.name for b in zp.laden().bedarf} == {"Probe, Paula", "von Test, Tina", "Beispiel, Bert"}   # nur mit K
+    assert {b.name for b in zp.laden().bedarf} == {"von Test, Tina", "Beispiel, Bert"}   # 0.50: nur ohne P (Internat)
