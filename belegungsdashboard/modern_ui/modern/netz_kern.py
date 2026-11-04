@@ -434,8 +434,10 @@ def ist_programmteil(rel: Path) -> bool:
     return rel.name in PROGRAMM_DATEIEN or rel.suffix.lower() in PROGRAMM_ENDUNGEN or rel.name.startswith("~$")
 
 
-# Hilfsdateien der Oberfläche – zählen nicht als „Daten vorhanden“ (entstehen schon beim ersten Start)
-NEBENSACHE = {LETZTE, "modern_ui.json", "modern_ui_neu.json", "modern_standort.json"}
+# Hilfsdateien – zählen nicht als „Daten vorhanden“: Sie entstehen schon beim ersten Start von selbst (Reinigungs-
+# Abgleich, Zimmerhistorie, Neu-Markierung …), bevor jemand die Daten übernehmen konnte.
+NEBENSACHE = {LETZTE, "modern_ui.json", "modern_ui_neu.json", "modern_standort.json", "reinigung_erledigt.json",
+              "modern_zimmerhistorie.json"}
 
 
 def hat_daten(ordner: Path) -> bool:
@@ -513,6 +515,10 @@ def uebernehmen(quelle: str | Path, ziel: Path | None = None) -> str:
         u = uebernahme_pruefen(quelle, ziel)
         if not u.ok:
             raise ValueError(" ".join(u.probleme) or "Nichts zu übernehmen.")
+        if any(ziel.glob("*.json")) or any((ziel / "importe").glob("*.json")):
+            from belegung import datensicherung   # Hilfsdateien des ersten Starts vorher sichern – nichts geht verloren
+
+            datensicherung.sichern("vor Übernahme", ziel)
         for rel in u.dateien:
             (ziel / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(u.quelle / rel, ziel / rel)

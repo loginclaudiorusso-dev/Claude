@@ -300,6 +300,17 @@ def test_uebernehmen_kopiert_und_stellt_pivot_um(ordner, tmp_path):
     assert json.loads((alt / "einstellungen.json").read_text(encoding="utf-8"))["quelle"] == str(alt / "pivot_neu.xlsx")
 
 
+def test_uebernehmen_nach_erstem_start_sichert_hilfsdateien(ordner, tmp_path):
+    from belegung import datensicherung
+
+    alt = _alter_ordner(tmp_path)
+    (ordner / "reinigung_erledigt.json").write_text('{"x": 1}', encoding="utf-8")
+    netz_kern.uebernehmen(alt)
+    s = datensicherung.liste(ordner)
+    assert any("Übernahme" in x.anlass for x in s)
+    assert (ordner / "zuweisungen.json").exists()
+
+
 def test_uebernehmen_nie_ueber_vorhandene_daten(ordner, tmp_path):
     alt = _alter_ordner(tmp_path)
     (ordner / "zuweisungen.json").write_text('[{"person": "neu"}]', encoding="utf-8")
@@ -311,6 +322,9 @@ def test_uebernehmen_nie_ueber_vorhandene_daten(ordner, tmp_path):
 def test_hilfsdateien_zaehlen_nicht_als_daten(ordner):
     (ordner / netz_kern.LETZTE).write_text("{}", encoding="utf-8")
     (ordner / "modern_ui_neu.json").write_text("{}", encoding="utf-8")
+    (ordner / "reinigung_erledigt.json").write_text("{}", encoding="utf-8")          # entsteht beim ersten Start
+    (ordner / "importe").mkdir()
+    (ordner / "importe" / "modern_zimmerhistorie.json").write_text("{}", encoding="utf-8")
     assert not netz_kern.hat_daten(ordner)
     (ordner / "zuweisungen.json").write_text("[]", encoding="utf-8")
     assert netz_kern.hat_daten(ordner)
