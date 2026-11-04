@@ -83,6 +83,7 @@ Ein Paket, das man nur entpackt – und alle PCs arbeiten auf denselben Daten.
 * **Update:** alle PCs schließen, `Programm` löschen, neues Zip entpacken. Ein PC, der noch läuft, meldet „Neue
   Version ist eingespielt – bitte neu starten“. Pivot-Dateien legt INNternat jetzt im Datenordner ab, nicht mehr im
   Programmordner.
+* **Kleinigkeit aus dem Prüfbericht:** Zahlen auf *Heute* ohne führende Null („0“ statt „00“, „1“ statt „01“).
 * **Bisheriges Programm (PySide):** läuft im Netzwerkordner nicht mehr. Es kennt weder Standorte noch Schreibsperre und
   würde neben den anderen PCs Daten überschreiben. Sein Code liegt als Bibliothek unter `Programm\belegung`; Startdatei
   und Oberfläche des alten Programms sind nicht im Paket.

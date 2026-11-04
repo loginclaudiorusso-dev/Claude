@@ -639,7 +639,7 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
             b = ui.element("button").classes(f"m-tz-zahl-k {stufe}")
             attr(b, title=f"{titel}: {zahl} – {unter}")
             with b:
-                ui.label(f"{zahl:02d}" if isinstance(zahl, int) and 0 <= zahl < 100 else str(zahl)).classes("m-tz-zahl")
+                ui.label(str(zahl)).classes("m-tz-zahl")          # 0.54: ohne führende Null („0“ statt „00“)
                 with ui.element("div").classes("m-tz-zahl-t"):
                     with ui.element("div").classes("m-tz-zahl-l"):
                         ui.icon(icon)
@@ -651,7 +651,7 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
 def _punkt(a, i: int, k) -> None:
     liste = a.pf_hat_liste(k)
     with ui.element("article").classes(f"m-tz-punkt {k.stufe}"):
-        ui.label(f"{i:02d}").classes("m-tz-nr")
+        ui.label(str(i)).classes("m-tz-nr")
         with ui.element("div").classes("m-tz-ptext"):
             with ui.element("div").classes("m-tz-kat"):
                 ui.icon(STUFE_ICON[k.stufe])

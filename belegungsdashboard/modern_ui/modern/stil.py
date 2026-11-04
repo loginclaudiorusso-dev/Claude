@@ -1229,4 +1229,9 @@ CSS += """
 .m-netz-erg { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .m-netz-erg .m-ok { color: var(--gruen); font-weight: 600; }
 .m-warn-text { color: var(--rot); }
+.m-netz-knoepfe { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.m-netz-knoepfe .m-knopf { margin: 0; }
+.m-netz .m-zweite { white-space: normal; overflow: visible; text-overflow: clip; }
+.m-netz-pfad { word-break: break-all; }
+.m-tz-nr { min-width: 1.2em; text-align: right; }          /* 0.54: Nummern ohne führende Null, trotzdem bündig */
 """

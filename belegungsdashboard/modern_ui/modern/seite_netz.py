@@ -16,7 +16,7 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
         attr(dlg, role="dialog", aria_label="Daten übernehmen")
         ui.label("Neuer Datenordner – Daten übernehmen?" if beim_start else "Daten aus dem bisherigen Ordner übernehmen"
                  ).classes("m-titel")
-        ui.label(f"Datenordner: {netz_kern.basis()}").classes("m-zweite").style("word-break: break-all")
+        ui.label(f"Datenordner: {netz_kern.basis()}").classes("m-zweite m-netz-pfad")
         ui.label("Hier liegen noch keine Daten. Geben Sie den Ordner an, in dem INNternat bisher lag (dort, wo "
                  "„Start.bat“ liegt). Kopiert werden nur die Daten – Planung, Listen, Gebäudeplan, Vorlagen, Sicherungen, "
                  "alle Standorte. Der bisherige Ordner bleibt unverändert.").classes("m-ptext")
@@ -25,7 +25,7 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
         ui.label("Tipp: im Explorer den Ordner öffnen, oben in die Adresszeile klicken, kopieren und hier einfügen."
                  ).classes("m-zweite")
         ergebnis = ui.element("div").classes("m-netz-erg")
-        with ui.element("div").classes("m-zeile").style("gap: 8px; justify-content: flex-end; margin-top: 10px"):
+        with ui.element("div").classes("m-netz-knoepfe"):
             knopf("Ohne Daten beginnen" if beim_start else "Abbrechen", lambda: dlg.submit(False))
             pruefen_k = knopf("Prüfen", None, "", "search")
             los = knopf("Übernehmen", None, "primaer", "drive_file_move")
@@ -80,6 +80,6 @@ def neustart_hinweis() -> None:
         ui.label("Daten übernommen").classes("m-titel")
         ui.label("Bitte INNternat jetzt einmal schließen und über „INNternat starten“ neu öffnen – dann ist alles "
                  "frisch geladen.").classes("m-ptext")
-        with ui.element("div").classes("m-zeile").style("justify-content: flex-end"):
+        with ui.element("div").classes("m-netz-knoepfe"):
             knopf("Verstanden", dlg.close, "primaer")
     dlg.open()
