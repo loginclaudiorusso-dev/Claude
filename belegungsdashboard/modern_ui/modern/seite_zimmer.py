@@ -236,6 +236,9 @@ def _filterleiste(a, ansicht: str) -> None:
                 with ui.menu().props('dark class="m-menue"'):
                     ui.menu_item("Eigenschaften der markierten Zimmer …", lambda: _eigenschaften_panel(a))
                     ui.menu_item("Renovierungsliste einfügen …", lambda: _renovierungen_panel(a))
+                    ui.separator()
+                    ui.menu_item("Zimmer hinzufügen …", lambda: _zimmer_neu(a))
+                    ui.menu_item("Zimmer entfernen … (Zimmer-Stammdaten)", lambda: a.oeffnen("einstellungen", ansicht="stammdaten"))
 
 
 def _filter_menue(a) -> None:
@@ -1013,3 +1016,9 @@ def _zuweisen(schluessel: str, zimmer: str) -> str:
 
     return kern.zuweisen(schluessel, zimmer)
 
+
+
+def _zimmer_neu(a) -> None:
+    from .seite_einstellungen import zimmer_neu_panel
+
+    zimmer_neu_panel(a)

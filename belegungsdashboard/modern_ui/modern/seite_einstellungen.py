@@ -337,8 +337,10 @@ def stammdaten_setzen(zid: str, werte: dict) -> str:
 def _stammdaten(a) -> None:
     sp = "80px minmax(110px, .8fr) 60px 70px minmax(160px, 1.2fr) minmax(120px, 1fr) 70px"
     with a.inhalt:
-        ui.label("Eigenschaften der Zimmer – gelten für die Zuteil-Regeln. Klick auf ein Zimmer zum Ändern.").classes(
-            "m-ptext").style("padding: 14px 20px 4px")
+        with ui.element("div").classes("m-zeile-flex").style("padding: 14px 20px 4px"):
+            ui.label("Eigenschaften der Zimmer – gelten für die Zuteil-Regeln. Klick auf ein Zimmer zum Ändern.").classes(
+                "m-ptext")
+            knopf("Zimmer hinzufügen …", lambda: zimmer_neu_panel(a), "primaer", "add").style("margin-left:auto")
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
             for t in ("Zimmer", "Lage", "Betten", "Flur", "Merkmale", "Hinweis", ""):
                 ui.label(t)
@@ -372,9 +374,23 @@ def _stamm_panel(a, z) -> None:
             if await a.aendern(stammdaten_setzen, z.id, werte):
                 a.panel_zu()
 
+        from . import zimmer_zusatz_kern as zz
+
+        eigen = zz.ist_zusatz(z.id)
+
+        async def entfernen():
+            if await a.aendern(zz.entfernen_schritt, z.id):
+                a.panel_zu()
+
         with ui.element("div").classes("m-paktionen"):
             knopf("Speichern", speichern, "primaer", "check")
+            if eigen or z.aktiv:
+                knopf("Zimmer löschen" if eigen else "Zimmer entfernen", entfernen, "leise", "delete",
+                      "Selbst angelegtes Zimmer löschen (nur ohne Planung)" if eigen else
+                      "Aus dem Gebäudeplan: wird auf „gehört nicht zum Internat“ gesetzt – zurückholen über den Schalter oben")
             knopf("Abbrechen", a.panel_zu, "leise")
+        if eigen:
+            ui.label("Selbst angelegt – steht nicht im Gebäudeplan.").classes("m-zweite")
 
     a.panel(f"Stammdaten · {z.kurz}", bauen)
 
@@ -517,3 +533,47 @@ def _darstellung(a) -> None:
                     segmente({"normal": "Normale Dichte", "kompakt": "Kompakt"}, d["dichte"], lambda x: a.design_setzen(dichte=x))
                     if d["layout"] == "grid":
                         segmente({False: "Seitenleiste", True: "Schmale Leiste"}, d["schmal"], lambda x: a.design_setzen(schmal=x))
+
+
+def zimmer_neu_panel(a) -> None:
+    """Zimmer anlegen, das im Gebäudeplan fehlt (0.53). Merkmale danach wie gewohnt in den Stammdaten."""
+    from belegung import zimmerplan as zp
+
+    from . import zimmer_zusatz_kern as zz
+
+    st = a.stand
+    haeuser = sorted({z.haus for z in st.zimmer}, key=zp._haus_sort) if st else []
+    w = {"haus": haeuser[0] if haeuser else "", "nr": "", "etage": "", "betten": 1}
+
+    def bauen():
+        ui.label("Für Zimmer, die im Gebäudeplan fehlen. Kennung wie im Gebäudeplan, damit Buchungen später passen. "
+                 "Flur, Tier, Gäste, Boden usw. danach in den Zimmer-Stammdaten.").classes("m-ptext")
+        with ui.element("div").classes("m-kap").style("grid-template-columns: repeat(4, 1fr)"):
+            ui.select(haeuser, value=w["haus"] or None, label="Haus", new_value_mode="add-unique",
+                      on_change=lambda e: w.__setitem__("haus", e.value or "")).classes("m-feld").props(
+                'dense outlined dark use-input popup-content-class="m-popup"')
+            nr = ui.input("Zimmernummer", on_change=lambda e: (w.__setitem__("nr", e.value or ""),
+                                                             etage.set_value(zz.etage_vorschlag(e.value or "")))).classes(
+                "m-feld").props("dense outlined dark")
+            etage = ui.input("Etage", on_change=lambda e: w.__setitem__("etage", e.value or "")).classes("m-feld").props(
+                "dense outlined dark")
+            ui.number("Betten", value=1, min=1, max=4, step=1, format="%d",
+                      on_change=lambda e: w.__setitem__("betten", int(e.value or 1))).classes("m-feld").props("dense outlined dark")
+        vorschau = ui.label("").classes("m-zweite")
+        nr.on("update:model-value", lambda: vorschau.set_text(f"Kennung: {zz.zimmer_id(w['haus'], w['nr'])}" if w["nr"] else ""))
+        nr.props(f'placeholder="z. B. {standort_beispiel()}"')
+
+        async def anlegen():
+            if await a.aendern(zz.hinzufuegen_schritt, w["haus"], w["etage"], w["nr"], w["betten"]):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Anlegen", anlegen, "primaer", "add")
+            knopf("Abbrechen", a.panel_zu, "leise")
+    a.panel("Zimmer hinzufügen", bauen)
+
+
+def standort_beispiel() -> str:
+    from . import standort_kern
+
+    b = standort_kern.aktiv().beispiel
+    return b.split("-", 1)[-1] if "-" in b else b.split(" ", 1)[-1]

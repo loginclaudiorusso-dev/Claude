@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.52.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.53.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -29,6 +29,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Archiv früherer Anreisen (Mehr → Archiv): beliebiger Zeitraum, Suche nach Name/Maßnahme/Gruppe/Zimmer, Zimmer laut Planung, Gebäudeplan oder Zimmerhistorie; Drucken und Excel
 
 ## Zimmer
+- Zimmer hinzufügen, die im Gebäudeplan fehlen (Einstellungen → Zimmer-Stammdaten oder Zimmer → Bearbeiten); entfernen: selbst angelegte löschen, Zimmer aus dem Gebäudeplan auf „gehört nicht zum Internat“
 - Änderungen je Zeitraum (Zuteilungen, Umzüge/Auszüge, Mängel) mit Excel-Export
 - Übersicht als Kacheln je Haus/Etage, Stichtag wählbar, mehrere Kacheln kombinierbar, Filter nach Mangelart, Status „nicht bezugsfertig“
 - Karten- und Listenansicht mit Filtern (Boden, Renovierung, Merkmale, Personengruppe, Mängel …)
@@ -90,10 +91,13 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Windows-Meldungen (fällige Termine, Reinigung, Facility-Checks), „Mit Windows starten“
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
-## Maßnahmen-Prognose
-- Maßnahmen-Prognose (Auswertung → Maßnahmen): Standard Internat (Betten); eine Linie Ist → Prognose (gestrichelt, Prognosezeitraum hinterlegt) mit Spanne, „sicher gebucht“ und Kapazität; 12/24/36 Monate; Kennzahlen heute und Prognose mit Spanne und Auslastung; Aufteilung nach Gruppen (Hauptmaßnahmen, RVL/RVT, IBTZ, übrige) aufklappbar; gebuchter Bestand + erwartete neue Kurse (Rhythmus der drei Vorjahre, Spanne); eigene geplante Plätze; Tabelle je Art (heute, +6/+12 Monate, nächster Start, Kursgröße, Verbleib, Internatsanteil, Gruppe änderbar); Rückwärtstest je Jahr; Abgleich mit dem Standort-Pivot
-- Auswahl einer oder mehrerer Maßnahmen (Dropdown mit Suche, „Alle Hauptmaßnahmen“); Summe oder Vergleich (eine Linie je Maßnahme); Vergleichstabelle für die Leitung: Teilnehmertage 12 Monate, Trend zum Vorjahr, Starts je Jahr, Kursgröße jetzt/früher, Verbleib, Internatsanteil, heute/in 12/in 24 Monaten
-- Import: Maßnahmen-Pivot (nur Zählwerte je Kurs und Tag, keine Namen; fehlende Tage werden überbrückt; Fenster „wird eingelesen“ und Bestätigung mit Zusammenfassung) und Anreiselisten „Teilnehmer Beginn“ als Word oder PDF (P = Pendler, ohne P Internat, K = Kostenzusage)
+## Maßnahmen-Prognose (Auswertung → Maßnahmen)
+- Maßnahmen im Vergleich: Teilnehmende je Maßnahmenart (alle, nicht nur Internat), jede als eigene Kurve – Ist durchgezogen, Prognose gestrichelt (gebuchter Bestand + erwartete neue Kurse aus bis zu drei Vorjahren); keine Summe, keine Betten (die stehen in der allgemeinen Prognose)
+- Auswahl einer oder mehrerer Maßnahmen (mit Suche, leer = alle, „Nur Hauptmaßnahmen“); Darstellung „Ein Diagramm“ oder „Je Maßnahme“ (Raster kleiner Diagramme, gleiche oder eigene Skala; ab 6 Maßnahmen Standard); 12/24/36 Monate
+- Kennzahlen: am stärksten gewachsen/geschrumpft, höchster/niedrigster Verbleib
+- Vergleichstabelle: Teilnehmertage 12 Monate, Trend zum Vorjahr, Starts je Jahr, Kursgröße jetzt/früher, Verbleib, heute/in 12/in 24 Monaten; Gruppe je Art änderbar
+- Geplante Plätze je Art und Startmonat, erwartete neue Kurse, Rückwärtstest
+- Import: Maßnahmen-Pivot (nur Zählwerte je Kurs und Tag, keine Namen; fehlende Tage werden überbrückt; Bestätigung mit Zusammenfassung) und Anreiselisten „Teilnehmer Beginn“ als Word oder PDF (P = Pendler, ohne P Internat, K = Kostenzusage)
 
 ## Steuerung (Leitung, ganz unten in der Seitenleiste)
 - Bereiche nach Fragen: Cockpit · Vorhaben · Zeitplan & Kapazität · Finanzen · Grundlagen; rechnet erst beim Öffnen; gilt für Goslar

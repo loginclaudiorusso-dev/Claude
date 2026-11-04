@@ -1215,3 +1215,10 @@ CSS += """
 .m-mono.m-ok { color: var(--gruen); }
 .m-leiste .q-select .q-chip { font-size: 12px; margin: 2px 3px; }
 """
+
+CSS += """
+/* 0.53: Maßnahmen je Maßnahme – Raster kleiner Diagramme */
+.m-mn-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.m-mn-kachel { border: 1px solid var(--rand); border-radius: 10px; padding: 10px 12px 4px; background: var(--fl); min-width: 0; }
+.m-mn-kachel .m-chart { height: 170px !important; }
+"""

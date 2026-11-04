@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.52.0
+# Neue Oberfläche (modern_ui) – Version 0.53.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -48,6 +48,26 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Maßnahmen im Vergleich, Zimmer hinzufügen (neu in 0.53)
+
+**Auswertung → Maßnahmen** zeigt jetzt die Maßnahmen gegeneinander, nicht die Internatsbelegung (die steht in der
+allgemeinen Prognose):
+* Je Maßnahmenart eine eigene Kurve der **Teilnehmenden** (alle, nicht nur Internat): Ist durchgezogen, Prognose
+  gestrichelt. Keine Summe, keine Betten, keine Kapazität.
+* **Auswahl** (leer = alle mit Teilnehmenden im letzten Jahr, „Nur Hauptmaßnahmen“) und Schalter **Ein Diagramm |
+  Je Maßnahme**. Bis 5 Maßnahmen startet das gemeinsame Diagramm, ab 6 das Raster mit einem kleinen Diagramm je
+  Maßnahme (gleiche oder eigene Skala).
+* Kennzahlen: am stärksten gewachsen bzw. geschrumpft, höchster bzw. niedrigster Verbleib. Darunter die
+  Vergleichstabelle (ohne Internat), die Gruppe je Art ist dort änderbar.
+
+**Zimmer hinzufügen und entfernen**:
+* **Einstellungen → Zimmer-Stammdaten → „Zimmer hinzufügen …“** (auch Zimmer → Liste → Bearbeiten): Haus,
+  Zimmernummer, Etage (wird aus der Nummer vorgeschlagen), Betten. Die Kennung entspricht der des Gebäudeplans, damit
+  Buchungen später passen. Merkmale danach wie gewohnt in den Stammdaten.
+* **Entfernen** im Stammdaten-Fenster: selbst angelegte Zimmer werden gelöscht (nur ohne laufende oder künftige
+  Planung). Zimmer aus dem Gebäudeplan werden auf „gehört nicht zum Internat“ gesetzt; zurück über denselben Schalter.
+* Rückgängig wie immer. Hinweis: Das bisherige Programm kennt die zusätzlichen Zimmer nicht.
 
 ## Maßnahmen auswählen und vergleichen (neu in 0.52)
 
@@ -1021,4 +1041,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0` (jeweils auch als Zip in `Sicherung`).

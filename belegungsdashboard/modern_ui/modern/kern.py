@@ -1096,3 +1096,9 @@ def neu_gelesen(nid: str | None = None) -> None:
     from belegung import neuigkeiten as nk
 
     nk.gelesen_setzen(nid)
+
+
+# 0.53: selbst angelegte Zimmer gehören zur Zimmerliste (einmal beim ersten Import der neuen Oberfläche)
+from . import zimmer_zusatz_kern as _zusatz  # noqa: E402
+
+_zusatz.installieren()
