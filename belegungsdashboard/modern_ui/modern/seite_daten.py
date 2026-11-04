@@ -154,28 +154,64 @@ def _massnahmen_block(a) -> None:
                  "P = Pendler, ohne P Internat, K = Kostenzusage; übernommen werden nur Zählwerte je Kurs. Große Pivots "
                  "brauchen ein paar Minuten.").classes("m-ptext")
 
+        def laeuft(titel: str, text: str) -> None:
+            def bauen():
+                with ui.element("div").classes("m-zeile-flex"):
+                    ui.spinner(size="md")
+                    ui.label(text).classes("m-ptext")
+                ui.label("Das Fenster kann offen bleiben – die Bestätigung erscheint hier.").classes("m-zweite")
+            a.panel(titel, bauen)
+
+        def fertig(titel: str, zeilen: list[tuple[str, str]], fehler: list[str]) -> None:
+            def bauen():
+                if zeilen:
+                    ui.label("Eingelesen ✓" if not fehler else "Teilweise eingelesen").classes("m-pille ok" if not fehler else "m-pille warn")
+                for name, text in zeilen:
+                    with ui.element("div").classes("m-liste-zeile"):
+                        ui.label(name).classes("m-name")
+                        ui.label(text).classes("m-zweite").style("white-space:normal")
+                for f in fehler:
+                    ui.label(f).classes("m-pille krit").style("white-space:normal")
+                async def hin():
+                    a.panel_zu()
+                    await a.oeffnen("auswertung", ansicht="massnahmen")
+                with ui.element("div").classes("m-paktionen"):
+                    knopf("Zur Maßnahmen-Prognose", hin, "primaer", "insights")
+                    knopf("Schließen", a.panel_zu, "leise")
+            a.panel(titel, bauen)
+
         async def pivot(dateien):
+            ok, fehler = [], []
             for pfad, name in dateien:
-                a.toast(f"{name} wird gelesen …", rueck=False)
+                laeuft("Maßnahmen-Pivot wird eingelesen", f"{name} wird gelesen – bei großen Dateien einige Minuten …")
                 try:
                     erg = await run.io_bound(mk.pivot_lesen, pfad)
                 except Exception as exc:          # noqa: BLE001
-                    a.toast(f"{name}: {exc}", fehler=True)
+                    fehler.append(f"{name}: {exc}")
                     continue
                 finally:
                     Path(pfad).unlink(missing_ok=True)
-                await a.aendern(mk.pivot_schritt, erg, name)
+                if await a.aendern(mk.pivot_schritt, erg, name):
+                    ok.append((name, erg.text + " · gespeichert sind nur Zählwerte, keine Namen"))
+            fertig("Maßnahmen-Pivot", ok, fehler)
 
         async def listen(dateien):
+            ok, fehler = [], []
+            laeuft("Anreiselisten werden eingelesen", f"{len(dateien)} Datei(en) …")
             for pfad, name in dateien:
                 try:
                     kurse = await run.io_bound(mk.listen_lesen, pfad)
                 except Exception as exc:          # noqa: BLE001
-                    a.toast(f"{name}: {exc}", fehler=True)
+                    fehler.append(f"{name}: {exc}")
                     continue
                 finally:
                     Path(pfad).unlink(missing_ok=True)
-                await a.aendern(mk.listen_schritt, kurse, name)
+                if await a.aendern(mk.listen_schritt, kurse, name):
+                    tn = sum(k["tn"] for k in kurse.values())
+                    pe = sum(k["pendler"] for k in kurse.values())
+                    ok.append((name, f"{len(kurse)} Kurse, {tn} Teilnehmende, davon {pe} Pendler "
+                                     f"({round(100 * pe / tn) if tn else 0} %) · nur Zählwerte gespeichert"))
+            fertig("Anreiselisten", ok, fehler)
 
         with ui.element("div").classes("m-paktionen"):
             _hochladen(a, "Maßnahmen-Pivot hochladen", ".xlsx,.xlsm", pivot, False, "primaer")

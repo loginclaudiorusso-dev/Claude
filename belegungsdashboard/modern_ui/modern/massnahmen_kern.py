@@ -8,8 +8,8 @@ nur: Teilnehmende, davon Pendler (P), davon mit Kostenzusage (K).
 **Modell**
 * **Ist** bis zum Stichtag, danach **gebucht** (laut Pivot, bis zum geplanten Ende).
 * **Erwartete neue Kurse**: Jede Maßnahmenart startet in festem Rhythmus (meist Januar/Juni). Für jeden Kurs der letzten
-  zwei Jahre wird derselbe Kurs ein bzw. zwei Jahre später mit demselben Verlauf angenommen; Mittelwert aus beiden Jahren,
-  Spanne = das kleinere bzw. größere Jahr. Ist der Kurs schon gebucht (gleiche Art, Start ±45 Tage), zählt er nicht doppelt.
+  drei Jahre wird derselbe Kurs ein, zwei bzw. drei Jahre später mit demselben Verlauf angenommen; Mittelwert der Jahre,
+  Spanne = kleinstes bzw. größtes Jahr (kam er nur in einem Teil der Jahre vor, zählt er anteilig). Ist der Kurs schon gebucht (gleiche Art, Start ±45 Tage), zählt er nicht doppelt.
 * **Geplante Plätze** (eigene Eingabe je Art und Monat) ersetzen die Schätzung für diesen Start.
 * **Internat** = Teilnehmende × Internatsanteil der Art (aus den Anreiselisten; sonst Anteil über alle, sonst 100 %).
 * **Lücken** im Pivot (z. B. ein fehlender Monat) werden je Kurs mit dem letzten bekannten Wert überbrückt.
@@ -30,6 +30,7 @@ GRUPPEN = {"lang": "Hauptmaßnahmen", "vorbereitung": "RVL / RVT", "ibtz": "IBTZ
 _KURS = re.compile(r"^[A-Z]{2}\s+\S")
 _TAG = re.compile(r"^\d{2}\.\d{2}\.\d{4}$")
 LANG_TAGE = 300                    # Teilnahmedauer (Median) ab der eine Art als Hauptmaßnahme gilt
+VORJAHRE = 3                       # erwartete Kurse: Mittel aus bis zu drei Vorjahren
 
 
 # ---- Speichern ------------------------------------------------------------------------------------------
@@ -368,14 +369,15 @@ def erwartete_kurse(ks: list[Kurs], stichtag: date, bis: date, plaetze: list | N
     erg: list[Neu] = []
     for fam in sorted({k.familie for k in ks} if familien is None else familien):
         # je Jahr (1 = Vorjahr, 2 = vor zwei Jahren) die Kurse der Art, verschoben in die Zukunft
-        quellen: dict[int, list[Kurs]] = {1: [], 2: []}
+        quellen: dict[int, list[Kurs]] = {j: [] for j in range(1, VORJAHRE + 1)}
         for k in ks:
             if k.familie != fam or k.start <= daten_ab + timedelta(days=30) or k.start > stichtag:
                 continue
-            for j in (1, 2):
+            for j in quellen:
                 if _jahr_verschoben(stichtag, -j) < k.start <= _jahr_verschoben(stichtag, -j + 1):
                     quellen[j].append(k)
-        for y in range(0, 5):                             # Zukunftsjahr 0, 1, 2 … relativ zum Stichtag
+        jahre_da = [j for j in quellen if _jahr_verschoben(stichtag, -j) >= daten_ab + timedelta(days=30)] or [1]
+        for y in range(0, 6):                             # Zukunftsjahr 0, 1, 2 … relativ zum Stichtag
             kand = []
             for j, liste in quellen.items():
                 for k in liste:
@@ -388,25 +390,29 @@ def erwartete_kurse(ks: list[Kurs], stichtag: date, bis: date, plaetze: list | N
                 if i in benutzt:
                     continue
                 benutzt.add(i)
-                partner = next((i2 for i2, (s2, j2, _k2) in enumerate(kand)
-                                if i2 not in benutzt and j2 != j and abs((s2 - s).days) <= 45), None)
-                quelle = [k]
-                if partner is not None:
-                    benutzt.add(partner)
-                    quelle.append(kand[partner][2])
+                quelle, js = [k], {j}
+                for i2, (s2, j2, k2) in enumerate(kand):         # je weiteres Vorjahr höchstens ein Partner (±45 Tage)
+                    if i2 not in benutzt and j2 not in js and abs((s2 - s).days) <= 45:
+                        benutzt.add(i2)
+                        quelle.append(k2)
+                        js.add(j2)
                 if any(e.familie == fam and abs((e.start - s).days) <= 45 for e in erg):
                     continue
                 if any(g.familie == fam and abs((g.start - s).days) <= 45 for g in gebucht):
                     continue                              # schon gebucht – zählt im Bestand
                 laenge = max(len(q.werte) for q in quelle)
                 reihen = [[float(q.werte[t]) if t < len(q.werte) else 0.0 for t in range(laenge)] for q in quelle]
-                if len(reihen) == 2:
-                    mittel = [(a + b) / 2 for a, b in zip(*reihen)]
-                    klein = [min(a, b) for a, b in zip(*reihen)]
-                    gross = [max(a, b) for a, b in zip(*reihen)]
-                else:                                     # nur in einem der beiden Jahre – unsicher, ob er kommt
-                    mittel, gross = reihen[0], reihen[0]
+                mittel = [sum(r[t] for r in reihen) / len(reihen) for t in range(laenge)]
+                gross = [max(r[t] for r in reihen) for t in range(laenge)]
+                if len(reihen) >= 2:
+                    klein = [min(r[t] for r in reihen) for t in range(laenge)]
+                else:
                     klein = [w / 2 for w in reihen[0]]
+                # kam der Kurs nur in einem Teil der Vorjahre vor, ist er unsicher: Mittel anteilig, unten bis halb
+                anteil = len(reihen) / len(jahre_da)
+                if anteil < 1:
+                    mittel = [w * max(anteil, .5) for w in mittel]
+                    klein = [min(a, b / 2) for a, b in zip(klein, gross)]
                 erg.append(Neu(fam, s, mittel, klein, gross))
     for p in plaetze or []:                               # eigene Planung ersetzt die Schätzung dieses Starts
         fam, monat, n = p["familie"], date.fromisoformat(p["monat"] + "-01"), int(p["plaetze"])

@@ -520,7 +520,10 @@ def _vorhaben_panel(a, v0: dict) -> None:
                                                                                 "bis": ""}), massnahmen.refresh()),
                       "leise", "add")
             else:
-                knopf("In „Renovierung planen“ ändern", lambda: (a.panel_zu(), a.oeffnen("steuerung", ansicht="vorhaben")),
+                async def zur_planung():
+                    a.panel_zu()
+                    await a.oeffnen("steuerung", ansicht="vorhaben")
+                knopf("In „Renovierung planen“ ändern", zur_planung,
                       "leise", "edit_calendar")
         massnahmen()
 

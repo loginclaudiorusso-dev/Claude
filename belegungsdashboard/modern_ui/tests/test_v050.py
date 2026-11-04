@@ -130,3 +130,16 @@ def test_docx_wird_gelesen(leer):
         z.writestr("word/document.xml", xml)
     listen = pk.lesen_text(pk.text_lesen(pfad), "liste.docx")
     assert len(listen) == 1 and listen[0].gruppe == "GS KBM 2701" and not listen[0].personen[0].internat
+
+
+def test_drei_vorjahre_und_seltene_kurse_anteilig(leer):
+    from modern import massnahmen_kern as mk
+
+    assert mk.VORJAHRE == 3
+    ks = [mk.Kurs(f"GS AB {j}", "GS AB", date(j, 6, 1), [n] * 300) for j, n in ((2023, 10), (2024, 20), (2025, 30))]
+    ks.append(mk.Kurs("GS CD 25", "GS CD", date(2025, 3, 1), [9] * 300))         # nur in einem der drei Jahre
+    neu = mk.erwartete_kurse(ks, date(2026, 1, 1), date(2026, 12, 31), None, date(2021, 1, 1), {"GS AB", "GS CD"})
+    ab = next(e for e in neu if e.familie == "GS AB")
+    assert ab.start == date(2026, 6, 1) and ab.spitze == 20 and max(ab.klein) == 10 and max(ab.gross) == 30
+    cd = next(e for e in neu if e.familie == "GS CD")
+    assert cd.spitze == 4.5 and max(cd.gross) == 9                                  # anteilig, nach oben voll

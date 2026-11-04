@@ -20,15 +20,27 @@ def _z(x: float | None, nk: int = 0) -> str:
 
 
 def daten(a) -> None:
-    internat = bool(getattr(a, "mn_internat", False))
+    internat = bool(getattr(a, "mn_internat", True))      # Standard: Belegung im Internat (Betten)
     vor = int(getattr(a, "mn_vor", 24) or 24)
     roh = mk._roh()
     pg = mk.prognose(roh, a.heute, 12, vor, internat)
-    d = {"pg": pg, "stand": mk.stand(), "internat": internat, "vor": vor}
+    d = {"pg": pg, "stand": mk.stand(), "internat": internat, "vor": vor, "kap": None}
     if pg is not None:
         d["tests"] = mk.rueckwaertstest(roh)
         d["abgleich"] = _abgleich(roh, a.heute)
+        d["kap"] = _kapazitaet() if internat else None
     a.daten = d
+
+
+def _kapazitaet() -> int | None:
+    from . import auswertung_kern as ak
+
+    ds, _f = ak.datenstand()
+    try:
+        k = ds.kapazitaet(f"BFW {standort_kern.aktiv().kurz}") if ds is not None else 0
+    except Exception:                          # noqa: BLE001
+        return None
+    return int(k) or None
 
 
 def _abgleich(roh: dict, heute: date) -> list:
@@ -50,9 +62,10 @@ def _abgleich(roh: dict, heute: date) -> list:
 def zeichnen(a) -> None:
     d = a.daten
     with a.leiste:
-        segmente({False: "Teilnehmende", True: "Internat (Betten)"}, d["internat"],
+        segmente({True: "Internat (Betten)", False: "alle Teilnehmenden"}, d["internat"],
                  lambda v: a.setzen(mn_internat=v, nur_seite=True), sofort=True)
-        segmente({12: "12 Monate", 24: "24 Monate"}, d["vor"], lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True)
+        segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, d["vor"],
+                 lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True)
         knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
     pg = d["pg"]
     with a.inhalt:
@@ -62,14 +75,16 @@ def zeichnen(a) -> None:
             return
         with ui.element("div").classes("m-rv"):
             _kopf(a, d, pg)
-            _kpis(pg)
+            _kpis(pg, d["kap"])
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(("Internat (Betten)" if pg.internat else "Teilnehmende") + " je Maßnahmengruppe – Ist, gebucht und "
-                         "erwartet").classes("m-btitel")
-                _chart(pg)
-                ui.label("Fläche = Ist bzw. gebucht + erwartete neue Kurse je Gruppe · gestrichelt: Spanne der neuen Kurse "
-                         "(kleineres/größeres der beiden Vorjahre) · senkrechte Linie = heute.").classes("m-zweite").style(
-                    "white-space:normal")
+                ui.label(("Belegungsprognose Internat (Betten)" if pg.internat else "Prognose aller Teilnehmenden")
+                         + f" – {d['vor']} Monate").classes("m-btitel")
+                _chart(pg, d["kap"])
+                ui.label("Durchgezogen = Ist · gestrichelt = Prognose (gebucht + erwartete neue Kurse) · Band = Spanne der "
+                         "neuen Kurse aus den Vorjahren · gepunktet = nur sicher gebucht (laut Pivot) · rot = Kapazität · "
+                         "hell hinterlegt = Prognosezeitraum.").classes("m-zweite").style("white-space:normal")
+            with ui.expansion("Aufteilung nach Maßnahmengruppen").classes("m-block m-breit m-rv-exp"):
+                _gruppen_chart(pg)
             _tabelle(a, pg)
             _neue(pg)
             _test(d["tests"])
@@ -87,58 +102,79 @@ def _kopf(a, d, pg) -> None:
     ui.label(" · ".join(teile)).classes("m-zweite").style("white-space:normal")
 
 
-def _kpis(pg) -> None:
+def _kpis(pg, kap: int | None) -> None:
     jetzt = next((z for z in pg.zeilen if z.art == "prognose"), pg.zeilen[-1])
     idx = pg.zeilen.index(jetzt)
-
-    def in_(n):
-        z = pg.zeilen[min(len(pg.zeilen) - 1, idx + n)]
-        return z, f"{_z(z.summe - z.erwartet + z.klein)}–{_z(z.summe - z.erwartet + z.gross)}"
-    einheit = "Betten" if pg.internat else "Teilnehmende"
+    einheit = "im Internat" if pg.internat else "Teilnehmende"
     from .seite_steuerung import _kpi
 
+    def ausl(w: float) -> str:
+        return f" · {round(100 * w / kap)} % der Kapazität" if kap else ""
     with ui.element("div").classes("m-kpis"):
-        _kpi(f"{einheit} {MON[jetzt.monat.month - 1]} {jetzt.monat.year}", _z(jetzt.summe),
-             f"davon Hauptmaßnahmen {_z(jetzt.je_gruppe.get('lang', 0))}")
-        for n in (6, 12):
-            z, sp = in_(n)
-            _kpi(f"in {n} Monaten ({MON[z.monat.month - 1]} {z.monat.year})", _z(z.summe),
-                 f"gebucht {_z(z.gebucht)} + erwartet {_z(z.erwartet)} · Spanne {sp}")
-        geplant = sum(1 for e in pg.neu if e.herkunft == "geplant")
-        _kpi("Erwartete neue Kurse", str(len(pg.neu)), f"davon {geplant} mit eigenen Plätzen" if geplant else
-             "aus dem Rhythmus der Vorjahre")
+        _kpi(f"Heute {einheit}", _z(jetzt.summe), f"{MON[jetzt.monat.month - 1]} {jetzt.monat.year}{ausl(jetzt.summe)}")
+        for n in (6, 12, len(pg.zeilen) - 1 - idx):
+            z = pg.zeilen[min(len(pg.zeilen) - 1, idx + n)]
+            unten, oben = z.summe - z.erwartet + z.klein, z.summe - z.erwartet + z.gross
+            _kpi(f"Prognose {MON[z.monat.month - 1]} {z.monat.year}", _z(z.summe),
+                 f"Spanne {_z(unten)}–{_z(oben)} · sicher gebucht {_z(z.gebucht)}{ausl(z.summe)}",
+                 "krit" if kap and oben >= kap else "warn" if kap and oben >= .9 * kap else "")
 
 
-def _chart(pg) -> None:
+def _chart(pg, kap: int | None) -> None:
+    """Eine Linie: Ist bis heute, danach Prognose mit Band; dazu „nur gebucht“ und die Kapazität."""
+    from . import seite_auswertung as sa
+
+    t = sa._T()
+    opt = sa._chart_basis()
+    x = [f"{MON[z.monat.month - 1]} {z.monat.year % 100}" for z in pg.zeilen]
+    h = next((i for i, z in enumerate(pg.zeilen) if z.art == "prognose"), len(pg.zeilen) - 1)
+    r = lambda v: round(v, 1)
+    unten = [None if i < h else r(z.summe - z.erwartet + z.klein) for i, z in enumerate(pg.zeilen)]
+    breite = [None if i < h else r(z.gross - z.klein) for i, z in enumerate(pg.zeilen)]
+    opt["xAxis"]["data"] = x
+    opt["xAxis"]["boundaryGap"] = False
+    opt["yAxis"]["scale"] = False
+    opt["grid"]["top"] = 44
+    opt["series"] = [
+        {"name": "Spanne", "type": "line", "stack": "band", "symbol": "none", "data": unten, "lineStyle": {"opacity": 0},
+         "tooltip": {"show": False}, "silent": True},
+        {"name": "Spanne (neue Kurse)", "type": "line", "stack": "band", "symbol": "none", "data": breite,
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": .16}, "silent": True},
+        {"name": "Ist", "type": "line", "symbol": "none", "data": [r(z.summe) if i <= h else None for i, z in enumerate(pg.zeilen)],
+         "lineStyle": {"color": t["text"], "width": 3}},
+        {"name": "Prognose", "type": "line", "symbol": "circle", "symbolSize": 5,
+         "data": [r(z.summe) if i >= h else None for i, z in enumerate(pg.zeilen)],
+         "lineStyle": {"color": t["akzent"], "width": 3, "type": "dashed"}, "itemStyle": {"color": t["akzent"]},
+         "markArea": {"silent": True, "itemStyle": {"color": t["akzent"], "opacity": .05},
+                      "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "formatter": "Prognose"},
+                      "data": [[{"xAxis": x[h]}, {"xAxis": x[-1]}]]}},
+        {"name": "sicher gebucht", "type": "line", "symbol": "none",
+         "data": [r(z.gebucht) if i >= h else None for i, z in enumerate(pg.zeilen)],
+         "lineStyle": {"color": t["text3"], "width": 2, "type": "dotted"}},
+    ]
+    if kap:
+        opt["series"].append({"name": "Kapazität", "type": "line", "symbol": "none", "data": [kap] * len(x),
+                              "lineStyle": {"color": t.get("rot", "#d64545"), "width": 1.5}})
+    opt["legend"]["data"] = ["Ist", "Prognose", "Spanne (neue Kurse)", "sicher gebucht"] + (["Kapazität"] if kap else [])
+    sa._chart(opt)
+
+
+def _gruppen_chart(pg) -> None:
     from . import seite_auswertung as sa
 
     t = sa._T()
     farben = {"lang": t["akzent"], "vorbereitung": t.get("blau", "#5b8def"), "ibtz": t.get("orange", "#d68910"),
               "uebrige": t["text3"]}
     opt = sa._chart_basis()
-    x = [f"{MON[z.monat.month - 1]} {z.monat.year % 100}" for z in pg.zeilen]
-    opt["xAxis"]["data"] = x
-    opt["xAxis"]["boundaryGap"] = False
+    opt["xAxis"]["data"] = [f"{MON[z.monat.month - 1]} {z.monat.year % 100}" for z in pg.zeilen]
     opt["yAxis"]["scale"] = False
     opt["grid"]["top"] = 44
-    opt["legend"]["type"] = "scroll"
-    reihen = []
-    for g in REIHEN:
-        if not any(z.je_gruppe.get(g) for z in pg.zeilen):
-            continue
-        reihen.append({"name": mk.GRUPPEN[g], "type": "line", "stack": "summe", "symbol": "none",
-                       "data": [round(z.je_gruppe.get(g, 0.0), 1) for z in pg.zeilen],
-                       "lineStyle": {"color": farben[g], "width": 1}, "areaStyle": {"color": farben[g], "opacity": .35}})
-    for name, feld in (("Spanne unten", "klein"), ("Spanne oben", "gross")):
-        reihen.append({"name": name, "type": "line", "symbol": "none",
-                       "data": [None if z.art == "ist" else round(z.summe - z.erwartet + getattr(z, feld), 1) for z in pg.zeilen],
-                       "lineStyle": {"color": t["text2"], "width": 1, "type": "dashed"}})
-    heute = next((i for i, z in enumerate(pg.zeilen) if z.art == "prognose"), None)
-    if heute is not None and reihen:
-        reihen[0]["markLine"] = {"silent": True, "symbol": "none", "lineStyle": {"color": t["text3"], "type": "solid"},
-                                 "label": {"formatter": "heute", "color": t["text3"]}, "data": [{"xAxis": x[heute]}]}
-    opt["series"] = reihen
+    opt["series"] = [{"name": mk.GRUPPEN[g], "type": "bar", "stack": "g", "barMaxWidth": 18,
+                      "data": [round(z.je_gruppe.get(g, 0.0), 1) for z in pg.zeilen],
+                      "itemStyle": {"color": farben[g], "opacity": .85}, "areaStyle": {"color": farben[g]}}
+                     for g in REIHEN if any(z.je_gruppe.get(g) for z in pg.zeilen)]
     sa._chart(opt)
+    ui.label("Je Monat: Ist bzw. Prognose (gebucht + erwartet), aufgeteilt nach Gruppen.").classes("m-zweite")
 
 
 def _tabelle(a, pg) -> None:

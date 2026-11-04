@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.50.0
+# Neue Oberfläche (modern_ui) – Version 0.51.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -49,6 +49,20 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Maßnahmen-Prognose übersichtlicher (neu in 0.51)
+
+* **Standard ist die Belegung im Internat (Betten).** Eine Linie: **durchgezogen = Ist**, ab heute **gestrichelt =
+  Prognose**; der Prognosezeitraum ist hell hinterlegt. Dazu das **Band** der Spanne, **„sicher gebucht“**
+  (gepunktet – was laut Pivot schon feststeht) und die **Kapazität** (rot, aus dem Standort-Pivot).
+* Zeitraum **12, 24 oder 36 Monate**.
+* Kennzahlen: heute im Internat und die Prognose in 6, 12 Monaten und am Ende des Zeitraums – je mit Spanne, sicher
+  gebucht und Anteil an der Kapazität (orange ab 90 %, rot ab 100 % der oberen Spanne).
+* Die Aufteilung nach Maßnahmengruppen steht darunter zum Aufklappen.
+* Erwartete neue Kurse aus **bis zu drei Vorjahren** (Mittel, Spanne = kleinstes/größtes Jahr). Kam ein Kurs nur in
+  einem Teil der Jahre vor, zählt er anteilig.
+* **Einlesen mit Bestätigung**: Beim Hochladen erscheint ein Fenster „wird eingelesen“, danach die Zusammenfassung
+  (Kurse, Zeitraum, überbrückte Tage bzw. Kurse und Pendler-Anteil) mit Knopf zur Maßnahmen-Prognose.
+
 ## Maßnahmen-Prognose (neu in 0.50)
 
 **Einlesen** – Daten & Import → „Maßnahmen-Prognose“:
@@ -60,7 +74,7 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   **P = Pendler, ohne P = Internat, K = Kostenzusage.** Daraus kommt der Internatsanteil je Maßnahmenart.
 
 **Ansehen** – Auswertung → **Maßnahmen** (eigener Reiter, die bisherige Prognose bleibt unverändert):
-* Umschalter **Teilnehmende | Internat (Betten)** und 12/24 Monate.
+* Umschalter **Teilnehmende | Internat (Betten)** und 12/24 Monate (ab 0.51: 36 Monate, Standard Internat).
 * Fläche je Gruppe: **Hauptmaßnahmen** (Teilnahme ≥ 300 Tage), **RVL/RVT**, **IBTZ**, **übrige** (Assessment, EMR,
   Info …); „ohne Zimmer“ (z. B. virtueller Infotag) fällt heraus. Die Summe passt immer zur Gesamtzahl.
 * **Prognose = gebuchter Bestand + erwartete neue Kurse.** Jede Art startet im festen Rhythmus; für jeden Kurs der
@@ -993,4 +1007,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0` (jeweils auch als Zip in `Sicherung`).
