@@ -23,12 +23,21 @@ def daten(a) -> None:
     internat = bool(getattr(a, "mn_internat", True))      # Standard: Belegung im Internat (Betten)
     vor = int(getattr(a, "mn_vor", 24) or 24)
     roh = mk._roh()
-    pg = mk.prognose(roh, a.heute, 12, vor, internat)
-    d = {"pg": pg, "stand": mk.stand(), "internat": internat, "vor": vor, "kap": None}
+    liste = mk.familien_liste(roh, a.heute)
+    bekannt = {f for f, _g, _t in liste}
+    auswahl = [f for f in (getattr(a, "mn_auswahl", None) or []) if f in bekannt]
+    modus = getattr(a, "mn_modus", "summe") if len(auswahl) >= 2 else "summe"
+    pg = mk.prognose(roh, a.heute, 12, vor, internat, set(auswahl) or None)
+    d = {"pg": pg, "stand": mk.stand(), "internat": internat, "vor": vor, "kap": None, "liste": liste, "auswahl": auswahl,
+         "modus": modus}
     if pg is not None:
+        vergleich_arten = auswahl or [f for f, g, _t in liste if g in ("lang", "vorbereitung", "ibtz")]
+        d["vergleich"] = mk.vergleich(roh, a.heute, vergleich_arten, internat)
+        if modus == "vergleich":
+            d["je"] = mk.je_familie(roh, a.heute, auswahl, 12, vor, internat)
         d["tests"] = mk.rueckwaertstest(roh)
         d["abgleich"] = _abgleich(roh, a.heute)
-        d["kap"] = _kapazitaet() if internat else None
+        d["kap"] = _kapazitaet() if internat and not auswahl else None
     a.daten = d
 
 
@@ -67,6 +76,8 @@ def zeichnen(a) -> None:
         segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, d["vor"],
                  lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True)
         knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
+    with a.leiste:
+        _auswahl(a, d)
     pg = d["pg"]
     with a.inhalt:
         if pg is None:
@@ -77,14 +88,23 @@ def zeichnen(a) -> None:
             _kopf(a, d, pg)
             _kpis(pg, d["kap"])
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(("Belegungsprognose Internat (Betten)" if pg.internat else "Prognose aller Teilnehmenden")
-                         + f" – {d['vor']} Monate").classes("m-btitel")
-                _chart(pg, d["kap"])
-                ui.label("Durchgezogen = Ist · gestrichelt = Prognose (gebucht + erwartete neue Kurse) · Band = Spanne der "
-                         "neuen Kurse aus den Vorjahren · gepunktet = nur sicher gebucht (laut Pivot) · rot = Kapazität · "
-                         "hell hinterlegt = Prognosezeitraum.").classes("m-zweite").style("white-space:normal")
+                titel = ("Belegungsprognose Internat (Betten)" if pg.internat else "Prognose aller Teilnehmenden")
+                if d["auswahl"]:
+                    titel += (" – Vergleich: " if d["modus"] == "vergleich" else " – ") + ", ".join(d["auswahl"][:6]) + (
+                        " …" if len(d["auswahl"]) > 6 else "")
+                ui.label(titel + f" – {d['vor']} Monate").classes("m-btitel")
+                if d["modus"] == "vergleich":
+                    _vergleich_chart(d["je"])
+                else:
+                    _chart(pg, d["kap"])
+                ui.label("Je Maßnahme eine Farbe: durchgezogen = Ist, gestrichelt = Prognose (gebucht + erwartete neue Kurse) · "
+                         "hell hinterlegt = Prognosezeitraum · Kennzahlen oben = Summe der Auswahl." if d["modus"] == "vergleich" else
+                         "Durchgezogen = Ist · gestrichelt = Prognose (gebucht + erwartete neue Kurse) · Band = Spanne der "
+                         "neuen Kurse aus den Vorjahren · gepunktet = nur sicher gebucht (laut Pivot) · rot = Kapazität (bei "
+                         "Auswahl ausgeblendet) · hell hinterlegt = Prognosezeitraum.").classes("m-zweite").style("white-space:normal")
             with ui.expansion("Aufteilung nach Maßnahmengruppen").classes("m-block m-breit m-rv-exp"):
                 _gruppen_chart(pg)
+            _vergleich_tabelle(d)
             _tabelle(a, pg)
             _neue(pg)
             _test(d["tests"])
@@ -304,3 +324,98 @@ def _plaetze_panel(a) -> None:
             knopf("Hinzufügen", speichern, "primaer", "add")
             knopf("Schließen", a.panel_zu, "leise")
     a.panel("Geplante Plätze", bauen)
+
+
+# ---- Auswahl und Vergleich (0.52) -----------------------------------------------------------------------
+
+KURZ = {"lang": "Haupt", "vorbereitung": "Vorb.", "ibtz": "IBTZ", "uebrige": "übrige", "ohne": "ohne Zimmer"}
+
+
+def _auswahl(a, d) -> None:
+    optionen = {f: f"{f} · {KURZ.get(g, g)}" for f, g, _t in d["liste"]}
+    ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",
+              on_change=lambda e: a.setzen(mn_auswahl=list(e.value or []), nur_seite=True)).classes("m-feld").props(
+        'dense outlined dark use-chips clearable options-dense popup-content-class="m-popup"').style("min-width:340px;max-width:620px")
+    if len(d["auswahl"]) >= 2:
+        segmente({"summe": "Summe", "vergleich": "Vergleich"}, d["modus"], lambda v: a.setzen(mn_modus=v, nur_seite=True),
+                 sofort=True)
+    hauptarten = [f for f, g, _t in d["liste"] if g == "lang"]
+    if hauptarten and d["auswahl"] != hauptarten:
+        knopf("Alle Hauptmaßnahmen", lambda: a.setzen(mn_auswahl=hauptarten, nur_seite=True), "leise", "checklist")
+
+
+def _vergleich_chart(je: dict) -> None:
+    from . import seite_auswertung as sa
+
+    t = sa._T()
+    farben = [t["akzent"], t.get("blau", "#5b8def"), t.get("orange", "#d68910"), t.get("gruen", "#3aa76d"),
+              t.get("rot", "#d64545"), "#9b6bd6", "#c2a14a", "#4fb3bf", t["text2"], "#d67fa6"]
+    if not je:
+        ui.label("Keine Daten für die Auswahl.").classes("m-zweite")
+        return
+    erste = next(iter(je.values()))
+    x = [f"{MON[z.monat.month - 1]} {z.monat.year % 100}" for z in erste.zeilen]
+    h = next((i for i, z in enumerate(erste.zeilen) if z.art == "prognose"), len(x) - 1)
+    opt = sa._chart_basis()
+    opt["xAxis"]["data"] = x
+    opt["xAxis"]["boundaryGap"] = False
+    opt["yAxis"]["scale"] = False
+    opt["grid"]["top"] = 44
+    opt["legend"]["type"] = "scroll"
+    reihen = []
+    for i, (fam, pg) in enumerate(je.items()):
+        f = farben[i % len(farben)]
+        werte = [round(z.summe, 1) for z in pg.zeilen]
+        reihen.append({"name": fam, "type": "line", "symbol": "none", "data": [w if k <= h else None for k, w in enumerate(werte)],
+                       "lineStyle": {"color": f, "width": 2.5}})
+        reihen.append({"name": fam, "type": "line", "symbol": "none", "data": [w if k >= h else None for k, w in enumerate(werte)],
+                       "lineStyle": {"color": f, "width": 2.5, "type": "dashed"}})
+    reihen[0]["markArea"] = {"silent": True, "itemStyle": {"color": t["akzent"], "opacity": .05},
+                             "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "formatter": "Prognose"},
+                             "data": [[{"xAxis": x[h]}, {"xAxis": x[-1]}]]}
+    opt["series"] = reihen
+    opt["legend"]["data"] = list(je)
+    sa._chart(opt)
+
+
+def _pfeil(x: float | None) -> tuple[str, str]:
+    if x is None:
+        return "–", ""
+    p = round(100 * x)
+    return (f"{p:+d} %".replace("-", "−") if p else "±0 %"), ("m-krit" if p <= -10 else "m-ok" if p >= 10 else "")
+
+
+def _vergleich_tabelle(d) -> None:
+    zeilen = d.get("vergleich") or []
+    if not zeilen:
+        return
+    einheit = "Betten" if d["internat"] else "TN"
+    with ui.element("section").classes("m-block m-breit"):
+        ui.label("Maßnahmen im Vergleich" + ("" if d["auswahl"] else " – alle Hauptmaßnahmen, Vorbereitung und IBTZ")).classes(
+            "m-btitel")
+        with ui.element("div").classes("m-tab-scroll"):
+            with tabelle("minmax(110px, 1.2fr) auto auto auto auto auto auto auto auto auto auto"):
+                with ui.element("div").classes("m-raster m-tkopf"):
+                    for t in ("Art", "Gruppe", "TN-Tage 12 Mon.", "Trend z. Vorjahr", "Starts/Jahr", "Kursgröße (früher)",
+                              "Verbleib", "Internat", f"heute ({einheit})", "in 12 Mon.", "in 24 Mon."):
+                        ui.label(t)
+                for z in sorted(zeilen, key=lambda z: -z.tage_12m):
+                    with ui.element("div").classes("m-raster m-zeile"):
+                        ui.label(z.familie).classes("m-name")
+                        ui.label(KURZ.get(z.gruppe, z.gruppe)).classes("m-zweite")
+                        ui.label(_z(z.tage_12m)).classes("m-mono")
+                        txt, kl = _pfeil(z.trend)
+                        ui.label(txt).classes(f"m-mono {kl}")
+                        ui.label(_z(z.starts_jahr, 1)).classes("m-mono")
+                        g, gv = _z(z.groesse), _z(z.groesse_vorher)
+                        ui.label(f"{g} ({gv})").classes("m-mono")
+                        ui.label(f"{round(100 * z.verbleib)} %" if z.verbleib is not None else "–").classes(
+                            "m-mono" + (" m-krit" if z.verbleib is not None and z.verbleib < .6 else ""))
+                        ui.label(f"{round(100 * z.internat)} %" if z.internat is not None else "–").classes("m-mono")
+                        for w in (z.heute, z.in12, z.in24):
+                            ui.label(_z(w)).classes("m-mono")
+        ui.label("Lesart für die Leitung: Trend = Teilnehmertage der letzten 12 Monate gegen die 12 Monate davor · Kursgröße "
+                 "= Median der Kurse der letzten 3 Jahre (in Klammern die 3 Jahre davor) · Verbleib = am Kursende noch dabei "
+                 "(rot unter 60 %) · Internat = Anteil ohne P laut Anreiselisten. Ob sich eine Maßnahme lohnt, lässt sich "
+                 "daraus nur zur Nachfrage sagen – für Wirtschaftlichkeit fehlen Erlöse und Kosten je Maßnahme.").classes(
+            "m-xk-hinweis")

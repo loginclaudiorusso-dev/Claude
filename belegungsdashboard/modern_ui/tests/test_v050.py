@@ -143,3 +143,20 @@ def test_drei_vorjahre_und_seltene_kurse_anteilig(leer):
     assert ab.start == date(2026, 6, 1) and ab.spitze == 20 and max(ab.klein) == 10 and max(ab.gross) == 30
     cd = next(e for e in neu if e.familie == "GS CD")
     assert cd.spitze == 4.5 and max(cd.gross) == 9                                  # anteilig, nach oben voll
+
+
+def test_auswahl_und_vergleich_je_massnahme(leer):
+    from modern import massnahmen_kern as mk
+
+    mk.pivot_uebernehmen(mk.pivot_aus_zeilen(_pivot()), "p.xlsx")
+    liste = mk.familien_liste(None, date(2026, 11, 3))
+    assert liste[0][0] == "GS VW" and {f for f, _g, _t in liste} >= {"GS VW", "GS FISY", "GS EMR ASS"}
+    alle = mk.prognose(None, date(2026, 11, 3), 12, 24)
+    nur_vw = mk.prognose(None, date(2026, 11, 3), 12, 24, familien={"GS VW"})
+    assert 0 < nur_vw.zeilen[0].summe < alle.zeilen[0].summe and [f.familie for f in nur_vw.familien] == ["GS VW"]
+    emr = mk.prognose(None, date(2026, 11, 3), 12, 24, familien={"GS EMR ASS"})
+    assert emr is not None and [f.familie for f in emr.familien] == ["GS EMR ASS"]     # ausdrücklich gewählt: auch „übrige“
+    v = {z.familie: z for z in mk.vergleich(None, date(2026, 11, 3), ["GS VW", "GS FISY"])}
+    assert v["GS VW"].groesse == 20 and v["GS FISY"].starts_jahr == 2 and abs(v["GS VW"].trend) < .1
+    je = mk.je_familie(None, date(2026, 11, 3), ["GS VW", "GS FISY"], 12, 24, False)
+    assert set(je) == {"GS VW", "GS FISY"} and len(je["GS VW"].zeilen) == 37

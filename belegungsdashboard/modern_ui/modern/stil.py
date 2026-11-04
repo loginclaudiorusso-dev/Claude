@@ -1209,3 +1209,9 @@ button.m-kpikarte { font: inherit; color: inherit; text-align: left; cursor: poi
 .m-liste-zeile.m-klick { cursor: pointer; border-radius: 8px; }
 .m-liste-zeile.m-klick:hover { background: var(--fl2); }
 """
+
+CSS += """
+/* 0.52: Maßnahmen-Vergleich – Trend farbig, Auswahl-Chips ruhig */
+.m-mono.m-ok { color: var(--gruen); }
+.m-leiste .q-select .q-chip { font-size: 12px; margin: 2px 3px; }
+"""

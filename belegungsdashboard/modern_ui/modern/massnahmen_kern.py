@@ -460,7 +460,9 @@ class Prognose:
     familien: list = field(default_factory=list)   # Tabelle je Art (Hauptmaßnahmen, Vorbereitung, IBTZ)
 
 
-def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 24, internat: bool = False) -> Prognose | None:
+def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 24, internat: bool = False,
+             familien: set | None = None) -> Prognose | None:
+    """``familien``: nur diese Maßnahmenarten (None = alle außer „ohne Zimmer“)."""
     roh = daten if daten is not None else _roh()
     ks = kurse(roh)
     if not ks:
@@ -470,7 +472,12 @@ def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 2
     faktor = (lambda fam: anteile.get(fam, gesamt if gesamt is not None else 1.0)) if internat else (lambda fam: 1.0)
     quelle = ("aus den Anreiselisten" if anteile else "Anteil über alle Listen" if gesamt is not None
               else "keine Anreiselisten – 100 % angenommen") if internat else ""
-    zeigen = [f for f in gr if gr[f] != "ohne"]
+    if familien:
+        ks = [k for k in ks if k.familie in familien]
+        gr = {f: ("uebrige" if g == "ohne" else g) for f, g in gr.items()}        # ausdrücklich gewählt = zählt
+        if not ks:
+            return None
+    zeigen = [f for f in gr if gr[f] != "ohne" and (not familien or f in familien)]
     daten_ab = date.fromisoformat((roh.get("pivot") or {}).get("von") or min(k.start for k in ks).isoformat())
     akt = date(stichtag.year, stichtag.month, 1)
     erster = akt
@@ -501,7 +508,7 @@ def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 2
                     kl += _monatsmittel(lambda t, e=e: e.am(t, "klein"), m) * f
                     gr_ += _monatsmittel(lambda t, e=e: e.am(t, "gross"), m) * f
         zeilen.append(MZeile(m, "prognose" if prog else "ist", je, geb, erw, kl, gr_))
-    tab = familien_tabelle(ks, neu, gr, stichtag, faktor)
+    tab = familien_tabelle(ks, neu, gr, stichtag, faktor, bool(familien))
     return Prognose(zeilen, neu, stichtag, internat, quelle, gr, tab)
 
 
@@ -519,10 +526,10 @@ class FZeile:
     kurse_3j: int
 
 
-def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, faktor) -> list[FZeile]:
+def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, faktor, alle: bool = False) -> list[FZeile]:
     erg = []
     for fam in sorted({k.familie for k in ks}):
-        if gr.get(fam) not in ("lang", "vorbereitung", "ibtz"):
+        if not alle and gr.get(fam) not in ("lang", "vorbereitung", "ibtz"):
             continue
         eigene = [k for k in ks if k.familie == fam]
         n_neu = [e for e in neu if e.familie == fam]
@@ -615,3 +622,81 @@ def stand() -> dict:
             | {"kurse": len(pv.get("kurse") or {})},
             "listen": li and {"kurse": len(li.get("kurse") or {}), "dateien": li.get("dateien") or []},
             "plaetze": roh.get("plaetze") or []}
+
+
+# ---- Auswahl und Vergleich (0.52) ------------------------------------------------------------------------
+
+def familien_liste(daten: dict | None = None, stichtag: date | None = None) -> list[tuple[str, str, float]]:
+    """(Art, Gruppe, Teilnehmertage der letzten 12 Monate) – für die Auswahl, größte zuerst."""
+    roh = daten if daten is not None else _roh()
+    stichtag = stichtag or date.today()
+    gr = gruppen(roh)
+    tage: dict[str, float] = {}
+    for k in kurse(roh):
+        a = max(k.start, stichtag - timedelta(days=365))
+        e = min(k.ende, stichtag)
+        if a <= e:
+            tage[k.familie] = tage.get(k.familie, 0.0) + sum(k.werte[(a - k.start).days:(e - k.start).days + 1])
+        else:
+            tage.setdefault(k.familie, 0.0)
+    return sorted(((f, gr.get(f, "uebrige"), t) for f, t in tage.items()), key=lambda x: -x[2])
+
+
+@dataclass
+class VZeile:
+    """Eine Maßnahmenart im Vergleich – Kennzahlen für die Leitung (keine Wirtschaftlichkeit, dafür fehlen Erlöse)."""
+    familie: str
+    gruppe: str
+    tage_12m: float               # Teilnehmertage der letzten 12 Monate
+    tage_vorjahr: float           # die 12 Monate davor
+    starts_jahr: float            # Kursstarts je Jahr (Mittel der letzten 3 Jahre)
+    groesse: float | None         # Kursgröße (Median letzte 3 Jahre)
+    groesse_vorher: float | None  # Kursgröße (Median der 3 Jahre davor)
+    verbleib: float | None
+    internat: float | None
+    heute: float
+    in12: float
+    in24: float
+
+    @property
+    def trend(self) -> float | None:
+        return (self.tage_12m / self.tage_vorjahr - 1) if self.tage_vorjahr else None
+
+
+def vergleich(daten: dict | None, stichtag: date, familien: list[str], internat: bool = False) -> list[VZeile]:
+    roh = daten if daten is not None else _roh()
+    ks = kurse(roh)
+    gr = gruppen(roh)
+    anteile, gesamt = internat_anteile(roh)
+    erg = []
+    for fam in familien:
+        eigene = [k for k in ks if k.familie == fam]
+        if not eigene:
+            continue
+
+        def tage(von: date, bis: date, eigene=eigene) -> float:
+            s = 0.0
+            for k in eigene:
+                a, e = max(k.start, von), min(k.ende, bis)
+                if a <= e:
+                    s += sum(k.werte[(a - k.start).days:(e - k.start).days + 1])
+            return s
+        j3 = [k for k in eigene if stichtag - timedelta(days=3 * 365) <= k.start <= stichtag]
+        j6 = [k for k in eigene if stichtag - timedelta(days=6 * 365) <= k.start < stichtag - timedelta(days=3 * 365)]
+        verbleib = [k.werte[-31] / max(k.werte[:60]) for k in j3
+                    if k.ende < stichtag and len(k.werte) > 90 and max(k.werte[:60])]
+        einzel = prognose(roh, stichtag, 0, 24, internat, {fam})
+        werte = [z.summe for z in einzel.zeilen] if einzel else [0.0]
+        erg.append(VZeile(fam, gr.get(fam, "uebrige"), tage(stichtag - timedelta(days=365), stichtag),
+                          tage(stichtag - timedelta(days=730), stichtag - timedelta(days=366)), len(j3) / 3,
+                          stt.median([k.spitze for k in j3]) if j3 else None,
+                          stt.median([k.spitze for k in j6]) if j6 else None,
+                          stt.median(verbleib) if verbleib else None, anteile.get(fam, gesamt),
+                          werte[0], werte[min(12, len(werte) - 1)], werte[min(24, len(werte) - 1)]))
+    return erg
+
+
+def je_familie(daten: dict | None, stichtag: date, familien: list[str], zurueck: int, vor: int, internat: bool) -> dict:
+    """Art → Prognose (für die Vergleichslinien)."""
+    roh = daten if daten is not None else _roh()
+    return {f: p for f in familien if (p := prognose(roh, stichtag, zurueck, vor, internat, {f})) is not None}
