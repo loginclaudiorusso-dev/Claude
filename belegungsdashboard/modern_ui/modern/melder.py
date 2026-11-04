@@ -179,6 +179,12 @@ def autostart_aktiv() -> bool:
 
 def autostart_befehl(ordner: Path) -> str:
     """Inhalt der .cmd: startet die neue Oberfläche minimiert (pythonw aus der eigenen .venv, sonst Start.bat)."""
+    import os
+
+    from .netz_kern import START_ENV
+
+    if start := os.environ.get(START_ENV):        # 0.54: Netzwerkordner – über „INNternat starten.bat“
+        return f'@echo off\r\nchcp 65001 >nul\r\ncall "{start}" {MINIMIERT}\r\n'
     pythonw = ordner / ".venv" / "Scripts" / "pythonw.exe"
     kopf = f'@echo off\r\nchcp 65001 >nul\r\ncd /d "{ordner}"\r\n'
     if pythonw.exists():

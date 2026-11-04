@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.53.0
+# Neue Oberfläche (modern_ui) – Version 0.54.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -6,7 +6,10 @@ dieselben Dateien, dieselben Zuteil-Regeln, dasselbe Rückgängig. Beide Program
 
 ## Starten
 
-Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\Start.bat`. Beim ersten Start
+**Neu ab 0.54 – gemeinsamer Netzwerkordner:** Das Paket `INNternat.zip` in den Netzwerkordner entpacken und
+`INNternat starten.bat` doppelklicken (Einzelheiten unten und in `LIESMICH.txt` im Paket).
+
+Bisherige Einzelplatz-Installation: Das Update-Zip wie immer nach `INNternat` entpacken, dann `INNternat\modern_ui\Start.bat`. Beim ersten Start
 (und wenn neue Pakete dazukommen) richtet sie ihre eigene Python-Umgebung ein (`modern_ui\.venv`, einige Minuten).
 
 * Eigenes Fenster (pywebview); klappt das nicht, ein Edge-Fenster ohne Adressleiste. Läuft nur auf dem eigenen
@@ -48,6 +51,41 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Gemeinsamer Netzwerkordner für 7–8 PCs (neu in 0.54)
+
+Ein Paket, das man nur entpackt – und alle PCs arbeiten auf denselben Daten.
+
+* **Aufbau:** `INNternat starten.bat` · `LIESMICH.txt` · `Programm\` (wird bei einem Update ersetzt) · `Daten\`
+  (gemeinsame Daten aller PCs, entsteht beim ersten Start und bleibt bei Updates unangetastet). Gebaut wird das Paket
+  mit `python3 modern_ui/netz/paket_bauen.py INNternat.zip` – nur Dateien aus dem Repository, nie lokale Daten.
+* **Jeder PC startet selbst.** Die Startdatei legt die Python-Umgebung lokal an (`%LOCALAPPDATA%\INNternat\venv`, einmal
+  je PC), ebenso Protokoll, Zwischenspeicher (`.pyc`) und NiceGUI-Ablage – nichts davon im Netzwerkordner. Beim ersten
+  Start kommt eine Verknüpfung „INNternat“ auf den Desktop. „Mit Windows starten“ läuft über die Startdatei.
+* **Daten übernehmen:** Ist `Daten` noch leer, fragt INNternat nach dem bisherigen Ordner. *Prüfen* zeigt, was kopiert
+  wird (Planung, Listen, Gebäudeplan, Vorlagen, Logo, Sicherungen, alle Standorte – keine Programmdateien), *Übernehmen*
+  kopiert. Der bisherige Ordner bleibt unverändert und ist damit zugleich die Sicherung. Der gespeicherte Pfad zur
+  Pivot-Datei wird auf die Kopie umgestellt. Übernommen wird nur in einen leeren Datenordner. Auch unter
+  *Einstellungen → Sicherung & Verlauf*.
+* **Schreibsperre:** Jede Änderung läuft unter einer kurzen Sperre im Datenordner (`.innternat_sperre`). Zwei PCs
+  speichern nie gleichzeitig; wer gerade dran ist, wird kurz abgewartet (bis 15 s), sonst kommt „Gerade speichert …“.
+  Eine Sperre eines abgestürzten PCs gilt nach 90 s als verwaist.
+* **Speichern mit Wiederholung:** Liest ein anderer PC eine Datei gerade, verweigert Windows das Ersetzen – es wird
+  einige Sekunden wiederholt. Bleibt eine Datei beim Lesen gesperrt, gibt es eine Meldung statt still mit leeren
+  Daten weiterzurechnen (und sie danach zu überschreiben).
+* **Wer hat geändert:** Die anderen PCs laden innerhalb von 30 s neu und zeigen kurz „Aktualisiert: … – gespeichert
+  von Name an PC um 14:32“. Rückgängig nimmt weiterhin nur die eigene letzte Änderung zurück – und nur, solange danach
+  niemand anderes an derselben Planung gespeichert hat.
+* **Persönlich je PC:** Darstellung, „Später“, Begrüßung und der zuletzt gewählte Standort liegen lokal
+  (`einstellungen_lokal.json`); beim ersten Start wird die bisherige gemeinsame Einstellung übernommen.
+* **Tägliche Sicherung:** Beim ersten Start des Tages (und bei einer neuen Version) sichert genau ein PC die Daten
+  jedes Standorts (30 Stände). Bisher übernahm das nur das alte Programm – ohne es gab es keine automatische Sicherung.
+* **Update:** alle PCs schließen, `Programm` löschen, neues Zip entpacken. Ein PC, der noch läuft, meldet „Neue
+  Version ist eingespielt – bitte neu starten“. Pivot-Dateien legt INNternat jetzt im Datenordner ab, nicht mehr im
+  Programmordner.
+* **Bisheriges Programm (PySide):** läuft im Netzwerkordner nicht mehr. Es kennt weder Standorte noch Schreibsperre und
+  würde neben den anderen PCs Daten überschreiben. Sein Code liegt als Bibliothek unter `Programm\belegung`; Startdatei
+  und Oberfläche des alten Programms sind nicht im Paket.
 
 ## Maßnahmen im Vergleich, Zimmer hinzufügen (neu in 0.53)
 
@@ -1041,4 +1079,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0`, vor 0.54.0 `backup/modern-0.53.0` (jeweils auch als Zip in `Sicherung`).

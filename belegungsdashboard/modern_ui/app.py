@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -19,10 +20,24 @@ HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER))
 sys.path.insert(0, str(HIER.parent))          # Hauptprogramm (belegung) – wird nur benutzt, nicht verändert
 
-logging.basicConfig(filename=HIER / "modern_ui.log", level=logging.INFO, encoding="utf-8",
+from modern import netz_kern  # noqa: E402 – rein, ohne NiceGUI
+
+# 0.54: Alles, was nur diesen PC betrifft, liegt lokal (%LOCALAPPDATA%\INNternat) – im Netzwerkordner würden sich
+# 8 PCs Protokoll, Zwischenspeicher und NiceGUI-Ablage teilen. Ohne Netzwerkstart bleibt das Protokoll, wo es war.
+LOKAL = netz_kern.lokal_ordner()
+try:
+    LOKAL.mkdir(parents=True, exist_ok=True)
+except OSError:
+    LOKAL = HIER
+PROTOKOLL = (LOKAL if netz_kern.netzbetrieb() else HIER) / "modern_ui.log"
+if netz_kern.netzbetrieb():                       # .pyc nicht in den Netzwerkordner (setzt auch die Startdatei)
+    sys.pycache_prefix = sys.pycache_prefix or str(LOKAL / "pycache")
+os.environ.setdefault("NICEGUI_STORAGE_PATH", str(LOKAL / "nicegui"))
+
+logging.basicConfig(filename=PROTOKOLL, level=logging.INFO, encoding="utf-8",
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 if sys.stdout is None or sys.stderr is None:      # pythonw.exe (ohne Konsole): Ausgaben ins Protokoll statt ins Leere
-    _log = open(HIER / "modern_ui.log", "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+    _log = open(PROTOKOLL, "a", encoding="utf-8", buffering=1)  # noqa: SIM115
     sys.stdout = sys.stdout or _log
     sys.stderr = sys.stderr or _log
 sys.excepthook = lambda t, e, tb: logging.getLogger("start").critical("Abbruch", exc_info=(t, e, tb))

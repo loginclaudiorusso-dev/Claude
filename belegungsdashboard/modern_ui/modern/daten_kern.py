@@ -425,10 +425,11 @@ def zimmerpivot_importieren(pfad: Path) -> str:
 
 @im_haupt
 def pivot_setzen(pfad: Path, name: str) -> str:
-    """Neue Pivot-Datei: in den Programmordner legen und als Quelle merken."""
-    from belegung import konfig
+    """Neue Pivot-Datei: in den Datenordner legen und als Quelle merken (0.54: nicht mehr in den Programmordner –
+    der wird bei einem Update ersetzt; ohne eigenen Datenordner ist es derselbe Ordner wie bisher)."""
+    from .standort_kern import _BASIS
 
-    ziel = konfig.programmordner() / name
+    ziel = _BASIS() / name
     if ziel.resolve() != pfad.resolve():
         shutil.copy2(pfad, ziel)
     laden.lade(ziel)                          # prüft, ob sie sich lesen lässt (Fehler → ValueError o. ä.)

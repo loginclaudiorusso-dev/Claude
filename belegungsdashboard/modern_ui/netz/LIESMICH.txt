@@ -1,0 +1,50 @@
+INNternat im gemeinsamen Netzwerkordner
+=======================================
+
+Aufbau
+------
+  INNternat\
+    INNternat starten.bat   <- jeder PC startet INNternat hierüber
+    LIESMICH.txt            <- diese Datei
+    Programm\               <- das Programm (wird bei einem Update ersetzt)
+    Daten\                  <- die gemeinsamen Daten aller PCs (entsteht beim ersten Start)
+
+Erste Einrichtung (einmalig)
+----------------------------
+1. Das Zip in den Netzwerkordner entpacken, z. B. nach \\server\freigabe\INNternat.
+   Alle PCs brauchen Lese- und Schreibrechte auf diesen Ordner.
+2. Auf EINEM PC "INNternat starten.bat" doppelklicken.
+   Weil der Ordner "Daten" noch leer ist, fragt INNternat nach dem bisherigen Ordner
+   (dort, wo bisher "Start.bat" lag). "Prüfen" zeigt, was kopiert wird, "Übernehmen" kopiert es.
+   Der bisherige Ordner bleibt unverändert – er ist damit zugleich die Sicherung.
+   Danach INNternat einmal schließen und neu starten.
+3. Auf jedem weiteren PC einmal "INNternat starten.bat" doppelklicken. Beim ersten Mal wird
+   die Python-Umgebung auf diesem PC angelegt (1–3 Minuten) und eine Verknüpfung "INNternat"
+   auf den Desktop gelegt. Ab dann reicht die Verknüpfung.
+
+Voraussetzung auf jedem PC: Python 3.13 (python.org, Haken bei "Add Python to PATH").
+
+Mehrere PCs gleichzeitig
+------------------------
+- Jede Änderung wird kurz für die anderen PCs gesperrt gespeichert. Speichert ein anderer PC
+  gerade, wartet INNternat einige Sekunden; dauert es zu lange, kommt ein Hinweis
+  "Gerade speichert …" – dann einfach noch einmal klicken.
+- Die anderen PCs laden innerhalb von 30 Sekunden neu und zeigen kurz, was von wem gespeichert wurde.
+- "Rückgängig" nimmt nur die eigene letzte Änderung zurück – und nur, solange danach niemand
+  anderes an derselben Planung gespeichert hat.
+- Darstellung, "Später" und der gewählte Standort gelten je PC
+  (gespeichert unter %LOCALAPPDATA%\INNternat, ebenso Protokoll und Python-Umgebung).
+- Beim ersten Start des Tages sichert genau ein PC die Daten (Daten\Sicherungen, 30 Stände je Standort).
+
+Update einspielen
+-----------------
+1. INNternat auf allen PCs schließen.
+2. Den Ordner "Programm" löschen (NICHT "Daten").
+3. Das neue Zip in denselben Ordner entpacken.
+Laufende PCs, die das Update verpasst haben, zeigen "Neue Version ist eingespielt – bitte neu starten".
+
+Das bisherige Programm (PySide)
+-------------------------------
+Im Netzwerkordner läuft nur die neue Oberfläche. Das bisherige Programm wird nicht mehr gestartet:
+Es kennt weder die Standorte noch die Schreibsperre und würde neben den anderen PCs Daten überschreiben.
+Sein Programmcode liegt weiter unter Programm\belegung, weil die neue Oberfläche Teile davon nutzt.

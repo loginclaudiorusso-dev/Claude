@@ -95,14 +95,26 @@ def im_haupt(fn):
 # ---- Wahl merken ------------------------------------------------------------------------
 
 def gemerkt() -> str:
-    try:
-        k = json.loads((_BASIS() / _WAHL).read_text(encoding="utf-8")).get("standort", STANDARD)
-    except (OSError, ValueError):
-        return STANDARD
+    """Zuletzt gewählter Standort – seit 0.54 je PC (bisherige gemeinsame Wahl wird beim ersten Mal übernommen)."""
+    from . import netz_kern
+
+    k = netz_kern.lokal_lesen().get("standort")
+    if k is None:
+        try:
+            k = json.loads((_BASIS() / _WAHL).read_text(encoding="utf-8")).get("standort", STANDARD)
+        except (OSError, ValueError):
+            return STANDARD
     return k if k in STANDORTE else STANDARD
 
 
 def merken(kurz: str) -> None:
+    from . import netz_kern
+
+    try:
+        netz_kern.persoenlich_setzen("standort", kurz, je_standort=False)
+        return
+    except OSError:
+        pass
     p = _BASIS() / _WAHL
     try:
         p.parent.mkdir(parents=True, exist_ok=True)

@@ -291,16 +291,20 @@ def kennzahlen(stand: zp.Planstand, tag: date) -> dict[str, int]:
 
 def _schritt(titel: str, aktion: Callable[[], object], dateien: list[str] | None = None) -> object:
     """Alles oder nichts: bei einem Fehler wird der Stand davor zurückgeschrieben und der Fehler weitergereicht."""
+    from . import netz_kern
+
     namen = aenderungen._dateien() + [n for n in (dateien or []) if n not in aenderungen._dateien()]
-    vorher = aenderungen.schnappschuss(namen)
-    try:
-        erg = aktion()
-    except Exception:
-        for name, inhalt in vorher.items():
-            if aenderungen.schnappschuss([name])[name] != inhalt:
-                aenderungen._roh_schreiben(name, inhalt)
-        raise
-    aenderungen.merken(titel, vorher)
+    with netz_kern.sperre():                  # 0.54: nie zwei PCs gleichzeitig (Netzwerkordner)
+        vorher = aenderungen.schnappschuss(namen)
+        try:
+            erg = aktion()
+        except Exception:
+            for name, inhalt in vorher.items():
+                if aenderungen.schnappschuss([name])[name] != inhalt:
+                    aenderungen._roh_schreiben(name, inhalt)
+            raise
+        if aenderungen.merken(titel, vorher) is not None:
+            netz_kern.notieren(titel)
     return erg
 
 
@@ -673,8 +677,12 @@ def termin_erledigt(tid: str) -> str:
 
 
 def rueckgaengig() -> tuple[bool, str]:
-    erg = aenderungen.rueckgaengig("Neue Oberfläche")
-    from . import regeln_kern
+    from . import netz_kern, regeln_kern
+
+    with netz_kern.sperre():
+        erg = aenderungen.rueckgaengig("Neue Oberfläche")
+        if erg[0]:
+            netz_kern.notieren(f"Rückgängig: {erg[1]}")
 
     regeln_kern.neu_lesen()                   # z. B. Haus-6-Aufteilung zurückgeschaltet
     return erg
@@ -829,33 +837,35 @@ def ausfuehren(schluessel: str, heute: date | None = None) -> str:
 
 
 def spaeter(heute: date | None = None) -> set[str]:
+    from .netz_kern import persoenlich
+
     heute = heute or date.today()
-    roh = speicher.lesen(ZUSTAND, {}).get("spaeter", {})
+    roh = persoenlich("spaeter", {}) or {}
     return {k for k, bis in roh.items() if bis > heute.isoformat()}
 
 
 def spaeter_setzen(kid: str, an: bool = True, heute: date | None = None) -> None:
     """„Später“: Karte bis morgen ausblenden (an=False holt sie zurück)."""
+    from .netz_kern import persoenlich, persoenlich_setzen
+
     heute = heute or date.today()
-    roh = speicher.lesen(ZUSTAND, {})
-    s = {k: v for k, v in roh.get("spaeter", {}).items() if v > heute.isoformat()}
+    s = {k: v for k, v in (persoenlich("spaeter", {}) or {}).items() if v > heute.isoformat()}
     if an:
         s[kid] = (heute + timedelta(days=1)).isoformat()
     else:
         s.pop(kid, None)
-    roh["spaeter"] = s
-    speicher.schreiben(ZUSTAND, roh)
+    persoenlich_setzen("spaeter", s)
 
 
 def automatisch_oeffnen(ks: list[Karte], heute: date | None = None) -> bool:
     """Das Center öffnet sich von selbst, wenn Dringendes da ist, das heute noch nicht gezeigt wurde."""
+    from .netz_kern import persoenlich, persoenlich_setzen
+
     heute = heute or date.today()
-    roh = speicher.lesen(ZUSTAND, {})
-    gezeigt = set(roh.get("gezeigt", {}).get(heute.isoformat(), []))
+    gezeigt = set((persoenlich("gezeigt", {}) or {}).get(heute.isoformat(), []))
     neu = {k.id for k in ks if k.stufe == "dringend"} - gezeigt
     if neu:
-        roh["gezeigt"] = {heute.isoformat(): sorted(gezeigt | neu)}
-        speicher.schreiben(ZUSTAND, roh)
+        persoenlich_setzen("gezeigt", {heute.isoformat(): sorted(gezeigt | neu)})
     return bool(neu)
 
 
@@ -896,13 +906,15 @@ def symbol(kid: str) -> str:
 
 
 def willkommen_zeigen() -> bool:
-    return not speicher.lesen(ZUSTAND, {}).get("willkommen_gesehen")
+    from .netz_kern import persoenlich
+
+    return not persoenlich("willkommen_gesehen", False)
 
 
 def willkommen_weg() -> None:
-    roh = speicher.lesen(ZUSTAND, {})
-    roh["willkommen_gesehen"] = True
-    speicher.schreiben(ZUSTAND, roh)
+    from .netz_kern import persoenlich_setzen
+
+    persoenlich_setzen("willkommen_gesehen", True)
 
 
 # ---------------------------------------------------------------------------------------
@@ -956,33 +968,29 @@ def neue_personen(stand: zp.Planstand, heute: date | None = None, tage: int = NE
 
 def design_lesen() -> dict:
     """Layout, Theme, Hell/Dunkel, Dichte, schmale Leiste, Vollbild, Notiz – geprüft (Unbekanntes → Original)."""
+    from .netz_kern import persoenlich, persoenlich_setzen
     from .themes import bereinigen
 
-    from .standort_kern import haupt
-
-    with haupt():                             # Darstellung gilt für alle Standorte
-        roh = speicher.lesen(ZUSTAND, {})
-        if not roh.get("design_038"):         # einmalig: neue INNternat-Darstellung (zurück: „Original-Zustand“)
-            alt = roh.get("design", {})
-            roh["design"] = {**alt, "layout": "grid", "theme": "innternat", "modus": "dunkel", "schmal": False}
-            roh["design_038"] = True
-            try:
-                speicher.schreiben(ZUSTAND, roh)
-            except OSError:
-                pass
-        return bereinigen(roh.get("design", {}))
+    # 0.54: je PC (persönlich), gilt für alle Standorte; beim ersten Mal aus der gemeinsamen Datei übernommen
+    d = persoenlich("design", None, je_standort=False)
+    if not persoenlich("design_038", False, je_standort=False):   # einmalig: neue INNternat-Darstellung
+        d = {**(d or {}), "layout": "grid", "theme": "innternat", "modus": "dunkel", "schmal": False}
+        try:
+            persoenlich_setzen("design", d, je_standort=False)
+            persoenlich_setzen("design_038", True, je_standort=False)
+        except OSError:
+            pass
+    return bereinigen(d or {})
 
 
 def design_setzen(d: dict) -> dict:
+    from .netz_kern import persoenlich_setzen
     from .themes import bereinigen
 
-    from .standort_kern import haupt
-
-    with haupt():
-        roh = speicher.lesen(ZUSTAND, {})
-        roh["design"] = bereinigen(d)
-        speicher.schreiben(ZUSTAND, roh)
-    return roh["design"]
+    neu = bereinigen(d)
+    persoenlich_setzen("design", neu, je_standort=False)
+    persoenlich_setzen("design_038", True, je_standort=False)
+    return neu
 
 
 def kontingent_lesen(standort: str) -> dict | None:
@@ -1102,3 +1110,7 @@ def neu_gelesen(nid: str | None = None) -> None:
 from . import zimmer_zusatz_kern as _zusatz  # noqa: E402
 
 _zusatz.installieren()
+
+from . import netz_kern as _netz  # noqa: E402
+
+_netz.installieren()

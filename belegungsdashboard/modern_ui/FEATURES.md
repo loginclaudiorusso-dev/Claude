@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.53.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.54.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -141,3 +141,11 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 6 Themes (INNternat, Original, inn-tegrativ, Linear Monochrome, Executive Obsidian, Soft Nordic), hell/dunkel, Dichte
 - Haptik: Knöpfe geben beim Drücken nach, Arbeitsbalken beim Speichern, einrastende Bestätigung
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird
+
+## Netzwerkordner (mehrere PCs)
+- Ein Paket zum Entpacken: `INNternat starten.bat`, `Programm\`, `Daten\` – Updates ersetzen nur `Programm`
+- Jeder PC startet selbst; Python-Umgebung, Protokoll und persönliche Einstellungen lokal je PC, Desktop-Verknüpfung
+- Daten aus dem bisherigen Ordner übernehmen (prüfen, kopieren, alter Ordner bleibt unverändert)
+- Schreibsperre über alle PCs, Speichern und Lesen mit Wiederholung bei gesperrten Dateien
+- „Aktualisiert: … – gespeichert von …“ auf den anderen PCs; Hinweis bei neuer Version
+- Tägliche automatische Sicherung aller Standorte durch genau einen PC

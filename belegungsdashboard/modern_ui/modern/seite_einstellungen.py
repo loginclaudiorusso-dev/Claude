@@ -402,15 +402,28 @@ def _sicherung(a) -> None:
         with ui.element("div").classes("m-zwei"):
             with ui.element("section").classes("m-block"):
                 ui.label("Datensicherung").classes("m-btitel")
-                ui.label("Beim Start sichert das Hauptprogramm die Arbeitsdaten automatisch. Hier sichern Sie zusätzlich von "
-                         "Hand oder stellen einen Stand wieder her (der aktuelle Stand wird vorher gesichert).").classes("m-ptext")
+                ui.label("Beim ersten Start des Tages sichert INNternat die Arbeitsdaten jedes Standorts automatisch (im "
+                         "Netzwerk genau ein PC). Hier sichern Sie zusätzlich von Hand oder stellen einen Stand wieder her "
+                         "(der aktuelle Stand wird vorher gesichert).").classes("m-ptext")
+                from . import netz_kern, seite_netz
+
+                ui.label(f"Datenordner: {netz_kern.basis()}").classes("m-zweite").style("word-break: break-all")
+                ui.label(f"Persönliche Einstellungen dieses PCs: {netz_kern.lokal_ordner()}").classes("m-zweite").style(
+                    "word-break: break-all")
+
+                async def uebernehmen():
+                    if await seite_netz.uebernahme_dialog(a):
+                        seite_netz.neustart_hinweis()
 
                 async def sichern():
                     s = await run.io_bound(datensicherung.sichern, "manuell (neue Oberfläche)")
                     await a.laden()
                     a.toast(f"Gesichert: {s.text}" if s else "Nichts zu sichern.", rueck=False)
 
-                knopf("Jetzt sichern", sichern, "primaer", "backup")
+                with ui.element("div").classes("m-zeile").style("gap: 8px; flex-wrap: wrap"):
+                    knopf("Jetzt sichern", sichern, "primaer", "backup")
+                    knopf("Daten aus bisherigem Ordner übernehmen …", uebernehmen, "", "drive_file_move",
+                          "Einmalig beim Umzug in einen neuen (z. B. Netzwerk-)Ordner – nur in einen leeren Datenordner")
                 for s in a.daten["sicherungen"][:20]:
                     with ui.element("div").classes("m-notiz"):
                         ui.label(s.text).classes("m-ptext").style("color:var(--text)")

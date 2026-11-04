@@ -1222,3 +1222,11 @@ CSS += """
 .m-mn-kachel { border: 1px solid var(--rand); border-radius: 10px; padding: 10px 12px 4px; background: var(--fl); min-width: 0; }
 .m-mn-kachel .m-chart { height: 170px !important; }
 """
+
+# 0.54: Netzwerkordner – Daten übernehmen
+CSS += """
+.m-frage.m-netz { width: min(560px, 94vw); display: flex; flex-direction: column; gap: 6px; }
+.m-netz-erg { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.m-netz-erg .m-ok { color: var(--gruen); font-weight: 600; }
+.m-warn-text { color: var(--rot); }
+"""

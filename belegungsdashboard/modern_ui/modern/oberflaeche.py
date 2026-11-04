@@ -35,7 +35,11 @@ def _logo() -> str:
 
     from belegung import konfig
 
-    for ordner in (konfig.programmordner(), Path(__file__).resolve().parent.parent, konfig.programmordner() / "Vorlagen"):
+    from .standort_kern import _BASIS
+
+    orte = (_BASIS(), _BASIS() / "Vorlagen", konfig.programmordner(), Path(__file__).resolve().parent.parent,
+            konfig.programmordner() / "Vorlagen")
+    for ordner in dict.fromkeys(orte):          # 0.54: zuerst im Datenordner (Netzwerk: bleibt bei Updates erhalten)
         p = ordner / LOGO_DATEI
         try:
             if p.is_file() and p.stat().st_size < 3_000_000:
@@ -198,14 +202,22 @@ class Ansicht:
         um = getattr(self, "geladen_um", None) or datetime.now()
         el.set_text(f"Stand {um:%H:%M}" + (" · neue Daten" if wartet else ""))
         attr(el, title=(f"Daten zuletzt geladen um {um:%H:%M:%S}. "
-                        + ("Das Hauptprogramm hat inzwischen gespeichert – nach dem Schließen des Formulars wird neu geladen."
-                           if wartet else f"Speichert das Hauptprogramm, wird innerhalb von {PRUEF_S} s neu geladen.")))
+                        + ("Ein anderer PC (oder das Hauptprogramm) hat inzwischen gespeichert – nach dem Schließen des Formulars wird neu geladen."
+                           if wartet else f"Speichert ein anderer PC (oder das Hauptprogramm), wird innerhalb von {PRUEF_S} s neu geladen.")))
         el.classes(remove="neu warten")
         if extern or wartet:
             el.classes(add="warten" if wartet else "neu")
 
     async def pruefen(self) -> None:
-        """Hat das Hauptprogramm (oder jemand anderes) inzwischen gespeichert? Dann neu laden."""
+        """Hat das Hauptprogramm (oder ein anderer PC) inzwischen gespeichert? Dann neu laden."""
+        from . import netz_kern
+
+        if not getattr(self, "_version_gemeldet", False):   # 0.54: Update im Netzwerkordner eingespielt?
+            v = await run.io_bound(netz_kern.version_auf_platte)
+            if v and v != __version__:
+                self._version_gemeldet = True
+                self.toast(f"Neue Version {v} ist eingespielt – bitte INNternat schließen und neu starten.",
+                           rueck=False, dauer=120)
         try:
             neu = await run.io_bound(_stempel)
         except OSError:
@@ -217,6 +229,23 @@ class Ansicht:
             return
         await self.laden()
         self._datenstand(extern=True)
+        await self._fremd_melden()
+
+    async def _fremd_melden(self) -> None:
+        """0.54: Hat ein anderer PC gespeichert, kurz zeigen, was und von wem."""
+        from . import netz_kern
+
+        d = await run.io_bound(netz_kern.letzte_aenderung)
+        if not netz_kern.von_anderem(d) or d.get("zeit") == getattr(self, "_fremd_zeit", None):
+            return
+        self._fremd_zeit = d.get("zeit")
+        try:
+            alter = (datetime.now() - datetime.fromisoformat(d["zeit"])).total_seconds()
+        except (KeyError, ValueError):
+            return
+        if abs(alter) <= 300:
+            self.toast(f"Aktualisiert: {d.get('titel', '')} – gespeichert von {d.get('wer', 'einem anderen PC')} "
+                       f"um {d['zeit'][11:16]}", rueck=False)
 
     async def setzen(self, laden: bool = True, nur_seite: bool = False, **werte) -> None:
         """Zustand der Seite ändern (z. B. Haus im Zeitstrahl) und neu zeichnen.
@@ -1752,6 +1781,13 @@ async def startseite() -> None:
     if erster:
         await ui.context.client.connected()
         _START["gefragt"] = True
+        from . import netz_kern, seite_netz
+
+        # 0.54: neuer (leerer) Datenordner im Netzwerk → zuerst die bisherigen Daten übernehmen
+        if netz_kern.netzbetrieb() and not await run.io_bound(netz_kern.hat_daten, netz_kern.basis()):
+            if await seite_netz.uebernahme_dialog(a, beim_start=True):
+                seite_netz.neustart_hinweis()
+                return
         kurz = await a.standort_fragen()
         if kurz != standort_kern.aktiv().kurz:
             await run.io_bound(standort_kern.waehlen, kurz)
@@ -1764,8 +1800,14 @@ async def startseite() -> None:
         a.weniger_bewegung = bool(await ui.run_javascript("matchMedia('(prefers-reduced-motion: reduce)').matches", timeout=3))
     except Exception:                          # noqa: BLE001 – ohne Antwort: Animation wie gewohnt
         pass
-    from . import daten_kern
+    from . import daten_kern, netz_kern
 
+    if erster:                                 # 0.54: einmal am Tag sichern (genau ein PC, unter der Schreibsperre)
+        try:
+            for z in await run.io_bound(netz_kern.tagessicherung):
+                log.info("Tagessicherung %s", z)
+        except Exception:                      # noqa: BLE001 – Sicherung darf den Start nie verhindern
+            log.exception("Tagessicherung")
     # neue Dateien in „UWT“/„Listen“ (wie das Hauptprogramm) – mit Bericht, was sich dadurch geändert hat
     eingelesen, aenderungen = await run.io_bound(daten_kern.ordner_importieren_bericht)
     await a.laden()
