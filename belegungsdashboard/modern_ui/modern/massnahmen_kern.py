@@ -886,3 +886,313 @@ def je_familie(daten: dict | None, stichtag: date, familien: list[str], zurueck:
     """Art → Prognose (für die Vergleichslinien)."""
     roh = daten if daten is not None else _roh()
     return {f: p for f in familien if (p := prognose(roh, stichtag, zurueck, vor, internat, {f}, vorlauf)) is not None}
+
+
+# =========================================================================================================
+# 0.56: Neuanmeldungen je Halbjahr (alle Teilnehmenden – Pendler und Internat)
+# =========================================================================================================
+# Für die Wirtschaftsplanung zählt nicht der Bestand (eine zweijährige Maßnahme trägt zwei Jahrgänge), sondern wie
+# viele je Halbjahr NEU beginnen. Hauptmaßnahmen starten halbjährlich (meist Januar und Juni) – deshalb nach Startwelle:
+# Winterstart = November bis April (gezählt zum Jahr des Januars), Sommerstart = Mai bis Oktober. Ein Kalender-Halbjahr
+# Jan–Jun würde beide Wellen zusammenwerfen.
+# Welches Verfahren schätzt, entscheidet ein Rückwärtstest an den eigenen Daten (mehrere einfache Verfahren im Vergleich).
+
+NACHRUECK_TAGE = 42                # wer in den ersten 6 Wochen nachrückt, zählt zum Kurs
+AKTIV_MONATE = 24                  # ohne Start in dieser Zeit (und nichts gebucht): eingestellt
+AKTIV_MIN = 5                      # weniger Neuanmeldungen in 24 Monaten (inkl. gebucht): Kleinstmaßnahme
+VERFAHREN = {"vorjahr": "wie Vorjahr", "mittel3": "Mittel der letzten 3 Jahre",
+             "glatt": "gewichtetes Mittel (jüngere Jahre zählen mehr)", "trend": "gedämpfter Trend"}
+
+
+def neu_im_kurs(k: Kurs) -> int:
+    return max(k.werte[:NACHRUECK_TAGE]) if k.werte else 0
+
+
+WINTER_AB, SOMMER_AB = 11, 5       # Monat, ab dem die Winter- bzw. Sommerwelle zählt
+
+
+def halbjahr(d: date) -> tuple[int, int]:
+    """Startwelle: (Jahr, 1) = Winterstart Nov(Vorjahr)–Apr, (Jahr, 2) = Sommerstart Mai–Okt."""
+    if d.month >= WINTER_AB:
+        return d.year + 1, 1
+    return (d.year, 1) if d.month < SOMMER_AB else (d.year, 2)
+
+
+def hj_text(h: tuple[int, int]) -> str:
+    return f"{'Winterstart' if h[1] == 1 else 'Sommerstart'} {h[0]}"
+
+
+def hj_kurz(h: tuple[int, int]) -> str:
+    return f"{'W' if h[1] == 1 else 'S'} {h[0] % 100:02d}"
+
+
+def hj_start(h: tuple[int, int]) -> date:
+    return date(h[0] - 1, WINTER_AB, 1) if h[1] == 1 else date(h[0], SOMMER_AB, 1)
+
+
+def hj_ende(h: tuple[int, int]) -> date:
+    return (date(h[0], SOMMER_AB, 1) if h[1] == 1 else date(h[0], WINTER_AB, 1)) - timedelta(days=1)
+
+
+def hj_plus(h: tuple[int, int], n: int) -> tuple[int, int]:
+    i = h[0] * 2 + (h[1] - 1) + n
+    return i // 2, i % 2 + 1
+
+
+def _schaetzen(reihe: list[float], verfahren: str) -> float | None:
+    """Nächster Wert aus der Reihe desselben Halbjahrs (älteste zuerst)."""
+    if not reihe:
+        return None
+    if verfahren == "vorjahr":
+        return reihe[-1]
+    if verfahren == "mittel3":
+        r = reihe[-3:]
+        return sum(r) / len(r)
+    if verfahren == "glatt":                       # exponentielle Glättung, α = 0,5
+        s = reihe[0]
+        for x in reihe[1:]:
+            s = .5 * x + .5 * s
+        return s
+    if verfahren == "trend":                       # Holt, gedämpft (φ = 0,8), nie unter 0
+        if len(reihe) < 3:
+            return sum(reihe[-3:]) / len(reihe[-3:])
+        niveau, steig = reihe[0], reihe[1] - reihe[0]
+        for x in reihe[1:]:
+            alt = niveau
+            niveau = .5 * x + .5 * (niveau + .8 * steig)
+            steig = .3 * (niveau - alt) + .7 * .8 * steig
+        return max(0.0, niveau + .8 * steig)
+    raise ValueError(verfahren)
+
+
+@dataclass
+class HZeile:
+    hj: tuple[int, int]
+    art: str                      # ist | laufend | prognose
+    ist: float                    # schon begonnen (bzw. Ist)
+    gebucht: float                # schon gebucht, Start noch offen
+    erwartet: float               # Schätzung gesamt (Ist + gebucht + Nachbuchung bzw. Verfahren)
+    klein: float
+    gross: float
+    geplant: bool = False         # eigene geplante Plätze
+
+    @property
+    def text(self) -> str:
+        return hj_text(self.hj)
+
+
+@dataclass
+class NReihe:
+    familie: str
+    gruppe: str
+    zeilen: list[HZeile]
+    letzte12: float               # Neuanmeldungen der letzten 12 Monate
+    vorige12: float               # die 12 Monate davor
+    jahr_mittel: float            # Ø je Jahr (letzte 3 volle Jahre)
+    naechstes_jahr: float         # erwartet im nächsten Kalenderjahr (H1 + H2)
+    eingestellt: bool
+    klein_massnahme: bool
+
+    @property
+    def trend(self) -> float | None:
+        return (self.letzte12 / self.vorige12 - 1) if self.vorige12 >= 3 else None
+
+    @property
+    def aktiv(self) -> bool:
+        return not self.eingestellt and not self.klein_massnahme
+
+
+@dataclass
+class VTest:
+    verfahren: str
+    text: str
+    wape: float | None            # Σ|Fehler| / Σ Ist über alle Halbjahre und Maßnahmen
+    bias: float | None            # Σ Fehler / Σ Ist (+ = zu hoch geschätzt)
+    n: int                        # verglichene Halbjahre (je Maßnahme)
+    fehler: list = field(default_factory=list)    # relative Fehler (für die Spanne)
+
+
+def _starts(ks: list[Kurs], daten_ab: date) -> list[Kurs]:
+    """Kurse mit bekanntem Start (nicht schon am Datenbeginn gelaufen)."""
+    return [k for k in ks if k.start > daten_ab + timedelta(days=30)]
+
+
+def _hj_summe(ks: list[Kurs], h: tuple[int, int], bis: date | None = None) -> float:
+    a, e = hj_start(h), hj_ende(h)
+    if bis is not None:
+        e = min(e, bis)
+    return float(sum(neu_im_kurs(k) for k in ks if a <= k.start <= e))
+
+
+def _reihe(ks: list[Kurs], h: tuple[int, int], vor: date, erster: tuple[int, int]) -> list[float]:
+    """Werte desselben Halbjahrs in früheren Jahren (ab ``erster``, nur vollständig vor ``vor`` beobachtete)."""
+    erg, j = [], erster[0] + (1 if erster[1] > h[1] else 0)
+    while (j, h[1]) < h:
+        if hj_ende((j, h[1])) < vor:
+            erg.append(_hj_summe(ks, (j, h[1])))
+        j += 1
+    return erg
+
+
+def _erstes_hj(daten_ab: date) -> tuple[int, int]:
+    """Erstes Halbjahr, in dem alle Starts bekannt sind (Kurse im ersten Monat der Daten können schon gelaufen sein)."""
+    h = halbjahr(daten_ab + timedelta(days=31))
+    return h if hj_start(h) > daten_ab + timedelta(days=30) else hj_plus(h, 1)
+
+
+def verfahren_testen(daten: dict | None = None, familien: list[str] | None = None) -> list[VTest]:
+    """Rückwärtstest je Verfahren: Für jedes vergangene Halbjahr mit mindestens 2 Vorjahren schätzen – nur mit dem,
+    was vorher bekannt war (keine Buchungen, also eher streng) – und mit dem Ist vergleichen. Kleinster WAPE gewinnt."""
+    roh = daten if daten is not None else _roh()
+    ks = kurse(roh)
+    if not ks:
+        return []
+    daten_ab = date.fromisoformat((roh.get("pivot") or {}).get("von") or min(k.start for k in ks).isoformat())
+    daten_bis = date.fromisoformat((roh.get("pivot") or {}).get("bis") or max(k.ende for k in ks).isoformat())
+    ende = min(daten_bis, date.today())
+    fams = familien if familien is not None else sorted({k.familie for k in ks})
+    starts = _starts(ks, daten_ab)
+    erster = _erstes_hj(daten_ab)
+    erg = []
+    for v, text in VERFAHREN.items():
+        summe_ist = summe_abs = summe_fehler = 0.0
+        n, rel = 0, []
+        for fam in fams:
+            eigene = [k for k in starts if k.familie == fam]
+            h = hj_plus(erster, 4)                               # erst ab 2 Vorjahren
+            while hj_ende(h) < ende:
+                vorher = _reihe(eigene, h, hj_start(h), erster)
+                if len(vorher) >= 2:
+                    p, i = _schaetzen(vorher, v), _hj_summe(eigene, h)
+                    if p is not None and (i or p):
+                        summe_ist += i
+                        summe_abs += abs(p - i)
+                        summe_fehler += p - i
+                        n += 1
+                        if i >= 3:
+                            rel.append((p - i) / i)
+                h = hj_plus(h, 1)
+        erg.append(VTest(v, text, summe_abs / summe_ist if summe_ist else None,
+                         summe_fehler / summe_ist if summe_ist else None, n, rel))
+    return sorted(erg, key=lambda t: (t.wape is None, t.wape or 0))
+
+
+def bestes_verfahren(tests: list[VTest]) -> str:
+    gut = [t for t in tests if t.wape is not None and t.n >= 3]
+    return gut[0].verfahren if gut else "mittel3"
+
+
+def _spanne(rel: list[float]) -> tuple[float, float]:
+    """Typische Abweichung aus dem Rückwärtstest (10.–90. Perzentil), sonst ±25 %."""
+    if len(rel) < 5:
+        return -.25, .25
+    r = sorted(rel)
+    lo, hi = r[int(.1 * (len(r) - 1))], r[int(round(.9 * (len(r) - 1)))]
+    return max(-.9, min(lo, -.05)), max(hi, .05)
+
+
+def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | None = None, zurueck: int = 8,
+                   vor: int = 4, verfahren: str | None = None, vorlauf: list[int] | None = None,
+                   tests: list[VTest] | None = None) -> dict[str, NReihe]:
+    """Je Maßnahmenart: Neuanmeldungen je Halbjahr – ``zurueck`` Halbjahre Ist, das laufende, ``vor`` Halbjahre voraus.
+
+    Künftige Halbjahre: schon gebuchte Starts + erwartete Nachbuchung (Buchungskurve wie 0.55); ohne Buchungen das
+    Verfahren mit dem kleinsten Fehler im Rückwärtstest. Eigene geplante Plätze ersetzen die Schätzung."""
+    roh = daten if daten is not None else _roh()
+    ks = kurse(roh)
+    if not ks:
+        return {}
+    gr = gruppen(roh)
+    daten_ab = date.fromisoformat((roh.get("pivot") or {}).get("von") or min(k.start for k in ks).isoformat())
+    erster = _erstes_hj(daten_ab)
+    starts = _starts(ks, daten_ab)
+    tests = tests if tests is not None else verfahren_testen(roh)
+    verfahren = verfahren or bestes_verfahren(tests)
+    lo, hi = _spanne(next((t.fehler for t in tests if t.verfahren == verfahren), []))
+    pk = pickup_kurve(vorlauf)
+    geplant: dict[tuple, int] = {}
+    for p in roh.get("plaetze") or []:
+        try:
+            h = halbjahr(date.fromisoformat(p["monat"] + "-01"))
+        except (KeyError, ValueError):
+            continue
+        geplant[(p["familie"], h)] = geplant.get((p["familie"], h), 0) + int(p["plaetze"])
+    jetzt = halbjahr(stichtag)
+    fams = familien if familien is not None else sorted({k.familie for k in ks})
+    erg = {}
+    for fam in fams:
+        eigene = [k for k in starts if k.familie == fam]
+        alle_eigene = [k for k in ks if k.familie == fam]
+        if not alle_eigene:
+            continue
+        zeilen = []
+        for n in range(-zurueck, vor + 1):
+            h = hj_plus(jetzt, n)
+            if h < erster:
+                continue
+            if n < 0:
+                i = _hj_summe(eigene, h)
+                zeilen.append(HZeile(h, "ist", i, 0.0, i, i, i))
+                continue
+            ist = _hj_summe(eigene, h, stichtag)
+            gebuchte = [k for k in eigene if stichtag < k.start <= hj_ende(h)
+                        and k.start >= hj_start(h)]
+            geb = float(sum(neu_im_kurs(k) for k in gebuchte))
+            reihe = _reihe(eigene, h, stichtag, erster)
+            voll = _schaetzen(reihe, verfahren) or 0.0
+            # Anteil des Halbjahrs, der noch aussteht (in den Vorjahren: Starts nach dem heutigen Tag im Halbjahr)
+            if n == 0 and reihe:
+                vorj = [_hj_summe(eigene, (h[0] - j, h[1])) for j in range(1, 4) if (h[0] - j, h[1]) >= erster]
+                rest_vorj = [_hj_summe([k for k in eigene if k.start > _jahr_verschoben(stichtag, -j)], (h[0] - j, h[1]))
+                             for j in range(1, 4) if (h[0] - j, h[1]) >= erster]
+                anteil_rest = (sum(rest_vorj) / sum(vorj)) if sum(vorj) else 0.0
+            else:
+                anteil_rest = 1.0
+            hist_rest = voll * anteil_rest
+            if gebuchte:
+                d = sum((k.start - stichtag).days for k in gebuchte) / len(gebuchte)
+                rest = nachbuchung(geb, hist_rest, pk(d), deckel=max(reihe) if reihe else None)
+            else:
+                d = max(0, (hj_start(h) - stichtag).days) + 60
+                rest = hist_rest if n > 0 else nachbuchung(0.0, hist_rest, pk(d))
+            gesamt = ist + max(rest, geb)
+            plan = geplant.get((fam, h))
+            zeilen.append(HZeile(h, "laufend" if n == 0 else "prognose", ist, geb,
+                                 float(plan) if plan is not None else gesamt,
+                                 float(plan) if plan is not None else max(ist + geb, gesamt * (1 + lo)),
+                                 float(plan) if plan is not None else gesamt * (1 + hi), plan is not None))
+        heute = stichtag
+
+        def neu_zw(a: date, b: date) -> float:
+            return float(sum(neu_im_kurs(k) for k in alle_eigene if a < k.start <= b))
+        letzte, vorige = neu_zw(heute - timedelta(days=365), heute), neu_zw(heute - timedelta(days=730), heute - timedelta(days=365))
+        volle = [neu_zw(date(heute.year - j - 1, 12, 31), date(heute.year - j, 12, 31)) for j in range(1, 4)]
+        naechst = sum(z.erwartet for z in zeilen if z.hj[0] == heute.year + 1)
+        letzter_start = max((k.start for k in alle_eigene if k.start <= heute), default=None)
+        kuenftig = any(k.start > heute for k in alle_eigene)
+        eingestellt = not kuenftig and (letzter_start is None or (heute - letzter_start).days > AKTIV_MONATE * 30.4)
+        klein_m = (neu_zw(heute - timedelta(days=730), heute) + sum(neu_im_kurs(k) for k in alle_eigene if k.start > heute)
+                   ) < AKTIV_MIN
+        erg[fam] = NReihe(fam, gr.get(fam, "uebrige"), zeilen, letzte, vorige, sum(volle) / 3, naechst, eingestellt, klein_m)
+    return erg
+
+
+def sichtbarkeit(daten: dict | None = None) -> dict[str, bool]:
+    """Eigene Entscheidung je Art: True = immer zeigen, False = immer ausblenden (sonst gilt die Regel)."""
+    roh = daten if daten is not None else _roh()
+    return dict(roh.get("sichtbar") or {})
+
+
+def sichtbar_schritt(fam: str, wert: bool | None) -> str:
+    from .kern import _schritt
+
+    def tun():
+        roh = _roh()
+        s = roh.setdefault("sichtbar", {})
+        if wert is None:
+            s.pop(fam, None)
+        else:
+            s[fam] = bool(wert)
+        _schreiben(roh)
+    _schritt(f"Maßnahme {'eingeblendet' if wert else 'ausgeblendet'}: {fam}", tun, [DATEI])
+    return f"{fam} {'wird immer gezeigt' if wert else 'ausgeblendet' if wert is False else 'nach Regel'}"

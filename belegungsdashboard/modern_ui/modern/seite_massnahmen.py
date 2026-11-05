@@ -1,6 +1,7 @@
-"""Auswertung → Maßnahmen (0.53): Maßnahmen im Vergleich – Teilnehmende je Maßnahmenart, jede als eigene Kurve
-(Ist und Prognose = gebuchter Bestand + erwartete neue Kurse). Keine Betten und keine Summe – die Internatsbelegung
-steht in der allgemeinen Prognose. Darstellung: ein gemeinsames Diagramm oder je Maßnahme ein kleines Diagramm.
+"""Auswertung → Maßnahmen (0.56): Neuanmeldungen je Halbjahr und Maßnahmenart – alle Teilnehmenden (Pendler und
+Internat) – als Grundlage für den Wirtschaftsplan. Kein Bestand (eine zweijährige Maßnahme trägt zwei Jahrgänge), keine
+Betten – die Internatsbelegung steht in der allgemeinen Prognose. Kleinst- und eingestellte Maßnahmen sind ausgeblendet.
+Darstellung: ein gemeinsames Diagramm oder je Maßnahme ein kleines Diagramm.
 Rechnet in ``massnahmen_kern``."""
 
 from __future__ import annotations
@@ -21,28 +22,32 @@ def _z(x: float | None, nk: int = 0) -> str:
 
 
 def daten(a) -> None:
-    vor = int(getattr(a, "mn_vor", 24) or 24)
+    vor = int(getattr(a, "mn_vor", 4) or 4)
+    if vor not in (2, 4, 6):
+        vor = 4
     roh = mk._roh()
     liste = mk.familien_liste(roh, a.heute)
-    gr = {f: g for f, g, _t in liste}
-    auswahl = [f for f in (getattr(a, "mn_auswahl", None) or []) if f in gr]
-    # leer = alle Arten mit Teilnehmenden in den letzten 12 Monaten (ohne „ohne Zimmer“), größte zuerst
-    arten = auswahl or [f for f, g, t in liste if g != "ohne" and t > 0]
+    alle_fam = [f for f, g, _t in liste if g != "ohne"]
+    vl = mk.vorlauf_messen()
+    tests = mk.verfahren_testen(roh, [f for f, g, _t in liste if g == "lang"] or alle_fam) if liste else []
+    verfahren = getattr(a, "mn_verfahren", None) or mk.bestes_verfahren(tests)
+    reihen = mk.neuanmeldungen(roh, a.heute, alle_fam, 8, vor, verfahren, vl, tests) if liste else {}
+    eigen = mk.sichtbarkeit(roh)
+    alle_zeigen = bool(getattr(a, "mn_alle", False))
+
+    def zeigen(f: str) -> bool:
+        r = reihen.get(f)
+        return eigen.get(f, r.aktiv if r else False)
+    versteckt = [f for f in reihen if not zeigen(f)]
+    wahl_liste = [(f, g, t) for f, g, t in liste if f in reihen and (alle_zeigen or zeigen(f))]
+    auswahl = [f for f in (getattr(a, "mn_auswahl", None) or []) if f in reihen]
+    arten = auswahl or [f for f, _g, _t in wahl_liste]
     darstellung = getattr(a, "mn_darstellung", None) or ("ein" if len(arten) <= EIN_DIAGRAMM_BIS else "je")
-    d = {"stand": mk.stand(), "vor": vor, "liste": liste, "auswahl": auswahl, "arten": arten, "darstellung": darstellung,
-         "skala": getattr(a, "mn_skala", "gleich"), "je": {}, "vergleich": [], "tests": [], "tests_ohne": [], "neu": [],
-         "quelle": "", "verbleib": 0}
-    if arten:
-        vl = mk.vorlauf_messen()
-        d["je"] = mk.je_familie(roh, a.heute, arten, 12, vor, False, vl)
-        d["vergleich"] = mk.vergleich(roh, a.heute, arten, False, vl)
-        d["tests"] = mk.rueckwaertstest(roh)
-        d["tests_ohne"] = mk.rueckwaertstest(roh, verbleib=False)
-        p0 = next(iter(d["je"].values()), None)
-        d["quelle"] = p0.nachbuchung_quelle if p0 else mk.pickup_kurve(vl).quelle
-        d["verbleib"] = sum(p.mit_verbleib for p in d["je"].values())
-        d["neu"] = sorted((e for p in d["je"].values() for e in p.neu), key=lambda e: (e.start, e.familie))
-    a.daten = d
+    a.daten = {"stand": mk.stand(), "vor": vor, "liste": wahl_liste, "auswahl": auswahl, "arten": arten,
+               "darstellung": darstellung, "skala": getattr(a, "mn_skala", "gleich"),
+               "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
+               "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
+               "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1}
 
 
 def zeichnen(a) -> None:
@@ -62,35 +67,37 @@ def zeichnen(a) -> None:
         if d["darstellung"] == "je":
             segmente({"gleich": "gleiche Skala", "eigen": "eigene Skala"}, d["skala"],
                      lambda v: a.setzen(mn_skala=v, nur_seite=True), sofort=True)
-        segmente({12: "12 Monate", 24: "24 Monate", 36: "36 Monate"}, d["vor"],
-                 lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True)
+        segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"], lambda v: a.setzen(mn_vor=v, nur_seite=True),
+                 sofort=True)
         knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
     with a.inhalt:
         if not d["stand"]["pivot"]:
             leer("Noch kein Maßnahmen-Pivot eingelesen. Unter Daten & Import → „Maßnahmen-Prognose“ hochladen.")
             knopf("Zu Daten & Import", lambda: a.oeffnen("daten"), "primaer", "upload_file")
             return
-        if not d["je"]:
+        if not d["reihen"]:
             leer("Für diese Auswahl gibt es keine Daten.")
             return
         with ui.element("div").classes("m-rv"):
             pv = d["stand"]["pivot"]
-            ui.label(f"Teilnehmende je Maßnahmenart (alle, nicht nur Internat) · Maßnahmen-Pivot {pv['von'][:10]} – "
-                     f"{pv['bis'][:10]}" + (" · überbrückt: " + ", ".join(f"{x[0][:10]}–{x[1][:10]}" for x in pv["luecken"])
-                                           if pv.get("luecken") else "")).classes("m-zweite").style("white-space:normal")
-            _kpis(d["vergleich"])
+            ui.label(f"Neuanmeldungen je Startwelle – Winterstart (Nov–Apr) und Sommerstart (Mai–Okt) – alle "
+                     f"Teilnehmenden (Pendler und Internat) · Maßnahmen-Pivot "
+                     f"{pv['von'][:10]} – {pv['bis'][:10]}").classes("m-zweite").style("white-space:normal")
+            _kpis(d)
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"{len(d['je'])} Maßnahme(n) – Ist und Prognose, {d['vor']} Monate").classes("m-btitel")
+                ui.label(f"{len(d['reihen'])} Maßnahme(n) – Neuanmeldungen je Startwelle (W = Winter, S = Sommer)"
+                         ).classes("m-btitel")
                 if d["darstellung"] == "ein":
-                    _ein_diagramm(d["je"])
+                    _ein_diagramm(d["reihen"])
                 else:
-                    _raster(d["je"], d["skala"] == "gleich")
-                ui.label("Durchgezogen = Ist · gestrichelt = Prognose (gebucht + erwartete neue Kurse aus den Vorjahren) · "
-                         "hell hinterlegt = Prognosezeitraum · in der Legende lassen sich Linien aus- und einblenden.").classes(
-                    "m-zweite").style("white-space:normal")
-            _vergleich_tabelle(a, d)
-            _neue_liste(d["neu"])
-            _test(d["tests"], d["tests_ohne"], d["quelle"], d["verbleib"])
+                    _raster(d["reihen"], d["skala"] == "gleich")
+                ui.label("Durchgezogen = Ist · gestrichelt = erwartet (schon gebucht + erwartete Nachbuchung, ohne "
+                         f"Buchungen: {mk.VERFAHREN[d['verfahren']]}) · hell hinterlegt = Prognose · Neuanmeldung = wer in "
+                         f"den ersten {mk.NACHRUECK_TAGE // 7} Wochen eines Kurses dabei ist.").classes("m-zweite").style(
+                    "white-space:normal")
+            _plan_tabelle(a, d)
+            _test(a, d)
+            _versteckt(a, d)
 
 
 def _farben() -> list[str]:
@@ -101,18 +108,20 @@ def _farben() -> list[str]:
             t.get("rot", "#d64545")] + FARBEN_EXTRA
 
 
-def _achsen(pg) -> tuple[list[str], int]:
-    x = [f"{MON[z.monat.month - 1]} {z.monat.year % 100}" for z in pg.zeilen]
-    h = next((i for i, z in enumerate(pg.zeilen) if z.art == "prognose"), len(x) - 1)
+def _achsen(r) -> tuple[list[str], int]:
+    x = [mk.hj_kurz(z.hj) for z in r.zeilen]
+    h = next((i for i, z in enumerate(r.zeilen) if z.art != "ist"), len(x) - 1)
     return x, h
 
 
-def _linien(name: str, pg, farbe: str, h: int) -> list[dict]:
-    werte = [round(z.summe, 1) for z in pg.zeilen]
-    return [{"name": name, "type": "line", "symbol": "none", "data": [w if k <= h else None for k, w in enumerate(werte)],
-             "lineStyle": {"color": farbe, "width": 2.5}},
-            {"name": name, "type": "line", "symbol": "none", "data": [w if k >= h else None for k, w in enumerate(werte)],
-             "lineStyle": {"color": farbe, "width": 2.5, "type": "dashed"}}]
+def _linien(name: str, r, farbe: str, h: int) -> list[dict]:
+    werte = [round(z.erwartet, 1) for z in r.zeilen]
+    ist = [w if k < h else None for k, w in enumerate(werte)]
+    prog = [w if k >= h - 1 else None for k, w in enumerate(werte)]
+    return [{"name": name, "type": "line", "symbol": "circle", "symbolSize": 6, "data": ist,
+             "lineStyle": {"color": farbe, "width": 2.5}, "itemStyle": {"color": farbe}},
+            {"name": name, "type": "line", "symbol": "emptyCircle", "symbolSize": 6, "data": prog,
+             "lineStyle": {"color": farbe, "width": 2.5, "type": "dashed"}, "itemStyle": {"color": farbe}}]
 
 
 def _prognosebereich(t: dict, x: list, h: int) -> dict:
@@ -121,162 +130,178 @@ def _prognosebereich(t: dict, x: list, h: int) -> dict:
             "data": [[{"xAxis": x[h]}, {"xAxis": x[-1]}]]}
 
 
-def _ein_diagramm(je: dict) -> None:
+def _ein_diagramm(reihen: dict) -> None:
     from . import seite_auswertung as sa
 
     t = sa._T()
     farben = _farben()
-    x, h = _achsen(next(iter(je.values())))
+    x, h = _achsen(next(iter(reihen.values())))
     opt = sa._chart_basis()
     opt["xAxis"]["data"] = x
-    opt["xAxis"]["boundaryGap"] = False
+    opt["xAxis"]["name"] = "Start"
     opt["yAxis"]["scale"] = False
-    opt["yAxis"]["name"] = "Teilnehmende"
+    opt["yAxis"]["name"] = "Neuanmeldungen"
     opt["grid"]["top"] = 50
     opt["legend"]["type"] = "scroll"
-    reihen = []
-    for i, (fam, pg) in enumerate(je.items()):
-        reihen += _linien(fam, pg, farben[i % len(farben)], h)
-    reihen[0]["markArea"] = _prognosebereich(t, x, h)
-    opt["series"] = reihen
-    opt["legend"]["data"] = list(je)
+    serien = []
+    for i, (fam, r) in enumerate(reihen.items()):
+        serien += _linien(fam, r, farben[i % len(farben)], h)
+    serien[0]["markArea"] = _prognosebereich(t, x, h)
+    opt["series"] = serien
+    opt["legend"]["data"] = list(reihen)
     sa._chart(opt)
 
 
-def _raster(je: dict, gleiche_skala: bool) -> None:
-    """Je Maßnahme ein kleines Diagramm – gleicher Zeitraum, wahlweise gleiche Skala."""
+def _raster(reihen: dict, gleiche_skala: bool) -> None:
     from . import seite_auswertung as sa
 
     t = sa._T()
     farben = _farben()
-    hoch = max((z.summe for pg in je.values() for z in pg.zeilen), default=0) * 1.1 or None
+    hoch = max((z.erwartet for r in reihen.values() for z in r.zeilen), default=0) * 1.1 or None
     with ui.element("div").classes("m-mn-raster"):
-        for i, (fam, pg) in enumerate(je.items()):
-            x, h = _achsen(pg)
-            jetzt = pg.zeilen[h].summe
-            in12 = pg.zeilen[min(len(pg.zeilen) - 1, h + 12)].summe
+        for i, (fam, r) in enumerate(reihen.items()):
+            x, h = _achsen(r)
             with ui.element("div").classes("m-mn-kachel"):
                 with ui.element("div").classes("m-zeile-flex"):
                     ui.label(fam).classes("m-name")
-                    ui.label(f"heute {_z(jetzt)} · in 12 Mon. {_z(in12)}").classes("m-zweite").style("margin-left:auto")
+                    ui.label(f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)}"
+                             ).classes("m-zweite").style("margin-left:auto")
                 opt = sa._chart_basis()
                 opt["xAxis"]["data"] = x
-                opt["xAxis"]["boundaryGap"] = False
                 opt["yAxis"]["scale"] = False
                 if gleiche_skala and hoch:
                     opt["yAxis"]["max"] = round(hoch)
                 opt["grid"] = {"left": 34, "right": 8, "top": 10, "bottom": 22}
                 opt["legend"] = {"show": False}
-                reihen = _linien(fam, pg, farben[i % len(farben)], h)
-                reihen[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
-                opt["series"] = reihen
+                serien = _linien(fam, r, farben[i % len(farben)], h)
+                serien[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
+                opt["series"] = serien
                 sa._chart(opt)
 
 
-def _kpis(zeilen: list) -> None:
+def _kpis(d: dict) -> None:
     from .seite_steuerung import _kpi
 
-    mit_trend = [z for z in zeilen if z.trend is not None and z.tage_vorjahr >= 365]
-    mit_verbleib = [z for z in zeilen if z.verbleib is not None]
+    reihen = list(d["reihen"].values())
+    mit_trend = [r for r in reihen if r.trend is not None]
+    naechst = sum(r.naechstes_jahr for r in reihen)
     with ui.element("div").classes("m-kpis"):
+        if reihen:
+            _kpi(f"Erwartet {d['plan_jahr']}", _z(naechst), f"Neuanmeldungen Winter + Sommer · {len(reihen)} Maßnahme(n)")
         if mit_trend:
-            hoch = max(mit_trend, key=lambda z: z.trend)
-            tief = min(mit_trend, key=lambda z: z.trend)
-            _kpi("Am stärksten gewachsen", hoch.familie, f"{_pfeil(hoch.trend)[0]} Teilnehmertage zum Vorjahr", "")
-            _kpi("Am stärksten geschrumpft", tief.familie, f"{_pfeil(tief.trend)[0]} Teilnehmertage zum Vorjahr",
+            hoch = max(mit_trend, key=lambda r: r.trend)
+            tief = min(mit_trend, key=lambda r: r.trend)
+            _kpi("Am stärksten gewachsen", hoch.familie, f"{_pfeil(hoch.trend)[0]} Neuanmeldungen (12 Mon. zum Vorjahr)")
+            _kpi("Am stärksten geschrumpft", tief.familie, f"{_pfeil(tief.trend)[0]} Neuanmeldungen (12 Mon. zum Vorjahr)",
                  "krit" if tief.trend <= -.1 else "")
-        if mit_verbleib:
-            gut = max(mit_verbleib, key=lambda z: z.verbleib)
-            schlecht = min(mit_verbleib, key=lambda z: z.verbleib)
-            _kpi("Höchster Verbleib", gut.familie, f"{round(100 * gut.verbleib)} % bis Kursende")
-            _kpi("Niedrigster Verbleib", schlecht.familie, f"{round(100 * schlecht.verbleib)} % bis Kursende",
-                 "krit" if schlecht.verbleib < .6 else "")
+        t = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
+        if t and t.wape is not None:
+            _kpi("Treffsicherheit", f"± {round(100 * t.wape)} %", f"{mk.VERFAHREN[t.verfahren]} (Rückwärtstest)")
 
 
-def _vergleich_tabelle(a, d) -> None:
-    zeilen = d["vergleich"]
-    if not zeilen:
-        return
+def _plan_tabelle(a, d) -> None:
+    """Für den Wirtschaftsplan: je Maßnahme die erwarteten Neuanmeldungen der kommenden Halbjahre mit Spanne."""
+    reihen = d["reihen"]
+    r0 = next(iter(reihen.values()))
+    kommend = [z.hj for z in r0.zeilen if z.art != "ist"]
     gr = {f: g for f, g, _t in d["liste"]}
     with ui.element("section").classes("m-block m-breit"):
-        ui.label("Maßnahmen im Vergleich").classes("m-btitel")
+        ui.label("Für den Wirtschaftsplan – erwartete Neuanmeldungen je Startwelle").classes("m-btitel")
         with ui.element("div").classes("m-tab-scroll"):
-            with tabelle("minmax(110px, 1.2fr) minmax(120px, 1fr) auto auto auto auto auto auto auto auto"):
+            sp = "minmax(110px, 1.2fr) minmax(110px, 1fr) auto auto auto " + " ".join("auto" for _ in kommend) + " 44px"
+            with tabelle(sp):
                 with ui.element("div").classes("m-raster m-tkopf"):
-                    for t in ("Maßnahme", "Gruppe", "TN-Tage 12 Mon.", "Trend z. Vorjahr", "Starts/Jahr", "Kursgröße (früher)",
-                              "Verbleib", "heute", "in 12 Mon.", "in 24 Mon."):
+                    for t in ("Maßnahme", "Gruppe", "Ø je Jahr (3 J.)", "letzte 12 Mon.", "Trend"):
                         ui.label(t)
-                for z in sorted(zeilen, key=lambda z: -z.tage_12m):
+                    for h in kommend:
+                        ui.label(mk.hj_text(h) + (" (läuft)" if h == kommend[0] else ""))
+                    ui.label("")
+                summe = [0.0] * len(kommend)
+                for fam, r in sorted(reihen.items(), key=lambda x: -x[1].jahr_mittel):
                     with ui.element("div").classes("m-raster m-zeile"):
-                        ui.label(z.familie).classes("m-name")
-                        ui.select(mk.GRUPPEN, value=gr.get(z.familie, z.gruppe),
-                                  on_change=lambda e, fam=z.familie: a.aendern(mk.zuordnung_schritt, fam, e.value)).classes(
+                        ui.label(fam).classes("m-name")
+                        ui.select(mk.GRUPPEN, value=gr.get(fam, r.gruppe),
+                                  on_change=lambda e, fam=fam: a.aendern(mk.zuordnung_schritt, fam, e.value)).classes(
                             "m-feld").props('dense borderless dark options-dense popup-content-class="m-popup"')
-                        ui.label(_z(z.tage_12m)).classes("m-mono")
-                        txt, kl = _pfeil(z.trend)
+                        ui.label(_z(r.jahr_mittel)).classes("m-mono")
+                        ui.label(_z(r.letzte12)).classes("m-mono")
+                        txt, kl = _pfeil(r.trend)
                         ui.label(txt).classes(f"m-mono {kl}")
-                        ui.label(_z(z.starts_jahr, 1)).classes("m-mono")
-                        ui.label(f"{_z(z.groesse)} ({_z(z.groesse_vorher)})").classes("m-mono")
-                        ui.label(f"{round(100 * z.verbleib)} %" if z.verbleib is not None else "–").classes(
-                            "m-mono" + (" m-krit" if z.verbleib is not None and z.verbleib < .6 else ""))
-                        for w in (z.heute, z.in12, z.in24):
-                            ui.label(_z(w)).classes("m-mono")
-        ui.label("Teilnehmende (alle, nicht nur Internat) · Trend = Teilnehmertage der letzten 12 Monate gegen die 12 Monate "
-                 "davor (grün ab +10 %, rot ab −10 %) · Kursgröße = Median der Kurse der letzten 3 Jahre, in Klammern die 3 "
-                 "Jahre davor · Verbleib = am Kursende noch dabei (rot unter 60 %) · Gruppe änderbar („Hauptmaßnahmen“ = "
-                 "Knopf „Nur Hauptmaßnahmen“). Ob sich eine Maßnahme wirtschaftlich lohnt, zeigt das nicht – dafür fehlen "
-                 "Erlöse und Kosten.").classes("m-xk-hinweis")
+                        zs = {z.hj: z for z in r.zeilen}
+                        for i, h in enumerate(kommend):
+                            z = zs.get(h)
+                            if z is None:
+                                ui.label("–")
+                                continue
+                            summe[i] += z.erwartet
+                            wo = " · eigene Planung" if z.geplant else (f" · {_z(z.ist + z.gebucht)} schon gebucht/begonnen"
+                                                                         if z.ist + z.gebucht else "")
+                            el = ui.label(f"{_z(z.erwartet)} ({_z(z.klein)}–{_z(z.gross)})").classes("m-mono")
+                            el.props(f'title="{mk.hj_text(h)}: erwartet {_z(z.erwartet)}, Spanne {_z(z.klein)}–'
+                                     f'{_z(z.gross)}{wo}"')
+                        knopf("", lambda fam=fam: a.aendern(mk.sichtbar_schritt, fam, False), "leise", "visibility_off",
+                              "Diese Maßnahme ausblenden")
+                with ui.element("div").classes("m-raster m-zeile m-summe"):
+                    ui.label("Summe").classes("m-name")
+                    for _ in range(4):
+                        ui.label("")
+                    for s in summe:
+                        ui.label(_z(s)).classes("m-mono")
+                    ui.label("")
+        ui.label("Alle Teilnehmenden (Pendler und Internat) · Neuanmeldung = in den ersten 6 Wochen eines Kurses dabei · "
+                 "Trend = letzte 12 Monate gegen die 12 davor (grün ab +10 %, rot ab −10 %) · in Klammern die übliche "
+                 "Spanne aus dem Rückwärtstest · schon gebuchte Starts zählen fest, dazu die erwartete Nachbuchung "
+                 f"({d['quelle']}) · eigene geplante Plätze ersetzen die Schätzung.").classes("m-xk-hinweis")
 
 
-def _neue_liste(neu: list) -> None:
-    _neue(type("P", (), {"neu": neu})())
-
-
-def _neue(pg) -> None:
-    with ui.expansion(f"Erwartete neue Kurse ({len(pg.neu)})").classes("m-block m-breit m-rv-exp"):
-        if not pg.neu:
-            ui.label("Keine – alle Starts im Zeitraum sind schon gebucht.").classes("m-zweite")
-            return
-        with tabelle("auto minmax(140px, 1fr) auto auto"):
-            with ui.element("div").classes("m-raster m-tkopf"):
-                for t in ("Start", "Art", "Größe (Spanne)", "Grundlage"):
-                    ui.label(t)
-            for e in pg.neu:
-                with ui.element("div").classes("m-raster m-zeile"):
-                    ui.label(f"{e.start:%d.%m.%Y}").classes("m-mono")
-                    ui.label(e.familie).classes("m-name")
-                    ui.label(f"{_z(e.spitze)} ({_z(max(e.klein) if e.klein else 0)}–{_z(max(e.gross) if e.gross else 0)})").classes("m-mono")
-                    ui.label({"geplant": "eigene Plätze", "Nachbuchung": "erwartete Nachbuchung zum gebuchten Kurs",
-                              "Sockel": "Kurzkurse: Sockel wie in den Vorjahren"}.get(e.herkunft, "wie in den Vorjahren")
-                             ).classes("m-zweite")
-
-
-def _test(tests: list, ohne: list | None = None, quelle: str = "", verbleib: int = 0) -> None:
-    with ui.element("section").classes("m-block m-breit"):
-        ui.label("Wie gut wäre die Prognose gewesen? (Rückwärtstest)").classes("m-btitel")
-        if not tests:
+def _test(a, d) -> None:
+    tests = d["tests"]
+    with ui.expansion("Welches Verfahren schätzt am besten? (Rückwärtstest)").classes("m-block m-breit m-rv-exp"):
+        if not tests or all(t.n == 0 for t in tests):
             ui.label("Dafür braucht es mindestens drei Jahre im Maßnahmen-Pivot.").classes("m-zweite")
             return
-        o = {t.jahr: t for t in ohne or []}
-        with tabelle("70px auto auto minmax(180px, 1fr)"):
+        with tabelle("minmax(200px, 2fr) auto auto auto auto"):
             with ui.element("div").classes("m-raster m-tkopf"):
-                for k in ("Jahr", "Jan–Jun", "Jul–Dez", "zum Vergleich: ohne Verbleib"):
-                    ui.label(k)
+                for t in ("Verfahren", "mittlerer Fehler", "Neigung", "verglichene Halbjahre", ""):
+                    ui.label(t)
             for t in tests:
-                x = o.get(t.jahr)
-                with ui.element("div").classes("m-raster m-zeile"):
-                    ui.label(str(t.jahr)).classes("m-name")
-                    ui.label(_pz(t.h1)).classes("m-mono")
-                    ui.label(_pz(t.h2)).classes("m-mono")
-                    ui.label(f"{_pz(x.h1)} · {_pz(x.h2)}" if x else "–").classes("m-mono m-zweite")
-        ui.label("Stichtag jeweils 1. Januar, nur mit dem Wissen von damals: laufende Kurse mit ihrem Bestand am Stichtag "
-                 "und der damals bekannten Verbleibskurve, alle späteren Kurse geschätzt, als wäre noch keiner gebucht "
-                 "(eher strenger als die Wirklichkeit). Mittlere Abweichung je Monat, Summe aller Gruppen außer „ohne "
-                 "Zimmer“. Das zweite Halbjahr hängt an den neuen Kursen – eigene geplante Plätze machen es genauer."
-                 ).classes("m-xk-hinweis")
-        ui.label(f"So wird gerechnet: gebuchte Kurse × Verbleib früherer Kurse derselben Art ({verbleib} Arten mit Kurve) · "
-                 f"teilweise gebuchte Kurse plus erwartete Nachbuchung ({quelle}) · neue Kurse mit dem Verlauf der "
-                 "Vorjahre · Kurzkurse als Sockel je Monat.").classes("m-xk-hinweis")
+                with ui.element("div").classes("m-raster m-zeile" + (" an" if t.verfahren == d["verfahren"] else "")):
+                    ui.label(t.text + (" ✓" if t.verfahren == d["verfahren"] else "")).classes("m-name")
+                    ui.label(f"± {round(100 * t.wape)} %" if t.wape is not None else "–").classes("m-mono")
+                    ui.label(_pz(100 * t.bias) + (" zu hoch" if (t.bias or 0) > .02 else " zu niedrig" if (t.bias or 0) < -.02
+                                                  else "") if t.bias is not None else "–").classes("m-mono")
+                    ui.label(str(t.n)).classes("m-mono")
+                    if t.verfahren != d["verfahren"]:
+                        knopf("verwenden", lambda v=t.verfahren: a.setzen(mn_verfahren=v, nur_seite=True), "leise")
+                    else:
+                        ui.label("automatisch gewählt" if d["auto"] else "von Hand gewählt").classes("m-zweite")
+        if not d["auto"]:
+            knopf("Automatisch wählen", lambda: a.setzen(mn_verfahren=None, nur_seite=True), "leise", "auto_mode")
+        ui.label("Für jedes vergangene Halbjahr mit mindestens zwei Vorjahren wurde geschätzt – nur mit dem, was vorher "
+                 "bekannt war, und ohne Buchungen (eher streng) – und mit dem Ist verglichen, über die Hauptmaßnahmen. "
+                 "Mittlerer Fehler = Summe der Abweichungen / Summe Ist. Neigung = ob das Verfahren eher zu hoch oder zu "
+                 "niedrig liegt. Das Verfahren mit dem kleinsten Fehler wird automatisch verwendet. Wenige Jahre an Daten "
+                 "→ die Zahlen sind ein Anhaltspunkt, keine Garantie.").classes("m-xk-hinweis")
+
+
+def _versteckt(a, d) -> None:
+    v = d["versteckt"]
+    if not v:
+        return
+    with ui.expansion(f"Ausgeblendete Maßnahmen ({len(v)})").classes("m-block m-breit m-rv-exp"):
+        ui.label(f"Automatisch ausgeblendet: seit {mk.AKTIV_MONATE} Monaten kein Start (eingestellt) oder weniger als "
+                 f"{mk.AKTIV_MIN} Neuanmeldungen in {mk.AKTIV_MONATE} Monaten (Kleinstmaßnahme) – oder von Hand.").classes(
+            "m-zweite").style("white-space:normal")
+        with ui.element("div").classes("m-zeile").style("gap:8px; flex-wrap:wrap"):
+            segmente({False: "Ausgeblendete nicht anbieten", True: "In der Auswahl anbieten"}, d["alle"],
+                     lambda x: a.setzen(mn_alle=x, nur_seite=True), sofort=True)
+        for f in sorted(v):
+            with ui.element("div").classes("m-liste-zeile"):
+                ui.label(f).classes("m-name")
+                ui.label("von Hand" if d["eigen"].get(f) is False else "nach Regel").classes("m-zweite")
+                knopf("immer zeigen", lambda f=f: a.aendern(mk.sichtbar_schritt, f, True), "leise", "visibility")
+                if d["eigen"].get(f) is False:
+                    knopf("Regel gilt", lambda f=f: a.aendern(mk.sichtbar_schritt, f, None), "leise", "rule")
 
 
 def _pz(x: float | None) -> str:
@@ -298,8 +323,8 @@ def _plaetze_panel(a) -> None:
     wahl = {"familie": familien[0] if familien else "", "monat": f"{a.heute.year + 1}-06", "plaetze": 20}
 
     def bauen():
-        ui.label("Geplante Plätze ersetzen die Schätzung für diesen Start (gleiche Art, ±6 Wochen). Gibt es dort noch "
-                 "keinen erwarteten Kurs, wird einer mit dem üblichen Verlauf der Art angelegt.").classes("m-ptext")
+        ui.label("Geplante Plätze ersetzen die Schätzung der Neuanmeldungen für das Halbjahr des Startmonats (gleiche "
+                 "Art) – z. B. wenn ein Kurs schon fest zugesagt oder gestrichen ist.").classes("m-ptext")
         for p in eintraege:
             with ui.element("div").classes("m-liste-zeile"):
                 ui.label(f"{p['familie']} · {p['monat']}").classes("m-name")
