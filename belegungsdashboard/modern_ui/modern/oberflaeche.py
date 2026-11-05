@@ -108,6 +108,7 @@ class Ansicht:
         self.iv_haus, self.iv_text, self.iv_ohne = "", "", False
         self.zu_vergangene = False             # Zuteilen: auch vergangene Anreisen (letztes Jahr) zur Auswahl
         self.ein_alle = False                  # Firmenprogramm: auch abgehakte zeigen
+        self.ein_abtipp, self.ein_pos = False, 0   # 0.55: Abtipp-Modus (ein Eintrag nach dem anderen)
         self.ab_zeitraum, self.ein_tage = "heute", 14
         self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
         self.as_text, self.as_verstanden, self.as_chat = "", [], []

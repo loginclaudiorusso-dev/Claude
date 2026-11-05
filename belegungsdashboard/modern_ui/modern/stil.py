@@ -1235,3 +1235,18 @@ CSS += """
 .m-netz-pfad { word-break: break-all; }
 .m-tz-nr { min-width: 1.2em; text-align: right; }          /* 0.54: Nummern ohne führende Null, trotzdem bündig */
 """
+
+# 0.55: Abtipp-Modus (Firmenprogramm)
+CSS += """
+.m-abtipp { max-width: 520px; margin: 18px auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--fl); border: 1px solid var(--rand); border-radius: var(--r); }
+.m-abtipp-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m-abtipp-feld { display: grid; grid-template-columns: 80px 1fr auto; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--rand); }
+.m-abtipp-wert { font-size: 17px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; word-break: break-word; }
+.m-abtipp-knoepfe { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
+body.abtipp-schmal .m-abtipp { position: fixed; inset: 0; z-index: 3000; max-width: none; margin: 0; border-radius: 0;
+  overflow: auto; background: var(--bg); }
+/* 0.55: Ziffern in Tabellen gleich breit – Spalten stehen bündig */
+.m-mono, .m-zeile, .m-tab, .m-kpi { font-variant-numeric: tabular-nums; }
+"""

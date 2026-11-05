@@ -49,7 +49,8 @@ START_ENV = "INNTERNAT_START"            # Pfad der Startdatei (für „Mit Wind
 LOKAL_DATEI = "einstellungen_lokal.json"
 SPERRE = ".innternat_sperre"
 SPERRE_WARTEN = 15.0                     # so lange wird auf einen anderen PC gewartet
-SPERRE_ALT = 90.0                        # ältere Sperren gelten als verwaist
+SPERRE_ALT = 45.0                        # ältere Sperren gelten als verwaist (PC abgestürzt)
+SPERRE_PULS = 10.0                       # 0.55: so oft frischt der Halter die Sperre auf – lange Schritte bleiben gültig
 LETZTE = "modern_letzte_aenderung.json"
 VERSUCHE = 12                            # Wiederholungen beim Ersetzen/Lesen (zusammen etwa 7 s)
 _GESPERRT = {5, 32, 33}                  # WinError: Zugriff verweigert, Freigabeverletzung, Sperrverletzung
@@ -247,10 +248,32 @@ def _sperren(warten: float, alt: float) -> None:
             raise
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump({"wer": wer(), "pid": os.getpid(), "seit": datetime.now().isoformat(timespec="seconds")}, f)
+        _puls_starten(p)
         return
 
 
+_puls = {"stop": None}
+
+
+def _puls_starten(p: Path) -> None:
+    """Solange die Sperre gehalten wird, ihre Änderungszeit regelmäßig erneuern (Herzschlag)."""
+    stop = threading.Event()
+    _puls["stop"] = stop
+
+    def schlagen() -> None:
+        while not stop.wait(SPERRE_PULS):
+            try:
+                os.utime(p, None)
+            except OSError:
+                pass
+
+    threading.Thread(target=schlagen, name="innternat-sperre", daemon=True).start()
+
+
 def _freigeben() -> None:
+    if _puls["stop"] is not None:
+        _puls["stop"].set()
+        _puls["stop"] = None
     for i in range(VERSUCHE):
         try:
             _sperre_pfad().unlink(missing_ok=True)

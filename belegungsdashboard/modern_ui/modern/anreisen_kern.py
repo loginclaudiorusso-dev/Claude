@@ -63,6 +63,18 @@ class EZeile:
     bis: date
     haken: bool
 
+    @property
+    def tn_id(self) -> str:
+        """TN-ID aus der Personenkennung („id:…“), sonst leer."""
+        p = self.schluessel.split("|", 1)[0]
+        return p[3:] if p.startswith("id:") else ""
+
+    def felder(self) -> list[tuple[str, str]]:
+        """0.55: die Felder zum Abtippen ins Belegungssystem, in dieser Reihenfolge."""
+        f = [("TN-ID", self.tn_id)] if self.tn_id else []
+        return f + [("Name", self.name), ("Zimmer", self.zimmer), ("von", f"{self.von:%d.%m.%Y}"),
+                    ("bis", f"{self.bis:%d.%m.%Y}"), ("Maßnahme", self.massnahme)]
+
 
 def eintragen_liste(stand: zp.Planstand, heute: date, tage: int = 14) -> list[EZeile]:
     return [EZeile(z.schluessel, z.name, z.massnahme, kurz(z.zimmer), z.von, z.bis, z.haken)

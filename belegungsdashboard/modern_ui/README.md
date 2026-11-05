@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.54.0
+# Neue Oberfläche (modern_ui) – Version 0.55.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -52,6 +52,30 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
 
+## Maßnahmen-Prognose ehrlicher, Abtipp-Modus (neu in 0.55)
+
+* **Verbleib:** Gebuchte Kurse stehen im Pivot bis zum geplanten Ende voll drin. Jetzt werden sie mit der
+  Verbleibskurve früherer Kurse derselben Art fortgeschrieben (Abbrüche, Wechsel zu „Pendler“). Bedingt: Wer schon
+  lange dabei ist, bleibt eher. Neue Kurse aus den Vorjahren bringen ihren echten Verlauf mit – dort wird die Kurve
+  nicht noch einmal angewendet (sonst doppelt gezählt). Gezeigt wird der Pivot-Wert höchstens bis Bestand × Verbleib.
+* **Buchungsloch geschlossen:** Ist ein Kurs schon teilweise gebucht, entfiel bisher die Schätzung. Jetzt kommt die
+  erwartete Nachbuchung dazu (Poisson-Gamma: gebucht + (1 − p) · (κ·Vorjahre + gebucht) / (κ + p), κ = 1,5). Weit vor
+  Start zählen die Vorjahre, kurz vor Start der Buchungsstand; nie mehr als der größte Kurs der Vorjahre. Die
+  Buchungskurve p(d) wird aus den Anreiselisten gemessen (wann stand jemand zuerst drin?), ab 30 Anreisen – vorher gilt
+  die angezeigte Annahme „21 Tage vor Start ist die Hälfte gebucht“.
+* **Kurzkurse** (Arten mit Kursen unter 45 Tagen): Saisonsockel je Kalendermonat aus den Vorjahren statt Einzelkurse
+  im ±45-Tage-Raster (dort fielen bisher zwei von drei Kursen durch).
+* **Rückwärtstest ohne Blick in die Zukunft:** laufende Kurse mit dem Bestand am Stichtag und der damals bekannten
+  Verbleibskurve, alle späteren Kurse geschätzt, als wäre keiner gebucht (eher strenger). Daneben zum Vergleich ohne
+  Verbleib – so sieht man an den eigenen Daten, ob die Kurve hilft. Unter dem Test steht, wie gerechnet wird.
+* **Abtipp-Modus** (Anreisen → Firmenprogramm): ein Eintrag groß, je Feld ein Kopierknopf (TN-ID, Name, Zimmer,
+  von, bis, Maßnahme), „Eingetragen – nächster“, Überspringen. Im eigenen Fenster per Knopf ein schmaler Streifen am
+  rechten Rand, der im Vordergrund bleibt – daneben das Belegungssystem.
+* **Schreibsperre mit Herzschlag:** Der PC, der speichert, erneuert die Sperre alle 10 s; eine Sperre ohne Herzschlag
+  (PC abgestürzt) gilt nach 45 s als verwaist – lange Schritte (großer Import) verlieren ihre Sperre trotzdem nie.
+* **Schrift:** Fließtext in Segoe UI (statt Candara), Überschriften und Kennzahlen weiter Bahnschrift; Ziffern in
+  Tabellen gleich breit.
+
 ## Gemeinsamer Netzwerkordner für 7–8 PCs (neu in 0.54)
 
 Ein Paket, das man nur entpackt – und alle PCs arbeiten auf denselben Daten.
@@ -69,7 +93,7 @@ Ein Paket, das man nur entpackt – und alle PCs arbeiten auf denselben Daten.
   *Einstellungen → Sicherung & Verlauf*.
 * **Schreibsperre:** Jede Änderung läuft unter einer kurzen Sperre im Datenordner (`.innternat_sperre`). Zwei PCs
   speichern nie gleichzeitig; wer gerade dran ist, wird kurz abgewartet (bis 15 s), sonst kommt „Gerade speichert …“.
-  Eine Sperre eines abgestürzten PCs gilt nach 90 s als verwaist.
+  Eine Sperre eines abgestürzten PCs gilt nach 45 s als verwaist (seit 0.55 mit Herzschlag).
 * **Speichern mit Wiederholung:** Liest ein anderer PC eine Datei gerade, verweigert Windows das Ersetzen – es wird
   einige Sekunden wiederholt. Bleibt eine Datei beim Lesen gesperrt, gibt es eine Meldung statt still mit leeren
   Daten weiterzurechnen (und sie danach zu überschreiben).
@@ -1080,4 +1104,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0`, vor 0.54.0 `backup/modern-0.53.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0`, vor 0.54.0 `backup/modern-0.53.0`, vor 0.55.0 `backup/modern-0.54.0` (jeweils auch als Zip in `Sicherung`).

@@ -137,6 +137,17 @@ def test_verwaiste_sperre_wird_uebernommen(ordner):
         assert netz_kern.sperre_info()["pid"] == os.getpid()
 
 
+def test_sperre_puls_haelt_lange_schritte_gueltig(ordner, monkeypatch):
+    monkeypatch.setattr(netz_kern, "SPERRE_PULS", 0.05)
+    p = ordner / netz_kern.SPERRE
+    with netz_kern.sperre():
+        alt = time.time() - 600
+        os.utime(p, (alt, alt))
+        time.sleep(0.3)
+        assert time.time() - p.stat().st_mtime < 5             # erneuert – gilt nicht als verwaist
+    assert not p.exists()
+
+
 def test_sperre_wartet_auf_freigabe(ordner):
     p = ordner / netz_kern.SPERRE
     p.write_text("{}", encoding="utf-8")

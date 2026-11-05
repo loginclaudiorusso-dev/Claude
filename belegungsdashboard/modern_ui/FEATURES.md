@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.54.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.55.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -149,3 +149,10 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Schreibsperre über alle PCs, Speichern und Lesen mit Wiederholung bei gesperrten Dateien
 - „Aktualisiert: … – gespeichert von …“ auf den anderen PCs; Hinweis bei neuer Version
 - Tägliche automatische Sicherung aller Standorte durch genau einen PC
+- Schreibsperre mit Herzschlag (verwaist nach 45 s, lange Schritte bleiben gültig)
+
+## Maßnahmen-Prognose (Rechenweg 0.55)
+- Gebuchte Kurse × Verbleibskurve früherer Kurse derselben Art (bedingt auf die bisherige Dauer)
+- Teilweise gebuchte Kurse plus erwartete Nachbuchung (Poisson-Gamma, Buchungskurve aus den Anreiselisten gemessen)
+- Kurzkurse als Saisonsockel je Monat; Rückwärtstest nur mit dem Wissen am Stichtag, mit Vergleich ohne Verbleib
+- Abtipp-Modus fürs Firmenprogramm: Feld für Feld kopieren, schmaler Streifen im Vordergrund

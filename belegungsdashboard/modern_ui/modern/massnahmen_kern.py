@@ -359,15 +359,156 @@ class Neu:
         return max(self.mittel) if self.mittel else 0.0
 
 
+# ---- 0.55: Verbleib, Nachbuchung, Kurzkurse ------------------------------------------------------------
+# Gebuchte Kurse stehen im Pivot bis zum geplanten Ende voll drin – Abbrüche und Wechsel zu „Pendler“ kennt er noch
+# nicht. Wie viele erfahrungsgemäß bleiben, zeigt der Verlauf früherer Kurse derselben Art (Verbleibskurve).
+# Neue Kurse aus den Vorjahren bringen ihren echten Verlauf schon mit (dort sind Abbrüche enthalten) – für sie gilt die
+# Kurve deshalb nicht (sonst doppelt gezählt).
+
+KURZ_TAGE = 45                     # Arten mit kürzeren Kursen: Saisonsockel statt Einzelkurse
+PICKUP_HALB = 21                   # Annahme ohne Messwerte: 21 Tage vor Start ist die Hälfte gebucht
+KAPPA = 1.5                        # Gewicht der Vorjahre gegenüber dem Buchungsstand (Poisson-Gamma)
+MIN_VORLAUF = 30                   # so viele gemessene Anreisen braucht die gemessene Buchungskurve
+
+
+def verbleib_kurve(ks: list[Kurs], fam: str, bis: date) -> list[float] | None:
+    """R(a): Anteil der Spitze (erste 60 Tage), der am Kurstag a noch da ist – Mittel über die Kurse der Art, nur so
+    weit sie vor ``bis`` beobachtet waren (kein Blick in die Zukunft). None bei weniger als zwei Kursen."""
+    reihen = []
+    for k in ks:
+        if k.familie != fam or len(k.werte) < 90 or k.start >= bis:
+            continue
+        spitze = max(k.werte[:60]) or 0
+        n = min(len(k.werte), (bis - k.start).days)
+        if spitze and n > 60:
+            reihen.append([k.werte[a] / spitze for a in range(n)])
+    if len(reihen) < 2:
+        return None
+    r: list[float] = []
+    for a in range(max(len(x) for x in reihen)):
+        werte = [x[a] for x in reihen if a < len(x)]
+        if len(werte) < 2:
+            break
+        v = sum(werte) / len(werte)
+        r.append(min(v, r[-1]) if a >= 60 and r else v)           # ab Tag 60 nur noch fallend
+    return r
+
+
+def verbleib_faktor(r: list[float] | None, a: int, a0: int) -> float:
+    """Erwarteter Anteil am Kurstag ``a``, bezogen auf den Bestand am Kurstag ``a0`` (bedingt: wer bis a0 blieb)."""
+    if not r or a <= a0 or a < 60:
+        return 1.0
+    ra = r[min(a, len(r) - 1)]
+    r0 = r[min(a0, len(r) - 1)] if a0 >= 60 else max(r[:60])
+    return min(1.0, ra / r0) if r0 else 1.0
+
+
+def gebucht_am(k: Kurs, t: date, stichtag: date, r: list[float] | None) -> float:
+    """Gebuchter Kurs am Tag ``t`` (nach dem Stichtag): Pivot-Wert, höchstens Bestand × Verbleib."""
+    w = k.am(t)
+    if t <= stichtag or not w or r is None:
+        return float(w)
+    a, a0 = (t - k.start).days, max(0, (stichtag - k.start).days)
+    basis = k.am(stichtag) if k.start <= stichtag else k.spitze
+    return float(min(w, basis * verbleib_faktor(r, a, a0)))
+
+
+def pickup_kurve(vorlaeufe: list[int] | None):
+    """p(d): Anteil der späteren Teilnehmenden, der d Tage vor Start schon gebucht ist. Gemessen aus den Anreiselisten
+    (wann stand jemand zuerst drin?) – ab ``MIN_VORLAUF`` Anreisen; sonst die Annahme ``PICKUP_HALB``."""
+    v = sorted(x for x in (vorlaeufe or []) if x >= 0)
+    if len(v) >= MIN_VORLAUF:
+        def p(d: float) -> float:
+            return 1.0 if d <= 0 else sum(1 for x in v if x >= d) / len(v)
+        p.quelle = f"gemessen aus {len(v)} Anreisen"
+    else:
+        def p(d: float) -> float:
+            return 1.0 if d <= 0 else 1.0 / (1.0 + (d / PICKUP_HALB) ** 2)
+        p.quelle = f"Annahme: {PICKUP_HALB} Tage vor Start ist die Hälfte gebucht"
+    return p
+
+
+def nachbuchung(gebucht: float, vorjahre: float, p: float, kappa: float = KAPPA, deckel: float | None = None) -> float:
+    """Erwartete Endstärke eines teilweise gebuchten Kurses (Poisson-Gamma): gebucht + (1 − p) · (κ·Vorjahre + gebucht)
+    / (κ + p). Weit vor Start zählen die Vorjahre, kurz vor Start der Buchungsstand. Nie mehr als ``deckel``."""
+    if p >= 1 or vorjahre <= 0:
+        return float(gebucht)
+    erg = gebucht + (1 - p) * (kappa * vorjahre + gebucht) / (kappa + p)
+    return float(min(erg, max(deckel, gebucht)) if deckel is not None else erg)
+
+
+def vorlauf_messen() -> list[int]:
+    """Tage zwischen „zuerst in einer Anreiseliste“ und Anreise, je Person (nur echte Daten, keine Platzhalter)."""
+    from belegung import anreiseliste
+
+    gesehen = (speicher.lesen("modern_ui_neu.json", {}) or {}).get("gesehen", {})
+    erg = []
+    try:
+        personen, _listen = anreiseliste.laden()
+    except Exception:                         # noqa: BLE001 – ohne Listen: Annahme
+        return []
+    for p in personen:
+        g = gesehen.get(p.schluessel, "")
+        if not g or g < "2001" or not p.anreise:
+            continue
+        try:
+            d = (p.anreise - date.fromisoformat(g[:10])).days
+        except ValueError:
+            continue
+        if 0 <= d <= 365:
+            erg.append(d)
+    return erg
+
+
+def _ist_kurz(ks: list[Kurs], fam: str) -> bool:
+    dauer = [len(k.werte) for k in ks if k.familie == fam]
+    return bool(dauer) and stt.median(dauer) < KURZ_TAGE
+
+
+def _sockel(ks: list[Kurs], fam: str, stichtag: date, bis: date, daten_ab: date) -> Neu | None:
+    """Kurzkurse: je Kalendermonat die mittlere Belegung der Vorjahre als Sockel; schon Gebuchtes wird abgezogen."""
+    eigene = [k for k in ks if k.familie == fam]
+    jahre = [j for j in range(1, VORJAHRE + 1) if _jahr_verschoben(stichtag, -j) >= daten_ab]
+    if not eigene or not jahre:
+        return None
+    tage = [stichtag + timedelta(days=i) for i in range(1, (bis - stichtag).days + 1)]
+    akt = date(stichtag.year, stichtag.month, 1)
+    cache: dict[tuple, float] = {}
+
+    def vorjahr(monat: int, j: int) -> float:
+        """Monatsmittel im j-letzten vollständig vergangenen Monat dieses Kalendermonats (nur vor dem Stichtag)."""
+        if (monat, j) not in cache:
+            jahr = akt.year - (1 if monat >= akt.month else 0) - (j - 1)
+            cache[(monat, j)] = _monatsmittel(lambda x: sum(k.am(x) for k in eigene if k.start <= stichtag),
+                                              date(jahr, monat, 1))
+        return cache[(monat, j)]
+
+    mittel, klein, gross = [], [], []
+    for t in tage:
+        je = [vorjahr(t.month, j) for j in jahre]
+        geb = sum(k.am(t) for k in eigene)                # schon gebucht bzw. laufend
+        mittel.append(max(0.0, sum(je) / len(je) - geb))
+        klein.append(max(0.0, min(je) - geb))
+        gross.append(max(0.0, max(je) - geb))
+    if not any(mittel):
+        return None
+    return Neu(fam, tage[0], mittel, klein, gross, "Sockel")
+
+
 def erwartete_kurse(ks: list[Kurs], stichtag: date, bis: date, plaetze: list | None = None,
-                    daten_ab: date | None = None, familien: set | None = None) -> list[Neu]:
+                    daten_ab: date | None = None, familien: set | None = None, pickup=None) -> list[Neu]:
     """Kurse der letzten zwei Jahre ein bzw. zwei Jahre später wiederholen (Mittel aus beiden Jahren); schon gebuchte
     Kurse (gleiche Art, Start ±45 Tage) ersetzen die Schätzung. Kurse, die am Datenbeginn schon liefen, zählen nicht
     (ihr Start ist unbekannt)."""
     daten_ab = daten_ab or min((k.start for k in ks), default=stichtag)
     gebucht = [k for k in ks if k.start > stichtag]
     erg: list[Neu] = []
+    pickup = pickup or pickup_kurve(None)
     for fam in sorted({k.familie for k in ks} if familien is None else familien):
+        if _ist_kurz(ks, fam):                            # 0.55: Kurzkurse als Saisonsockel (kein ±45-Tage-Raster)
+            if (s := _sockel(ks, fam, stichtag, bis, daten_ab)) is not None:
+                erg.append(s)
+            continue
         # je Jahr (1 = Vorjahr, 2 = vor zwei Jahren) die Kurse der Art, verschoben in die Zukunft
         quellen: dict[int, list[Kurs]] = {j: [] for j in range(1, VORJAHRE + 1)}
         for k in ks:
@@ -398,8 +539,7 @@ def erwartete_kurse(ks: list[Kurs], stichtag: date, bis: date, plaetze: list | N
                         js.add(j2)
                 if any(e.familie == fam and abs((e.start - s).days) <= 45 for e in erg):
                     continue
-                if any(g.familie == fam and abs((g.start - s).days) <= 45 for g in gebucht):
-                    continue                              # schon gebucht – zählt im Bestand
+                g = next((g for g in gebucht if g.familie == fam and abs((g.start - s).days) <= 45), None)
                 laenge = max(len(q.werte) for q in quelle)
                 reihen = [[float(q.werte[t]) if t < len(q.werte) else 0.0 for t in range(laenge)] for q in quelle]
                 mittel = [sum(r[t] for r in reihen) / len(reihen) for t in range(laenge)]
@@ -413,6 +553,19 @@ def erwartete_kurse(ks: list[Kurs], stichtag: date, bis: date, plaetze: list | N
                 if anteil < 1:
                     mittel = [w * max(anteil, .5) for w in mittel]
                     klein = [min(a, b / 2) for a, b in zip(klein, gross)]
+                if g is not None:
+                    # 0.55: schon (teil-)gebucht – der Bestand zählt im Pivot; dazu kommt, was erfahrungsgemäß noch
+                    # nachgebucht wird (statt die Schätzung ganz wegzulassen: „Buchungsloch“)
+                    sp = max(mittel) or 0.0
+                    if not sp:
+                        continue
+                    ende = nachbuchung(g.spitze, sp, pickup((g.start - stichtag).days), deckel=max(gross))
+                    rest = (ende - g.spitze) / sp
+                    if rest * sp < 0.5:
+                        continue
+                    erg.append(Neu(fam, g.start, [w * rest for w in mittel], [0.0] * laenge,
+                                   [w * rest * 1.5 for w in mittel], "Nachbuchung"))
+                    continue
                 erg.append(Neu(fam, s, mittel, klein, gross))
     for p in plaetze or []:                               # eigene Planung ersetzt die Schätzung dieses Starts
         fam, monat, n = p["familie"], date.fromisoformat(p["monat"] + "-01"), int(p["plaetze"])
@@ -458,10 +611,21 @@ class Prognose:
     anteil_quelle: str
     gruppen: dict
     familien: list = field(default_factory=list)   # Tabelle je Art (Hauptmaßnahmen, Vorbereitung, IBTZ)
+    nachbuchung_quelle: str = ""                   # 0.55: woher die Buchungskurve stammt (gemessen / Annahme)
+    mit_verbleib: int = 0                          # 0.55: Arten, für die eine Verbleibskurve vorliegt
+
+
+def _verlauf_fn(ks: list[Kurs], stichtag: date, verbleib: bool = True):
+    """Tag → Wert je gebuchtem Kurs (mit Verbleibskurve der Art) und Zahl der Arten mit Kurve."""
+    kurven = {f: verbleib_kurve(ks, f, stichtag) for f in {k.familie for k in ks}} if verbleib else {}
+
+    def am(k: Kurs, t: date) -> float:
+        return gebucht_am(k, t, stichtag, kurven.get(k.familie))
+    return am, sum(1 for r in kurven.values() if r)
 
 
 def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 24, internat: bool = False,
-             familien: set | None = None) -> Prognose | None:
+             familien: set | None = None, vorlauf: list[int] | None = None) -> Prognose | None:
     """``familien``: nur diese Maßnahmenarten (None = alle außer „ohne Zimmer“)."""
     roh = daten if daten is not None else _roh()
     ks = kurse(roh)
@@ -484,7 +648,9 @@ def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 2
     for _ in range(zurueck):
         erster = date(erster.year - (erster.month == 1), (erster.month - 2) % 12 + 1, 1)
     monate = _monate(erster, zurueck + vor + 1)
-    neu = erwartete_kurse(ks, stichtag, monate[-1] + timedelta(days=31), roh.get("plaetze"), daten_ab, set(zeigen))
+    pk = pickup_kurve(vorlauf)
+    neu = erwartete_kurse(ks, stichtag, monate[-1] + timedelta(days=31), roh.get("plaetze"), daten_ab, set(zeigen), pk)
+    am, n_kurven = _verlauf_fn(ks, stichtag)
     zeilen = []
     for m in monate:
         prog = m >= akt
@@ -493,7 +659,7 @@ def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 2
         for k in ks:
             if gr.get(k.familie) == "ohne":
                 continue
-            w = _monatsmittel(lambda t, k=k: k.am(t), m) * faktor(k.familie)
+            w = _monatsmittel(lambda t, k=k: am(k, t), m) * faktor(k.familie)
             if w:
                 je[gr[k.familie]] = je.get(gr[k.familie], 0.0) + w
                 if prog:
@@ -508,8 +674,8 @@ def prognose(daten: dict | None, stichtag: date, zurueck: int = 12, vor: int = 2
                     kl += _monatsmittel(lambda t, e=e: e.am(t, "klein"), m) * f
                     gr_ += _monatsmittel(lambda t, e=e: e.am(t, "gross"), m) * f
         zeilen.append(MZeile(m, "prognose" if prog else "ist", je, geb, erw, kl, gr_))
-    tab = familien_tabelle(ks, neu, gr, stichtag, faktor, bool(familien))
-    return Prognose(zeilen, neu, stichtag, internat, quelle, gr, tab)
+    tab = familien_tabelle(ks, neu, gr, stichtag, faktor, bool(familien), am)
+    return Prognose(zeilen, neu, stichtag, internat, quelle, gr, tab, pk.quelle, n_kurven)
 
 
 @dataclass
@@ -526,7 +692,9 @@ class FZeile:
     kurse_3j: int
 
 
-def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, faktor, alle: bool = False) -> list[FZeile]:
+def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, faktor, alle: bool = False,
+                     am=None) -> list[FZeile]:
+    am = am or (lambda k, t: k.am(t))
     erg = []
     for fam in sorted({k.familie for k in ks}):
         if not alle and gr.get(fam) not in ("lang", "vorbereitung", "ibtz"):
@@ -535,9 +703,10 @@ def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, f
         n_neu = [e for e in neu if e.familie == fam]
 
         def wert(t: date) -> float:
-            return (sum(k.am(t) for k in eigene) + sum(e.am(t) for e in n_neu)) * faktor(fam)
+            return (sum(am(k, t) for k in eigene) + sum(e.am(t) for e in n_neu)) * faktor(fam)
         kuenftig = sorted([(k.start, "gebucht") for k in eigene if k.start > stichtag]
-                          + [(e.start, "geplant" if e.herkunft == "geplant" else "erwartet") for e in n_neu])
+                          + [(e.start, "geplant" if e.herkunft == "geplant" else "erwartet") for e in n_neu
+                             if e.herkunft != "Nachbuchung"])
         drei = [k for k in eigene if stichtag - timedelta(days=3 * 365) <= k.start <= stichtag]
         verbleib = []
         for k in drei:
@@ -560,9 +729,12 @@ class Test:
     monate: list                  # (Monat, Ist, Prognose)
 
 
-def rueckwaertstest(daten: dict | None = None, jahre: list[int] | None = None) -> list[Test]:
-    """Wie gut wäre die Prognose gewesen? Stichtag 1. Januar; laufende Kurse mit ihrem Verlauf (vereinfachend: Ist statt
-    damals gebucht), neue Kurse wie oben geschätzt. Vergleich der Summe der Gruppen außer „ohne Zimmer“."""
+def rueckwaertstest(daten: dict | None = None, jahre: list[int] | None = None, verbleib: bool = True) -> list[Test]:
+    """Wie gut wäre die Prognose gewesen? Stichtag 1. Januar, **nur mit dem Wissen von damals** (0.55): Laufende Kurse
+    gehen mit ihrem Bestand am Stichtag ein und werden mit der damals bekannten Verbleibskurve fortgeschrieben (nicht mit
+    ihrem tatsächlichen Verlauf); alle späteren Kurse werden geschätzt, als wäre noch keiner gebucht gewesen (eher
+    strenger als die Wirklichkeit). ``verbleib=False``: ohne Verbleibskurve (Bestand bleibt bis Kursende) – zum
+    Vergleich. Summe der Gruppen außer „ohne Zimmer“."""
     roh = daten if daten is not None else _roh()
     ks = kurse(roh)
     if not ks:
@@ -578,13 +750,25 @@ def rueckwaertstest(daten: dict | None = None, jahre: list[int] | None = None) -
         c = date(j, 1, 1)
         bestand = [k for k in ks if k.start < c and k.familie in zeigen]
         echt_neu = [k for k in ks if c <= k.start < date(j + 1, 1, 1) and k.familie in zeigen]
-        neu = erwartete_kurse([k for k in ks if k.start < c], c - timedelta(days=1), date(j, 12, 31), None, daten_ab, zeigen)
+        vorher = [k for k in ks if k.start < c]
+        st = c - timedelta(days=1)
+        neu = erwartete_kurse(vorher, st, date(j, 12, 31), None, daten_ab, zeigen)
+        kurven = {f: verbleib_kurve(vorher, f, st) for f in {k.familie for k in bestand}} if verbleib else {}
+
+        def damals(k: Kurs, t: date) -> float:
+            """Bestand am Stichtag × Verbleib – bis zum (damals geplanten) Kursende; der spätere Verlauf ist unbekannt."""
+            if t <= st or not k.am(t):
+                return float(k.am(t))
+            a, a0 = (t - k.start).days, (st - k.start).days
+            return float(k.am(st)) * verbleib_faktor(kurven.get(k.familie), a, a0)
+
         zeilen = []
         for m in _monate(c, 12):
             if m >= date.today().replace(day=1) or m > daten_bis:
                 break
-            b = sum(_monatsmittel(lambda t, k=k: k.am(t), m) for k in bestand)
-            ist = b + sum(_monatsmittel(lambda t, k=k: k.am(t), m) for k in echt_neu)
+            b_ist = sum(_monatsmittel(lambda t, k=k: k.am(t), m) for k in bestand)
+            b = sum(_monatsmittel(lambda t, k=k: damals(k, t), m) for k in bestand)
+            ist = b_ist + sum(_monatsmittel(lambda t, k=k: k.am(t), m) for k in echt_neu)
             prog = b + sum(_monatsmittel(lambda t, e=e: e.am(t), m) for e in neu)
             zeilen.append((m, ist, prog))
 
@@ -663,7 +847,8 @@ class VZeile:
         return (self.tage_12m / self.tage_vorjahr - 1) if self.tage_vorjahr else None
 
 
-def vergleich(daten: dict | None, stichtag: date, familien: list[str], internat: bool = False) -> list[VZeile]:
+def vergleich(daten: dict | None, stichtag: date, familien: list[str], internat: bool = False,
+              vorlauf: list[int] | None = None) -> list[VZeile]:
     roh = daten if daten is not None else _roh()
     ks = kurse(roh)
     gr = gruppen(roh)
@@ -685,7 +870,7 @@ def vergleich(daten: dict | None, stichtag: date, familien: list[str], internat:
         j6 = [k for k in eigene if stichtag - timedelta(days=6 * 365) <= k.start < stichtag - timedelta(days=3 * 365)]
         verbleib = [k.werte[-31] / max(k.werte[:60]) for k in j3
                     if k.ende < stichtag and len(k.werte) > 90 and max(k.werte[:60])]
-        einzel = prognose(roh, stichtag, 0, 24, internat, {fam})
+        einzel = prognose(roh, stichtag, 0, 24, internat, {fam}, vorlauf)
         werte = [z.summe for z in einzel.zeilen] if einzel else [0.0]
         erg.append(VZeile(fam, gr.get(fam, "uebrige"), tage(stichtag - timedelta(days=365), stichtag),
                           tage(stichtag - timedelta(days=730), stichtag - timedelta(days=366)), len(j3) / 3,
@@ -696,7 +881,8 @@ def vergleich(daten: dict | None, stichtag: date, familien: list[str], internat:
     return erg
 
 
-def je_familie(daten: dict | None, stichtag: date, familien: list[str], zurueck: int, vor: int, internat: bool) -> dict:
+def je_familie(daten: dict | None, stichtag: date, familien: list[str], zurueck: int, vor: int, internat: bool,
+               vorlauf: list[int] | None = None) -> dict:
     """Art → Prognose (für die Vergleichslinien)."""
     roh = daten if daten is not None else _roh()
-    return {f: p for f in familien if (p := prognose(roh, stichtag, zurueck, vor, internat, {f})) is not None}
+    return {f: p for f in familien if (p := prognose(roh, stichtag, zurueck, vor, internat, {f}, vorlauf)) is not None}

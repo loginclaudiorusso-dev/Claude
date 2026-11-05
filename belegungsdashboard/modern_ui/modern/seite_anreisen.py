@@ -115,9 +115,15 @@ def eintragen_zeichnen(a) -> None:
         segmente({14: "14 Tage", 30: "30 Tage", 90: "90 Tage"}, a.ein_tage, lambda t: a.setzen(ein_tage=t))
         segmente({False: "Abgehakte ausblenden", True: "Alle zeigen"}, a.ein_alle, lambda x: a.setzen(ein_alle=x, laden=False))
         if offen:
+            knopf("Abtipp-Modus" if not a.ein_abtipp else "Abtipp-Modus beenden",
+                  lambda: _abtipp_umschalten(a, not a.ein_abtipp), "primaer" if not a.ein_abtipp else "",
+                  "view_sidebar", "Einen Eintrag nach dem anderen – je Feld ein Kopierknopf, danach „Eingetragen – nächster“")
             knopf("Offene kopieren", lambda: _kopieren(a), "gruen", "content_copy")
             knopf("Alle als eingetragen markieren", lambda: a.aendern(ank.eintragen_setzen, [z.schluessel for z in offen],
                                                                        True, a.heute, a.ein_tage), "", "done_all")
+    if a.ein_abtipp and offen:
+        _abtipp(a, offen)
+        return
     sp = "36px 110px minmax(160px, 1.4fr) minmax(140px, 1.2fr) 90px 190px"
     with a.inhalt:
         ui.label("Im Programm geplant, aber noch nicht im Belegungssystem gebucht. „Kopieren“ legt die Zeilen "
@@ -142,6 +148,81 @@ def eintragen_zeichnen(a) -> None:
                 ui.label(z.massnahme).classes("m-zweite")
                 ui.label(z.zimmer).classes("m-mono")
                 ui.label(f"{z.von:%d.%m.%Y} – {z.bis:%d.%m.%Y}").classes("m-mono")
+
+
+# ---- 0.55: Abtipp-Modus ------------------------------------------------------------------
+# Ins Belegungssystem des Trägers muss jede Planung von Hand übertragen werden. Statt zwischen zwei großen Fenstern die
+# Zeile zu suchen: ein Eintrag groß, je Feld ein Kopierknopf, „Eingetragen – nächster“. Im eigenen Fenster lässt sich
+# INNternat dafür zu einem schmalen Streifen am rechten Rand machen, der im Vordergrund bleibt.
+
+SCHMAL_BREITE = 380
+
+
+async def _abtipp_umschalten(a, an: bool) -> None:
+    if not an:
+        await _schmal(a, False)
+    await a.setzen(ein_abtipp=an, ein_pos=0, laden=False)
+
+
+def _abtipp(a, offen: list) -> None:
+    pos = min(max(0, a.ein_pos), len(offen) - 1)
+    z = offen[pos]
+    with a.inhalt, ui.element("section").classes("m-abtipp"):
+        with ui.element("div").classes("m-abtipp-kopf"):
+            ui.label(f"Eintrag {pos + 1} von {len(offen)}").classes("m-btitel")
+            knopf("", lambda: _schmal(a, not getattr(a, "ein_schmal", False)), "leise",
+                  "close_fullscreen" if not getattr(a, "ein_schmal", False) else "open_in_full",
+                  "Schmal am rechten Rand und im Vordergrund (nur im eigenen Fenster)" if not getattr(a, "ein_schmal", False)
+                  else "Wieder normale Fenstergröße")
+        for titel, wert in z.felder():
+            with ui.element("div").classes("m-abtipp-feld"):
+                ui.label(titel).classes("m-zweite")
+                ui.label(wert or "–").classes("m-abtipp-wert")
+                if wert:
+                    knopf("", lambda w=wert, t=titel: _feld_kopieren(a, t, w), "leise", "content_copy", f"{titel} kopieren")
+        with ui.element("div").classes("m-abtipp-knoepfe"):
+            knopf("", lambda: a.setzen(ein_pos=max(0, pos - 1), laden=False), "leise", "chevron_left", "Vorheriger")
+            knopf("Überspringen", lambda: a.setzen(ein_pos=(pos + 1) % len(offen), laden=False), "leise", "skip_next")
+            knopf("Eingetragen – nächster", lambda: _eingetragen(a, z, pos), "primaer", "done")
+        ui.label("Tipp: Felder nacheinander kopieren und im Belegungssystem einfügen. „Eingetragen“ hakt den Eintrag ab "
+                 "(Rückgängig wie immer).").classes("m-zweite").style("white-space: normal")
+
+
+async def _feld_kopieren(a, titel: str, wert: str) -> None:
+    ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(wert)})")
+    a.toast(f"{titel} kopiert: {wert}", rueck=False, dauer=2)
+
+
+async def _eingetragen(a, z, pos: int) -> None:
+    if await a.aendern(ank.eintragen_setzen, [z.schluessel], True, a.heute, a.ein_tage):
+        a.ein_pos = pos                        # die Liste rückt nach – an derselben Stelle steht der nächste
+        a.zeichnen()
+
+
+async def _schmal(a, an: bool) -> None:
+    """Eigenes Fenster (pywebview): schmaler Streifen rechts, im Vordergrund – und zurück. Im Browser nur die Ansicht."""
+    from nicegui import app
+
+    fenster = getattr(app.native, "main_window", None)
+    a.ein_schmal = an
+    a.body.classes(add="abtipp-schmal") if an else a.body.classes(remove="abtipp-schmal")
+    if fenster is not None:
+        try:
+            if an:
+                a.ein_fenster_vorher = (await fenster.get_size(), await fenster.get_position())
+                breite = int(await ui.run_javascript("screen.availWidth", timeout=3) or 1366)
+                hoehe = int(await ui.run_javascript("screen.availHeight", timeout=3) or 800)
+                fenster.resize(SCHMAL_BREITE, hoehe)
+                fenster.move(max(0, breite - SCHMAL_BREITE), 0)
+                fenster.set_always_on_top(True)
+            elif getattr(a, "ein_fenster_vorher", None):
+                (w, h), (x, y) = a.ein_fenster_vorher
+                fenster.set_always_on_top(False)
+                fenster.resize(w, h)
+                fenster.move(x, y)
+        except Exception:                      # noqa: BLE001 – ohne Fensterfunktionen bleibt es bei der Ansicht
+            pass
+    a.zeichnen()
 
 
 async def _kopieren(a) -> None:

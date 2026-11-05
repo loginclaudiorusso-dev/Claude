@@ -130,7 +130,7 @@ P = {
 # Typografie und Kanten je Theme (unabhängig von hell/dunkel)
 TYPO = {
     "innternat": dict(r="6px", r2="10px", fs="14px", zeile="44px", kante="none",
-                      schrift='"Candara", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+                      schrift='"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',      # 0.55: statt Candara (ruhiger in Tabellen)
                       titel_schrift='"Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'),
     "original": dict(r="8px", r2="12px", fs="13.5px", zeile="44px", kante="none",
                      schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',

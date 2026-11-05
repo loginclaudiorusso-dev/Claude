@@ -30,11 +30,17 @@ def daten(a) -> None:
     arten = auswahl or [f for f, g, t in liste if g != "ohne" and t > 0]
     darstellung = getattr(a, "mn_darstellung", None) or ("ein" if len(arten) <= EIN_DIAGRAMM_BIS else "je")
     d = {"stand": mk.stand(), "vor": vor, "liste": liste, "auswahl": auswahl, "arten": arten, "darstellung": darstellung,
-         "skala": getattr(a, "mn_skala", "gleich"), "je": {}, "vergleich": [], "tests": [], "neu": []}
+         "skala": getattr(a, "mn_skala", "gleich"), "je": {}, "vergleich": [], "tests": [], "tests_ohne": [], "neu": [],
+         "quelle": "", "verbleib": 0}
     if arten:
-        d["je"] = mk.je_familie(roh, a.heute, arten, 12, vor, False)
-        d["vergleich"] = mk.vergleich(roh, a.heute, arten, False)
+        vl = mk.vorlauf_messen()
+        d["je"] = mk.je_familie(roh, a.heute, arten, 12, vor, False, vl)
+        d["vergleich"] = mk.vergleich(roh, a.heute, arten, False, vl)
         d["tests"] = mk.rueckwaertstest(roh)
+        d["tests_ohne"] = mk.rueckwaertstest(roh, verbleib=False)
+        p0 = next(iter(d["je"].values()), None)
+        d["quelle"] = p0.nachbuchung_quelle if p0 else mk.pickup_kurve(vl).quelle
+        d["verbleib"] = sum(p.mit_verbleib for p in d["je"].values())
         d["neu"] = sorted((e for p in d["je"].values() for e in p.neu), key=lambda e: (e.start, e.familie))
     a.daten = d
 
@@ -84,7 +90,7 @@ def zeichnen(a) -> None:
                     "m-zweite").style("white-space:normal")
             _vergleich_tabelle(a, d)
             _neue_liste(d["neu"])
-            _test(d["tests"])
+            _test(d["tests"], d["tests_ohne"], d["quelle"], d["verbleib"])
 
 
 def _farben() -> list[str]:
@@ -240,24 +246,37 @@ def _neue(pg) -> None:
                     ui.label(f"{e.start:%d.%m.%Y}").classes("m-mono")
                     ui.label(e.familie).classes("m-name")
                     ui.label(f"{_z(e.spitze)} ({_z(max(e.klein) if e.klein else 0)}–{_z(max(e.gross) if e.gross else 0)})").classes("m-mono")
-                    ui.label("eigene Plätze" if e.herkunft == "geplant" else "wie in den Vorjahren").classes("m-zweite")
+                    ui.label({"geplant": "eigene Plätze", "Nachbuchung": "erwartete Nachbuchung zum gebuchten Kurs",
+                              "Sockel": "Kurzkurse: Sockel wie in den Vorjahren"}.get(e.herkunft, "wie in den Vorjahren")
+                             ).classes("m-zweite")
 
 
-def _test(tests: list) -> None:
+def _test(tests: list, ohne: list | None = None, quelle: str = "", verbleib: int = 0) -> None:
     with ui.element("section").classes("m-block m-breit"):
         ui.label("Wie gut wäre die Prognose gewesen? (Rückwärtstest)").classes("m-btitel")
         if not tests:
             ui.label("Dafür braucht es mindestens drei Jahre im Maßnahmen-Pivot.").classes("m-zweite")
             return
-        for t in tests:
-            with ui.element("div").classes("m-liste-zeile"):
-                ui.label(str(t.jahr)).classes("m-name")
-                ui.label(f"Jan–Jun: {_pz(t.h1)}").classes("m-mono")
-                ui.label(f"Jul–Dez: {_pz(t.h2)}").classes("m-mono")
-        ui.label("Stichtag jeweils 1. Januar, Summe aller Gruppen außer „ohne Zimmer“, mittlere Abweichung je Monat. Laufende "
-                 "Kurse sind mit ihrem tatsächlichen Verlauf gerechnet (damals war nur der gebuchte Stand bekannt) – der "
-                 "Test ist dadurch etwas zu günstig. Das zweite Halbjahr hängt an den neuen Kursen: eigene geplante Plätze "
-                 "machen es genauer.").classes("m-xk-hinweis")
+        o = {t.jahr: t for t in ohne or []}
+        with tabelle("70px auto auto minmax(180px, 1fr)"):
+            with ui.element("div").classes("m-raster m-tkopf"):
+                for k in ("Jahr", "Jan–Jun", "Jul–Dez", "zum Vergleich: ohne Verbleib"):
+                    ui.label(k)
+            for t in tests:
+                x = o.get(t.jahr)
+                with ui.element("div").classes("m-raster m-zeile"):
+                    ui.label(str(t.jahr)).classes("m-name")
+                    ui.label(_pz(t.h1)).classes("m-mono")
+                    ui.label(_pz(t.h2)).classes("m-mono")
+                    ui.label(f"{_pz(x.h1)} · {_pz(x.h2)}" if x else "–").classes("m-mono m-zweite")
+        ui.label("Stichtag jeweils 1. Januar, nur mit dem Wissen von damals: laufende Kurse mit ihrem Bestand am Stichtag "
+                 "und der damals bekannten Verbleibskurve, alle späteren Kurse geschätzt, als wäre noch keiner gebucht "
+                 "(eher strenger als die Wirklichkeit). Mittlere Abweichung je Monat, Summe aller Gruppen außer „ohne "
+                 "Zimmer“. Das zweite Halbjahr hängt an den neuen Kursen – eigene geplante Plätze machen es genauer."
+                 ).classes("m-xk-hinweis")
+        ui.label(f"So wird gerechnet: gebuchte Kurse × Verbleib früherer Kurse derselben Art ({verbleib} Arten mit Kurve) · "
+                 f"teilweise gebuchte Kurse plus erwartete Nachbuchung ({quelle}) · neue Kurse mit dem Verlauf der "
+                 "Vorjahre · Kurzkurse als Sockel je Monat.").classes("m-xk-hinweis")
 
 
 def _pz(x: float | None) -> str:
