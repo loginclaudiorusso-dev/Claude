@@ -10,7 +10,8 @@ from . import darstellung_kern as dk, diagramm_stil, themes
 from .ui_bausteine import attr, knopf
 
 KATEGORIEN = {"farben": ("Farben & Design", "palette"), "anzeige": ("Anzeige & Schrift", "format_size"),
-              "diagramme": ("Diagramme", "insert_chart"), "zuruecksetzen": ("Zurücksetzen", "restart_alt")}
+              "diagramme": ("Diagramme", "insert_chart"), "oberflaeche": ("Oberfläche", "space_dashboard"),
+              "programm": ("Programm", "settings"), "zuruecksetzen": ("Zurücksetzen", "restart_alt")}
 
 
 def _vorschau_option(d: dict) -> dict:
@@ -78,8 +79,8 @@ def oeffnen(a, kategorie: str = "farben") -> None:
         rechts.clear()
         d = a.design
         with rechts:
-            {"farben": _farben, "anzeige": _anzeige, "diagramme": _diagramme, "zuruecksetzen": _zurueck}[zustand["k"]](
-                a, d, setzen)
+            {"farben": _farben, "anzeige": _anzeige, "diagramme": _diagramme, "oberflaeche": _oberflaeche,
+             "programm": lambda a, d, s: _programm(a, dlg), "zuruecksetzen": _zurueck}[zustand["k"]](a, d, setzen)
 
     fuellen()
     dlg.on("hide", lambda: dlg.delete() if not dlg.is_deleted else None)
@@ -202,6 +203,38 @@ def _diagramme(a, d: dict, setzen) -> None:
     _wahl({"oben": "Oben", "unten": "Unten", "aus": "Keine"}, d["dg_legende"], lambda x: setzen(dg_legende=x))
     _titel("Vorschau", "Beispiel mit erfundenen Zahlen.")
     ui.echart(_vorschau_option(d)).classes("m-opt-chart")
+
+
+def _oberflaeche(a, d: dict, setzen) -> None:
+    from .menueband import LAYOUT_NAMEN
+
+    _titel("Aufbau der Oberfläche", "Das Menüband ist für den Alltag gedacht. Die anderen Aufbauten sind Alternativen.")
+    _wahl(LAYOUT_NAMEN, d["layout"], lambda k: setzen(layout=k))
+    with ui.element("div").classes("m-opt-zeile"):
+        from . import leitstand_ui
+
+        knopf("Zur Leitstand-Workbench wechseln", lambda: leitstand_ui.umschalten(a), "", "view_quilt")
+        ui.label("Strg+Umschalt+L wechselt hin und zurück.").classes("m-opt-unter")
+    _titel("Bereiche", "Was nicht gebraucht wird, verschwindet aus dem Menüband – nur auf diesem PC.")
+    _haken("Leitung anzeigen (Steuerung: Renovierung, Zeitplan, Finanzen)", d["leitung"], lambda x: setzen(leitung=x))
+
+
+def _programm(a, dlg) -> None:
+    """0.69: Einstellungen und Optionen an einer Stelle – die Programm-Einstellungen gelten für alle PCs."""
+    _titel("Programm-Einstellungen", "Regeln, Erinnerungen, Engpass-Grenzen, Outlook, KI – gelten für alle PCs am Standort.")
+
+    async def oeffnen(ansicht: str):
+        dlg.close()
+        await a.oeffnen("einstellungen", ansicht)
+    with ui.element("div").classes("m-opt-wahl"):
+        for k, t, icon in (("allgemein", "Allgemeine Einstellungen", "tune"),
+                           ("stammdaten", "Zimmer-Stammdaten", "edit_note"),
+                           ("sicherung", "Sicherung & Verlauf", "backup")):
+            b = ui.element("button").classes("m-opt-chip")
+            with b:
+                ui.icon(icon)
+                ui.label(t)
+            b.on("click", lambda k=k: oeffnen(k))
 
 
 def _zurueck(a, d: dict, setzen) -> None:

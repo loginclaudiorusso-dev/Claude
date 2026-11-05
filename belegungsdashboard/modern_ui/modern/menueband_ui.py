@@ -32,8 +32,11 @@ def seitentitel(a, titel: str) -> str:
     """Im Menüband-Layout fehlen die Ansichts-Umschalter im Seitenkopf – darum steht die Ansicht im Titel."""
     if a.design.get("layout") != LAYOUT:
         return titel
-    if a.seite == "heute":
-        return titel + (" · Aufgaben" if _heute(a) == "postfach" else "")
+    if a.seite == "heute":                             # 0.69: Datum im Titel statt eigener großer Überschrift
+        if _heute(a) == "postfach":
+            return titel + " · Aufgaben"
+        tage = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+        return f"{titel} · {tage[a.heute.weekday()]}, {a.heute:%d.%m.%Y}"
     views = _ansichten().get(a.seite) or {}
     k = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
     return f"{titel} · {views[k]}" if k in views else titel
@@ -226,7 +229,14 @@ def _gruppe(a, g: mb.Gruppe) -> None:
                     if len(klein) == 3:
                         stapel()
             stapel()
-        ui.label(g.titel).classes("m-ob-gtitel")
+        with ui.element("div").classes("m-ob-gfuss"):
+            ui.label(g.titel).classes("m-ob-gtitel")
+            if g.starter:                                    # ↘ wie in Office: Dialog zur Gruppe
+                st = ui.element("button").classes("m-ob-starter")
+                attr(st, title=f"{g.titel}: alle Einstellungen", aria_label=f"{g.titel} – Dialog öffnen")
+                with st:
+                    ui.icon("south_east")
+                st.on("click", lambda z=g.starter: ausfuehren(a, z))
 
 
 def fuellen(a, erzwingen: bool = False) -> None:
@@ -236,7 +246,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
             a._ob_sig = None
             a.topnav.clear()
         return
-    alle = mb.reiter(_ansichten())
+    alle = mb.reiter(_ansichten(), a.design.get("leitung", True))
     tab = getattr(a, "band_tab", None) or "start"
     aktuell = next((r for r in alle if r.key == tab), alle[0])
     if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
@@ -261,7 +271,14 @@ def fuellen(a, erzwingen: bool = False) -> None:
                     with k:
                         ui.icon(icon)
                     k.on("click", lambda z=ziel: ausfuehren(a, z))
-            ui.label(f"INNternat – {s.name}").classes("m-ob-app")
+            ui.label("INNternat").classes("m-ob-app")
+            st = ui.element("button").classes("m-ob-tk breit m-ob-standort")    # Standort nur hier (Regel 2)
+            attr(st, title="Standort wechseln")
+            with st:
+                ui.icon("location_on")
+                ui.label(s.name)
+                ui.icon("expand_more").classes("m-ob-pfeil-hell")
+            st.on("click", lambda: ausfuehren(a, mb.A("standort")))
             such = ui.element("button").classes("m-ob-suche")
             attr(such, title="Suchen (Strg+K)")
             with such:
@@ -284,12 +301,6 @@ def fuellen(a, erzwingen: bool = False) -> None:
             with hilfe:
                 ui.icon("help_outline")
             hilfe.on("click", lambda: ausfuehren(a, mb.A("hilfe")))
-            st = ui.element("button").classes("m-ob-tk breit")
-            attr(st, title="Standort wechseln")
-            with st:
-                ui.icon("location_city")
-                ui.label(s.name)
-            st.on("click", lambda: ausfuehren(a, mb.A("standort")))
         with ui.element("div").classes("m-ob-reiter"):
             datei = ui.element("button").classes("m-ob-datei")
             with datei:
@@ -298,8 +309,12 @@ def fuellen(a, erzwingen: bool = False) -> None:
             for r in alle:
                 if not mb.sichtbar(r, a.seite):
                     continue
+                hier = not r.kontext and r.key != tab and r.key == mb.reiter_von(a.seite, _ansichten(),
+                                                                                  a.ansicht.get(a.seite))
                 rb = ui.element("button").classes("m-ob-tab" + (" an" if r.key == tab else "")
-                                                  + (" kontext" if r.kontext else ""))
+                                                  + (" kontext" if r.kontext else "") + (" hier" if hier else ""))
+                if hier:                                     # Orientierung: hier liegt die offene Seite
+                    attr(rb, title="Hier liegt die gerade offene Seite")
                 if r.kontext:
                     attr(rb, title="Kontext-Registerkarte – erscheint nur auf Seiten mit Diagrammen")
                 with rb:
@@ -310,20 +325,23 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 _gruppe(a, g)
         with ui.element("footer").classes("m-ob-status"):
             ui.label("Bereit")
-            ui.label(mb.statuszeile(s.name, a.karten, getattr(a.stand_anzeige, "text", ""))).classes("m-ob-status-m")
+            ui.label(getattr(a.stand_anzeige, "text", "")).classes("m-ob-status-m")   # Datenstand – ohne Doppel-Zähler
             ui.element("div").style("flex:1")
             ui.label(f"Version {__version__}")
-            with ui.element("div").classes("m-ob-zoom"):                # wie der Zoom-Regler in Office
-                for icon, w, titel in (("remove", "-", "Verkleinern"), (None, "100", "Zoom zurücksetzen (100 %)"),
-                                       ("add", "+", "Vergrößern")):
-                    z = ui.element("button").classes("m-ob-zk")
-                    attr(z, title=titel)
+            with ui.element("div").classes("m-ob-zoom"):    # wie in Word/Excel: Ansicht-Schalter und Zoom unten rechts
+                an = {"dichte": a.design.get("dichte") == "kompakt", "vollbild": bool(a.design.get("vollbild")),
+                      "modus": a.design.get("modus") == "dunkel"}
+                for p in mb.STATUSLEISTE:
+                    z = ui.element("button").classes("m-ob-zk" + (" an" if an.get(p.ziel[1]) else ""))
+                    attr(z, title=p.tipp or p.text, aria_label=p.text)
                     with z:
-                        if icon:
-                            ui.icon(icon)
+                        if p.icon:
+                            ui.icon(p.icon)
                         else:
                             ui.label(f"{a.design['zoom']} %")
-                    z.on("click", lambda w=w: ausfuehren(a, mb.A(f"zoom:{w}")))
+                    if p.ziel == mb.A("zoom:-"):
+                        ui.element("span").classes("m-ob-strich")
+                    z.on("click", lambda p=p: ausfuehren(a, p.ziel))
 
 
 def _tab(a, key: str) -> None:
@@ -380,7 +398,7 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
   border-bottom: 1px solid var(--ob-rand); box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow-x: auto; scrollbar-width: thin; }
 .m-ob-gruppe { display: flex; flex-direction: column; padding: 0 6px; border-right: 1px solid var(--ob-rand); flex: none; }
 .m-ob-gruppe:last-child { border-right: 0; }
-.m-ob-punkte { flex: 1; display: flex; align-items: flex-start; gap: 2px; }
+.m-ob-punkte { flex: 1; display: flex; align-items: flex-start; gap: 4px; }
 .m-ob-gtitel { text-align: center; font-size: 11px; color: var(--ob-text2); padding: 2px 0 4px; white-space: nowrap; }
 .m-ob-gross { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
   min-width: 58px; max-width: 86px; height: 70px; padding: 6px 6px 4px; border-radius: 4px; text-align: center;
@@ -415,6 +433,34 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-tab.kontext::before { content: ""; position: absolute; left: 6px; right: 6px; top: 0; height: 3px; border-radius: 0 0 2px 2px;
   background: var(--ob-akzent); opacity: .55; }
 body.lay-office .m-seg-ansicht { display: none !important; }
+/* 0.69 Arbeitsfläche: Kennzahlen als EINE Zeile flacher Chips, Null-Werte grau; Heute ohne große Überschrift */
+body.lay-office .m-leiste { padding: 6px 18px; gap: 8px; row-gap: 6px; }
+body.lay-office .m-stats { gap: 6px; }
+body.lay-office .m-stat { flex-direction: row !important; align-items: center; gap: 6px; min-width: 0 !important; height: 30px;
+  padding: 0 11px 0 9px !important; border-radius: 15px !important; }
+body.lay-office .m-stat .k { gap: 4px; }
+body.lay-office .m-stat .s { font-size: 15px !important; }
+body.lay-office .m-stat .z { font-size: 14px !important; font-weight: 700 !important; letter-spacing: 0 !important; }
+body.lay-office .m-stat .l { font-size: 12.5px !important; color: var(--text2) !important; white-space: nowrap; }
+body.lay-office .m-stat.null { display: none; }           /* Null-Werte nicht als Chip (Review: „Null-Lärm“) */
+body.lay-office .m-stat.null .s, body.lay-office .m-stat.null .z { color: var(--text3) !important; }
+body.lay-office .m-trennlinie { height: 22px; }
+body.lay-office .m-tz-kopf { display: none; }
+body.lay-office .m-tz { padding-top: 10px !important; }
+body.lay-office .m-tz-zahlen { display: flex; flex-wrap: wrap; gap: 6px; border: 0; margin-bottom: 12px; }
+body.lay-office .m-tz-zahl-k { display: inline-flex !important; align-items: center; gap: 7px; height: 32px; padding: 0 12px !important;
+  border: 1px solid var(--rand) !important; border-radius: 16px; background: var(--fl); }
+body.lay-office .m-tz-zahl-k .m-tz-zahl { font-size: 15px; font-weight: 700; font-family: inherit; }
+body.lay-office .m-tz-zahl-k .m-tz-zahl-t { display: flex; gap: 0; }
+body.lay-office .m-tz-zahl-k .m-tz-zahl-l { font-size: 12.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text2); }
+body.lay-office .m-tz-zahl-k .m-tz-zahl-l .q-icon { display: none; }
+body.lay-office .m-tz-zahl-k .m-tz-zahl-u { display: none; }
+body.lay-office .m-tz-zahl-k.null { opacity: .55; }
+body.lay-office .m-tz-zahl-k.null .m-tz-zahl { color: var(--text3) !important; }
+.m-w-leiste { display: flex; align-items: center; gap: 10px; margin: 10px 24px 0; padding: 6px 8px 6px 14px; border-radius: 6px;
+  background: var(--ob-an, rgba(0,127,127,.1)); font-size: 13px; }
+.m-w-leiste > .q-icon { color: var(--ob-akzent, var(--akzent)); font-size: 18px; }
+.m-w-leiste > div:nth-child(2) { flex: 1; }
 .m-ob-zahl { position: absolute; top: -5px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   font-size: 10px; line-height: 16px; font-weight: 700; background: var(--ob-text2); color: #fff; }
 .m-ob-zahl.rot { background: #C4314B; }
@@ -427,6 +473,18 @@ body.lay-office .m-seg-ansicht { display: none !important; }
   border-radius: 3px; color: var(--ob-text2) !important; font-size: 12px !important; }
 .m-ob-zk .q-icon { font-size: 15px; }
 .m-ob-zk:hover { background: var(--ob-hover) !important; }
+.m-ob-zk.an { background: var(--ob-an) !important; color: var(--ob-akzent) !important; }
+.m-ob-strich { display: none; }
+.m-ob-zoom > .m-ob-zk:nth-child(3) { margin-right: 10px; }
+.m-ob-gfuss { display: flex; align-items: center; justify-content: center; gap: 2px; position: relative; }
+.m-ob-starter { position: absolute; right: -4px; bottom: 2px; width: 16px; height: 16px; display: inline-flex;
+  align-items: center; justify-content: center; border-radius: 3px; color: var(--ob-text2) !important; }
+.m-ob-starter .q-icon { font-size: 12px; }
+.m-ob-starter:hover { background: var(--ob-hover) !important; color: var(--ob-akzent) !important; }
+.m-ob-standort { margin-left: -4px; background: rgba(255,255,255,.08) !important; }
+.m-ob-pfeil-hell { font-size: 16px !important; opacity: .8; }
+.m-ob-tab.hier::before { content: ""; position: absolute; left: 50%; top: 4px; width: 5px; height: 5px; margin-left: -2.5px;
+  border-radius: 50%; background: var(--ob-akzent); }
 .m-ob-muster { width: 16px; height: 16px; border-radius: 3px; flex: none; display: inline-block; }
 .m-ob-menue { min-width: 220px; padding: 4px 0; border-radius: 6px !important; background: var(--ob-fl, #fff) !important;
   color: var(--ob-text, #1F2A2A) !important; border: 1px solid var(--ob-rand, #D9DEDE);

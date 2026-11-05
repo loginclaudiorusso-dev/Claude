@@ -65,14 +65,17 @@ ANSICHT = {
     ("auswertung", "prognose"): ["Taste P startet die Präsentation (← → Schritt für Schritt, Esc beendet)."],
 }
 ERSTE_SCHRITTE = [
-    ("Registerkarten", "Oben wie in Word und Excel: Start für das Tagesgeschäft, dann Termine & Post, Auswertung, "
-                       "Verwalten und Ansicht. Ein ▾ öffnet weitere Ansichten."),
+    ("Registerkarten", "Oben wie in Word und Excel: Start (Heute, Termine, Assistenz), Anreisen, Zimmer & Haus, "
+                       "Auswertung, Verwalten. Ein Klick auf eine Schaltfläche öffnet die Ansicht; ein Punkt am Reiter "
+                       "zeigt, wo die offene Seite liegt."),
     ("Suchen", "Das Suchfeld oben (Strg+K) findet Personen, Zimmer und Seiten."),
     ("Rückgängig", "Jede Änderung lässt sich mit Strg+Z oder dem Pfeil oben links zurücknehmen."),
     ("Automatisch gespeichert", "Es gibt kein „Speichern“: jede Änderung ist sofort gespeichert – auch für die "
                                 "anderen PCs."),
     ("Neuigkeiten", "Die Glocke oben rechts zeigt neue Meldungen; die Zahl verschwindet, wenn sie gelesen sind."),
-    ("Darstellung", "Farben, Zoom und Schrift unter Datei → Optionen; der Zoom auch unten rechts."),
+    ("Darstellung", "Zoom, Kompakt, Vollbild und Hell/Dunkel unten rechts in der Statusleiste; Farben, Schrift und "
+                    "Programm-Einstellungen unter Datei → Optionen."),
+    ("Standort", "Der Standort steht oben neben „INNternat“ – Klick wechselt ihn."),
 ]
 TASTEN = [
     ("Strg+K", "Suchen"), ("Strg+Z", "Letzte Änderung zurücknehmen"), ("Strg+P", "Aktuelle Ansicht drucken"),

@@ -25,9 +25,10 @@ def test_druckausgaben_bekannt():
 
 def test_glocke_hilfe_drucken_an_einer_stelle():
     datei = [p.ziel for p in mb.DATEI]
-    assert ("aktion", "drucken") in datei and ("aktion", "hilfe") in datei and datei[-1] == ("aktion", "optionen")
+    assert ("aktion", "drucken") in datei and datei[-1] == ("aktion", "optionen")
     titel = [p.ziel for p in mb.TITELLEISTE]
-    assert ("aktion", "neuigkeiten") in titel and ("aktion", "hilfe") in titel
+    assert {("aktion", "neuigkeiten"), ("aktion", "hilfe"), ("aktion", "standort")} <= set(titel)
+    assert ("aktion", "hilfe") not in datei and ("aktion", "standort") not in datei          # 0.69: nur einmal
     im_band = {q.ziel for r in mb.reiter({}) for g in r.gruppen for p in g.punkte for q in [p] + p.menue
                if q.ziel and q.ziel[0] == "aktion"}
     assert ("aktion", "neuigkeiten") not in im_band and ("aktion", "drucken") not in im_band

@@ -1030,15 +1030,18 @@ class Ansicht:
                             "gesperrt": "Klick: diese Zimmer in der Übersicht",
                             "bereit": "Zimmer gespeichert, kein Konflikt, Reinigung erledigt – Klick: was fehlt und was "
                                       "vorzubereiten ist"})
-                offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
-                if offen:
-                    knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",
-                          self._alle_vorschlaege, "gruen", "done_all").style("margin-left:auto")
         with self.inhalt:
             if not self.kennung:
                 leer("Keine Anreisen ab heute in den Listen.")
                 return
-            with ui.element("div").classes("m-raster m-tkopf"):
+            # 0.69: Primäraktion links direkt über der Tabelle – dort, wo gearbeitet wird (nicht rechts neben den Zahlen)
+            offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
+            if offen:
+                with ui.element("div").classes("m-aktionszeile"):
+                    knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",
+                          self._alle_vorschlaege, "primaer", "done_all")
+                    ui.label("Grün = frei und passend. Einzeln: ✓ in der Zimmerspalte.").classes("m-zweite")
+            with ui.element("div").classes("m-raster m-zuteil m-tkopf"):
                 for t in ("", "Name", "Gruppe", "Zeitraum", "Zimmer", "Hinweis"):
                     ui.label(t)
             sichtbar = [z for z in self.zeilen if z.filter(self.filter, self.neu)]
@@ -1092,7 +1095,7 @@ class Ansicht:
             attr(m, title=z.bemerkung)
 
     def _zeile(self, z: kern.Zeile) -> None:
-        with ui.element("div").classes("m-raster m-zeile"):
+        with ui.element("div").classes("m-raster m-zuteil m-zeile"):
             with ui.element("div"):
                 ui.element("div").classes(f"m-ampel {z.stufe}")
             with ui.element("div"):
@@ -1106,18 +1109,25 @@ class Ansicht:
                     ui.label(z.zweite).classes("m-zweite")
             ui.label(z.gruppe).classes("m-mono")
             ui.label(z.zeitraum).classes("m-mono")
-            with ui.element("div"):
+            with ui.element("div").classes("m-zimmerzelle"):
+                # 0.69: der grüne Vorschlag steht als 1-Klick-Knopf direkt im Zimmerfeld; das Auswahlfeld daneben
+                # ist „andere …“ – Blick und Klick bleiben in einer Spalte
+                vorschlag = bool(z.vorschlag and z.status in ("ohne", "handeln") and not z.gespeichert)
+                if vorschlag:
+                    knopf(kern.kurz(z.vorschlag), lambda z=z: self._zimmer_gewaehlt(z, z.vorschlag), "gruen", "check",
+                          f"Vorschlag {kern.kurz(z.vorschlag)} übernehmen: frei und passend")
                 optionen = {o.zimmer: ("✓ " if o.art == "vorschlag" else "") + o.text for o in z.optionen}
                 konflikt = z.status == "handeln" and z.stufe == "krit"
                 popup = "m-popup" + (" m-mitvorschlag" if z.vorschlag else "")
                 s = ui.select(optionen, value=z.gespeichert,
                               on_change=lambda e, z=z: self._zimmer_gewaehlt(z, e.value)).classes(
                     "m-zimmer" + (" konflikt" if konflikt else "") + ("" if z.gespeichert else " offen")).props(
-                    f'dense outlined dark options-dense popup-content-class="{popup}" placeholder="kein Zimmer"')
+                    f'dense outlined dark options-dense popup-content-class="{popup}" '
+                    f'placeholder="{"andere …" if vorschlag else "kein Zimmer"}"')
                 attr(s, aria_label=f"Zimmer für {z.name}")
-                s.style("width: 100%")
+                s.style("flex: 1; min-width: 0")
             with ui.element("div").classes(f"m-hinweis {z.stufe if z.status != 'ok' else ''}"):
-                if z.vorschlag and z.status in ("ohne", "handeln"):
+                if z.vorschlag and z.status == "handeln" and z.gespeichert:     # gespeichert, aber Konflikt: Ausweg
                     knopf(f"{kern.kurz(z.vorschlag)} nehmen", lambda z=z: self._zimmer_gewaehlt(z, z.vorschlag),
                           "gruen", "check", "Grüner Vorschlag: frei und passend")
                 text = z.grund if z.status not in ("ok", "ohne") or not z.vorschlag else ""

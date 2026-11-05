@@ -94,7 +94,8 @@ def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | Non
     with ui.element("div").classes("m-stats").props('role="group"'):
         for schluessel, zahl, text, farbe in werte:
             an = aktiv is not None and (schluessel in aktiv if isinstance(aktiv, (set, frozenset)) else schluessel == aktiv)
-            b = ui.element("button").classes(f"m-stat {farbe}" + (" an" if an else ""))
+            null = str(zahl).strip() in ("0", "0 %", "–") and not an     # 0.69: Null-Werte leise (Menüband: grau)
+            b = ui.element("button").classes(f"m-stat {farbe}" + (" an" if an else "") + (" null" if null else ""))
             attr(b, aria_pressed=str(an).lower(), title=(titel or {}).get(schluessel, "Klick: filtern" if bei_klick else ""))
             with b:
                 with ui.element("span").classes("k"):

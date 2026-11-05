@@ -848,12 +848,16 @@ def _uebersicht(a) -> None:
         if f or mf:
             knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
                   "leise", "close")
-        ui.label(f"am {a.zu_tag:%d.%m.%Y}").classes("m-kpi")
-        knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
-        knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
-        knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
-        tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
-        tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+        # 0.69: EINE Tagesauswahl ‹ Datum › (vorher Text „am …“ und ein zweites Datumsfeld)
+        with ui.element("div").classes("m-tagwahl"):
+            knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
+            tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style(
+                "width:150px")
+            attr(tag, title="Stichtag – Zustand der Zimmer an diesem Tag")
+            tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+            knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
+            if a.zu_tag != a.heute:
+                knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
         with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
             with ui.menu().props('dark class="m-menue"'):
                 was = f"nur „{zk.kachel_text(f, mf)}“" if f or mf else "alle Zimmer"

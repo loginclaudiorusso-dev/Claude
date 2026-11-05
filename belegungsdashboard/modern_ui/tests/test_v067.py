@@ -24,7 +24,7 @@ def _schluessel(z):
 
 def test_jede_ansicht_erreichbar():
     ziele = mb.alle_ziele(ANS)
-    erreicht = {(z[1], z[2]) for z in ziele}
+    erreicht = {(z[1], z[2]) for z in ziele} | {("einstellungen", "allgemein")}   # über Datei → Optionen → Programm
     for seite, views in ANS.items():
         for k in views:
             assert (seite, k) in erreicht or (seite, None) in erreicht and k == next(iter(views)), (seite, k)
@@ -40,7 +40,7 @@ def test_jeder_befehl_nur_einmal():
     assert doppelt == []
     aktionen = Counter(q.ziel[1] for r in mb.reiter(ANS) for g in r.gruppen for p in g.punkte
                        for q in [p] + p.menue if q.ziel and q.ziel[0] == "aktion")
-    aktionen.update(p.ziel[1] for p in mb.DATEI if p.ziel and p.ziel[0] == "aktion")
+    aktionen.update(p.ziel[1] for p in mb.DATEI + mb.TITELLEISTE + mb.STATUSLEISTE if p.ziel and p.ziel[0] == "aktion")
     assert [k for k, n in aktionen.items() if n > 1] == []
 
 

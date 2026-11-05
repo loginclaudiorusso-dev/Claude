@@ -53,7 +53,7 @@ DG_LEGENDE = {"oben": "oben", "unten": "unten", "aus": "aus"}
 
 STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig", "zoom": 100, "schrift": "standard",
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
-            "dg_gitter": True, "dg_legende": "oben", "dg_anim": True}
+            "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True}
 
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})$")
 
@@ -77,7 +77,7 @@ def bereinigen(d: dict) -> dict:
     e["schrift"] = d.get("schrift") if d.get("schrift") in SCHRIFTEN else "standard"
     e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
-    for k in ("band_gross", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim"):
+    for k in ("band_gross", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):
         if k in d:
             e[k] = bool(d[k])
     return e

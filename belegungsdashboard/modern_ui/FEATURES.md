@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.68.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.69.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -6,7 +6,9 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 
 ## Darstellung Menüband (wie Office)
 - Titelleiste mit Schnellzugriff (Rückgängig, Aktualisieren), Suchfeld und Standort
-- Registerkarten Datei/Start/Termine & Post/Auswertung/Verwalten/Ansicht, jeder Befehl genau einmal; Split-Buttons für die Unteransichten; Kontext-Registerkarte „Diagramm“ auf Auswertung/Steuerung
+- Registerkarten je Arbeitsbereich (Start, Anreisen, Zimmer & Haus, Auswertung, Verwalten) mit sichtbaren Ansichten, jeder Befehl genau einmal; Kontext-Registerkarte „Diagramm“ mit Gruppenpfeil ↘; Punkt am Reiter der offenen Seite
+- Statusleiste mit Kompakt, Vollbild, Hell/Dunkel und Zoom; Standort als Auswahl neben dem Programmnamen; Datei: Drucken, Importieren, Informationen & Sicherung, Optionen (inkl. Programm-Einstellungen, Oberfläche, „Leitung anzeigen“)
+- Arbeitsfläche: Kennzahlen als eine Chip-Zeile (Null-Werte ausgeblendet), Heute ohne doppelte Überschrift, Zimmervorschlag als 1-Klick-Knopf in der Zimmerspalte, eine Tagesauswahl in der Zimmer-Übersicht
 - Seitenkopf ohne Doppeltes (Ansichts-Umschalter, Aufgaben, Datenstand); Titel nennt die Ansicht
 - Titelleiste mit Glocke (ungelesene Neuigkeiten) und Hilfe; Hilfe (F1) passend zur offenen Seite, Erste Schritte, Tastenkürzel
 - Datei → Drucken: aktuelle Ansicht ohne Menüband (auch Strg+P) oder fertige Druckausgaben der Seite

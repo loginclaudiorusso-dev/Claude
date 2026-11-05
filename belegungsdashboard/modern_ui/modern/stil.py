@@ -105,6 +105,11 @@ body { font-family: var(--schrift); font-size: 13.5px; letter-spacing: -0.005em;
 .m-mono { font-variant-numeric: tabular-nums; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-ampel { width: 7px; height: 7px; border-radius: 50%; margin-left: 14px; flex: none; }
 .m-ampel.ok { background: var(--gruen); } .m-ampel.warn { background: var(--orange); } .m-ampel.krit { background: var(--rot); }
+.m-raster.m-zuteil { grid-template-columns: 28px minmax(140px, 1.3fr) 70px 150px minmax(230px, 290px) minmax(0, 1.4fr); }
+.m-zimmerzelle { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.m-zimmerzelle > .m-knopf { flex: none; height: 30px; padding: 0 10px; }
+.m-tagwahl { display: inline-flex; align-items: center; gap: 2px; }
+.m-aktionszeile { display: flex; align-items: center; gap: 12px; padding: 10px 20px 6px; }
 .m-hinweis { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text2); min-width: 0; }
 .m-hinweis .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-hinweis.krit .t { color: var(--rot); } .m-hinweis.warn .t { color: var(--orange); }

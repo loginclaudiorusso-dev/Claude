@@ -246,6 +246,23 @@ SCHRITTE = [
 def _willkommen(a) -> None:
     from .kern import willkommen_weg
 
+    if a.design.get("layout") == "office":            # 0.69: im Menüband nur eine schmale, schließbare Leiste
+        leiste = ui.element("div").classes("m-w-leiste")
+        with leiste:
+            ui.icon("waving_hand")
+            ui.label("Neu hier? Die wichtigsten Schritte in zwei Minuten – jederzeit auch mit F1.")
+
+            async def weg_():
+                await run.io_bound(willkommen_weg)
+                leiste.delete()
+
+            def zeigen():
+                from . import hilfe_ui
+
+                hilfe_ui.oeffnen(a, "start")
+            knopf("Erste Schritte ansehen", zeigen, "leise", "school")
+            knopf("", weg_, "leise", "close", "Nicht mehr zeigen")
+        return
     box = ui.element("section").classes("m-willkommen")
     with box:
         with ui.element("div").classes("m-w-kopf"):
@@ -502,7 +519,7 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
                       lambda: a.oeffnen("auswertung", ansicht="zimmer")))
     with ui.element("div").classes("m-tz-zahlen"):
         for _k, zahl, titel, unter, stufe, icon, klick in werte:
-            b = ui.element("button").classes(f"m-tz-zahl-k {stufe}")
+            b = ui.element("button").classes(f"m-tz-zahl-k {stufe}" + (" null" if not zahl else ""))
             attr(b, title=f"{titel}: {zahl} – {unter}")
             with b:
                 ui.label(str(zahl)).classes("m-tz-zahl")          # 0.54: ohne führende Null („0“ statt „00“)

@@ -94,9 +94,9 @@ def test_menueband_ansicht_und_optionen():
     def ziele(r):
         return {q.ziel for g in r.gruppen for p in g.punkte for q in [p] + p.menue if q.ziel and q.ziel[0] == "aktion"}
     rs = {x.key: x for x in mb.reiter({})}
-    assert {("aktion", "zoom:100"), ("aktion", "zoom:125"), ("aktion", "optionen:farben"),
-            ("aktion", "farbe:violett")} <= ziele(rs["ansicht"])
+    assert "ansicht" not in rs                                           # 0.69: Zoom & Co. in der Statusleiste
+    assert {("aktion", "zoom:100"), ("aktion", "zoom:+"), ("aktion", "zoom:-"), ("aktion", "dichte"),
+            ("aktion", "vollbild"), ("aktion", "modus")} <= {p.ziel for p in mb.STATUSLEISTE}
     assert {("aktion", "dg_typ:saeule"), ("aktion", "dg:dg_glatt"), ("aktion", "dg_legende:aus")} <= ziele(rs["diagramm"])
+    assert next(g for g in rs["diagramm"].gruppen if g.titel == "Elemente").starter == ("aktion", "optionen:diagramme")
     assert ("aktion", "optionen") in [p.ziel for p in mb.DATEI]
-    farben = next(p for g in rs["ansicht"].gruppen for p in g.punkte if p.text == "Farben")
-    assert all(q.farbe for q in farben.menue[:-1])                       # Farbmuster im Menü
