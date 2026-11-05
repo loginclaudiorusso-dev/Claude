@@ -23,14 +23,29 @@ from belegung import zimmerplan as zp
 
 DATEI = "modern_zimmer_zusatz.json"
 _ORIG: dict = {}
+# 0.64: Zimmer, die in der mitgelieferten Liste fehlen, aber zum Haus gehören – fest im Programm (je Standort).
+# Steht das Zimmer im Gebäudeplan, gilt der Gebäudeplan; Merkmale wie üblich in den Zimmer-Stammdaten.
+STANDARD = {"GS": [{"id": "GS-2-517", "haus": "2", "etage": "5", "nr": "517", "betten": 1}]}
 
 
 def liste() -> list[dict]:
     return [dict(z) for z in (speicher.lesen(DATEI, {}).get("zimmer") or [])]
 
 
+def _standard() -> list[dict]:
+    from . import standort_kern
+
+    try:
+        return [dict(z) for z in STANDARD.get(standort_kern.aktiv().kurz, [])]
+    except Exception:                          # noqa: BLE001
+        return []
+
+
 def _plan_zimmer() -> list[gebaeudeplan.PlanZimmer]:
-    return [gebaeudeplan.PlanZimmer(z["id"], z["haus"], z["etage"], z["nr"], int(z.get("betten") or 1)) for z in liste()]
+    eigene = liste()
+    ids = {z["id"] for z in eigene}
+    alle = eigene + [z for z in _standard() if z["id"] not in ids]
+    return [gebaeudeplan.PlanZimmer(z["id"], z["haus"], z["etage"], z["nr"], int(z.get("betten") or 1)) for z in alle]
 
 
 def _mit_zusatz(plan):

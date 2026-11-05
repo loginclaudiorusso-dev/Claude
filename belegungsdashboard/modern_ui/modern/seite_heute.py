@@ -6,12 +6,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-import json
 
 from nicegui import run, ui
 
 from .kern import WT, kurz
-from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
+from .ui_bausteine import attr, knopf
 
 
 @dataclass
@@ -154,68 +153,16 @@ window.mBriefing = (knopf, saetze) => {   // Sprachausgabe im Browser/Windows (W
 
 
 def zeichnen(a) -> None:
-    if ansicht(a) == "zentrale":
-        _umschalter(a)
-        with a.inhalt:
-            if a.daten.willkommen:
-                _willkommen(a)
-            _zentrale(a, a.daten)
-        return
-    if a.design.get("layout", "original") != "original":
-        return _feed(a)                       # neue Layouts: Newsfeed mit Briefing; Original bleibt 1:1
-    t: Tag = a.daten
-    z = t.zimmer
-    with a.leiste:
-        wt = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"][a.heute.weekday()]
-        werte = [("frei", z["frei"], "frei heute", "ok"), ("belegt", z["belegt"], "belegt", "blau"),
-                 ("gesperrt", z["gesperrt"], "gesperrt", "neutral"),
-                 ("ohne", z["ohne_zimmer"], "Anreisen ohne Zimmer", "krit" if z["ohne_zimmer"] else "ok")]
-        np_ = t.np
-        if np_ and np_.tiefst:
-            text, frei, stufe = np_.tiefst
-            werte.append(("np", frei, f"frei nach Planung · {text.split(' · ')[0]}", STUFE[stufe]))
-        werte.append(("maengel", sum(1 for _ in _defekte(a)), "Zimmer mit Mängeln", "warn"))
-        if a.neu:
-            werte.append(("neu", len(a.neu), "neue Personen (7 Tage)", "blau"))
-
-        def sprung(k):
-            if k == "ohne":
-                return a.oeffnen("anreisen", ansicht="zuteilen", filter="ohne")
-            if k == "np":
-                return a.oeffnen("auswertung", ansicht="zimmer")
-            if k == "maengel":
-                return a.oeffnen("zimmer", ansicht="maengel")
-            if k == "neu":
-                return a.oeffnen("anreisen", ansicht="personen", ps_filter="neu")
-            return a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=k)
-
-        kennzahlen(werte, None, sprung, {"ohne": "Anreisen der nächsten 8 Wochen ohne Zimmer – Klick: zuteilen",
-                                         "np": "Mindestens so viele Zimmer bleiben frei, wenn alle bekannten Anreisen ein Zimmer "
-                                               "hätten – Klick: alle Wochen",
-                                         "maengel": "Klick: defekte Zimmer",
-                                         "neu": "Neu in den Listen – Klick: Liste der neuen Personen", "frei": "Klick: Zimmer-Übersicht",
-                                         "belegt": "Klick: Zimmer-Übersicht", "gesperrt": "Klick: Zimmer-Übersicht"})
-        ui.label(f"{wt}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
+    """0.64 entschlackt: eine Ansicht (Tageszentrale). Das Postfach öffnet sich nur noch als Vertiefung („Fälle
+    ansehen“, „Alle im Postfach“) und hat einen Weg zurück; die frühere Übersicht/der Newsfeed entfallen."""
     _umschalter(a)
     with a.inhalt:
-        if t.willkommen:
+        if a.daten.willkommen:
             _willkommen(a)
         if postfach_an(a):
-            _postfach(a, t)
-            return
-        with ui.element("div").classes("m-heute"):
-            with ui.element("section").classes("m-heute-links"):
-                ui.label("Zu tun").classes("m-btitel")
-                if not a.karten:
-                    leer("Alles erledigt. Neue Aufgaben erscheinen hier von selbst.")
-                for stufe, titel in (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info")):
-                    ks = [k for k in a.karten if k.stufe == stufe]
-                    if ks:
-                        ui.label(titel).classes("m-cgruppe")
-                    for k in ks:
-                        a._karte(k)
-            with ui.element("section").classes("m-heute-rechts"):
-                _tagesblock(a, t)
+            _postfach(a, a.daten)
+        else:
+            _zentrale(a, a.daten)
 
 def _tagesblock(a, t: "Tag") -> None:
     """Der Tag auf einen Blick: Anreisen 7 Tage, frei nach Planung, Abreisen, Reinigung, Neuigkeiten."""
@@ -340,114 +287,15 @@ def feed_eintraege(t: Tag, karten: list, heute: date) -> dict:
     }
 
 
-def _feed(a) -> None:
-    t: Tag = a.daten
-    z = t.zimmer
-    f = feed_eintraege(t, a.karten, a.heute)
-    saetze = briefing(t, a.karten, a.heute)
-    with a.werkzeuge:
-        b = ui.element("button").classes("m-briefing")
-        attr(b, title="Morgen-Briefing vorlesen (ca. 30 Sekunden) – noch einmal klicken beendet",
-             aria_label="Briefing abspielen")
-        with b:
-            with ui.element("span").classes("m-welle"):
-                for _ in range(4):
-                    ui.element("i")
-            ui.label("Briefing abspielen")
-        b.on("click", js_handler=f"(e) => mBriefing(e.currentTarget, {json.dumps(saetze)})")
-    with a.leiste:
-        werte = [("frei", z["frei"], "Zimmer frei heute", "ok"),
-                 ("ohne", z["ohne_zimmer"], "Anreisen ohne Zimmer", "krit" if z["ohne_zimmer"] else "ok"),
-                 ("dringend", len(f["jetzt"]), "dringende Aufgaben", "krit" if f["jetzt"] else "ok")]
-        kennzahlen(werte, None, lambda k: (a.center_umschalten(True) if k == "dringend" else
-                                            a.oeffnen("anreisen", ansicht="zuteilen", filter="ohne") if k == "ohne" else
-                                            a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter="frei")),
-                   {"frei": "Klick: Zimmer-Übersicht", "ohne": "Klick: zuteilen", "dringend": "Klick: alle Aufgaben"})
-        ui.label(f"{WOCHENTAGE[a.heute.weekday()]}, {a.heute:%d.%m.%Y}").classes("m-kpi").style("margin-left:auto")
-    _umschalter(a)
-    with a.inhalt:
-        if t.willkommen:
-            _willkommen(a)
-        if postfach_an(a):
-            _postfach(a, t)
-            return
-        with ui.element("div").classes("m-feed"):
-            with ui.element("div").classes("m-feed-kopf"):
-                with ui.element("ol").classes("m-briefing-text"):        # Mitschrift – erscheint beim Abspielen
-                    for satz in saetze:
-                        with ui.element("li"):
-                            ui.label(satz)
-            _abschnitt("Jetzt", "bolt", "krit")
-            if f["jetzt"]:
-                for k in f["jetzt"]:
-                    with ui.element("div").classes("m-feed-eintrag"):
-                        a._karte(k)
-            else:
-                _eintrag("check_circle", "Keine dringenden Aufgaben", "Alles Wichtige ist erledigt.", "ok")
-            for w_zeit, w_text, w_art in f["warnungen"]:
-                _eintrag("warning", w_text, f"Hinweis · {w_zeit}", "warn")
-            _abschnitt(f"Heute · {WOCHENTAGE[a.heute.weekday()]}", "today", "")
-            _tag(a, f["heute_an"], f["heute_ab"], "heute")
-            if f["reinigung"]:
-                _eintrag("cleaning_services", f"{f['reinigung']} Zimmer vor Einzug noch reinigen", "Reinigung · heute", "krit",
-                         lambda: a.oeffnen("reinigung", rg_zeitraum="heute"))
-            _abschnitt("Morgen", "event", "")
-            _tag(a, f["morgen_an"], f["morgen_ab"], "morgen")
-            if f["weitere"]:
-                with ui.element("div").classes("m-feed-mehr"):
-                    knopf(f"{len(f['weitere'])} weitere Aufgaben (als Nächstes, zur Info)", lambda: a.center_umschalten(True),
-                          "leise", "inbox")
-
-
-def _abschnitt(titel: str, icon: str, art: str) -> None:
-    with ui.element("div").classes(f"m-feed-abschnitt {art}"):
-        ui.icon(icon)
-        ui.label(titel)
-
-
-def _eintrag(icon: str, titel: str, unter: str, art: str = "", klick=None) -> None:
-    e = ui.element("button" if klick else "div").classes(f"m-feed-eintrag m-feed-zeile {art}")
-    with e:
-        with ui.element("span").classes(f"m-feed-symbol {art}"):
-            ui.icon(icon)
-        with ui.element("div").classes("m-feed-txt"):
-            ui.label(titel).classes("m-name")
-            ui.label(unter).classes("m-zweite")
-        if klick:
-            ui.icon("chevron_right").classes("m-feed-pfeil")
-    if klick:
-        e.on("click", klick)
-
-
-def _tag(a, anreisen: list, abreisen: list, wann: str) -> None:
-    if not anreisen and not abreisen:
-        _eintrag("event_available", f"{'Heute' if wann == 'heute' else 'Morgen'} keine Anreisen und Abreisen", "", "neutral")
-        return
-    for kennung, text, n, mit in anreisen:
-        offen = n - mit
-        _eintrag("flight_land", f"Anreise: {text.split(' · ', 1)[-1]}",
-                 f"{n} Personen · " + (f"{offen} ohne Zimmer – zuteilen" if offen else "alle mit Zimmer"),
-                 "krit" if offen else "ok", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
-    if abreisen:
-        namen = ", ".join(f"{n} ({z})" for _w, n, z in abreisen[:4]) + (f" und {len(abreisen) - 4} weitere" if len(abreisen) > 4 else "")
-        _eintrag("flight_takeoff", f"{len(abreisen)} Abreise{'n' if len(abreisen) != 1 else ''}", namen, "neutral",
-                 lambda: a.oeffnen("anreisen", ansicht="abreisen"))
-
-
-
-# ---------------------------------------------------------------------------------------
-# Postfach (wie Outlook): links die Aufgaben als Zeilen, rechts alle Fälle der gewählten Aufgabe
-# ---------------------------------------------------------------------------------------
-
 UEBERBLICK = "ueberblick"
 STUFEN_PF = (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info"))
 
-
-ANSICHTEN = {"zentrale": "Tageszentrale", "postfach": "Postfach", "uebersicht": "Übersicht"}
+ANSICHTEN = {"zentrale": "Tageszentrale", "postfach": "Postfach"}    # 0.64: „Übersicht“ entfällt
 
 
 def ansicht(a) -> str:
-    return getattr(a, "heute_ansicht", "zentrale")
+    v = getattr(a, "heute_ansicht", "zentrale")
+    return v if v in ANSICHTEN else "zentrale"            # gemerkte „uebersicht“ → Tageszentrale
 
 
 def postfach_an(a) -> bool:
@@ -455,8 +303,14 @@ def postfach_an(a) -> bool:
 
 
 def _umschalter(a) -> None:
+    """0.64: kein Umschalter mehr – im Postfach nur der Weg zurück, in der Tageszentrale der Sprung ins Postfach."""
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht(a), lambda v: a.setzen(heute_ansicht=v, laden=False))
+        if postfach_an(a):
+            knopf("Tageszentrale", lambda: a.setzen(heute_ansicht="zentrale", laden=False), "leise", "arrow_back",
+                  "Zurück zur Tageszentrale")
+        elif a.karten:
+            knopf(f"Alle Aufgaben ({len(a.karten)})", lambda: a.setzen(heute_ansicht="postfach", laden=False), "leise",
+                  "inbox", "Alle Aufgaben mit ihren Fällen im Postfach bearbeiten")
 
 
 def auswahl(a) -> str:

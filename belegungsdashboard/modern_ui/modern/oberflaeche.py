@@ -16,6 +16,16 @@ from .stil import CSS
 from . import standort_kern
 from .ui_bausteine import attr, badge_neu, kennzahlen, knopf, leer
 
+
+def knopf_zahlen(karten, ungelesen: int) -> dict:
+    """0.64: Was der eine Kopf-Knopf (Aufgaben + Neuigkeiten) anzeigt – rote Zahl nur für dringende Aufgaben,
+    ungelesene Neuigkeiten nur als Punkt."""
+    dringend = sum(1 for k in karten if k.stufe == "dringend")
+    teile = [f"{len(karten)} Aufgabe{'n' if len(karten) != 1 else ''}" + (f", davon {dringend} dringend" if dringend else "")]
+    if ungelesen:
+        teile.append(f"{ungelesen} neue Neuigkeit{'en' if ungelesen != 1 else ''}")
+    return {"dringend": dringend, "neu": ungelesen, "tipp": "Aufgaben & Neuigkeiten (A) – " + " · ".join(teile)}
+
 log = logging.getLogger(__name__)
 
 TOAST_S = 6
@@ -316,11 +326,10 @@ class Ansicht:
 
                     knopf("", lambda: leitstand_ui.umschalten(self), "leise", "view_quilt",
                           "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)")
-                    self.glocke = ui.element("button").classes("m-knopf leise m-glocke")
-                    attr(self.glocke, title="Neuigkeiten")
-                    self.glocke.on("click", self._neuigkeiten_panel)
-                    self.aufgaben_knopf = ui.element("button").classes("m-knopf")
-                    attr(self.aufgaben_knopf, title="Aufgaben-Center (A)")
+                    self.glocke = ui.element("span")                 # 0.64: Neuigkeiten stecken im Aufgaben-Knopf
+                    self.glocke.set_visibility(False)
+                    self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke")
+                    attr(self.aufgaben_knopf, title="Aufgaben & Neuigkeiten (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
                 self.leiste = ui.element("div").classes("m-leiste")
                 self.inhalt = ui.element("div").classes("m-inhalt")
@@ -453,10 +462,10 @@ class Ansicht:
 
     def _nav_zahlen_setzen(self) -> None:
         """Zahlen an den Menüpunkten (Seitenleiste und Dock) – ohne die Knöpfe neu zu bauen."""
-        dringend = any(k.stufe == "dringend" for k in self.karten)
         for k, z in getattr(self, "_nav_zahlen", []):
-            if k == "heute":
-                n, rot, tipp = len(self.karten), dringend, f"{len(self.karten)} Aufgaben" + (" – davon dringende" if dringend else "")
+            if k == "heute":                                    # 0.64: nur Dringendes zählt (rot), sonst keine Zahl
+                n = sum(1 for x in self.karten if x.stufe == "dringend")
+                rot, tipp = True, f"{n} dringende Aufgabe{'n' if n != 1 else ''}"
             else:
                 w = self.nav_zahl.get(k)
                 n, rot, tipp = (w.n, w.rot, w.tipp) if w else (0, False, "")
@@ -884,12 +893,10 @@ class Ansicht:
             self._center()
 
     def _glocke_fuellen(self) -> None:
-        self.glocke.clear()
-        with self.glocke:
-            ui.icon("notifications" if self.ungelesen else "notifications_none")
-            if self.ungelesen:
-                ui.label(str(self.ungelesen)).classes("m-zahl")
-        attr(self.glocke, title=f"Neuigkeiten – {self.ungelesen} ungelesen" if self.ungelesen else "Neuigkeiten")
+        """0.64: Keine eigene Glocke mehr – Neuigkeiten zeigt der Aufgaben-Knopf (Punkt) und das Aufgaben-Center."""
+        self._aufgaben_knopf()
+        if self.center_offen and self.panel_def is None:
+            self._center()
 
     def _neuigkeiten_panel(self) -> None:
         """Glocke: letzte Neuigkeiten (gemeinsam mit dem Hauptprogramm); ungelesene hervorgehoben, Klick öffnet das Ziel."""
@@ -930,11 +937,15 @@ class Ansicht:
 
     def _aufgaben_knopf(self) -> None:
         self.aufgaben_knopf.clear()
-        dringend = sum(1 for k in self.karten if k.stufe == "dringend")
+        z = knopf_zahlen(self.karten, self.ungelesen)
         with self.aufgaben_knopf:
             ui.icon("inbox")
             ui.label("Aufgaben")
-            ui.label(str(len(self.karten))).classes("m-zahl" + (" rot" if dringend else ""))
+            if z["dringend"]:                                   # 0.64: rote Zahl nur für Dringendes
+                ui.label(str(z["dringend"])).classes("m-zahl rot")
+            elif z["neu"]:
+                ui.element("span").classes("m-neu-marke")
+        attr(self.aufgaben_knopf, title=z["tipp"])
 
     # ---- Seite Anreisen ------------------------------------------------------------------
 
@@ -1145,6 +1156,10 @@ class Ansicht:
             with ui.element("div").classes("m-ckopf"):
                 ui.label("Aufgaben").classes("m-titel")
                 ui.label(str(len(self.karten))).classes("m-zahl")
+                ui.element("div").style("flex: 1")
+                knopf(f"Neuigkeiten ({self.ungelesen} neu)" if self.ungelesen else "Neuigkeiten", self._neuigkeiten_panel,
+                      "leise", "notifications" if self.ungelesen else "notifications_none",
+                      "Letzte Neuigkeiten aus dem Programm und dem Hauptprogramm")
                 knopf("", lambda: self.center_umschalten(False), "leise", "close", "Schließen (Esc)")
             with ui.element("div").classes("m-cinhalt"):
                 if not self.karten:
