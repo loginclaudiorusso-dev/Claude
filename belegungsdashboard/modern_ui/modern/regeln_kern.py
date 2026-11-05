@@ -152,3 +152,54 @@ def vorschau(stand: zp.Planstand, heute, wochen: int = 8) -> list[tuple[str, str
         _ERZWINGEN["wert"] = None                  # wieder wie eingestellt
     return [(n, t, kern.kurz(v) if v else "–", kern.kurz(ein[k][2]) if ein.get(k, ("", "", ""))[2] else "–")
             for k, (n, t, v) in aus.items() if ein.get(k, (n, t, v))[2] != v]
+
+
+# ---- 0.59: Mieter sind von der Männer-Regel ausgenommen -----------------------------------------------------
+# Zimmer mit Bad über den Flur (Haus 6) sind sonst nur für Männer. Für Mieter gilt das nicht: Mieterinnen dürfen dort
+# wohnen. Alle übrigen Regeln bleiben. Das Hauptprogramm wird nicht geändert – die neue Oberfläche schaltet nur die
+# Prüfung ``passt`` und die Erklärung „warum kein Zimmer“ für Mieter um.
+
+MAENNER_GRUND = "Bad über den Flur – nur Männer"
+_MIETER: dict = {}
+
+
+def _passt(lage, z, b, ohne=frozenset()):
+    grund = _MIETER["passt"](lage, z, b, ohne)
+    if grund == MAENNER_GRUND and b.gruppe == "Mieter":
+        from dataclasses import replace
+
+        return _MIETER["passt"](lage, z, replace(b, geschlecht="m"), ohne)   # restliche Regeln weiter prüfen
+    return grund
+
+
+def _warum_nicht(lage, zimmer, b):
+    if b.gruppe == "Mieter":
+        from dataclasses import replace
+
+        b = replace(b, geschlecht="m")
+    return _MIETER["warum"](lage, zimmer, b)
+
+
+_GESCHLECHT_WARN = ("Geschlecht unbekannt – bitte prüfen", "Geschlecht aus dem Vornamen geschätzt – bitte prüfen")
+
+
+def _vorschlagen(lage, bedarf, fest=None):
+    """Wie im Hauptprogramm – nur ohne die Geschlechts-Rückfrage bei Mietern im Einzelzimmer (dort egal)."""
+    erg = _MIETER["vorschlagen"](lage, bedarf, fest)
+    for zt in erg:
+        if zt.bedarf.gruppe == "Mieter" and zt.zimmer is not None and zt.zimmer.betten == 1:
+            zt.warnungen = [w for w in zt.warnungen if w not in _GESCHLECHT_WARN]
+    return erg
+
+
+def mieter_ausnahme_installieren() -> None:
+    if _MIETER:
+        return
+    _MIETER.update(passt=zp.passt, warum=zp._warum_nicht, vorschlagen=zp.vorschlagen)
+    zp.passt, zp._warum_nicht, zp.vorschlagen = _passt, _warum_nicht, _vorschlagen
+
+
+def mieter_ausnahme_entfernen() -> None:
+    if _MIETER:
+        zp.passt, zp._warum_nicht, zp.vorschlagen = _MIETER["passt"], _MIETER["warum"], _MIETER["vorschlagen"]
+        _MIETER.clear()

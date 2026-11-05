@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.58.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.59.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -18,6 +18,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Zimmer zuteilen mit grünem Vorschlag, Regeln (Geschlecht, Tier, Gruppe, EMR, Doppelzimmer) und Konfliktprüfung
 - Personenangaben, Abreise-Erinnerung (Termin, Kalenderdatei, Outlook), Personen anlegen
 - Bestimmtes Zimmer prüfen: warum nicht wählbar (wer/was im Weg ist) und von Hand zuweisen
+- Mieter sind von der Männer-Regel (Haus 6, Bad über den Flur) ausgenommen
 - Widerspruch Planung ↔ Gebäudeplan sichtbar, Zimmer bis zur Klärung geschützt, per Klick klären
 - Gruppen: Hauptmaßnahme, vorbereitende Maßnahme, Assessment, EMR, UWT, Gast, Mieter (Details in der Bemerkung)
 - Belegung optimieren (Tauschvorschläge), UWT automatisch zuteilen

@@ -1114,3 +1114,7 @@ _zusatz.installieren()
 from . import netz_kern as _netz  # noqa: E402
 
 _netz.installieren()
+
+from . import regeln_kern as _regeln  # noqa: E402
+
+_regeln.mieter_ausnahme_installieren()      # 0.59: Mieterinnen dürfen in Zimmer mit Bad über den Flur
