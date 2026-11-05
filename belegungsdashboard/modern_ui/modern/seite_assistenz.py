@@ -35,7 +35,7 @@ def daten(a) -> None:
 def zeichnen(a) -> None:
     ansicht = a.ansicht_von("assistenz", "auftraege")
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("assistenz", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("assistenz", ansicht=v), ansicht=True)
     {"auftraege": _auftraege, "mails": _mails, "fragen": _fragen}[ansicht](a)
 
 

@@ -25,9 +25,10 @@ def _alle(reiter):
 
 def test_reiter_wie_office():
     r = mb.reiter(ANS)
-    assert [x.titel for x in r] == ["Start", "Belegung", "Planung", "Auswertung", "Verwalten", "Ansicht"]
+    assert [x.titel for x in r] == ["Start", "Termine & Post", "Auswertung", "Verwalten", "Ansicht", "Diagramm"]
     zimmer = next(p for _r, p in _alle(r[:1]) if p.text == "Zimmer")
-    assert [q.text for q in zimmer.menue] == list(ANS["zimmer"].values())          # Ausklappmenü = Unteransichten
+    assert zimmer.ziel[:3] == ("seite", "zimmer", "uebersicht")                     # 0.67: Split-Button
+    assert [q.text for q in zimmer.menue] == [t for k, t in ANS["zimmer"].items() if k != "aenderungen"]
     assert all(p.icon for _r, p in _alle(r))                                       # jede Schaltfläche mit Symbol
     ziele = [p.ziel for _r, p in _alle(r) if p.ziel]
     assert all(z[0] in ("seite", "aktion") for z in ziele)
@@ -36,15 +37,17 @@ def test_reiter_wie_office():
 
 def test_aktiv_und_reiter_von():
     r = mb.reiter(ANS)
-    zeit = next(p for x, p in _alle(r) if x.key == "belegung" and p.text == "Zeitstrahl")
+    zimmer = next(p for _r, p in _alle(r[:1]) if p.text == "Zimmer")
+    zeit = next(q for q in zimmer.menue if q.text == "Zeitstrahl")
     assert mb.aktiv(zeit, "zimmer", lambda s: "zeitstrahl")
     assert not mb.aktiv(zeit, "zimmer", lambda s: "liste")
-    zimmer = next(p for _r, p in _alle(r[:1]) if p.text == "Zimmer")
-    assert mb.aktiv(zimmer, "zimmer", lambda s: "liste")                           # Menü leuchtet, wenn eine Ansicht offen
-    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Postfach")
+    assert mb.aktiv(zimmer, "zimmer", lambda s: "liste")                           # Split leuchtet, wenn eine Ansicht offen
+    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Aufgaben")
     assert mb.aktiv(pf, "heute", lambda s: "", "postfach") and not mb.aktiv(pf, "heute", lambda s: "", "zentrale")
     assert mb.reiter_von("auswertung", ANS) == "auswertung"
-    assert mb.reiter_von("einstellungen", ANS) == "verwalten"
+    assert mb.reiter_von("einstellungen", ANS, "stammdaten") == "verwalten"
+    assert mb.reiter_von("zimmer", ANS, "aenderungen") == "verwalten"
+    assert mb.reiter_von("zimmer", ANS, "liste") == "start"
     assert mb.reiter_von("heute", ANS) == "start"
 
 

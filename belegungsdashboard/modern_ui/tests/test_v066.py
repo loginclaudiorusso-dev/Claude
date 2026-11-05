@@ -91,10 +91,12 @@ def test_flaeche_gitter_legende_animation():
 def test_menueband_ansicht_und_optionen():
     from modern import menueband as mb
 
-    r = next(x for x in mb.reiter({}) if x.key == "ansicht")
-    ziele = {q.ziel for g in r.gruppen for p in g.punkte for q in (p.menue or [p]) if q.ziel and q.ziel[0] == "aktion"}
-    assert {("aktion", "zoom:+"), ("aktion", "zoom:-"), ("aktion", "zoom:100"), ("aktion", "optionen:farben"),
-            ("aktion", "farbe:violett"), ("aktion", "dg_typ:saeule")} <= ziele
-    assert ("aktion", "optionen:farben") in [p.ziel for p in mb.DATEI]
-    farben = next(p for g in r.gruppen for p in g.punkte if p.text == "Farben")
+    def ziele(r):
+        return {q.ziel for g in r.gruppen for p in g.punkte for q in [p] + p.menue if q.ziel and q.ziel[0] == "aktion"}
+    rs = {x.key: x for x in mb.reiter({})}
+    assert {("aktion", "zoom:100"), ("aktion", "zoom:125"), ("aktion", "optionen:farben"),
+            ("aktion", "farbe:violett")} <= ziele(rs["ansicht"])
+    assert {("aktion", "dg_typ:saeule"), ("aktion", "dg:dg_glatt"), ("aktion", "dg_legende:aus")} <= ziele(rs["diagramm"])
+    assert ("aktion", "optionen") in [p.ziel for p in mb.DATEI]
+    farben = next(p for g in rs["ansicht"].gruppen for p in g.punkte if p.text == "Farben")
     assert all(q.farbe for q in farben.menue[:-1])                       # Farbmuster im Menü

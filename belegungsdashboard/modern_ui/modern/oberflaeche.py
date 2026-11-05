@@ -328,7 +328,7 @@ class Ansicht:
                     self.titel = ui.label("Anreisen").classes("m-titel")
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
                     ui.element("div").style("flex: 1")
-                    self.stand_anzeige = ui.label("").classes("m-datenstand")
+                    self.stand_anzeige = ui.label("").classes("m-datenstand m-kopf-doppelt")   # Menüband: Statusleiste
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)").classes(
                         "m-kopf-doppelt")                            # im Menüband steht beides schon oben
                     from . import leitstand_ui
@@ -337,7 +337,7 @@ class Ansicht:
                           "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)").classes("m-kopf-doppelt")
                     self.glocke = ui.element("span")                 # 0.64: Neuigkeiten stecken im Aufgaben-Knopf
                     self.glocke.set_visibility(False)
-                    self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke")
+                    self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke m-kopf-doppelt")
                     attr(self.aufgaben_knopf, title="Aufgaben & Neuigkeiten (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
                 self.leiste = ui.element("div").classes("m-leiste")
@@ -894,7 +894,9 @@ class Ansicht:
         for c in (self.werkzeuge, self.leiste, self.inhalt):
             c.clear()
         titel = register.TITEL[self.seite]
-        self.titel.set_text(titel)
+        from . import menueband_ui
+
+        self.titel.set_text(menueband_ui.seitentitel(self, titel))   # Menüband: „Auswertung · Maßnahmen“
         if self.design["layout"] == "canvas" and self.prompt.strip() and self._antwort is not None:
             self._canvas_zeichnen()
         elif self.fehler:

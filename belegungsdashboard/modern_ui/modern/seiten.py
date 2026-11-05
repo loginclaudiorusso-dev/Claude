@@ -289,7 +289,7 @@ def rg_zeichnen(a) -> None:
     ansicht = a.ansicht_von("reinigung", "liste")
     with a.werkzeuge:
         segmente({"liste": "Reinigungsliste", "last": "Vorschau 6 Wochen", "facility": "Facility-Checks"}, ansicht,
-                 lambda v: a.oeffnen("reinigung", ansicht=v))
+                 lambda v: a.oeffnen("reinigung", ansicht=v), ansicht=True)
     if ansicht == "facility":
         return _facility(a)
     if ansicht == "last":

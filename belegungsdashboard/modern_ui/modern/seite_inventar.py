@@ -71,7 +71,7 @@ def zeichnen(a) -> None:
     ansicht = a.ansicht_von("inventar", "gegenstaende")
     inv: iv.Inventar = a.daten["inv"]
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("inventar", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("inventar", ansicht=v), ansicht=True)
         knopf("Neuer Gegenstand", lambda: _gegenstand_panel(a, None), "primaer", "add")
         with knopf("Drucken & Export", None, "", "print"):
             with ui.menu().props('dark class="m-menue"'):

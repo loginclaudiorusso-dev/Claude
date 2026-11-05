@@ -52,7 +52,7 @@ def daten(a) -> None:
 def zeichnen(a) -> None:
     ansicht = _ansicht(a)
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v), ansicht=True)
     if ansicht == "uebersicht":
         _uebersicht(a)
     elif ansicht == "maengel":

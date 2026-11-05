@@ -305,12 +305,12 @@ def postfach_an(a) -> bool:
 def _umschalter(a) -> None:
     """0.64: kein Umschalter mehr – im Postfach nur der Weg zurück, in der Tageszentrale der Sprung ins Postfach."""
     with a.werkzeuge:
-        if postfach_an(a):
+        if postfach_an(a):          # m-kopf-doppelt: im Menüband stehen „Tagesübersicht“ und „Aufgaben“ schon oben
             knopf("Tageszentrale", lambda: a.setzen(heute_ansicht="zentrale", laden=False), "leise", "arrow_back",
-                  "Zurück zur Tageszentrale")
+                  "Zurück zur Tageszentrale").classes("m-kopf-doppelt")
         elif a.karten:
             knopf(f"Alle Aufgaben ({len(a.karten)})", lambda: a.setzen(heute_ansicht="postfach", laden=False), "leise",
-                  "inbox", "Alle Aufgaben mit ihren Fällen im Postfach bearbeiten")
+                  "inbox", "Alle Aufgaben mit ihren Fällen im Postfach bearbeiten").classes("m-kopf-doppelt")
 
 
 def auswahl(a) -> str:

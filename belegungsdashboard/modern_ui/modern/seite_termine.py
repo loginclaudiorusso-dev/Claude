@@ -53,7 +53,7 @@ def eigener_loeschen(tid: str) -> str:
 def zeichnen(a) -> None:
     ansicht = a.ansicht_von("termine", "liste")
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("termine", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("termine", ansicht=v), ansicht=True)
         knopf("Neuer Termin", lambda: termin_panel(a, None, a.heute), "primaer", "add")
     (_liste if ansicht == "liste" else _monat)(a)
 

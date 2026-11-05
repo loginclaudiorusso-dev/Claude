@@ -196,7 +196,7 @@ def _entscheidungen(d: dict) -> list[str]:
 def zeichnen(a) -> None:
     ansicht_ = ansicht(a)
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht_, lambda v: a.oeffnen("steuerung", ansicht=v))
+        segmente(ANSICHTEN, ansicht_, lambda v: a.oeffnen("steuerung", ansicht=v), ansicht=True)
     d = a.daten
     if d.get("fremd"):
         with a.inhalt:

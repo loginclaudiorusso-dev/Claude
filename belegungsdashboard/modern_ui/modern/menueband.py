@@ -17,7 +17,7 @@ class Punkt:
     ziel: tuple | None = None
     gross: bool = True
     tipp: str = ""
-    menue: list["Punkt"] = field(default_factory=list)      # nicht leer → Ausklappmenü statt direktem Sprung
+    menue: list["Punkt"] = field(default_factory=list)      # Ausklappmenü; mit ``ziel`` zusammen: Split-Button
     farbe: str = ""                                          # Farbmuster statt Symbolfarbe (Menü „Farben“)
 
 
@@ -32,6 +32,7 @@ class Reiter:
     key: str
     titel: str
     gruppen: list[Gruppe]
+    kontext: tuple = ()                                      # nicht leer → nur auf diesen Seiten (Kontext-Registerkarte)
 
 
 def S(seite: str, ansicht: str | None = None, **zustand) -> tuple:
@@ -58,99 +59,115 @@ ICONS = {   # Symbole der Unteransichten – leicht erkennbar, wie in Office
 }
 
 
-def _auswahl(seite: str, ansichten: dict, text: str, icon: str, tipp: str = "") -> Punkt:
-    """Große Schaltfläche mit Ausklappmenü: alle Unteransichten der Seite."""
+def _menue(seite: str, ansichten: dict, keys: list[str] | None = None) -> list[Punkt]:
     views = ansichten.get(seite) or {}
-    menue = [Punkt(t, ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), False) for k, t in views.items()]
-    return Punkt(text, icon, S(seite), True, tipp or f"{text} – Ansicht wählen", menue)
+    return [Punkt(views[k], ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), False)
+            for k in (keys or list(views)) if k in views]
+
+
+def _split(seite: str, ansichten: dict, text: str, icon: str, keys: list[str] | None = None, tipp: str = "",
+           standard: str | None = None) -> Punkt:
+    """Split-Button wie in Office: oben öffnet die Standardansicht, der Pfeil die übrigen Ansichten."""
+    return Punkt(text, icon, S(seite, standard), True, tipp or text, _menue(seite, ansichten, keys))
 
 
 def _einzeln(seite: str, ansichten: dict, keys: list[str] | None = None, gross: bool = True) -> list[Punkt]:
-    """Jede Unteransicht als eigene Schaltfläche (für die Seite, die der Reiter vor allem zeigt)."""
     views = ansichten.get(seite) or {}
     return [Punkt(views[k], ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), gross)
             for k in (keys or list(views)) if k in views]
 
 
+def _haken(text: str, key: str) -> Punkt:
+    """Menüpunkt mit Häkchen (an/aus) – Zustand zeigt die Oberfläche."""
+    return Punkt(text, "haken", A(f"dg:{key}"), False)
+
+
+# 0.67 – Regeln der Anordnung (wie in Office):
+#  1. Jeder Befehl steht an genau EINER Stelle (Ausnahme: Rückgängig/Aktualisieren im Schnellzugriff der Titelleiste).
+#  2. „Start“ = Tagesgeschäft, die häufigsten Dinge mit großen Symbolen; Unteransichten im Pfeil der Split-Buttons.
+#  3. Höchstens ~8 Schaltflächen je Registerkarte; Seltenes in „Datei“ oder in Ausklappmenüs.
+#  4. Was nur zu einer Seite passt, erscheint als Kontext-Registerkarte (hier: „Diagramm“ auf Auswertung/Steuerung).
+#  5. Die Ansichts-Umschalter im Seitenkopf entfallen im Menüband-Layout – das Band ist die Navigation.
+KONTEXT_DIAGRAMM = ("auswertung", "steuerung")
+
+
 def reiter(ansichten: dict[str, dict[str, str]]) -> list[Reiter]:
     """Registerkarten des Menübands. ``ansichten``: Seite → {Unteransicht: Titel} (aus den Seiten-Modulen)."""
-    an = ansichten.get("anreisen") or {}
+    zimmer_alltag = [k for k in (ansichten.get("zimmer") or {}) if k != "aenderungen"]
     return [
         Reiter("start", "Start", [
-            Gruppe("Bearbeiten", [Punkt("Rückgängig", "undo", A("rueckgaengig"), tipp="Letzte Änderung zurücknehmen (Strg+Z)"),
-                                  Punkt("Suchen", "search", A("suchen"), False, "Personen, Zimmer und Seiten suchen (Strg+K)"),
-                                  Punkt("Aktualisieren", "refresh", A("aktualisieren"), False, "Daten neu einlesen")]),
             Gruppe("Heute", [Punkt("Tages­übersicht", "today", S("heute", heute_ansicht="zentrale"),
                                    tipp="Kennzahlen und offene Aufgaben des Tages"),
-                             Punkt("Postfach", "inbox", S("heute", heute_ansicht="postfach"),
-                                   tipp="Alle Aufgaben mit ihren Fällen bearbeiten")]),
-            Gruppe("Aufgaben", [Punkt("Aufgaben", "task_alt", A("aufgaben"), tipp="Aufgaben-Center öffnen (Taste A)"),
-                                Punkt("Neuigkeiten", "notifications", A("neuigkeiten"), tipp="Letzte Neuigkeiten")]),
-            Gruppe("Belegung", [Punkt(an.get("zuteilen", "Zuteilen"), "how_to_reg", S("anreisen", "zuteilen"),
-                                      tipp="Anreisen ein Zimmer zuteilen"),
-                                _auswahl("zimmer", ansichten, "Zimmer", "meeting_room"),
-                                Punkt("Reinigung", "cleaning_services", S("reinigung"), tipp="Reinigungsliste")]),
+                             Punkt("Aufgaben", "task_alt", S("heute", heute_ansicht="postfach"),
+                                   tipp="Alle Aufgaben mit ihren Fällen bearbeiten (Postfach)")]),
+            Gruppe("Belegung", [_split("anreisen", ansichten, "Anreisen", "how_to_reg",
+                                       tipp="Anreisen zuteilen – Pfeil: Personen, Abreisen, Firmenprogramm",
+                                       standard="zuteilen"),
+                                _split("zimmer", ansichten, "Zimmer", "meeting_room", zimmer_alltag,
+                                       "Zimmer-Übersicht – Pfeil: Zeitstrahl, Liste, Karten, defekte Zimmer", "uebersicht"),
+                                _split("reinigung", ansichten, "Reinigung", "cleaning_services",
+                                       tipp="Reinigungsliste – Pfeil: Vorschau, Facility-Checks", standard="liste"),
+                                Punkt("Mieter", "key", S("mieter"), tipp="Mieter und Mietverträge")]),
         ]),
-        Reiter("belegung", "Belegung", [
-            Gruppe("Anreisen", _einzeln("anreisen", ansichten)),
-            Gruppe("Zimmer", _einzeln("zimmer", ansichten, ["uebersicht", "zeitstrahl", "liste"])
-                   + _einzeln("zimmer", ansichten, ["karten", "maengel", "aenderungen"], gross=False)),
-            Gruppe("Reinigung", _einzeln("reinigung", ansichten)),
-            Gruppe("Mieter", [Punkt("Mieter", "key", S("mieter"), tipp="Mieter und Mietverträge")]),
-        ]),
-        Reiter("planung", "Planung", [
-            Gruppe("Termine", _einzeln("termine", ansichten)),
+        Reiter("termine", "Termine & Post", [
+            Gruppe("Termine", [_split("termine", ansichten, "Termine", "event", tipp="Termine und Wiedervorlagen",
+                                      standard="liste")]),
             Gruppe("Assistenz", _einzeln("assistenz", ansichten)),
+            Gruppe("Mitteilungen", [Punkt("Neuig­keiten", "notifications", A("neuigkeiten"),
+                                          tipp="Letzte Neuigkeiten aus beiden Programmen")]),
         ]),
         Reiter("auswertung", "Auswertung", [
             Gruppe("Auswertung", _einzeln("auswertung", ansichten)),
-            Gruppe("Leitung", [_auswahl("steuerung", ansichten, "Steuerung", "query_stats",
-                                        "Renovierung, Zeitplan, Finanzen – Ansicht wählen")]),
+            Gruppe("Leitung", [_split("steuerung", ansichten, "Steuerung", "query_stats",
+                                      tipp="Cockpit – Pfeil: Vorhaben, Zeitplan, Finanzen, Grundlagen", standard="cockpit")]),
         ]),
         Reiter("verwalten", "Verwalten", [
             Gruppe("Daten", [Punkt("Daten & Import", "upload_file", S("daten"), tipp="Listen einlesen, Stand prüfen")]),
-            Gruppe("Inventar", [_auswahl("inventar", ansichten, "Inventar", "inventory_2")]),
-            Gruppe("Einstellungen", _einzeln("einstellungen", ansichten)),
-            Gruppe("Standort", [Punkt("Standort", "location_city", A("standort"), tipp="Standort wechseln")]),
+            Gruppe("Bestand", [_split("inventar", ansichten, "Inventar", "inventory_2", standard="gegenstaende"),
+                               Punkt((ansichten.get("einstellungen") or {}).get("stammdaten", "Zimmer-Stammdaten"),
+                                     "edit_note", S("einstellungen", "stammdaten"), tipp="Zimmer anlegen und pflegen")]),
+            Gruppe("Verlauf", [Punkt((ansichten.get("zimmer") or {}).get("aenderungen", "Änderungen"), "history",
+                                     S("zimmer", "aenderungen"), tipp="Alle Änderungen, auch als Excel")]),
         ]),
         Reiter("ansicht", "Ansicht", [
             Gruppe("Design", [Punkt("Farben", "palette", None, True, "Farbschema wählen",
                                     [Punkt(n, "circle", A(f"farbe:{k}"), False, farbe=c) for k, (n, c, _t) in _farben()]
                                     + [Punkt("Weitere Farben …", "colorize", A("optionen:farben"), False)]),
-                              Punkt("Hell / Dunkel", "contrast", A("modus"), tipp="Zwischen hell und dunkel wechseln"),
-                              Punkt("Schriftart", "font_download", A("optionen:anzeige"), tipp="Schriftart wählen")]),
-            Gruppe("Zoom", [Punkt("Zoom", "zoom_in", A("optionen:anzeige"), tipp="Zoom und Schrift einstellen"),
-                            Punkt("100 %", "crop_free", A("zoom:100"), tipp="Zoom auf 100 % zurücksetzen"),
-                            Punkt("Vergrößern", "add", A("zoom:+"), False, "Inhalt größer"),
-                            Punkt("Verkleinern", "remove", A("zoom:-"), False, "Inhalt kleiner")]),
-            Gruppe("Darstellung", [Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
-                                   Punkt("Vollbild", "fullscreen", A("vollbild"), False, "Vollbild ein/aus"),
-                                   Punkt("Großes Menüband", "touch_app", A("band_gross"), False, "Für Touch und große Monitore")]),
-            Gruppe("Diagramme", [Punkt("Diagramm\u00adtyp", "insert_chart", None, True, "Linie, Fläche oder Säulen",
-                                       [Punkt(t, i, A(f"dg_typ:{k}"), False) for k, (t, i) in _dg_typen()]
-                                       + [Punkt("Diagramm-Optionen …", "tune", A("optionen:diagramme"), False)])]),
-            Gruppe("Oberfläche", [Punkt("Layout", "space_dashboard", None, True, "Andere Darstellung wählen",
-                                        [Punkt(n, "radio_button_unchecked", A(f"layout:{k}"), False)
-                                         for k, n in LAYOUT_NAMEN.items()]),
-                                  Punkt("Leitstand", "view_quilt", A("leitstand"),
-                                        tipp="Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)")]),
-            Gruppe("Optionen", [Punkt("Optionen", "settings_suggest", A("optionen:farben"),
-                                      tipp="Alle Einstellungen zur Darstellung (Farben, Zoom, Schrift, Diagramme)")]),
-        ]),
+                              Punkt("Hell / Dunkel", "contrast", A("modus"), tipp="Zwischen hell und dunkel wechseln")]),
+            Gruppe("Zoom", [Punkt("Zoom", "zoom_in", None, True, "Zoomstufe wählen",
+                                  [Punkt(f"{z} %", "radio_button_unchecked", A(f"zoom:{z}"), False) for z in _zoom() if z != 100]),
+                            Punkt("100 %", "crop_free", A("zoom:100"), tipp="Zoom auf 100 % zurücksetzen")]),
+            Gruppe("Fenster", [Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
+                               Punkt("Vollbild", "fullscreen", A("vollbild"), False, "Vollbild ein/aus")]),
+            Gruppe("Ansichten", [Punkt("Layout", "space_dashboard", None, True, "Andere Darstellung wählen",
+                                       [Punkt(n, "radio_button_unchecked", A(f"layout:{k}"), False)
+                                        for k, n in LAYOUT_NAMEN.items()]
+                                       + [Punkt("Leitstand-Workbench", "view_quilt", A("leitstand"), False)])]),
+        ]),                                     # „Optionen“ steht – wie in Office – nur unter „Datei“
+        Reiter("diagramm", "Diagramm", [
+            Gruppe("Diagrammtyp", [Punkt(t, i, A(f"dg_typ:{k}"), tipp=f"Verläufe als {t}") for k, (t, i) in _dg_typen()]),
+            Gruppe("Elemente", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
+                                      [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
+                                       _haken("Datenbeschriftungen", "dg_werte"), _haken("Gitternetzlinien", "dg_gitter"),
+                                       _haken("Animation", "dg_anim")]),
+                                Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
+                                      [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
+                                       for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])]),
+            Gruppe("Optionen", [Punkt("Diagramm­optionen", "tune", A("optionen:diagramme"),
+                                      tipp="Alle Diagramm-Einstellungen mit Vorschau")]),
+        ], kontext=KONTEXT_DIAGRAMM),
     ]
 
 
 LAYOUT_NAMEN = {"office": "Menüband (wie Office)", "original": "Original-Zustand", "grid": "Classic Enterprise Grid",
                 "showcase": "Showcase", "canvas": "AI-Canvas & Prompt"}
 
-DATEI = [   # Menü „Datei“ (links, farbig) – das Wichtigste rund um Daten und Programm
-    Punkt("Daten einlesen", "upload_file", S("daten"), False),
-    Punkt("Sicherung & Verlauf", "backup", S("einstellungen", "sicherung"), False),
+DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office: Programm, Daten, Einstellungen – nichts vom Tagesgeschäft
     Punkt("Einstellungen", "settings", S("einstellungen", "allgemein"), False),
+    Punkt("Sicherung & Verlauf", "backup", S("einstellungen", "sicherung"), False),
+    Punkt("Optionen", "settings_suggest", A("optionen"), False),
     Punkt("Standort wechseln", "location_city", A("standort"), False),
-    Punkt("Leitstand-Workbench", "view_quilt", A("leitstand"), False),
     Punkt("Info", "info", A("info"), False),
-    Punkt("Optionen", "settings_suggest", A("optionen:farben"), False),
 ]
 
 
@@ -166,10 +183,21 @@ def _dg_typen():
     return list(DG_TYPEN.items())
 
 
+def _zoom():
+    from .darstellung_kern import ZOOM_STUFEN
+
+    return ZOOM_STUFEN
+
+
+def sichtbar(r: Reiter, seite: str) -> bool:
+    return not r.kontext or seite in r.kontext
+
+
 def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") -> bool:
-    """Ist die Schaltfläche die gerade offene Seite/Ansicht? ``ansicht_von(seite)`` liefert die aktuelle Unteransicht."""
-    if p.menue:
-        return any(aktiv(m, seite, ansicht_von, heute_ansicht) for m in p.menue)
+    """Ist die Schaltfläche die gerade offene Seite/Ansicht? ``ansicht_von(seite)`` liefert die aktuelle Unteransicht.
+    Split-Button: aktiv, wenn seine Standardansicht oder eine Ansicht aus dem Pfeil offen ist."""
+    if p.menue and any(aktiv(m, seite, ansicht_von, heute_ansicht) for m in p.menue):
+        return True
     if not p.ziel or p.ziel[0] != "seite" or p.ziel[1] != seite:
         return False
     _s, s, ans, zustand = p.ziel
@@ -178,15 +206,30 @@ def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") ->
     return ans is None or ans == ansicht_von(s)
 
 
-def reiter_von(seite: str, ansichten: dict) -> str:
-    """Registerkarte, die zu einer Seite gehört (beim Sprung über Suche oder Aufgaben folgt das Band der Seite)."""
-    for r in reiter(ansichten)[1:]:            # „Start“ nur, wenn keine andere passt
-        for g in r.gruppen:
-            for p in g.punkte:
-                for q in (p.menue or [p]):
-                    if q.ziel and q.ziel[0] == "seite" and q.ziel[1] == seite:
-                        return r.key
+def _ziele(r: Reiter):
+    for g in r.gruppen:
+        for p in g.punkte:
+            for q in [p] + p.menue:
+                if q.ziel and q.ziel[0] == "seite":
+                    yield q.ziel
+
+
+def reiter_von(seite: str, ansichten: dict, ansicht: str | None = None) -> str:
+    """Registerkarte, die zu Seite (und Ansicht) gehört – beim Sprung über Suche oder Aufgaben folgt das Band."""
+    alle = [r for r in reiter(ansichten) if not r.kontext]
+    for r in alle:                                  # genaue Ansicht zuerst (z. B. Zimmer → Änderungen = Verwalten)
+        if any(z[1] == seite and z[2] == ansicht and ansicht for z in _ziele(r)):
+            return r.key
+    for r in alle:
+        if any(z[1] == seite for z in _ziele(r)):
+            return r.key
     return "start"
+
+
+def alle_ziele(ansichten: dict) -> list[tuple]:
+    """Alle Sprungziele aus Band und Datei-Menü (für die Prüfung „jede Ansicht erreichbar“)."""
+    out = [z for r in reiter(ansichten) for z in _ziele(r)]
+    return out + [p.ziel for p in DATEI if p.ziel and p.ziel[0] == "seite"]
 
 
 def statuszeile(standort: str, karten, stand: str) -> str:

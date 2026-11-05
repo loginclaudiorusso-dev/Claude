@@ -55,7 +55,7 @@ def daten(a) -> None:
 def zeichnen(a) -> None:
     ansicht = a.ansicht_von("auswertung", "lage")
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("auswertung", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("auswertung", ansicht=v), ansicht=True)
     if ansicht == "zimmer":
         seiten.aw_zeichnen(a)
         return

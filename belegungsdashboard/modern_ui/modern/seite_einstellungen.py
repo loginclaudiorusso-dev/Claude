@@ -42,7 +42,7 @@ def daten(a) -> None:
 def zeichnen(a) -> None:
     ansicht = a.ansicht_von("einstellungen", "allgemein")
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("einstellungen", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("einstellungen", ansicht=v), ansicht=True)
     {"allgemein": _allgemein, "stammdaten": _stammdaten, "sicherung": _sicherung}[ansicht](a)
 
 

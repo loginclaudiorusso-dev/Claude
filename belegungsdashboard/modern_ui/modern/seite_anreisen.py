@@ -30,7 +30,7 @@ def daten(a) -> None:
 def werkzeuge(a) -> None:
     ansicht = a.ansicht_von("anreisen", "zuteilen")
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("anreisen", ansicht=v))
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("anreisen", ansicht=v), ansicht=True)
 
 
 def mehr_menue(a) -> None:

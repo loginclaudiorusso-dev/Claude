@@ -28,9 +28,20 @@ STANDARD_ANSICHT = {"anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung":
                     "einstellungen": "allgemein"}
 
 
+def seitentitel(a, titel: str) -> str:
+    """Im Menüband-Layout fehlen die Ansichts-Umschalter im Seitenkopf – darum steht die Ansicht im Titel."""
+    if a.design.get("layout") != LAYOUT:
+        return titel
+    if a.seite == "heute":
+        return titel + (" · Aufgaben" if _heute(a) == "postfach" else "")
+    views = _ansichten().get(a.seite) or {}
+    k = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
+    return f"{titel} · {views[k]}" if k in views else titel
+
+
 def _seite_im_reiter(r: mb.Reiter, seite: str) -> bool:
     return any(q.ziel and q.ziel[0] == "seite" and q.ziel[1] == seite
-               for g in r.gruppen for p in g.punkte for q in (p.menue or [p]))
+               for g in r.gruppen for p in g.punkte for q in [p] + p.menue)
 
 
 async def ausfuehren(a, ziel: tuple | None) -> None:
@@ -77,13 +88,18 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         await a.design_setzen(farbe=name.split(":", 1)[1])
     elif name.startswith("dg_typ:"):
         await a.design_setzen(dg_typ=name.split(":", 1)[1])
+    elif name.startswith("dg_legende:"):
+        await a.design_setzen(dg_legende=name.split(":", 1)[1])
+    elif name.startswith("dg:"):
+        key = name.split(":", 1)[1]
+        await a.design_setzen(**{key: not d.get(key)})
     elif name == "band_gross":
         await a.design_setzen(band_gross=not d["band_gross"])
     elif name.startswith("zoom:"):
         from . import darstellung_kern as dk
 
         w = name.split(":", 1)[1]
-        z = 100 if w == "100" else dk.zoom_schritt(d["zoom"], 1 if w == "+" else -1)
+        z = int(w) if w.isdigit() else dk.zoom_schritt(d["zoom"], 1 if w == "+" else -1)
         await a.design_setzen(zoom=z)
     elif name.startswith("optionen"):
         from . import optionen_ui
@@ -92,7 +108,7 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
 
 
 def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
-    if p.ziel == ("aktion", "aufgaben"):
+    if p.ziel and p.ziel[0] == "seite" and p.ziel[1] == "heute" and p.ziel[3].get("heute_ansicht") == "postfach":
         return len(a.karten), any(k.stufe == "dringend" for k in a.karten)
     if p.ziel == ("aktion", "neuigkeiten"):
         return a.ungelesen, False
@@ -103,7 +119,10 @@ def _menue(a, punkte: list[mb.Punkt]) -> None:
     with ui.menu().props('class="m-ob-menue" anchor="bottom left" self="top left"'):
         for q in punkte:
             an = _menue_an(a, q)
-            icon = ("radio_button_checked" if an else "radio_button_unchecked") if q.icon.startswith("radio") else q.icon
+            if q.icon == "haken":
+                icon = "check_box" if an else "check_box_outline_blank"
+            else:
+                icon = ("radio_button_checked" if an else "radio_button_unchecked") if q.icon.startswith("radio") else q.icon
             with ui.menu_item(on_click=lambda q=q: ausfuehren(a, q.ziel)).classes("m-ob-mpunkt" + (" an" if an else "")):
                 if q.farbe:
                     ui.element("span").classes("m-ob-muster").style(f"background:{q.farbe}")
@@ -115,7 +134,11 @@ def _menue(a, punkte: list[mb.Punkt]) -> None:
 def _menue_an(a, q: mb.Punkt) -> bool:
     z = q.ziel
     if z and z[0] == "aktion":
-        for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ")):
+        if z[1].startswith("dg:"):
+            return bool(a.design.get(z[1][3:]))
+        if z[1].startswith("zoom:") and z[1][5:].isdigit():
+            return int(z[1][5:]) == a.design.get("zoom")
+        for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ"), ("dg_legende:", "dg_legende")):
             if z[1].startswith(vor):
                 return z[1][len(vor):] == a.design.get(key)
         return False
@@ -131,7 +154,10 @@ def _heute(a) -> str:
 
 
 def _knopf(a, p: mb.Punkt) -> None:
-    an = mb.aktiv(p, a.seite, _av(a), _heute(a)) and not (p.ziel and p.ziel[0] == "aktion")
+    if p.menue and p.ziel:
+        return _split(a, p)
+    an = (mb.aktiv(p, a.seite, _av(a), _heute(a)) and not (p.ziel and p.ziel[0] == "aktion")) or \
+        (p.ziel is not None and p.ziel[0] == "aktion" and p.ziel[1].startswith("dg_typ:") and _menue_an(a, p))
     b = ui.element("button").classes(("m-ob-gross" if p.gross else "m-ob-klein") + (" an" if an else "")
                                      + (" mit-menue" if p.menue else ""))
     attr(b, title=p.tipp or p.text)
@@ -149,6 +175,27 @@ def _knopf(a, p: mb.Punkt) -> None:
             _menue(a, p.menue)
     if not p.menue:
         b.on("click", lambda p=p: ausfuehren(a, p.ziel))
+
+
+def _split(a, p: mb.Punkt) -> None:
+    """Split-Button wie in Office: oberer Teil öffnet die Standardansicht, der untere (Text + Pfeil) das Menü."""
+    an = mb.aktiv(p, a.seite, _av(a), _heute(a))
+    with ui.element("div").classes("m-ob-split" + (" an" if an else "")):
+        oben = ui.element("button").classes("m-ob-split-o")
+        attr(oben, title=p.tipp or p.text)
+        n, rot = _zahl(a, p)
+        with oben, ui.element("span").classes("m-ob-sym"):
+            ui.icon(p.icon)
+            if n:
+                ui.label(str(n)).classes("m-ob-zahl" + (" rot" if rot else ""))
+        oben.on("click", lambda p=p: ausfuehren(a, p.ziel))
+        unten = ui.element("button").classes("m-ob-split-u")
+        attr(unten, title=f"{p.text} – weitere Ansichten")
+        with unten:
+            with ui.element("span").classes("m-ob-text"):
+                ui.label(p.text)
+                ui.icon("expand_more").classes("m-ob-pfeil")
+            _menue(a, p.menue)
 
 
 def _gruppe(a, g: mb.Gruppe) -> None:
@@ -184,8 +231,9 @@ def fuellen(a, erzwingen: bool = False) -> None:
     alle = mb.reiter(_ansichten())
     tab = getattr(a, "band_tab", None) or "start"
     aktuell = next((r for r in alle if r.key == tab), alle[0])
-    if not _seite_im_reiter(aktuell, a.seite) and getattr(a, "_ob_seite", None) != a.seite:
-        tab = mb.reiter_von(a.seite, _ansichten())         # Sprung über Suche/Aufgaben: das Band folgt der Seite
+    if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
+                                              and getattr(a, "_ob_seite", None) != a.seite):
+        tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
         aktuell = next((r for r in alle if r.key == tab), alle[0])
     a.band_tab, a._ob_seite = tab, a.seite
     sig = (tab, a.seite, repr(sorted(a.ansicht.items())), _heute(a), repr(sorted(a.design.items())), len(a.karten),
@@ -226,7 +274,12 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 ui.label("Datei")
                 _menue(a, mb.DATEI)
             for r in alle:
-                rb = ui.element("button").classes("m-ob-tab" + (" an" if r.key == tab else ""))
+                if not mb.sichtbar(r, a.seite):
+                    continue
+                rb = ui.element("button").classes("m-ob-tab" + (" an" if r.key == tab else "")
+                                                  + (" kontext" if r.kontext else ""))
+                if r.kontext:
+                    attr(rb, title="Kontext-Registerkarte – erscheint nur auf Seiten mit Diagrammen")
                 with rb:
                     ui.label(r.titel)
                 rb.on("click", lambda r=r: _tab(a, r.key))
@@ -321,6 +374,23 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-gross:hover, .m-ob-klein:hover { background: var(--ob-hover) !important; }
 .m-ob-gross.an, .m-ob-klein.an { background: var(--ob-an) !important; border-color: var(--ob-rand) !important; }
 .m-ob-pfeil { font-size: 15px !important; color: var(--ob-text2) !important; }
+/* 0.67: Split-Button (oben: Standardansicht, unten: Menü) und Kontext-Registerkarte */
+.m-ob-split { display: flex; flex-direction: column; align-items: stretch; min-width: 58px; max-width: 86px; height: 70px;
+  border-radius: 4px; border: 1px solid transparent; }
+.m-ob-split:hover { border-color: var(--ob-rand); }
+.m-ob-split.an { background: var(--ob-an); border-color: var(--ob-rand); }
+.m-ob-split-o { flex: none; height: 37px; display: flex; align-items: flex-start; justify-content: center; padding-top: 6px;
+  border-radius: 4px 4px 0 0; }
+.m-ob-split-o .m-ob-sym { position: relative; display: inline-flex; }
+.m-ob-split-o .q-icon { font-size: 28px; color: var(--ob-akzent); }
+.m-ob-split-u { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 0 4px 4px;
+  border-radius: 0 0 4px 4px; text-align: center; }
+.m-ob-split-u .m-ob-text { display: inline-flex; align-items: center; font-size: 12px; line-height: 1.15; }
+.m-ob-split-o:hover, .m-ob-split-u:hover { background: var(--ob-hover) !important; }
+.m-ob-tab.kontext { color: var(--ob-akzent) !important; }
+.m-ob-tab.kontext::before { content: ""; position: absolute; left: 6px; right: 6px; top: 0; height: 3px; border-radius: 0 0 2px 2px;
+  background: var(--ob-akzent); opacity: .55; }
+body.lay-office .m-seg-ansicht { display: none !important; }
 .m-ob-zahl { position: absolute; top: -5px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   font-size: 10px; line-height: 16px; font-weight: 700; background: var(--ob-text2); color: #fff; }
 .m-ob-zahl.rot { background: #C4314B; }

@@ -27,11 +27,13 @@ def knopf(text: str, on_click=None, art: str = "", icon: str = "", titel: str = 
     return b
 
 
-def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False) -> None:
+def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False, ansicht: bool = False) -> None:
     """Segmented Control: ein Knopf je Option, der aktive hervorgehoben.
 
+    ``ansicht``: Umschalter der Unteransichten einer Seite – im Menüband-Layout ausgeblendet (dort stehen sie im Band).
+
     ``sofort``: der Knopf wird schon im Browser umgestellt (ohne auf den Server zu warten) – für Filter, die neu laden."""
-    with ui.element("div").classes("m-segm").props('role="group"'):
+    with ui.element("div").classes("m-segm" + (" m-seg-ansicht" if ansicht else "")).props('role="group"'):
         for wert, text in optionen.items():
             b = ui.element("button").classes("an" if wert == aktiv else "")
             attr(b, aria_pressed=str(wert == aktiv).lower())
