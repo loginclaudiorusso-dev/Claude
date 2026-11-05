@@ -517,6 +517,8 @@ def mt_zeichnen(a) -> None:
                         elif m.bis >= a.heute:
                             knopf("Mail", lambda m=m: _mail_panel(a, m), "leise", "mail", "Mail zum Vertragsende vorbereiten")
                     with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
+                        knopf("", lambda m=m: vertrag_bearbeiten_panel(a, m.nr), "leise", "edit",
+                              "Vertrag bearbeiten (z. B. falsches Zimmer) …")
                         knopf("", lambda m=m: verlaengern_panel(a, m), "leise", "update", "Verlängern (Nebenabrede) …")
                         knopf("", lambda m=m: _unterlagen(a, m.nr), "leise", "description", "Unterlagen neu erstellen")
         if weitere and a.mt_filter in (None, "weitere"):
@@ -650,6 +652,88 @@ def mieter_neu_panel(a) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Neuer Mieter", bauen, breit=True)
+
+
+def vertrag_bearbeiten_panel(a, nr: str) -> None:
+    """0.60: Erstellten Vertrag korrigieren – alle Angaben außer der Nummer; der Zimmerplan zieht mit."""
+    from belegung import mieter as mt
+
+    from . import mieter_kern as mk
+
+    mv = mt.nach_nummer(nr)
+    if mv is None:
+        a.toast("Den Vertrag gibt es nicht mehr.", fehler=True)
+        return
+
+    def bauen():
+        ui.label(f"Mietvertrag {mv.nr} · {mv.name} – Änderungen werden im Zimmerplan übernommen und im Verlauf "
+                 "vermerkt. Rückgängig wie immer.").classes("m-ptext")
+        with ui.element("div").classes("m-zweispaltig"):
+            anrede = ui.select(mk.ANREDEN, value=mv.anrede, label="Anrede").classes("m-feld").props(
+                'dense outlined dark options-dense popup-content-class="m-popup"')
+            ui.input("Vertragsnummer", value=mv.nr).classes("m-feld").props("dense outlined dark readonly").tooltip(
+                "Die Nummer bleibt – sie steht schon auf den Unterlagen.")
+            vor = ui.input("Vorname", value=mv.vorname).classes("m-feld").props("dense outlined dark")
+            nach = ui.input("Nachname", value=mv.nachname).classes("m-feld").props("dense outlined dark")
+            von = ui.input("Mietbeginn", value=mv.von.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            bis = ui.input("Mietende", value=mv.bis.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            miete = ui.number("Miete (€)", value=mv.miete, min=0, step=10).classes("m-feld").props("dense outlined dark")
+            flaeche = ui.number("Fläche (m²)", value=mv.flaeche, min=1, step=1, format="%d").classes("m-feld").props(
+                "dense outlined dark")
+            schl = ui.number("Schlüssel", value=mv.schluessel, min=0, step=1, format="%d").classes("m-feld").props(
+                "dense outlined dark")
+            mail = ui.input("E-Mail (optional)", value=mv.email).classes("m-feld").props("dense outlined dark")
+        zimmer = ui.select({mv.zimmer: mv.zimmer_kurz}, value=mv.zimmer, label="Zimmer", with_input=True).classes(
+            "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
+        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")
+        kaution = ui.switch("Mietsicherheit (Kaution) vereinbart", value=mv.kaution).props("dense color=indigo-4")
+        flex = ui.switch("Flexibler Mietvertrag", value=mv.nr in mk.flexible()).props("dense color=indigo-4")
+        neu_erstellen = ui.switch("Unterlagen gleich neu erstellen (PDF)", value=True).props("dense color=indigo-4")
+        if mv.verlaengerungen:
+            ui.label(f"Hinweis: Der Vertrag wurde schon {len(mv.verlaengerungen)}× verlängert – das Mietende hier ist das "
+                     "aktuelle (nach der letzten Nebenabrede).").classes("m-zweite").style("white-space:normal")
+
+        async def zimmer_fuellen():
+            try:
+                v, b = date.fromisoformat(von.value), date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                return
+            opt = await run.io_bound(mk.zimmer_auswahl, v, b, anrede.value, bool(alle.value), mv.person)
+            if zimmer.value and zimmer.value not in opt:
+                opt = {zimmer.value: f"{zimmer.value.removeprefix('GS-')} (passt im Zeitraum nicht)", **opt}
+            zimmer.set_options(opt, value=zimmer.value)
+
+        for feld in (von, bis, alle, anrede):
+            feld.on_value_change(lambda _e: zimmer_fuellen())
+        ui.timer(0.05, zimmer_fuellen, once=True)
+
+        async def speichern():
+            try:
+                v, b = date.fromisoformat(von.value), date.fromisoformat(bis.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte Beginn und Ende wählen.", fehler=True)
+                return
+            werte = {"anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
+                     "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
+                     "schluessel": schl.value or 0, "kaution": kaution.value,
+                     "kaution_bis": mv.kaution_bis if mv.kaution and mv.von == v else v, "email": mail.value or "",
+                     "flexibel": bool(flex.value)}
+            ergebnis = {}
+
+            def los():
+                text, pfad = mk.vertrag_aendern(mv.nr, werte, bool(neu_erstellen.value))
+                ergebnis["pfad"] = pfad
+                return text
+            if await a.aendern(los):
+                if ergebnis.get("pfad") and not _datei_oeffnen(str(ergebnis["pfad"])):
+                    a.toast(f"Gespeichert: {ergebnis['pfad']}", rueck=False)
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Änderungen speichern", speichern, "primaer", "save")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel(f"Vertrag bearbeiten · MV {mv.nr}", bauen, breit=True)
 
 
 def verlaengern_panel(a, m) -> None:

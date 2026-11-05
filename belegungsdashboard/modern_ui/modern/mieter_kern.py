@@ -134,13 +134,15 @@ def html_als_pdf(html: str) -> bytes | None:
         return ziel.read_bytes() if ziel.exists() else None
 
 
-def zimmer_auswahl(von: date, bis: date, anrede: str, alle: bool = False) -> dict[str, str]:
-    """Zimmer für einen Mieter im Zeitraum – passende zuerst; mit ``alle`` auch andere (mit Grund)."""
+def zimmer_auswahl(von: date, bis: date, anrede: str, alle: bool = False, person: str = "") -> dict[str, str]:
+    """Zimmer für einen Mieter im Zeitraum – passende zuerst; mit ``alle`` auch andere (mit Grund). ``person``: beim
+    Bearbeiten der eigene Eintrag („mv:26-011“) – er blockiert sein eigenes Zimmer nicht."""
     stand = zp.laden()
-    b = zp.Bedarf("mv:neu", "Neu", "Miete Goslar", "Mieter", von, bis, "w" if anrede == "Frau" else "m")
+    b = zp.Bedarf(person or "mv:neu", "Neu", "Miete Goslar", "Mieter", von, bis, "w" if anrede == "Frau" else "m")
+    ohne = {person} if person else set()
     erg = {}
     for z in sorted((z for z in stand.zimmer if z.aktiv), key=lambda z: (zp._haus_sort(z.haus), z.nummer)):
-        grund = zp.passt(stand.lage, z, b)
+        grund = zp.passt(stand.lage, z, b, ohne)
         if grund is None or alle:
             erg[z.id] = z.kurz + ("" if grund is None else f" ({grund})")
     return erg
@@ -237,6 +239,82 @@ def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
         ziel.with_suffix(".pdf").write_bytes(pdf)
     _schritt(f"Verlängerung {mv.nr}", lambda: mt.verlaengern(mv.nr, bis_neu), [mt.DATEI])
     return f"Nebenabrede für MV {mv.nr} bis {bis_neu:%d.%m.%Y} gespeichert ({'Word + PDF' if pdf else 'Word'}) – Zimmerplan verlängert", ziel
+
+
+# ---- 0.60: bestehenden Vertrag bearbeiten (z. B. falsches Zimmer) ----------------------------------------------
+
+AENDERBAR = {"anrede": "Anrede", "vorname": "Vorname", "nachname": "Nachname", "zimmer": "Zimmer", "von": "Mietbeginn",
+             "bis": "Mietende", "miete": "Miete", "flaeche": "Fläche", "schluessel": "Schlüssel", "kaution": "Kaution",
+             "kaution_bis": "Kaution bis", "email": "E-Mail"}
+
+
+def _wert_text(k: str, v) -> str:
+    if isinstance(v, date):
+        return f"{v:%d.%m.%Y}"
+    if k == "zimmer":
+        return str(v).removeprefix("GS-")
+    if isinstance(v, bool):
+        return "ja" if v else "nein"
+    return str(v)
+
+
+def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str, Path | None]:
+    """Einen erstellten Vertrag korrigieren: Name, Zimmer, Zeitraum, Miete … (die Vertragsnummer bleibt). Der
+    Zimmerplan zieht mit; im Verlauf steht, was sich geändert hat. ``unterlagen``: Vertrags-PDF gleich neu erstellen.
+    Ein Zimmer, das im Zeitraum nicht passt (belegt, falsche Gruppe …), wird abgelehnt."""
+    from dataclasses import replace
+
+    from belegung import protokoll
+
+    alt = mt.nach_nummer(nr)
+    if alt is None:
+        raise ValueError("Den Vertrag gibt es nicht mehr.")
+    neu = replace(alt, anrede=werte["anrede"], vorname=werte["vorname"].strip(), nachname=werte["nachname"].strip(),
+                  zimmer=werte["zimmer"] or "", von=werte["von"], bis=werte["bis"], miete=round(float(werte["miete"]), 2),
+                  flaeche=int(werte["flaeche"]), schluessel=int(werte["schluessel"]), kaution=bool(werte["kaution"]),
+                  kaution_bis=(werte.get("kaution_bis") or werte["von"]) if werte["kaution"] else None,
+                  email=(werte.get("email") or "").strip(), verlaengerungen=list(alt.verlaengerungen))
+    if neu.bis != alt.bis:
+        neu.mail_ende = ""                         # neues Ende → Mail zum Vertragsende wieder offen
+    fehler = mt.pruefen(neu, [m for m in mt.laden() if m.nr != nr])
+    if (neu.zimmer, neu.von, neu.bis, neu.anrede) != (alt.zimmer, alt.von, alt.bis, alt.anrede) and neu.zimmer:
+        stand = zp.laden()
+        z = next((x for x in stand.zimmer if x.id == neu.zimmer), None)
+        b = zp.Bedarf(alt.person, f"{neu.nachname}, {neu.vorname}", f"Miete Goslar MV {nr}", "Mieter", neu.von, neu.bis,
+                      "w" if neu.weiblich else "m")
+        grund = "Zimmer nicht gefunden" if z is None else zp.passt(stand.lage, z, b, {alt.person})
+        if grund:
+            fehler.append(f"Zimmer {neu.zimmer_kurz}: {grund}.")
+    if fehler:
+        raise ValueError("Bitte prüfen: " + " ".join(fehler))
+    geaendert = [(k, getattr(alt, k), getattr(neu, k)) for k in AENDERBAR if getattr(alt, k) != getattr(neu, k)]
+    flex_alt, flex_neu = nr in flexible(), bool(werte.get("flexibel", nr in flexible()))
+    if not geaendert and flex_alt == flex_neu:
+        raise ValueError("Es wurde nichts geändert.")
+
+    def tun():
+        alle = [neu if m.nr == nr else m for m in mt.laden()]
+        mt._speichern(alle)
+        mt._zuweisung_setzen(neu)
+        _flex_setzen(nr, flex_neu)
+        protokoll.eintragen([{"aktion": "Mietvertrag geändert", "name": f"{neu.nachname}, {neu.vorname}",
+                              "person": alt.person, "alt": _wert_text(k, a_), "neu": _wert_text(k, n_),
+                              "von": neu.von.isoformat(), "quelle": f"Mieter · {AENDERBAR[k]}"}
+                             for k, a_, n_ in geaendert] or
+                            [{"aktion": "Mietvertrag geändert", "name": f"{neu.nachname}, {neu.vorname}",
+                              "person": alt.person, "alt": "üblich" if not flex_alt else "flexibel",
+                              "neu": "flexibel" if flex_neu else "üblich", "von": neu.von.isoformat(),
+                              "quelle": "Mieter · Vertragsart"}])
+    _schritt(f"Mietvertrag {nr} geändert", tun, [mt.DATEI, FLEX_DATEI])
+    was = ", ".join(f"{AENDERBAR[k]} {_wert_text(k, a_)} → {_wert_text(k, n_)}" for k, a_, n_ in geaendert) or "Vertragsart"
+    text = f"MV {nr} geändert: {was}"
+    if not unterlagen:
+        return text + " – Unterlagen bitte bei Bedarf neu erstellen.", None
+    try:
+        t2, pfad = unterlagen_neu(nr)
+    except ValueError as exc:
+        return f"{text} – Unterlagen nicht neu erstellt: {exc}", None
+    return f"{text} · {t2}", pfad
 
 
 def unterlagen_neu(nr: str) -> tuple[str, Path]:
