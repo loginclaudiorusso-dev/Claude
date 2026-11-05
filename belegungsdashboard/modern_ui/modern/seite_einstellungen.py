@@ -508,6 +508,10 @@ def _darstellung(a) -> None:
             with ui.element("div").classes("m-paktionen"):
                 knopf("Zurück zum Original", lambda: a.design_setzen(**{**themes.STANDARD, "notiz": d["notiz"]}),
                       "primaer", "restart_alt")
+        from . import optionen_ui
+
+        with ui.element("div").classes("m-paktionen"):              # 0.66: Farben, Zoom, Schrift, Diagramme
+            knopf("Optionen … (Farben, Zoom, Schrift, Diagramme)", lambda: optionen_ui.oeffnen(a), "", "settings_suggest")
         mehr = ui.element("details").classes("m-mehr")
         if not original:
             attr(mehr, open="")                # in einer weiteren Darstellung: gleich aufgeklappt

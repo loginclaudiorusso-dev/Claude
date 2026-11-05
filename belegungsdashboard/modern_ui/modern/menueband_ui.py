@@ -73,6 +73,22 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
                 f"Standort {standort_kern.aktiv().name}", rueck=False)
     elif name.startswith("layout:"):
         await a.design_setzen(layout=name.split(":", 1)[1])
+    elif name.startswith("farbe:"):
+        await a.design_setzen(farbe=name.split(":", 1)[1])
+    elif name.startswith("dg_typ:"):
+        await a.design_setzen(dg_typ=name.split(":", 1)[1])
+    elif name == "band_gross":
+        await a.design_setzen(band_gross=not d["band_gross"])
+    elif name.startswith("zoom:"):
+        from . import darstellung_kern as dk
+
+        w = name.split(":", 1)[1]
+        z = 100 if w == "100" else dk.zoom_schritt(d["zoom"], 1 if w == "+" else -1)
+        await a.design_setzen(zoom=z)
+    elif name.startswith("optionen"):
+        from . import optionen_ui
+
+        optionen_ui.oeffnen(a, name.split(":", 1)[1] if ":" in name else "farben")
 
 
 def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
@@ -86,12 +102,24 @@ def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
 def _menue(a, punkte: list[mb.Punkt]) -> None:
     with ui.menu().props('class="m-ob-menue" anchor="bottom left" self="top left"'):
         for q in punkte:
-            an = (q.ziel == ("aktion", f"layout:{a.design['layout']}")) if q.ziel and q.ziel[1].startswith("layout:") \
-                else mb.aktiv(q, a.seite, _av(a), _heute(a))
+            an = _menue_an(a, q)
             icon = ("radio_button_checked" if an else "radio_button_unchecked") if q.icon.startswith("radio") else q.icon
             with ui.menu_item(on_click=lambda q=q: ausfuehren(a, q.ziel)).classes("m-ob-mpunkt" + (" an" if an else "")):
-                ui.icon(icon)
+                if q.farbe:
+                    ui.element("span").classes("m-ob-muster").style(f"background:{q.farbe}")
+                else:
+                    ui.icon(icon)
                 ui.label(q.text)
+
+
+def _menue_an(a, q: mb.Punkt) -> bool:
+    z = q.ziel
+    if z and z[0] == "aktion":
+        for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ")):
+            if z[1].startswith(vor):
+                return z[1][len(vor):] == a.design.get(key)
+        return False
+    return mb.aktiv(q, a.seite, _av(a), _heute(a))
 
 
 def _av(a):
@@ -210,6 +238,17 @@ def fuellen(a, erzwingen: bool = False) -> None:
             ui.label(mb.statuszeile(s.name, a.karten, getattr(a.stand_anzeige, "text", ""))).classes("m-ob-status-m")
             ui.element("div").style("flex:1")
             ui.label(f"Version {__version__}")
+            with ui.element("div").classes("m-ob-zoom"):                # wie der Zoom-Regler in Office
+                for icon, w, titel in (("remove", "-", "Verkleinern"), (None, "100", "Zoom zurücksetzen (100 %)"),
+                                       ("add", "+", "Vergrößern")):
+                    z = ui.element("button").classes("m-ob-zk")
+                    attr(z, title=titel)
+                    with z:
+                        if icon:
+                            ui.icon(icon)
+                        else:
+                            ui.label(f"{a.design['zoom']} %")
+                    z.on("click", lambda w=w: ausfuehren(a, mb.A(f"zoom:{w}")))
 
 
 def _tab(a, key: str) -> None:
@@ -222,7 +261,10 @@ CSS = r"""
 body.lay-office { --ob-titel: #134F4F; --ob-titel-text: #ffffff; --ob-akzent: #007F7F; --ob-band: #F7F8F8;
   --ob-reiter: #EEF1F1; --ob-rand: #D9DEDE; --ob-text: #1F2A2A; --ob-text2: #5E6E6E; --ob-hover: #E3ECEC;
   --ob-an: #D3E8E8; --ob-fl: #ffffff;
-  font-family: "Segoe UI", "PT Sans", system-ui, -apple-system, sans-serif; }
+  font-family: var(--ob-schrift, "Segoe UI", "PT Sans", system-ui, -apple-system, sans-serif); }
+/* 0.66: Zoom wie in Office – nur der Inhalt (Kopf, Leiste, Seite), Menüband und Statusleiste bleiben gleich groß */
+.m-kopf, .m-leiste, .m-inhalt { zoom: var(--m-zoom, 1); }
+body.band-gross .m-ob-band, body.band-gross .m-ob-reiter { zoom: 1.18; }
 body.lay-office.mod-dunkel { --ob-titel: #0E3838; --ob-akzent: #5ED6C6; --ob-band: #1E2626; --ob-reiter: #182020;
   --ob-rand: #334040; --ob-text: #E6EEEE; --ob-text2: #A9B9B9; --ob-hover: #2A3636; --ob-an: #23413F; --ob-fl: #141B1B; }
 body.lay-office .m-nav, body.lay-office .m-tb, body.lay-office .m-kopf-doppelt { display: none !important; }
@@ -269,7 +311,7 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-gross .m-ob-sym { position: relative; display: inline-flex; }
 .m-ob-gross .m-ob-sym .q-icon { font-size: 28px; color: var(--ob-akzent); }
 .m-ob-gross .m-ob-text { display: flex; align-items: center; gap: 0; font-size: 12px; line-height: 1.15;
-  hyphens: manual; overflow-wrap: anywhere; }
+  hyphens: manual; overflow-wrap: normal; word-break: normal; }
 .m-ob-klein { display: flex; align-items: center; gap: 6px; height: 23px; padding: 0 8px 0 5px; border-radius: 4px;
   white-space: nowrap; font-size: 12px; border: 1px solid transparent !important; }
 .m-ob-klein .m-ob-sym { position: relative; display: inline-flex; }
@@ -286,9 +328,15 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
   height: 24px; padding: 0 12px; font-size: 12px; background: var(--ob-reiter); border-top: 1px solid var(--ob-rand);
   color: var(--ob-text2); }
 .m-ob-status-m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-ob-zoom { display: flex; align-items: center; gap: 2px; margin-left: 8px; }
+.m-ob-zk { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 22px; padding: 0 4px;
+  border-radius: 3px; color: var(--ob-text2) !important; font-size: 12px !important; }
+.m-ob-zk .q-icon { font-size: 15px; }
+.m-ob-zk:hover { background: var(--ob-hover) !important; }
+.m-ob-muster { width: 16px; height: 16px; border-radius: 3px; flex: none; display: inline-block; }
 .m-ob-menue { min-width: 220px; padding: 4px 0; border-radius: 6px !important; background: var(--ob-fl, #fff) !important;
   color: var(--ob-text, #1F2A2A) !important; border: 1px solid var(--ob-rand, #D9DEDE);
-  box-shadow: 0 8px 24px rgba(0,0,0,.14) !important; font-family: "Segoe UI", "PT Sans", system-ui, sans-serif; }
+  box-shadow: 0 8px 24px rgba(0,0,0,.14) !important; font-family: var(--ob-schrift, "Segoe UI", "PT Sans", system-ui, sans-serif); }
 .m-ob-mpunkt { min-height: 32px !important; padding: 0 14px !important; gap: 10px; align-items: center; font-size: 13px; }
 .m-ob-mpunkt .q-icon { font-size: 18px; color: var(--ob-akzent, #007F7F); }
 .m-ob-mpunkt.an { background: var(--ob-an, #D3E8E8); font-weight: 600; }

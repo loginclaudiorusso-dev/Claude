@@ -18,6 +18,7 @@ class Punkt:
     gross: bool = True
     tipp: str = ""
     menue: list["Punkt"] = field(default_factory=list)      # nicht leer → Ausklappmenü statt direktem Sprung
+    farbe: str = ""                                          # Farbmuster statt Symbolfarbe (Menü „Farben“)
 
 
 @dataclass
@@ -113,14 +114,28 @@ def reiter(ansichten: dict[str, dict[str, str]]) -> list[Reiter]:
             Gruppe("Standort", [Punkt("Standort", "location_city", A("standort"), tipp="Standort wechseln")]),
         ]),
         Reiter("ansicht", "Ansicht", [
-            Gruppe("Darstellung", [Punkt("Hell / Dunkel", "contrast", A("modus"), tipp="Zwischen hell und dunkel wechseln"),
-                                   Punkt("Kompakt", "density_small", A("dichte"), tipp="Mehr Zeilen auf einen Blick"),
-                                   Punkt("Vollbild", "fullscreen", A("vollbild"), tipp="Vollbild ein/aus")]),
+            Gruppe("Design", [Punkt("Farben", "palette", None, True, "Farbschema wählen",
+                                    [Punkt(n, "circle", A(f"farbe:{k}"), False, farbe=c) for k, (n, c, _t) in _farben()]
+                                    + [Punkt("Weitere Farben …", "colorize", A("optionen:farben"), False)]),
+                              Punkt("Hell / Dunkel", "contrast", A("modus"), tipp="Zwischen hell und dunkel wechseln"),
+                              Punkt("Schriftart", "font_download", A("optionen:anzeige"), tipp="Schriftart wählen")]),
+            Gruppe("Zoom", [Punkt("Zoom", "zoom_in", A("optionen:anzeige"), tipp="Zoom und Schrift einstellen"),
+                            Punkt("100 %", "crop_free", A("zoom:100"), tipp="Zoom auf 100 % zurücksetzen"),
+                            Punkt("Vergrößern", "add", A("zoom:+"), False, "Inhalt größer"),
+                            Punkt("Verkleinern", "remove", A("zoom:-"), False, "Inhalt kleiner")]),
+            Gruppe("Darstellung", [Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
+                                   Punkt("Vollbild", "fullscreen", A("vollbild"), False, "Vollbild ein/aus"),
+                                   Punkt("Großes Menüband", "touch_app", A("band_gross"), False, "Für Touch und große Monitore")]),
+            Gruppe("Diagramme", [Punkt("Diagramm\u00adtyp", "insert_chart", None, True, "Linie, Fläche oder Säulen",
+                                       [Punkt(t, i, A(f"dg_typ:{k}"), False) for k, (t, i) in _dg_typen()]
+                                       + [Punkt("Diagramm-Optionen …", "tune", A("optionen:diagramme"), False)])]),
             Gruppe("Oberfläche", [Punkt("Layout", "space_dashboard", None, True, "Andere Darstellung wählen",
                                         [Punkt(n, "radio_button_unchecked", A(f"layout:{k}"), False)
                                          for k, n in LAYOUT_NAMEN.items()]),
                                   Punkt("Leitstand", "view_quilt", A("leitstand"),
                                         tipp="Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)")]),
+            Gruppe("Optionen", [Punkt("Optionen", "settings_suggest", A("optionen:farben"),
+                                      tipp="Alle Einstellungen zur Darstellung (Farben, Zoom, Schrift, Diagramme)")]),
         ]),
     ]
 
@@ -135,7 +150,20 @@ DATEI = [   # Menü „Datei“ (links, farbig) – das Wichtigste rund um Daten
     Punkt("Standort wechseln", "location_city", A("standort"), False),
     Punkt("Leitstand-Workbench", "view_quilt", A("leitstand"), False),
     Punkt("Info", "info", A("info"), False),
+    Punkt("Optionen", "settings_suggest", A("optionen:farben"), False),
 ]
+
+
+def _farben():
+    from .darstellung_kern import FARBSCHEMATA
+
+    return list(FARBSCHEMATA.items())
+
+
+def _dg_typen():
+    from .darstellung_kern import DG_TYPEN
+
+    return list(DG_TYPEN.items())
 
 
 def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") -> bool:

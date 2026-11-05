@@ -90,7 +90,9 @@ def _chart(opt: dict) -> None:
         se["color"] = se.get("lineStyle", {}).get("color") or se.get("areaStyle", {}).get("color") or _T()["text3"]
         if se.get("lineStyle", {}).get("opacity") == 0 and "areaStyle" in se:
             se["color"] = se["areaStyle"]["color"]
-    ui.echart(opt).classes("m-chart")
+    from . import diagramm_stil
+
+    ui.echart(diagramm_stil.anwenden(opt, themes.AKTIV)).classes("m-chart")      # 0.66: Diagrammtyp aus den Optionen
 
 
 def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "") -> None:

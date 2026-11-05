@@ -73,6 +73,13 @@ def _zeitraum(zs) -> str:
 
 
 def option(c: dict) -> dict:
+    """0.66: Diagrammstil aus den Optionen (Linie/Fläche/Säulen, Gitter, Legende …) auf die Prognose anwenden."""
+    from . import diagramm_stil
+
+    return diagramm_stil.anwenden(_option_roh(c), themes.AKTIV)
+
+
+def _option_roh(c: dict) -> dict:
     """c: pg, kap, offset, art, standort, brutto, b95, backtest, schritt, animation, pg_lang, stichtag."""
     t = _t()
     o = _basis(t, c["animation"])
@@ -461,6 +468,12 @@ def _zeitraum_m(ms) -> str:
 
 
 def vergleich_option(sv: list, aktiv: str, hell: bool, animation: bool) -> dict:
+    from . import diagramm_stil
+
+    return diagramm_stil.anwenden(_vergleich_roh(sv, aktiv, hell, animation), themes.AKTIV)
+
+
+def _vergleich_roh(sv: list, aktiv: str, hell: bool, animation: bool) -> dict:
     t = _t()
     o = _basis(t, animation)
     farben = an.STANDORT_FARBEN[hell]
@@ -954,7 +967,7 @@ def zeichnen(a) -> None:
                             knopf(f"+{d}", lambda d=d: setzen(offset=zustand["offset"] + d), "leise klein", "", f"Auslastung +{d} %")
                         ui.label(f"% auf die Prognosemonate · ± {OFFSET_MAX} %").classes("m-zweite")
                 with ui.element("div").classes("m-xs-vergleich"):
-                    _sz_vergleich(pg, zustand)
+                    _sz_vergleich(pg, zustand, a.aw_horizont)
                 ui.label("Im Graph läuft das Szenario als transparente Schattenkurve über der echten Prognose. Nur Kapazität und "
                          "Auslastung haben eine belastbare Grundlage im Modell; andere Annahmen (z. B. Verweildauer) werden nicht "
                          "scheinbar genau simuliert. Gespeichert wird nichts.").classes("m-zweite").style("white-space:normal")
@@ -1269,8 +1282,8 @@ def _kpi_karte(k: an.Kpi) -> None:
             ui.label(k.hinweis).classes("m-xk-hinweis")
 
 
-def _sz_vergleich(pg, zustand) -> None:
-    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"], a.aw_horizont)
+def _sz_vergleich(pg, zustand, horizont) -> None:
+    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"], horizont)
     with ui.element("div").classes("m-xs-tab"):
         for t in ("", "Ausgang (echt)", "Szenario"):
             ui.label(t).classes("m-zweite")

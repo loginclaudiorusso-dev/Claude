@@ -31,6 +31,9 @@ THEMES = {
 ALT = {"corporate": "inn", "bento": "obsidian", "editorial": "nordic"}      # Namen aus 0.8
 STANDARD = {"layout": "original", "theme": "original", "modus": "dunkel", "dichte": "normal", "schmal": False,
             "vollbild": False, "notiz": "", "dock": None, "dock_fest": True}
+from . import darstellung_kern as _dk  # noqa: E402 – 0.66: Farben, Zoom, Schrift, Diagrammstil
+
+STANDARD.update(_dk.STANDARD)
 
 # ---------------------------------------------------------------------------------------
 # Paletten (je Theme hell/dunkel) – nur Farben
@@ -190,6 +193,7 @@ def bereinigen(d: dict | None) -> dict:
     dock = d.get("dock")                    # Showcase: angeheftete Bereiche im Dock (None = Standard)
     erg["dock"] = [str(x) for x in dock][:14] if isinstance(dock, list) else None
     erg["dock_fest"] = d.get("dock_fest", True) is not False
+    erg.update(_dk.bereinigen(d))
     return erg
 
 
@@ -202,7 +206,7 @@ def farben(d: dict | str) -> dict:
         return {**_ORIGINAL, "fls": _ORIGINAL["fl"], "hell": False}
     v = P[(d["theme"], d["modus"])]
     return {"text": v["text"], "text2": v["text2"], "text3": v["text3"], "rand": v["rand"], "rand2": v["rand2"],
-            "fl2": v["fl2"], "akzent": v["akzent_hell"], "blau": v["blau"], "gruen": v["gruen"], "orange": v["orange"],
+            "fl2": v["fl2"], "akzent": _dk.diagramm_akzent(d, d["modus"] != "hell", v["akzent_hell"]), "blau": v["blau"], "gruen": v["gruen"], "orange": v["orange"],
             "rot": v["rot"], "bg": v["bg"], "fls": v["fls"], "hell": d["modus"] == "hell"}
 
 
@@ -223,10 +227,20 @@ def klassen(d: dict) -> list[str]:
         k.append("nav-schmal")
     if d["layout"] == "showcase" and not d["dock_fest"]:
         k.append("dock-auto")
+    if d["layout"] == "office" and d["band_gross"]:
+        k.append("band-gross")
     return k
 
 
-ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "mod-hell", "mod-dunkel", "dock-auto"] + [f"lay-{x}" for x in LAYOUTS]
+def stil(d: dict) -> str:
+    """0.66: Inline-Stil für <body> – Akzentfarbe, Titelleiste, Schrift (nur in den neuen Layouts) und Zoom."""
+    d = bereinigen(d)
+    if d["layout"] == "original":
+        return _dk.style_text({"--m-zoom": f"{d['zoom'] / 100:.2f}"} if d["zoom"] != 100 else {})
+    return _dk.style_text(_dk.css_variablen(d, d["modus"] != "hell"))
+
+
+ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------

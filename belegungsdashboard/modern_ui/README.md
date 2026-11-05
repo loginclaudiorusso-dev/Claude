@@ -1,4 +1,4 @@
-# Neue Oberfläche (modern_ui) – Version 0.65.0
+# Neue Oberfläche (modern_ui) – Version 0.66.0
 
 Eine neue, ruhige Oberfläche für das ganze Programm. Sie liegt im eigenen Ordner `modern_ui` und **ändert keine
 Datei des bisherigen Programms**. Daten und Regeln kommen aus dem Hauptprogramm im Ordner darüber (`belegung`):
@@ -51,6 +51,28 @@ Klick daneben oder Esc schließt · **A** öffnet die Aufgaben.
 * Kennzahlen in Monospace-Ziffern mit Symbol; **Zustände überall gleich**: frei grün ✓, belegt blau, geplant violett,
   gesperrt grau, Mängel orange „!“, unbewohnbar rot (Legende, Zimmerliste, defekte Zimmer, Zimmerkarte).
 * „Willkommen“-Kasten auf *Heute* mit fünf ersten Schritten – verschwindet dauerhaft mit „Verstanden“.
+
+## Optionen wie in Office: Farben, eigene Akzentfarbe, Zoom, Schrift, Diagrammtyp (neu in 0.66)
+
+Alles ist persönlich je PC und wirkt sofort. Erreichbar über **Datei → Optionen**, die Registerkarte **Ansicht** im
+Menüband oder *Einstellungen → Optionen …*.
+
+- **Farben & Design:** Hell/Dunkel; zwölf **Farbschemata** (Petrol als Standard aus dem Corporate Design, Türkis, Blau,
+  Marineblau, Grün, Oliv, Violett, Beere, Rot, Orange, Braun, Graphit); **eigene Akzentfarbe** wie in Windows – 48
+  Farbfelder oder frei gemischt (Hex). Zu helle Farben werden automatisch so weit abgedunkelt (im Dunkelmodus
+  aufgehellt), dass Schrift lesbar bleibt (Kontrast mind. 4,5 : 1). **Titelleiste** farbig, hell oder dunkel. Die
+  Akzentfarbe gilt für Titelleiste, Symbole, Knöpfe und die Prognoselinien in den Diagrammen.
+- **Statusfarben bleiben fest:** Rot (kritisch), Orange (Warnung) und Grün (frei) ändern sich nie – sie tragen Bedeutung.
+- **Anzeige & Schrift:** **Zoom** 50–200 % für den Inhalt (Menüband und Statusleiste bleiben gleich groß) – auch unten
+  rechts in der Statusleiste (− 100 % +) und unter *Ansicht → Zoom*. **Schriftart** (Segoe UI, Aptos, Calibri, Arial,
+  Verdana, Tahoma, PT Sans, Bahnschrift, Georgia – nur unter Windows vorhandene Schriften), **Dichte**, **großes
+  Menüband** für Touch und große Monitore.
+- **Diagramme:** **Typ** Linie, Fläche oder Säulen für alle Verläufe (Belegung, Prognose, Maßnahmen, Steuerung);
+  Linien glätten, Datenpunkte, Datenbeschriftungen (bei kurzen Reihen), Gitternetzlinien, Legende oben/unten/aus,
+  Animation. Unsicherheitsbänder, Kapazitäts- und Vergleichslinien (gepunktet, z. B. Rückwärtstest) bleiben, wie sie
+  sind; Prognose-Säulen erscheinen heller als Ist-Säulen. Mit Vorschau im Dialog.
+- **Zurücksetzen** je Bereich oder alles.
+- Behoben: Der Szenario-Vergleich in der Prognose brach mit einem Fehler ab (fehlender Planungszeitraum).
 
 ## Menüband wie in Office, sachliche Überschriften, Leitstand aufgeräumt (neu in 0.65)
 
@@ -1268,4 +1290,4 @@ neu, die in den letzten 7 Tagen importiert wurden.
 ## Rückgängig machen / entfernen
 
 Den Ordner `modern_ui` löschen genügt – das bisherige Programm und seine Daten bleiben. Sicherungen: vor 0.1.0
-`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0`, vor 0.54.0 `backup/modern-0.53.0`, vor 0.55.0 `backup/modern-0.54.0`, vor 0.56.0 `backup/modern-0.55.0`, vor 0.57.0 `backup/modern-0.56.0`, vor 0.58.0 `backup/modern-0.57.0`, vor 0.59.0 `backup/modern-0.58.0`, vor 0.60.0 `backup/modern-0.59.0`, vor 0.61.0 `backup/modern-0.60.0`, vor 0.62.0 `backup/modern-0.61.0`, vor 0.63.0 `backup/modern-0.62.0`, vor 0.64.0 `backup/modern-0.63.0`, vor 0.65.0 `backup/modern-0.64.0` (jeweils auch als Zip in `Sicherung`).
+`backup/v6.28.0`, vor 0.2.0 `backup/modern-0.1.0`, vor 0.3.0 `backup/modern-0.2.0`, vor 0.4.0 `backup/modern-0.3.0`, vor 0.5.0 `backup/modern-0.4.0`, vor 0.6.0 `backup/modern-0.5.0`, vor 0.7.0 `backup/modern-0.6.0`, vor 0.8.0 `backup/modern-0.7.0`, vor 0.9.0 `backup/modern-0.8.0`, vor 0.10.0 `backup/modern-0.9.0`, vor 0.11.0 `backup/modern-0.10.0`, vor 0.12.0 `backup/modern-0.11.0`, vor 0.13.0 `backup/modern-0.12.0`, vor 0.14.0 `backup/modern-0.13.0`, vor 0.15.0 `backup/modern-0.14.0`, vor 0.16.0 `backup/modern-0.15.0`, vor 0.17.0 `backup/modern-0.16.0`, vor 0.18.0 `backup/modern-0.17.0`, vor 0.19.0 `backup/modern-0.18.0`, vor 0.20.0 `backup/modern-0.19.0`, vor 0.21.0 `backup/modern-0.20.0`, vor 0.22.0 `backup/modern-0.21.0`, vor 0.23.0 `backup/modern-0.22.0`, vor 0.24.0 `backup/modern-0.23.0`, vor 0.25.0 `backup/modern-0.24.0`, vor 0.26.0 `backup/modern-0.25.0`, vor 0.27.0 `backup/modern-0.26.0`, vor 0.28.0 `backup/modern-0.27.0`, vor 0.29.0 `backup/modern-0.28.0`, vor 0.30.0 `backup/modern-0.29.0`, vor 0.31.0 `backup/modern-0.30.0`, vor 0.32.0 `backup/modern-0.31.0`, vor 0.33.0 `backup/modern-0.32.0`, vor 0.33.1 `backup/modern-0.33.0`, vor 0.33.2 `backup/modern-0.33.1`, vor 0.34.0 `backup/modern-0.33.2`, vor 0.35.0 `backup/modern-0.34.0`, vor 0.36.0 `backup/modern-0.35.0`, vor 0.37.0 `backup/modern-0.36.0`, vor 0.37.1 `backup/modern-0.37.0`, vor 0.38.0 `backup/modern-0.37.1`, vor 0.38.1 `backup/modern-0.38.0`, vor 0.39.0 `backup/modern-0.38.1`, vor 0.40.0 `backup/modern-0.39.0`, vor 0.40.1 `backup/modern-0.40.0`, vor 0.41.0 `backup/modern-0.40.1`, vor 0.42.0 `backup/modern-0.41.0`, vor 0.43.0 `backup/modern-0.42.0`, vor 0.44.0 `backup/modern-0.43.0`, vor 0.44.1 `backup/modern-0.44.0`, vor 0.45.0 `backup/modern-0.44.1`, vor 0.46.0 `backup/modern-0.45.0`, vor 0.47.0 `backup/modern-0.46.0`, vor 0.48.0 `backup/modern-0.47.0`, vor 0.49.0 `backup/modern-0.48.0`, vor 0.50.0 `backup/modern-0.49.0`, vor 0.51.0 `backup/modern-0.50.0`, vor 0.52.0 `backup/modern-0.51.0`, vor 0.53.0 `backup/modern-0.52.0`, vor 0.54.0 `backup/modern-0.53.0`, vor 0.55.0 `backup/modern-0.54.0`, vor 0.56.0 `backup/modern-0.55.0`, vor 0.57.0 `backup/modern-0.56.0`, vor 0.58.0 `backup/modern-0.57.0`, vor 0.59.0 `backup/modern-0.58.0`, vor 0.60.0 `backup/modern-0.59.0`, vor 0.61.0 `backup/modern-0.60.0`, vor 0.62.0 `backup/modern-0.61.0`, vor 0.63.0 `backup/modern-0.62.0`, vor 0.64.0 `backup/modern-0.63.0`, vor 0.65.0 `backup/modern-0.64.0`, vor 0.66.0 `backup/modern-0.65.0` (jeweils auch als Zip in `Sicherung`).

@@ -308,8 +308,13 @@ class Ansicht:
         from . import menueband_ui
 
         ui.add_css(menueband_ui.CSS)           # 0.65: Menüband wie in Office (nur mit body.lay-office)
+        from . import optionen_ui
+
+        ui.add_css(optionen_ui.CSS)            # 0.66: Optionen-Dialog
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
+        self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom
+        self.dialog_ablage = ui.element("div")                     # Dialoge, die ein Neuzeichnen überstehen
         with ui.element("div").classes("m-app"):
             with ui.element("nav").classes("m-nav"):
                 self._marke_bauen()
@@ -856,12 +861,16 @@ class Ansicht:
         self.body.classes(remove=" ".join(themes.ALLE_KLASSEN))
         if themes.klassen(self.design):
             self.body.classes(add=" ".join(themes.klassen(self.design)))
+        self.body.style(replace=themes.stil(self.design))
         self._toolbar_fuellen()
         if self.design["layout"] != "canvas" and self.prompt:
             self.prompt_eingabe.set_value("")
             self.prompt, self._antwort = "", None
-        farben_neu = (alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
-        if alt["layout"] != self.design["layout"] or (farben_neu and self.seite == "auswertung") or self.seite == "einstellungen":
+        diagramm = ("farbe", "farbe_eigen", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
+        farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
+                      or any(alt.get(k) != self.design.get(k) for k in diagramm))
+        if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \
+                or self.seite == "einstellungen":
             self.zeichnen()
         else:
             self._nav_fuellen()
