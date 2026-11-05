@@ -560,6 +560,44 @@ def _strittig_kasten(a, x, zimmer: str) -> None:
                   lambda: _nach(a, kern.strittig_klaeren, x.person, "planung", zimmer=zimmer), "", "event_available")
 
 
+def _sperre_block(a, k: zk.Karte) -> None:
+    """0.61: Sperre laut Gebäudeplan (z. B. Renovierung) früher beenden – „fertig renoviert ab …“, mit Bestätigung."""
+    from . import sperre_kern as sk
+
+    sperren = sk.sperren(a.stand, k.zimmer, a.heute) if a.stand is not None else []
+    ab = sk.frei_ab(k.zimmer)
+    if not sperren and ab is None:
+        return
+    ui.label("Sperre").classes("m-ktitel")
+    for s in sperren:
+        ui.label(s.text).classes("m-ptext")
+    if ab is not None:
+        with ui.element("div").classes("m-paktionen"):
+            ui.label(f"Eigene Angabe: frei ab {ab:%d.%m.%Y} (der Gebäudeplan zeigt die Sperre weiter).").classes("m-zweite")
+            knopf("Zurücknehmen", lambda: _nach(a, sk.setzen_schritt, k.zimmer, None, zimmer=k.zimmer), "leise", "undo",
+                  "Sperre wieder so, wie sie im Gebäudeplan steht")
+        return
+    with ui.element("div").classes("m-sperre-frei"):
+        tag = ui.input("Fertig renoviert – frei ab", value=a.heute.isoformat()).classes(
+            "m-feld").props("dense outlined dark type=date")
+        notiz = ui.input("Notiz (optional)", placeholder="z. B. Abnahme durch FM am …").classes("m-feld").props(
+            "dense outlined dark")
+        ok = ui.checkbox("Ich habe geprüft: Das Zimmer ist ab diesem Tag bezugsfertig").props("dense color=orange")
+
+        async def speichern():
+            if not ok.value:
+                a.toast("Bitte zuerst bestätigen, dass das Zimmer ab dem Tag bezugsfertig ist.", fehler=True)
+                return
+            try:
+                d = date.fromisoformat(tag.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte ein Datum wählen.", fehler=True)
+                return
+            await _nach(a, sk.setzen_schritt, k.zimmer, d, notiz.value or "", zimmer=k.zimmer)
+        knopf("Früher frei (fertig renoviert)", speichern, "", "event_available",
+              "Die Sperre aus dem Gebäudeplan endet hier am Vortag – nur in dieser Oberfläche")
+
+
 def _karte(a, k: zk.Karte) -> None:
     ui.label(f"{k.lage} · {k.betten} Bett{'en' if k.betten > 1 else ''}" + (f" · {k.merkmale}" if k.merkmale else "")
              ).classes("m-ptext")
@@ -602,6 +640,7 @@ def _karte(a, k: zk.Karte) -> None:
                           "Abbruch oder vorzeitiger Auszug – das Zimmer wird danach frei")
             for n in p.notizen[:3]:
                 _notiz_zeile(a, k, n)
+    _sperre_block(a, k)
     # Mängel
     ui.label("Mängel").classes("m-ktitel")
     from belegung import maengel as mg

@@ -601,11 +601,16 @@ def mieter_neu_panel(a) -> None:
             knopf("Abgleichen", abgleichen, "", "sync")
 
         async def nummer_holen(setzen: bool = False):
-            vorschlag, text = await run.io_bound(mk.nummern_abgleich, a.heute)
-            if setzen or nr.value == erste:
-                nr.value = vorschlag
-            woher.text = f"Vorschlag {vorschlag} · {text}"
-        erste = nr.value
+            try:
+                v = date.fromisoformat(von.value)
+            except (TypeError, ValueError):
+                v = a.heute
+            vorschlag, text = await run.io_bound(mk.nummer_vorschlag, v, a.heute)
+            if setzen or nr.value == zuletzt["vorschlag"]:
+                nr.value = vorschlag               # eigene Eingabe bleibt; der Vorschlag folgt dem Vertragsjahr
+            zuletzt["vorschlag"] = vorschlag
+            woher.text = f"Vorschlag {vorschlag} · {text} · Jahr = Jahr des Vertrags bzw. des Mietbeginns"
+        zuletzt = {"vorschlag": nr.value}
         ui.timer(0.05, nummer_holen, once=True)
         zimmer = ui.select({}, label="Zimmer", with_input=True).classes("m-feld").props(
             'dense outlined dark options-dense popup-content-class="m-popup"')
@@ -613,6 +618,8 @@ def mieter_neu_panel(a) -> None:
         kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=indigo-4")
         flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=indigo-4")
         attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")
+        trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
+                            "ich habe es geprüft").props("dense color=orange")
 
         async def zimmer_fuellen():
             try:
@@ -628,7 +635,7 @@ def mieter_neu_panel(a) -> None:
             except (TypeError, ValueError):
                 pass
 
-        von.on_value_change(lambda _e: (beginn(), zimmer_fuellen()))
+        von.on_value_change(lambda _e: (beginn(), zimmer_fuellen(), nummer_holen()))
         bis.on_value_change(lambda _e: zimmer_fuellen())
         alle.on_value_change(lambda _e: zimmer_fuellen())
         anrede.on_value_change(lambda _e: zimmer_fuellen())
@@ -643,7 +650,7 @@ def mieter_neu_panel(a) -> None:
             werte = {"nr": nr.value or "", "anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
                      "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
                      "schluessel": schl.value or 0, "kaution": kaution.value, "kaution_bis": v, "email": mail.value or "",
-                     "flexibel": bool(flex.value)}
+                     "flexibel": bool(flex.value), "trotzdem": bool(trotz.value)}
             if await _mit_datei(a, mk.neuer_vertrag, werte):
                 a.panel_zu()
 
@@ -666,13 +673,12 @@ def vertrag_bearbeiten_panel(a, nr: str) -> None:
         return
 
     def bauen():
-        ui.label(f"Mietvertrag {mv.nr} · {mv.name} – Änderungen werden im Zimmerplan übernommen und im Verlauf "
-                 "vermerkt. Rückgängig wie immer.").classes("m-ptext")
+        ui.label(f"Mietvertrag {mv.nr} · {mv.name} – Änderungen (auch die Vertragsnummer) werden im Zimmerplan "
+                 "übernommen und im Verlauf vermerkt. Rückgängig wie immer.").classes("m-ptext")
         with ui.element("div").classes("m-zweispaltig"):
             anrede = ui.select(mk.ANREDEN, value=mv.anrede, label="Anrede").classes("m-feld").props(
                 'dense outlined dark options-dense popup-content-class="m-popup"')
-            ui.input("Vertragsnummer", value=mv.nr).classes("m-feld").props("dense outlined dark readonly").tooltip(
-                "Die Nummer bleibt – sie steht schon auf den Unterlagen.")
+            nr_feld = ui.input("Vertragsnummer", value=mv.nr).classes("m-feld").props("dense outlined dark")
             vor = ui.input("Vorname", value=mv.vorname).classes("m-feld").props("dense outlined dark")
             nach = ui.input("Nachname", value=mv.nachname).classes("m-feld").props("dense outlined dark")
             von = ui.input("Mietbeginn", value=mv.von.isoformat()).classes("m-feld").props("dense outlined dark type=date")
@@ -689,6 +695,29 @@ def vertrag_bearbeiten_panel(a, nr: str) -> None:
         kaution = ui.switch("Mietsicherheit (Kaution) vereinbart", value=mv.kaution).props("dense color=indigo-4")
         flex = ui.switch("Flexibler Mietvertrag", value=mv.nr in mk.flexible()).props("dense color=indigo-4")
         neu_erstellen = ui.switch("Unterlagen gleich neu erstellen (PDF)", value=True).props("dense color=indigo-4")
+        trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
+                            "ich habe es geprüft").props("dense color=orange")
+        jahr_hinweis = ui.element("div").classes("m-zeile-flex").style("gap:8px; flex-wrap:wrap")
+
+        async def jahr_pruefen():
+            try:
+                v = date.fromisoformat(von.value)
+            except (TypeError, ValueError):
+                return
+            erstellt = date.fromisoformat(mv.erstellt[:10]) if mv.erstellt[:10].count("-") == 2 else a.heute
+            jj = f"{mk.vertragsjahr(v, erstellt) % 100:02d}"
+            jahr_hinweis.clear()
+            if not (nr_feld.value or "").startswith(jj + "-"):
+                vorschlag = (await run.io_bound(mk.nummer_vorschlag, v, erstellt))[0]
+                with jahr_hinweis:
+                    ui.label(f"Die Nummer passt nicht zum Vertragsjahr 20{jj} – Vorschlag {vorschlag}.").classes(
+                        "m-warn-text")
+                    knopf(f"{vorschlag} übernehmen", lambda: nr_feld.set_value(vorschlag), "leise", "auto_fix_high")
+                    ui.label("Die neue Nummer gilt ab jetzt; die Unterlagen werden mit ihr neu erstellt (die alten "
+                             "Dateien bleiben liegen).").classes("m-zweite")
+        nr_feld.on_value_change(lambda _e: jahr_pruefen())
+        von.on_value_change(lambda _e: jahr_pruefen())
+        ui.timer(0.05, jahr_pruefen, once=True)
         if mv.verlaengerungen:
             ui.label(f"Hinweis: Der Vertrag wurde schon {len(mv.verlaengerungen)}× verlängert – das Mietende hier ist das "
                      "aktuelle (nach der letzten Nebenabrede).").classes("m-zweite").style("white-space:normal")
@@ -713,7 +742,8 @@ def vertrag_bearbeiten_panel(a, nr: str) -> None:
             except (TypeError, ValueError):
                 a.toast("Bitte Beginn und Ende wählen.", fehler=True)
                 return
-            werte = {"anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
+            werte = {"nr": nr_feld.value or mv.nr, "trotzdem": bool(trotz.value),
+                     "anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
                      "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
                      "schluessel": schl.value or 0, "kaution": kaution.value,
                      "kaution_bis": mv.kaution_bis if mv.kaution and mv.von == v else v, "email": mail.value or "",

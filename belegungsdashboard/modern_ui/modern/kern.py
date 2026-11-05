@@ -1118,3 +1118,7 @@ _netz.installieren()
 from . import regeln_kern as _regeln  # noqa: E402
 
 _regeln.mieter_ausnahme_installieren()      # 0.59: Mieterinnen dürfen in Zimmer mit Bad über den Flur
+
+from . import sperre_kern as _sperre  # noqa: E402
+
+_sperre.installieren()                       # 0.61: Sperre laut Gebäudeplan früher beenden (fertig renoviert)

@@ -194,6 +194,42 @@ def vorlage_fuer(text: str, flexibel: bool) -> str:
     return "\n".join(erg)
 
 
+# ---- 0.61: Jahr der Vertragsnummer, Zimmer trotzdem nehmen ----------------------------------------------------
+
+def vertragsjahr(von: date, heute: date | None = None) -> int:
+    """Jahr am Anfang der Vertragsnummer: das Jahr, in dem der Vertrag erstellt wird – oder, wenn er erst später
+    beginnt, das Jahr des Mietbeginns (im Dezember 2026 für Januar 2027 erstellt → „27-…“)."""
+    return max((heute or date.today()).year, von.year)
+
+
+def nummer_vorschlag(von: date, heute: date | None = None) -> tuple[str, str]:
+    return nummern_abgleich(date(vertragsjahr(von, heute), 1, 1))
+
+
+def _jahr_pruefen(nr: str, von: date, heute: date | None = None) -> str | None:
+    jj = f"{vertragsjahr(von, heute) % 100:02d}"
+    m = _NR.fullmatch(nr.strip())
+    if m and m.group(1) != jj:
+        return (f"Die Vertragsnummer muss mit {jj} beginnen (Vertrag für 20{jj}) – Vorschlag: "
+                f"{nummer_vorschlag(von, heute)[0]}.")
+    return None
+
+
+TROTZDEM_HINWEIS = ("Wenn es trotzdem passt (z. B. bis dahin fertig renoviert): Haken „Zimmer trotzdem nehmen“ setzen "
+                    "– oder im Zimmer „Früher frei (fertig renoviert)“ eintragen.")
+
+
+def zimmer_grund(person: str, mv: mt.Mietvertrag) -> str | None:
+    """Warum das Zimmer im Zeitraum nicht passt (None = passt). Der eigene Eintrag blockiert nicht."""
+    stand = zp.laden()
+    z = next((x for x in stand.zimmer if x.id == mv.zimmer), None)
+    if z is None:
+        return "Zimmer nicht gefunden"
+    b = zp.Bedarf(person, f"{mv.nachname}, {mv.vorname}", "Miete Goslar", "Mieter", mv.von, mv.bis,
+                  "w" if mv.weiblich else "m")
+    return zp.passt(stand.lage, z, b, {person})
+
+
 def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     """Vertrag anlegen, Unterlagen erstellen. (Meldung, Pfad der PDF/HTML)."""
     mv = mt.Mietvertrag(werte["nr"].strip(), werte["anrede"], werte["vorname"].strip(), werte["nachname"].strip(),
@@ -201,8 +237,16 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
                         int(werte["flaeche"]), int(werte["schluessel"]), werte["kaution_bis"] if werte["kaution"] else None,
                         kaution=bool(werte["kaution"]), email=werte.get("email", "").strip())
     fehler = mt.pruefen(mv) + [f"Vorlage fehlt: {v}" for v in mt.fehlende_vorlagen()]
-    if not any("Vertragsnummer" in f for f in fehler) and (wo := vergeben(mv.nr)):
-        fehler.append(f"Die Vertragsnummer {mv.nr} ist schon vergeben ({wo}) – nächste freie: {nummern_abgleich()[0]}.")
+    if not any("Vertragsnummer" in f for f in fehler) and (j := _jahr_pruefen(mv.nr, mv.von)):
+        fehler.append(j)
+    elif not any("Vertragsnummer" in f for f in fehler) and (wo := vergeben(mv.nr)):
+        fehler.append(f"Die Vertragsnummer {mv.nr} ist schon vergeben ({wo}) – nächste freie: "
+                      f"{nummer_vorschlag(mv.von)[0]}.")
+    trotz = ""
+    if mv.zimmer and not fehler and (grund := zimmer_grund("mv:neu", mv)):
+        if not werte.get("trotzdem"):
+            fehler.append(f"Zimmer {mv.zimmer_kurz}: {grund}. {TROTZDEM_HINWEIS}")
+        trotz = grund
     if fehler:
         raise ValueError("Bitte prüfen: " + " ".join(fehler))
     ordner = mt.vorlagen_ordner()
@@ -219,6 +263,12 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     def anlegen():
         mt.anlegen(mv)
         _flex_setzen(mv.nr, flex)
+        if trotz:
+            from belegung import protokoll
+
+            protokoll.eintragen([{"aktion": "Zimmer trotz Hinweis gewählt", "name": f"{mv.nachname}, {mv.vorname}",
+                                  "person": mv.person, "alt": "", "neu": mv.zimmer, "von": mv.von.isoformat(),
+                                  "quelle": f"Mieter · {trotz}"}])
     _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI])
     return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: "
             + ", ".join(teile) + "." + extra), ziel
@@ -243,7 +293,7 @@ def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
 
 # ---- 0.60: bestehenden Vertrag bearbeiten (z. B. falsches Zimmer) ----------------------------------------------
 
-AENDERBAR = {"anrede": "Anrede", "vorname": "Vorname", "nachname": "Nachname", "zimmer": "Zimmer", "von": "Mietbeginn",
+AENDERBAR = {"nr": "Vertragsnummer", "anrede": "Anrede", "vorname": "Vorname", "nachname": "Nachname", "zimmer": "Zimmer", "von": "Mietbeginn",
              "bis": "Mietende", "miete": "Miete", "flaeche": "Fläche", "schluessel": "Schlüssel", "kaution": "Kaution",
              "kaution_bis": "Kaution bis", "email": "E-Mail"}
 
@@ -269,7 +319,7 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
     alt = mt.nach_nummer(nr)
     if alt is None:
         raise ValueError("Den Vertrag gibt es nicht mehr.")
-    neu = replace(alt, anrede=werte["anrede"], vorname=werte["vorname"].strip(), nachname=werte["nachname"].strip(),
+    neu = replace(alt, nr=(werte.get("nr") or nr).strip(), anrede=werte["anrede"], vorname=werte["vorname"].strip(), nachname=werte["nachname"].strip(),
                   zimmer=werte["zimmer"] or "", von=werte["von"], bis=werte["bis"], miete=round(float(werte["miete"]), 2),
                   flaeche=int(werte["flaeche"]), schluessel=int(werte["schluessel"]), kaution=bool(werte["kaution"]),
                   kaution_bis=(werte.get("kaution_bis") or werte["von"]) if werte["kaution"] else None,
@@ -277,14 +327,18 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
     if neu.bis != alt.bis:
         neu.mail_ende = ""                         # neues Ende → Mail zum Vertragsende wieder offen
     fehler = mt.pruefen(neu, [m for m in mt.laden() if m.nr != nr])
+    if neu.nr != nr and not fehler:
+        erstellt = date.fromisoformat(alt.erstellt[:10]) if alt.erstellt[:10].count("-") == 2 else None
+        if (j := _jahr_pruefen(neu.nr, neu.von, erstellt)):
+            fehler.append(j)
+        elif (wo := vergeben(neu.nr)):
+            fehler.append(f"Die Vertragsnummer {neu.nr} ist schon vergeben ({wo}).")
+    trotz = ""
     if (neu.zimmer, neu.von, neu.bis, neu.anrede) != (alt.zimmer, alt.von, alt.bis, alt.anrede) and neu.zimmer:
-        stand = zp.laden()
-        z = next((x for x in stand.zimmer if x.id == neu.zimmer), None)
-        b = zp.Bedarf(alt.person, f"{neu.nachname}, {neu.vorname}", f"Miete Goslar MV {nr}", "Mieter", neu.von, neu.bis,
-                      "w" if neu.weiblich else "m")
-        grund = "Zimmer nicht gefunden" if z is None else zp.passt(stand.lage, z, b, {alt.person})
-        if grund:
-            fehler.append(f"Zimmer {neu.zimmer_kurz}: {grund}.")
+        if (grund := zimmer_grund(alt.person, neu)):
+            if not werte.get("trotzdem"):
+                fehler.append(f"Zimmer {neu.zimmer_kurz}: {grund}. {TROTZDEM_HINWEIS}")
+            trotz = grund
     if fehler:
         raise ValueError("Bitte prüfen: " + " ".join(fehler))
     geaendert = [(k, getattr(alt, k), getattr(neu, k)) for k in AENDERBAR if getattr(alt, k) != getattr(neu, k)]
@@ -295,8 +349,16 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
     def tun():
         alle = [neu if m.nr == nr else m for m in mt.laden()]
         mt._speichern(alle)
+        if neu.nr != nr:                       # neue Nummer → neuer Schlüssel im Zimmerplan, alter Eintrag weg
+            speicher.schreiben(zp.ZUWEISUNGEN, {"zuweisungen": [z for z in zp.zuweisungen_laden()
+                                                                 if z["person"] != alt.person]})
+            _flex_setzen(nr, False)
         mt._zuweisung_setzen(neu)
-        _flex_setzen(nr, flex_neu)
+        _flex_setzen(neu.nr, flex_neu)
+        if trotz:
+            protokoll.eintragen([{"aktion": "Zimmer trotz Hinweis gewählt", "name": f"{neu.nachname}, {neu.vorname}",
+                                  "person": neu.person, "alt": alt.zimmer, "neu": neu.zimmer, "von": neu.von.isoformat(),
+                                  "quelle": f"Mieter · {trotz}"}])
         protokoll.eintragen([{"aktion": "Mietvertrag geändert", "name": f"{neu.nachname}, {neu.vorname}",
                               "person": alt.person, "alt": _wert_text(k, a_), "neu": _wert_text(k, n_),
                               "von": neu.von.isoformat(), "quelle": f"Mieter · {AENDERBAR[k]}"}
@@ -307,11 +369,11 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
                               "quelle": "Mieter · Vertragsart"}])
     _schritt(f"Mietvertrag {nr} geändert", tun, [mt.DATEI, FLEX_DATEI])
     was = ", ".join(f"{AENDERBAR[k]} {_wert_text(k, a_)} → {_wert_text(k, n_)}" for k, a_, n_ in geaendert) or "Vertragsart"
-    text = f"MV {nr} geändert: {was}"
+    text = f"MV {neu.nr} geändert: {was}"
     if not unterlagen:
         return text + " – Unterlagen bitte bei Bedarf neu erstellen.", None
     try:
-        t2, pfad = unterlagen_neu(nr)
+        t2, pfad = unterlagen_neu(neu.nr)
     except ValueError as exc:
         return f"{text} – Unterlagen nicht neu erstellt: {exc}", None
     return f"{text} · {t2}", pfad

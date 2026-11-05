@@ -1255,3 +1255,9 @@ body.abtipp-schmal .m-abtipp { position: fixed; inset: 0; z-index: 3000; max-wid
 CSS += """
 .m-tasten-hinweis { font-size: 12px; color: var(--text3); margin-top: 6px; letter-spacing: .01em; }
 """
+
+# 0.61: Sperre früher beenden (Zimmerkarte)
+CSS += """
+.m-sperre-frei { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(170px, 1.4fr); gap: 8px; align-items: center; }
+.m-sperre-frei .q-checkbox, .m-sperre-frei .m-knopf { grid-column: 1 / -1; justify-self: start; }
+"""
