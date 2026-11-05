@@ -200,6 +200,9 @@ def _filterleiste(a, ansicht: str) -> None:
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(zl_text=suche.value or ""))
         suche.on("clear", lambda: a.setzen(zl_text=""))
+        from .ui_bausteine import live_suche
+
+        live_suche(suche, lambda t: a.setzen(zl_text=t), "zimmer")
         segmente({s: (t if not s else f"{t} {n.get(s, 0)}") for s, t in zk.STATUS.items()}, a.zl_status,
                  lambda s: a.setzen(zl_status=s))
         with ui.element("div").classes("m-segm").props('role="group"'):

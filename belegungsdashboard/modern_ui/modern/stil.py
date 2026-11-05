@@ -1241,7 +1241,7 @@ CSS += """
 .m-abtipp { max-width: 520px; margin: 18px auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
   background: var(--fl); border: 1px solid var(--rand); border-radius: var(--r); }
 .m-abtipp-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.m-abtipp-feld { display: grid; grid-template-columns: 80px 1fr auto; align-items: center; gap: 8px;
+.m-abtipp-feld { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 8px;
   padding: 6px 0; border-bottom: 1px solid var(--rand); }
 .m-abtipp-wert { font-size: 17px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; word-break: break-word; }
 .m-abtipp-knoepfe { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
@@ -1249,4 +1249,9 @@ body.abtipp-schmal .m-abtipp { position: fixed; inset: 0; z-index: 3000; max-wid
   overflow: auto; background: var(--bg); }
 /* 0.55: Ziffern in Tabellen gleich breit – Spalten stehen bündig */
 .m-mono, .m-zeile, .m-tab, .m-kpi { font-variant-numeric: tabular-nums; }
+"""
+
+# 0.58: Hinweis auf Ein-Tasten-Kürzel
+CSS += """
+.m-tasten-hinweis { font-size: 12px; color: var(--text3); margin-top: 6px; letter-spacing: .01em; }
 """

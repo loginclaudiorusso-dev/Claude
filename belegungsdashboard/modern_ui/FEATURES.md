@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.57.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.58.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -155,7 +155,9 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Neuanmeldungen je Startwelle (Winter Nov–Apr, Sommer Mai–Okt), alle Teilnehmenden, als Grundlage für den Wirtschaftsplan
 - Verfahren automatisch per Rückwärtstest gewählt (wie Vorjahr, Mittel 3 Jahre, gewichtetes Mittel, gedämpfter Trend)
 - Gebuchte Starts + Nachbuchung, 80-%- und 95-%-Spanne aus dem Rückwärtstest (Band im Diagramm, Umschalter in der Tabelle), eigene geplante Plätze
-- Eingestellte und Kleinstmaßnahmen ausgeblendet, von Hand ein- und ausblendbar
+- Eingestellte und Kleinstmaßnahmen sowie UWT ausgeblendet, von Hand ein- und ausblendbar
+- Werte beim Darüberfahren (Ist, erwartet, 80-/95-%-Band), Rückwärtstest je Welle im Diagramm mit Trefferquote der Bänder
+- Live-Suche (Zimmer, Personen, Inventar); Ein-Tasten-Kürzel im Postfach (L, S) und im Abtipp-Modus (1–6, E, N, ←/→)
 
 ## Maßnahmen-Prognose (Rechenweg 0.55)
 - Gebuchte Kurse × Verbleibskurve früherer Kurse derselben Art (bedingt auf die bisherige Dauer)

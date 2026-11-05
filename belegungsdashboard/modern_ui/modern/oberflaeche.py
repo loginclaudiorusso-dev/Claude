@@ -1611,6 +1611,14 @@ class Ansicht:
                 self.panel_schliessen()
             else:
                 self.center_umschalten(False)
+        elif (self.panel_def is None and not e.modifiers.ctrl and not e.modifiers.alt and getattr(self, "tasten", None)
+              and self.tasten[0]() and e.key.name.lower() in self.tasten[1]):
+            # 0.58: Ein-Tasten-Kürzel der gerade offenen Ansicht (Postfach, Abtipp-Modus) – nie in Eingabefeldern
+            import inspect
+
+            erg = self.tasten[1][e.key.name.lower()]()
+            if inspect.isawaitable(erg):
+                await erg
         elif e.key.name.lower() == "a" and not e.modifiers.ctrl and self.panel_def is None:
             self.center_umschalten()
 

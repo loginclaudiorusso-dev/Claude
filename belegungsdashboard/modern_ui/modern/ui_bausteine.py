@@ -102,3 +102,19 @@ def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | Non
                     ui.label(text)
             if bei_klick:
                 b.on("click", lambda s=schluessel: bei_klick(s))
+
+
+def live_suche(feld, setzen, kennung: str, warten_ms: int = 350) -> None:
+    """0.58: Suche beim Tippen – sobald man kurz innehält (``warten_ms``), ohne Enter. Nach dem Neuzeichnen steht der
+    Cursor wieder im Suchfeld am Ende. ``setzen(text)`` gibt eine Coroutine zurück (z. B. ``a.setzen(...)``)."""
+    feld.classes(f"m-live-{kennung}")
+    fokus = (f"setTimeout(() => {{ const i = document.querySelector('.m-live-{kennung} input'); if (i) {{ i.focus(); "
+             "const n = i.value.length; i.setSelectionRange(n, n); } }, 40)")
+
+    async def los(e) -> None:
+        text = e.args if isinstance(e.args, str) else (feld.value or "")
+        await setzen(text or "")
+        ui.run_javascript(fokus)
+    feld.on("update:model-value", los,
+            js_handler=f"(v) => {{ clearTimeout(window._mLive_{kennung}); "
+                       f"window._mLive_{kennung} = setTimeout(() => emit(v ?? ''), {warten_ms}); }}")

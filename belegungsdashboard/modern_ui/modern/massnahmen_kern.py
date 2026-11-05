@@ -977,6 +977,18 @@ class HZeile:
     geplant: bool = False         # eigene geplante Plätze
     klein95: float = 0.0          # 0.57: 95 %-Spanne
     gross95: float = 0.0
+    # 0.58: Rückwärtstest je vergangener Welle – was das Verfahren damals geschätzt hätte, mit den Spannen, die damals
+    # bekannt waren (nur aus Fehlern früherer Wellen)
+    rueck: float | None = None
+    rueck_band: tuple | None = None   # (unten 80, oben 80, unten 95, oben 95)
+
+    @property
+    def im80(self) -> bool | None:
+        return None if self.rueck_band is None else self.rueck_band[0] - .5 <= self.ist <= self.rueck_band[1] + .5
+
+    @property
+    def im95(self) -> bool | None:
+        return None if self.rueck_band is None else self.rueck_band[2] - .5 <= self.ist <= self.rueck_band[3] + .5
 
     @property
     def text(self) -> str:
@@ -1005,6 +1017,7 @@ class NReihe:
     naechstes_jahr: float         # erwartet im nächsten Kalenderjahr (H1 + H2)
     eingestellt: bool
     klein_massnahme: bool
+    ausgeschlossen: bool = False  # 0.58: z. B. UWT – eigene Planung, gehört nicht in die Maßnahmen-Prognose
 
     def jahr_spanne(self, jahr: int, stufe: int = 80) -> tuple[float, float]:
         """Spanne der Neuanmeldungen eines Jahres (Winter + Sommer)."""
@@ -1017,7 +1030,12 @@ class NReihe:
 
     @property
     def aktiv(self) -> bool:
-        return not self.eingestellt and not self.klein_massnahme
+        return not self.eingestellt and not self.klein_massnahme and not self.ausgeschlossen
+
+    @property
+    def grund(self) -> str:
+        return ("UWT – eigene Planung" if self.ausgeschlossen else "eingestellt" if self.eingestellt
+                else "Kleinstmaßnahme" if self.klein_massnahme else "")
 
 
 @dataclass
@@ -1027,7 +1045,10 @@ class VTest:
     wape: float | None            # Σ|Fehler| / Σ Ist über alle Halbjahre und Maßnahmen
     bias: float | None            # Σ Fehler / Σ Ist (+ = zu hoch geschätzt)
     n: int                        # verglichene Halbjahre (je Maßnahme)
-    fehler: list = field(default_factory=list)    # relative Fehler (für die Spanne)
+    fehler: list = field(default_factory=list)    # (Ist − Schätzung) / Schätzung – für die Spanne
+    punkte: list = field(default_factory=list)    # 0.58: (Welle, relativer Fehler) – für Spannen „wie damals“
+    treffer80: tuple = (0, 0)     # 0.58: (im Band, geprüft) – mit Spannen nur aus früheren Wellen
+    treffer95: tuple = (0, 0)
 
 
 def _starts(ks: list[Kurs], daten_ab: date) -> list[Kurs]:
@@ -1074,7 +1095,7 @@ def verfahren_testen(daten: dict | None = None, familien: list[str] | None = Non
     erg = []
     for v, text in VERFAHREN.items():
         summe_ist = summe_abs = summe_fehler = 0.0
-        n, rel = 0, []
+        n, rel, punkte, paare = 0, [], [], []
         for fam in fams:
             eigene = [k for k in starts if k.familie == fam]
             h = hj_plus(erster, 4)                               # erst ab 2 Vorjahren
@@ -1087,11 +1108,22 @@ def verfahren_testen(daten: dict | None = None, familien: list[str] | None = Non
                         summe_abs += abs(p - i)
                         summe_fehler += p - i
                         n += 1
-                        if i >= 3:
-                            rel.append((p - i) / i)
+                        if p >= 3:                # Abweichung des Ist von der Schätzung, bezogen auf die Schätzung –
+                            rel.append((i - p) / p)   # so lässt sich die Spanne direkt um die Schätzung legen
+                            punkte.append((h, (i - p) / p))
+                        paare.append((h, p, i))
                 h = hj_plus(h, 1)
+        t80 = t95 = geprueft = 0
+        for h, p, i in paare:                     # ehrlich: Spanne nur aus Fehlern früherer Wellen
+            frueher = [r for hh, r in punkte if hh < h]
+            if len(frueher) < 5:
+                continue
+            lo, hi, lo95, hi95 = _spanne(frueher)
+            geprueft += 1
+            t80 += p * (1 + lo) - .5 <= i <= p * (1 + hi) + .5
+            t95 += p * (1 + lo95) - .5 <= i <= p * (1 + hi95) + .5
         erg.append(VTest(v, text, summe_abs / summe_ist if summe_ist else None,
-                         summe_fehler / summe_ist if summe_ist else None, n, rel))
+                         summe_fehler / summe_ist if summe_ist else None, n, rel, punkte, (t80, geprueft), (t95, geprueft)))
     return sorted(erg, key=lambda t: (t.wape is None, t.wape or 0))
 
 
@@ -1127,7 +1159,12 @@ def _spanne(rel: list[float]) -> tuple[float, float, float, float]:
         lo95, hi95 = min(_quantil(r, .025), lo), max(_quantil(r, .975), hi)
     else:
         lo95, hi95 = lo * Z95 / Z80, hi * Z95 / Z80
-    return lo, hi, max(-.95, lo95), hi95
+    # 0.58: Aus wenigen Fehlern geschätzte Spannen sind zu eng (wie beim t-Test) – 80 % um (1 + 2,5/n), die äußeren 95 %
+    # stärker um (1 + 8/n) weiten (die Ränder sind aus wenigen Werten am unsichersten). Geprüft im Rückwärtstest
+    # („im 80-%-/95-%-Band“).
+    n = max(len(rel), 5)
+    k, k95 = 1 + 2.5 / n, 1 + 8 / n
+    return max(-.9, lo * k), hi * k, max(-.95, lo95 * k95), hi95 * k95
 
 
 def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | None = None, zurueck: int = 8,
@@ -1148,6 +1185,7 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
     tests = tests if tests is not None else verfahren_testen(roh)
     verfahren = verfahren or bestes_verfahren(tests)
     lo, hi, lo95, hi95 = _spanne(next((t.fehler for t in tests if t.verfahren == verfahren), []))
+    punkte_v = next((t.punkte for t in tests if t.verfahren == verfahren), [])
     pk = pickup_kurve(vorlauf)
     geplant: dict[tuple, int] = {}
     for p in roh.get("plaetze") or []:
@@ -1171,7 +1209,15 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
                 continue
             if n < 0:
                 i = _hj_summe(eigene, h)
-                zeilen.append(HZeile(h, "ist", i, 0.0, i, i, i, False, i, i))
+                z = HZeile(h, "ist", i, 0.0, i, i, i, False, i, i)
+                vorher = _reihe(eigene, h, hj_start(h), erster)
+                if len(vorher) >= 2:
+                    z.rueck = _schaetzen(vorher, verfahren)
+                    frueher = [r for hh, r in punkte_v if hh < h]
+                    if len(frueher) >= 5 and z.rueck is not None:
+                        a8, b8, a9, b9 = _spanne(frueher)
+                        z.rueck_band = (z.rueck * (1 + a8), z.rueck * (1 + b8), z.rueck * (1 + a9), z.rueck * (1 + b9))
+                zeilen.append(z)
                 continue
             ist = _hj_summe(eigene, h, stichtag)
             gebuchte = [k for k in eigene if stichtag < k.start <= hj_ende(h)
@@ -1216,7 +1262,8 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
         eingestellt = not kuenftig and (letzter_start is None or (heute - letzter_start).days > AKTIV_MONATE * 30.4)
         klein_m = (neu_zw(heute - timedelta(days=730), heute) + sum(neu_im_kurs(k) for k in alle_eigene if k.start > heute)
                    ) < AKTIV_MIN
-        erg[fam] = NReihe(fam, gr.get(fam, "uebrige"), zeilen, letzte, vorige, sum(volle) / 3, naechst, eingestellt, klein_m)
+        erg[fam] = NReihe(fam, gr.get(fam, "uebrige"), zeilen, letzte, vorige, sum(volle) / 3, naechst, eingestellt, klein_m,
+                          bool(re.search(r"\bUWT\b", fam)))
     return erg
 
 

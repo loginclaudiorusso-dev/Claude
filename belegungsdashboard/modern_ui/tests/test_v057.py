@@ -12,16 +12,19 @@ from modern import massnahmen_kern as mk
 def test_spanne_80_und_95():
     rel = [i / 100 for i in range(-20, 21)]                  # 41 Fehler gleichmäßig von −20 % bis +20 %
     lo, hi, lo95, hi95 = mk._spanne(rel)
-    assert lo == pytest.approx(-.16) and hi == pytest.approx(.16)
-    assert lo95 == pytest.approx(-.19) and hi95 == pytest.approx(.19)
+    k = 1 + 2.5 / 41                                          # Weitung für die Stichprobengröße
+    assert lo == pytest.approx(-.16 * k) and hi == pytest.approx(.16 * k)
+    k95 = 1 + 8 / 41
+    assert lo95 == pytest.approx(-.19 * k95) and hi95 == pytest.approx(.19 * k95)
     assert lo95 <= lo < 0 < hi <= hi95
 
 
 def test_spanne_wenige_fehler_hochgerechnet():
     lo, hi, lo95, hi95 = mk._spanne([-.1, -.05, 0, .05, .1, .08])
-    assert lo95 == pytest.approx(lo * 1.96 / 1.2816) and hi95 == pytest.approx(hi * 1.96 / 1.2816)
+    f = (1.96 / 1.2816) * (1 + 8 / 6) / (1 + 2.5 / 6)
+    assert lo95 == pytest.approx(lo * f) and hi95 == pytest.approx(hi * f)
     lo, hi, lo95, hi95 = mk._spanne([])
-    assert (lo, hi) == (-.25, .25) and hi95 > .25
+    assert (lo, hi) == pytest.approx((-.375, .375)) and hi95 > hi
 
 
 def test_summenspanne_schmaler_als_summe_der_spannen():

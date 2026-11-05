@@ -174,16 +174,29 @@ def _abtipp(a, offen: list) -> None:
                   "close_fullscreen" if not getattr(a, "ein_schmal", False) else "open_in_full",
                   "Schmal am rechten Rand und im Vordergrund (nur im eigenen Fenster)" if not getattr(a, "ein_schmal", False)
                   else "Wieder normale Fenstergröße")
+        nr = 0
         for titel, wert in z.felder():
+            nr += bool(wert)
             with ui.element("div").classes("m-abtipp-feld"):
-                ui.label(titel).classes("m-zweite")
+                ui.label(f"{nr} · {titel}" if wert else titel).classes("m-zweite")
                 ui.label(wert or "–").classes("m-abtipp-wert")
                 if wert:
                     knopf("", lambda w=wert, t=titel: _feld_kopieren(a, t, w), "leise", "content_copy", f"{titel} kopieren")
         with ui.element("div").classes("m-abtipp-knoepfe"):
-            knopf("", lambda: a.setzen(ein_pos=max(0, pos - 1), laden=False), "leise", "chevron_left", "Vorheriger")
-            knopf("Überspringen", lambda: a.setzen(ein_pos=(pos + 1) % len(offen), laden=False), "leise", "skip_next")
-            knopf("Eingetragen – nächster", lambda: _eingetragen(a, z, pos), "primaer", "done")
+            knopf("", lambda: a.setzen(ein_pos=max(0, pos - 1), laden=False), "leise", "chevron_left", "Vorheriger (←)")
+            knopf("Überspringen", lambda: a.setzen(ein_pos=(pos + 1) % len(offen), laden=False), "leise", "skip_next",
+                  "Überspringen (N oder →)")
+            knopf("Eingetragen – nächster", lambda: _eingetragen(a, z, pos), "primaer", "done", "Eingetragen (E)")
+        # 0.58: Ein-Tasten-Kürzel – E eingetragen, N/→ überspringen, ← zurück, 1–6 Feld kopieren
+        felder = [(t, w) for t, w in z.felder() if w]
+        tasten = {"e": lambda: _eingetragen(a, z, pos), "n": lambda: a.setzen(ein_pos=(pos + 1) % len(offen), laden=False),
+                  "arrowright": lambda: a.setzen(ein_pos=(pos + 1) % len(offen), laden=False),
+                  "arrowleft": lambda: a.setzen(ein_pos=max(0, pos - 1), laden=False)}
+        for i, (t, w) in enumerate(felder[:9], 1):
+            tasten[str(i)] = lambda t=t, w=w: _feld_kopieren(a, t, w)
+        a.tasten = (lambda: a.seite == "anreisen" and a.ein_abtipp, tasten)
+        ui.label("Tasten: 1–" + str(min(9, len(felder))) + " Feld kopieren · E eingetragen · N oder → überspringen · "
+                 "← zurück").classes("m-tasten-hinweis")
         ui.label("Tipp: Felder nacheinander kopieren und im Belegungssystem einfügen. „Eingetragen“ hakt den Eintrag ab "
                  "(Rückgängig wie immer).").classes("m-zweite").style("white-space: normal")
 
@@ -421,6 +434,9 @@ def personen_zeichnen(a) -> None:
         suche = ui.input(placeholder="Name, Gruppe, Zimmer …", value=a.ps_text).classes("m-feld m-sucheingabe").props(
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(ps_text=suche.value or ""))
+        from .ui_bausteine import live_suche
+
+        live_suche(suche, lambda t: a.setzen(ps_text=t), "personen")
         suche.on("clear", lambda: a.setzen(ps_text=""))
         knopf("Person hinzufügen", lambda: person_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
     text = (a.ps_text or "").lower()

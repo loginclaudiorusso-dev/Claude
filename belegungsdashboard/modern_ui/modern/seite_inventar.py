@@ -120,6 +120,9 @@ def _zimmer(a, inv: iv.Inventar) -> None:
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(iv_text=suche.value or "", laden=False))
         suche.on("clear", lambda: a.setzen(iv_text="", laden=False))
+        from .ui_bausteine import live_suche
+
+        live_suche(suche, lambda t: a.setzen(iv_text=t, laden=False), "inventar")
         segmente({False: "Alle Zimmer", True: "nur ohne Ausstattung"}, a.iv_ohne, lambda o: a.setzen(iv_ohne=o, laden=False))
     text_f = (a.iv_text or "").lower()
     zs = [z for z in a.daten["zimmer"] if (not a.iv_haus or z.haus == a.iv_haus)

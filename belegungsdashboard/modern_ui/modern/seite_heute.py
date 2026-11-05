@@ -533,7 +533,14 @@ def _postfach(a, t: Tag) -> None:
                     ui.label(k.titel).classes("m-pf-dtitel")
                     ui.label({"dringend": "Dringend", "bald": "Als Nächstes", "info": "Zur Info"}[k.stufe]).classes(
                         "m-kstufe " + {"dringend": "krit", "bald": "warn", "info": "ok"}[k.stufe])
-                knopf("", lambda k=k: a._spaeter(k), "leise", "snooze", "Später – bis morgen ausblenden")
+                knopf("", lambda k=k: a._spaeter(k), "leise", "snooze", "Später – bis morgen ausblenden (Taste S)")
+            tasten = {"s": lambda k=k: a._spaeter(k)}
+            if k.aktion:
+                tasten["l"] = lambda k=k: a._karte_loesen(k)
+            a.tasten = (lambda kid=k.id: a.seite == "heute" and postfach_an(a) and getattr(a, "pf_auswahl", None) == kid,
+                        tasten)
+            ui.label("Tasten: ↑ ↓ Aufgabe wählen" + (" · L lösen" if k.aktion else "") + " · S später").classes(
+                "m-tasten-hinweis")
             if not a.pf_hat_liste(k):                   # keine Fall-Liste: Text und die Knöpfe der Aufgabe
                 ui.label(k.detail).classes("m-ptext")
                 with ui.element("div").classes("m-paktionen"):

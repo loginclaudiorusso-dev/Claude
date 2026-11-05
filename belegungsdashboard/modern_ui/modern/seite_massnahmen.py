@@ -6,6 +6,8 @@ Rechnet in ``massnahmen_kern``."""
 
 from __future__ import annotations
 
+import json
+
 from nicegui import ui
 
 from . import massnahmen_kern as mk
@@ -48,7 +50,7 @@ def daten(a) -> None:
                "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
                "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
                "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1,
-               "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80}
+               "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80, "gruende": {f: r.grund for f, r in reihen.items()}}
 
 
 def zeichnen(a) -> None:
@@ -92,7 +94,13 @@ def zeichnen(a) -> None:
                     _ein_diagramm(d["reihen"])
                 else:
                     _raster(d["reihen"], d["skala"] == "gleich")
-                ui.label("Durchgezogen = Ist · gestrichelt = erwartet (schon gebucht + erwartete Nachbuchung, ohne "
+                tr = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
+                if tr and tr.treffer80[1]:
+                    ui.label(f"Rückwärtstest (gepunktet): In {tr.treffer80[0]} von {tr.treffer80[1]} vergangenen Wellen lag "
+                             f"das Ist im 80-%-Band, in {tr.treffer95[0]} von {tr.treffer95[1]} im 95-%-Band – mit Spannen, die "
+                             "damals bekannt waren.").classes("m-ptext")
+                ui.label("Werte beim Darüberfahren · durchgezogen = Ist · gepunktet = Rückwärtstest (was das Verfahren damals "
+                         "geschätzt hätte) · gestrichelt = erwartet (schon gebucht + erwartete Nachbuchung, ohne "
                          f"Buchungen: {mk.VERFAHREN[d['verfahren']]}) · hell hinterlegt = Prognose · Neuanmeldung = wer in "
                          f"den ersten {mk.NACHRUECK_TAGE // 7} Wochen eines Kurses dabei ist.").classes("m-zweite").style(
                     "white-space:normal")
@@ -115,14 +123,55 @@ def _achsen(r) -> tuple[list[str], int]:
     return x, h
 
 
-def _linien(name: str, r, farbe: str, h: int) -> list[dict]:
+def _linien(name: str, r, farbe: str, h: int, werte_zeigen: bool = True) -> list[dict]:
     werte = [round(z.erwartet, 1) for z in r.zeilen]
     ist = [w if k < h else None for k, w in enumerate(werte)]
     prog = [w if k >= h - 1 else None for k, w in enumerate(werte)]
-    return [{"name": name, "type": "line", "symbol": "circle", "symbolSize": 6, "data": ist,
-             "lineStyle": {"color": farbe, "width": 2.5}, "itemStyle": {"color": farbe}},
-            {"name": name, "type": "line", "symbol": "emptyCircle", "symbolSize": 6, "data": prog,
-             "lineStyle": {"color": farbe, "width": 2.5, "type": "dashed"}, "itemStyle": {"color": farbe}}]
+    rueck = [round(z.rueck, 1) if z.art == "ist" and z.rueck is not None else None for z in r.zeilen]
+    serien = [{"name": name, "type": "line", "symbol": "circle", "symbolSize": 6, "data": ist,
+               "lineStyle": {"color": farbe, "width": 2.5}, "itemStyle": {"color": farbe}},
+              {"name": name, "type": "line", "symbol": "emptyCircle", "symbolSize": 6, "data": prog,
+               "lineStyle": {"color": farbe, "width": 2.5, "type": "dashed"}, "itemStyle": {"color": farbe},
+               "label": {"show": werte_zeigen, "position": "top", "fontSize": 10, "color": farbe,
+                         ":formatter": f"(p) => p.dataIndex >= {h} ? Math.round(p.value) : ''"}}]
+    if any(v is not None for v in rueck):
+        serien.append({"name": "Rückwärtstest", "type": "line", "symbol": "diamond", "symbolSize": 5, "data": rueck,
+                       "lineStyle": {"color": farbe, "width": 1.2, "type": "dotted", "opacity": .8},
+                       "itemStyle": {"color": farbe, "opacity": .7}})
+    return serien
+
+
+def _tooltip(reihen: dict, farben: list[str]) -> str:
+    """0.58: Beim Darüberfahren je Welle: Ist bzw. erwartet, 80-%- und 95-%-Band, Rückwärtstest (damals geschätzt)."""
+    breite = max(len(r.zeilen) for r in reihen.values())
+    d = []
+    for k in range(breite):
+        eintraege = []
+        for i, (fam, r) in enumerate(reihen.items()):
+            if k >= len(r.zeilen):
+                continue
+            z = r.zeilen[k]
+            b = z.rueck_band
+            eintraege.append({"n": fam, "f": farben[i % len(farben)], "a": z.art, "e": z.erwartet, "i": z.ist, "g": z.gebucht,
+                              "l8": z.klein, "h8": z.gross, "l9": z.klein95, "h9": z.gross95, "p": z.geplant,
+                              "r": z.rueck, "b": list(b) if b else None, "m8": z.im80, "m9": z.im95})
+        d.append({"t": mk.hj_text(next(iter(reihen.values())).zeilen[min(k, len(next(iter(reihen.values())).zeilen) - 1)].hj),
+                  "z": eintraege})
+    return ("(ps) => { const D = " + json.dumps(d) + "; const d = D[ps[0].dataIndex]; if (!d) return '';"
+            " const f = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
+            " const zl = (t, v) => `<div style=\"display:flex;gap:16px;justify-content:space-between;line-height:1.6\">"
+            "<span style=\"opacity:.75\">${t}</span><b style=\"font-variant-numeric:tabular-nums\">${v}</b></div>`;"
+            " let h = `<div style=\"font-weight:600;margin-bottom:4px\">${d.t}</div>`;"
+            " for (const x of d.z) { h += `<div style=\"margin-top:6px;font-weight:600\"><span style=\"display:inline-block;"
+            "width:10px;height:10px;border-radius:3px;background:${x.f};margin-right:6px\"></span>${x.n}</div>`;"
+            " if (x.a == 'ist') { h += zl('Ist (Neuanmeldungen)', f(x.i));"
+            "   if (x.r != null) h += zl('Rückwärtstest: damals geschätzt', f(x.r) + (x.b ? ` (80 %: ${f(x.b[0])}–${f(x.b[1])})` : ''));"
+            "   if (x.m8 != null) h += zl('Ist im Band?', x.m8 ? '✓ im 80-%-Band' : (x.m9 ? '✓ im 95-%-Band' : '✗ außerhalb')); }"
+            " else { if (x.a == 'laufend') h += zl('schon begonnen', f(x.i));"
+            "   if (x.g) h += zl('schon gebucht', f(x.g));"
+            "   h += zl(x.p ? 'eigene Planung' : 'erwartet', f(x.e));"
+            "   if (!x.p) { h += zl('80 %-Band', f(x.l8) + ' – ' + f(x.h8)); h += zl('95 %-Band', f(x.l9) + ' – ' + f(x.h9)); } } }"
+            " return h; }")
 
 
 def _baender(r, farbe: str, h: int) -> list[dict]:
@@ -158,13 +207,14 @@ def _ein_diagramm(reihen: dict) -> None:
     opt["legend"]["type"] = "scroll"
     serien = []
     for i, (fam, r) in enumerate(reihen.items()):
-        serien += _linien(fam, r, farben[i % len(farben)], h)
+        serien += _linien(fam, r, farben[i % len(farben)], h, len(reihen) <= 3)
+    opt["tooltip"][":formatter"] = _tooltip(reihen, farben)
     if len(reihen) == 1:                                   # bei mehreren Linien wären die Bänder unlesbar
         r = next(iter(reihen.values()))
         serien += _baender(r, farben[0], h)
     serien[0]["markArea"] = _prognosebereich(t, x, h)
     opt["series"] = serien
-    opt["legend"]["data"] = list(reihen)
+    opt["legend"]["data"] = list(reihen) + (["Rückwärtstest"] if any(se["name"] == "Rückwärtstest" for se in serien) else [])
     sa._chart(opt)
 
 
@@ -190,6 +240,8 @@ def _raster(reihen: dict, gleiche_skala: bool) -> None:
                 opt["grid"] = {"left": 34, "right": 8, "top": 10, "bottom": 22}
                 opt["legend"] = {"show": False}
                 serien = _linien(fam, r, farben[i % len(farben)], h) + _baender(r, farben[i % len(farben)], h)
+                opt["tooltip"] = {"trigger": "axis", ":formatter": _tooltip({fam: r}, [farben[i % len(farben)]])}
+                opt["grid"]["top"] = 18
                 serien[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
                 opt["series"] = serien
                 sa._chart(opt)
@@ -288,9 +340,9 @@ def _test(a, d) -> None:
         if not tests or all(t.n == 0 for t in tests):
             ui.label("Dafür braucht es mindestens drei Jahre im Maßnahmen-Pivot.").classes("m-zweite")
             return
-        with tabelle("minmax(200px, 2fr) auto auto auto auto"):
+        with tabelle("minmax(200px, 2fr) auto auto auto auto auto auto"):
             with ui.element("div").classes("m-raster m-tkopf"):
-                for t in ("Verfahren", "mittlerer Fehler", "Neigung", "verglichene Halbjahre", ""):
+                for t in ("Verfahren", "mittlerer Fehler", "Neigung", "verglichene Wellen", "im 80-%-Band", "im 95-%-Band", ""):
                     ui.label(t)
             for t in tests:
                 with ui.element("div").classes("m-raster m-zeile" + (" an" if t.verfahren == d["verfahren"] else "")):
@@ -299,6 +351,8 @@ def _test(a, d) -> None:
                     ui.label(_pz(100 * t.bias) + (" zu hoch" if (t.bias or 0) > .02 else " zu niedrig" if (t.bias or 0) < -.02
                                                   else "") if t.bias is not None else "–").classes("m-mono")
                     ui.label(str(t.n)).classes("m-mono")
+                    for k, n in (t.treffer80, t.treffer95):
+                        ui.label(f"{k} von {n} ({round(100 * k / n)} %)" if n else "–").classes("m-mono")
                     if t.verfahren != d["verfahren"]:
                         knopf("verwenden", lambda v=t.verfahren: a.setzen(mn_verfahren=v, nur_seite=True), "leise")
                     else:
@@ -308,7 +362,8 @@ def _test(a, d) -> None:
         ui.label("Für jedes vergangene Halbjahr mit mindestens zwei Vorjahren wurde geschätzt – nur mit dem, was vorher "
                  "bekannt war, und ohne Buchungen (eher streng) – und mit dem Ist verglichen, über die Hauptmaßnahmen. "
                  "Mittlerer Fehler = Summe der Abweichungen / Summe Ist. Neigung = ob das Verfahren eher zu hoch oder zu "
-                 "niedrig liegt. Das Verfahren mit dem kleinsten Fehler wird automatisch verwendet. Wenige Jahre an Daten "
+                 "niedrig liegt. „Im Band“ = wie oft das Ist in der Spanne lag, die damals bekannt war (nur aus Fehlern "
+                 "früherer Wellen) – ideal sind etwa 80 % bzw. 95 %; deutlich weniger heißt: die Spanne ist zu eng. Das Verfahren mit dem kleinsten Fehler wird automatisch verwendet. Wenige Jahre an Daten "
                  "→ die Zahlen sind ein Anhaltspunkt, keine Garantie.").classes("m-xk-hinweis")
 
 
@@ -317,8 +372,9 @@ def _versteckt(a, d) -> None:
     if not v:
         return
     with ui.expansion(f"Ausgeblendete Maßnahmen ({len(v)})").classes("m-block m-breit m-rv-exp"):
-        ui.label(f"Automatisch ausgeblendet: seit {mk.AKTIV_MONATE} Monaten kein Start (eingestellt) oder weniger als "
-                 f"{mk.AKTIV_MIN} Neuanmeldungen in {mk.AKTIV_MONATE} Monaten (Kleinstmaßnahme) – oder von Hand.").classes(
+        ui.label(f"Automatisch ausgeblendet: UWT (eigene Planung), seit {mk.AKTIV_MONATE} Monaten kein Start (eingestellt) "
+                 f"oder weniger als {mk.AKTIV_MIN} Neuanmeldungen in {mk.AKTIV_MONATE} Monaten (Kleinstmaßnahme) – oder von "
+                 "Hand.").classes(
             "m-zweite").style("white-space:normal")
         with ui.element("div").classes("m-zeile").style("gap:8px; flex-wrap:wrap"):
             segmente({False: "Ausgeblendete nicht anbieten", True: "In der Auswahl anbieten"}, d["alle"],
@@ -326,7 +382,7 @@ def _versteckt(a, d) -> None:
         for f in sorted(v):
             with ui.element("div").classes("m-liste-zeile"):
                 ui.label(f).classes("m-name")
-                ui.label("von Hand" if d["eigen"].get(f) is False else "nach Regel").classes("m-zweite")
+                ui.label("von Hand" if d["eigen"].get(f) is False else d["gruende"].get(f) or "nach Regel").classes("m-zweite")
                 knopf("immer zeigen", lambda f=f: a.aendern(mk.sichtbar_schritt, f, True), "leise", "visibility")
                 if d["eigen"].get(f) is False:
                     knopf("Regel gilt", lambda f=f: a.aendern(mk.sichtbar_schritt, f, None), "leise", "rule")
