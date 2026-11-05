@@ -77,6 +77,14 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         kurz = await a.standort_fragen()
         if kurz:
             await a.standort_wechseln(kurz)
+    elif name == "hilfe":
+        from . import hilfe_ui
+
+        hilfe_ui.oeffnen(a)
+    elif name == "drucken":
+        from . import hilfe_ui
+
+        hilfe_ui.drucken(a)
     elif name == "info":
         from belegung import __version__ as haupt
 
@@ -262,6 +270,20 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")
+            # 0.68: Glocke (Neuigkeiten) und Hilfe in der Titelleiste – wie in Office
+            glocke = ui.element("button").classes("m-ob-tk m-ob-glocke")
+            attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen" if a.ungelesen else "Neuigkeiten",
+                 aria_label="Neuigkeiten")
+            with glocke:
+                ui.icon("notifications" if a.ungelesen else "notifications_none")
+                if a.ungelesen:
+                    ui.label(str(a.ungelesen)).classes("m-ob-zahl rot" if a.ungelesen else "m-ob-zahl")
+            glocke.on("click", lambda: ausfuehren(a, mb.A("neuigkeiten")))
+            hilfe = ui.element("button").classes("m-ob-tk")
+            attr(hilfe, title="Hilfe zu dieser Seite (F1)", aria_label="Hilfe")
+            with hilfe:
+                ui.icon("help_outline")
+            hilfe.on("click", lambda: ausfuehren(a, mb.A("hilfe")))
             st = ui.element("button").classes("m-ob-tk breit")
             attr(st, title="Standort wechseln")
             with st:
@@ -334,6 +356,8 @@ body.lay-office .m-inhalt { padding-bottom: 26px; }
   border-radius: 4px; color: var(--ob-titel-text) !important; }
 .m-ob-tk:hover { background: rgba(255,255,255,.14) !important; }
 .m-ob-tk .q-icon { font-size: 18px; }
+.m-ob-glocke { position: relative; }
+.m-ob-glocke .m-ob-zahl { top: 1px; right: -2px; }
 .m-ob-app { font-weight: 600; letter-spacing: .1px; white-space: nowrap; }
 .m-ob-suche { display: inline-flex; align-items: center; gap: 8px; height: 28px; width: min(460px, 40vw); margin-left: 14px;
   padding: 0 10px; border-radius: 4px; background: rgba(255,255,255,.16) !important; color: rgba(255,255,255,.92) !important;

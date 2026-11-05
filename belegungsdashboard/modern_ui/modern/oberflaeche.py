@@ -308,9 +308,10 @@ class Ansicht:
         from . import menueband_ui
 
         ui.add_css(menueband_ui.CSS)           # 0.65: Menüband wie in Office (nur mit body.lay-office)
-        from . import optionen_ui
+        from . import hilfe_ui, optionen_ui
 
         ui.add_css(optionen_ui.CSS)            # 0.66: Optionen-Dialog
+        ui.add_css(hilfe_ui.CSS)               # 0.68: Hilfe, Drucken (auch Druck-CSS für Strg+P)
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom
@@ -1631,6 +1632,10 @@ class Ansicht:
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
             await self.suchen()
+        elif e.key.name == "F1":                                         # 0.68: Hilfe zur offenen Seite
+            from . import hilfe_ui
+
+            hilfe_ui.oeffnen(self)
         elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "showcase":
             await self.design_setzen(dock_fest=not self.design["dock_fest"])
         elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "grid":

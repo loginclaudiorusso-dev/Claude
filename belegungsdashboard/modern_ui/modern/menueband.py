@@ -113,8 +113,6 @@ def reiter(ansichten: dict[str, dict[str, str]]) -> list[Reiter]:
             Gruppe("Termine", [_split("termine", ansichten, "Termine", "event", tipp="Termine und Wiedervorlagen",
                                       standard="liste")]),
             Gruppe("Assistenz", _einzeln("assistenz", ansichten)),
-            Gruppe("Mitteilungen", [Punkt("Neuig­keiten", "notifications", A("neuigkeiten"),
-                                          tipp="Letzte Neuigkeiten aus beiden Programmen")]),
         ]),
         Reiter("auswertung", "Auswertung", [
             Gruppe("Auswertung", _einzeln("auswertung", ansichten)),
@@ -163,12 +161,16 @@ LAYOUT_NAMEN = {"office": "Menüband (wie Office)", "original": "Original-Zustan
                 "showcase": "Showcase", "canvas": "AI-Canvas & Prompt"}
 
 DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office: Programm, Daten, Einstellungen – nichts vom Tagesgeschäft
+    Punkt("Drucken …", "print", A("drucken"), False),
     Punkt("Einstellungen", "settings", S("einstellungen", "allgemein"), False),
     Punkt("Sicherung & Verlauf", "backup", S("einstellungen", "sicherung"), False),
-    Punkt("Optionen", "settings_suggest", A("optionen"), False),
     Punkt("Standort wechseln", "location_city", A("standort"), False),
-    Punkt("Info", "info", A("info"), False),
+    Punkt("Hilfe", "help", A("hilfe"), False),
+    Punkt("Optionen", "settings_suggest", A("optionen"), False),
 ]
+# Titelleiste rechts (wie in Office: Glocke, Hilfe „?“) – stehen sonst nirgends
+TITELLEISTE = [Punkt("Neuigkeiten", "notifications", A("neuigkeiten"), False),
+               Punkt("Hilfe (F1)", "help_outline", A("hilfe"), False)]
 
 
 def _farben():

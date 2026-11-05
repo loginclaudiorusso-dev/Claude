@@ -71,6 +71,9 @@ def zeichnen(a) -> None:
     if "fehler" in a.daten:
         with a.inhalt:
             leer(a.daten["fehler"])
+            if "Pivot" in a.daten["fehler"]:         # 0.68: leerer Zustand mit direktem Weg zur Lösung
+                with ui.element("div").style("display:flex; justify-content:center"):
+                    knopf("Daten & Import öffnen", lambda: a.oeffnen("daten"), "primaer", "upload_file")
         return
     {"lage": _lage, "belegung": _belegung, "prognose": seite_prognose.zeichnen}[ansicht](a)
 
