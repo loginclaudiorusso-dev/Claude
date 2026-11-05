@@ -66,7 +66,7 @@ def test_rueckwaertstest_waehlt_trend_bei_wachstum():
     roh = _roh(_vw(starts), bis=date(2026, 12, 31))
     tests = mk.verfahren_testen(roh)
     assert tests[0].wape <= tests[-1].wape
-    assert mk.bestes_verfahren(tests) in ("trend", "vorjahr")
+    assert mk.bestes_verfahren(tests) in ("trend", "vorjahr", "holtwinters", "anteil")   # nie das reine Mittel
     mittel = next(t for t in tests if t.verfahren == "mittel3")
     assert mittel.bias < 0                                    # bei Wachstum zu niedrig
 

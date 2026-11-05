@@ -285,10 +285,10 @@ def _plan_tabelle(a, d) -> None:
         st = d["stufe"]
         lo_a, hi_a = ("klein", "gross") if st == 80 else ("klein95", "gross95")
         with ui.element("div").classes("m-tab-scroll"):
-            sp = "minmax(110px, 1.2fr) minmax(110px, 1fr) auto auto auto " + " ".join("auto" for _ in kommend) + " 44px"
+            sp = "minmax(110px, 1.2fr) minmax(110px, 1fr) auto auto auto 96px " + " ".join("auto" for _ in kommend) + " 44px"
             with tabelle(sp):
                 with ui.element("div").classes("m-raster m-tkopf"):
-                    for t in ("Maßnahme", "Gruppe", "Ø je Jahr (3 J.)", "letzte 12 Mon.", "Trend"):
+                    for t in ("Maßnahme", "Gruppe", "Ø je Jahr (3 J.)", "letzte 12 Mon.", "Trend", "max. je Welle"):
                         ui.label(t)
                     for h in kommend:
                         ui.label(mk.hj_text(h) + (" (läuft)" if h == kommend[0] else ""))
@@ -304,6 +304,19 @@ def _plan_tabelle(a, d) -> None:
                         ui.label(_z(r.letzte12)).classes("m-mono")
                         txt, kl = _pfeil(r.trend)
                         ui.label(txt).classes(f"m-mono {kl}")
+                        kap = ui.number(value=r.kapazitaet if r.kap_quelle == "eigene Angabe" else None, min=1, step=1,
+                                        format="%d", placeholder=str(r.kapazitaet or "–")).classes("m-feld").props(
+                            "dense outlined dark").style("max-width:90px")
+                        kap.tooltip("Höchstens so viele Neuanmeldungen je Startwelle (Plätze). Leer = automatisch: "
+                                    f"höchste Welle der letzten 5 Jahre + 15 % ({r.kapazitaet or '–'}).")
+
+                        async def kap_speichern(e=None, fam=fam, feld=kap, alt=r.kapazitaet if r.kap_quelle == "eigene Angabe"
+                                                else None):
+                            neu = int(feld.value) if feld.value else None
+                            if neu != alt:
+                                await a.aendern(mk.kapazitaet_schritt, fam, neu)
+                        kap.on("blur", kap_speichern)
+                        kap.on("keydown.enter", kap_speichern)
                         zs = {z.hj: z for z in r.zeilen}
                         for i, h in enumerate(kommend):
                             z = zs.get(h)
@@ -320,7 +333,7 @@ def _plan_tabelle(a, d) -> None:
                               "Diese Maßnahme ausblenden")
                 with ui.element("div").classes("m-raster m-zeile m-summe"):
                     ui.label("Summe").classes("m-name")
-                    for _ in range(4):
+                    for _ in range(5):
                         ui.label("")
                     for zs_ in spalten:
                         u, o = mk.summen_spanne(zs_, st)
@@ -329,7 +342,8 @@ def _plan_tabelle(a, d) -> None:
         ui.label("Alle Teilnehmenden (Pendler und Internat) · Neuanmeldung = in den ersten 6 Wochen eines Kurses dabei · "
                  "Trend = letzte 12 Monate gegen die 12 davor (grün ab +10 %, rot ab −10 %) · in Klammern die Spanne: "
                  "mit 80 % (bzw. 95 %) Wahrscheinlichkeit liegt das Ergebnis darin – berechnet aus den Fehlern des "
-                 "Rückwärtstests; im Diagramm innen 80 %, außen 95 % · Summe: Abweichungen gleichen sich teils aus, "
+                 "Rückwärtstests, in Personen passend zur Größe der Maßnahme (Abweichungen wachsen etwa mit der Wurzel, nicht im "
+                 "festen Prozentsatz) und nie über „max. je Welle“; im Diagramm innen 80 %, außen 95 % · Summe: Abweichungen gleichen sich teils aus, "
                  "deshalb schmaler als die Summe der Spannen · schon gebuchte Starts zählen fest, dazu die erwartete Nachbuchung "
                  f"({d['quelle']}) · eigene geplante Plätze ersetzen die Schätzung.").classes("m-xk-hinweis")
 
