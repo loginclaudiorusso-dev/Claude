@@ -29,8 +29,8 @@ from .ui_bausteine import attr, knopf, leer
 log = logging.getLogger(__name__)
 
 EINSTELLUNG = "oberflaeche"            # persönlich je PC: "klassisch" | "leitstand"
-BUEHNEN = {"dispo": ("1", "Disposition", "dashboard"), "akten": ("2", "Akten & Post", "folder_open"),
-           "radar": ("3", "Radar & Prognose", "insights"), "bau": ("4", "Bau & Budget", "construction")}
+BUEHNEN = {"dispo": ("1", "Disposition", "dashboard"), "akten": ("2", "Verwaltung", "folder_open"),
+           "radar": ("3", "Auswertung", "insights"), "bau": ("4", "Bau & Budget", "construction")}
 # Arbeitslisten der Bühnen 2–4: (Schlüssel, Titel, Seite, Ansicht)
 AKTEN = [("eintragen", "Firmenprogramm (ins Trägersystem)", "anreisen", "eintragen"),
          ("mieter", "Mieter & Verträge", "mieter", None), ("termine", "Termine & Wiedervorlagen", "termine", None),
@@ -41,7 +41,7 @@ RADAR = [("lage", "Lage heute"), ("prognose", "Belegungsprognose"), ("massnahmen
          ("zimmer", "Zimmer & Engpässe"), ("belegung", "Belegung (Verlauf)")]
 BAU = [("cockpit", "Cockpit"), ("vorhaben", "Vorhaben & Renovierung"), ("zeitplan", "Zeitplan & Kapazität"),
        ("finanzen", "Finanzen & Budget"), ("grundlagen", "Grundlagen")]
-MITTE = {"etagen": "🏢 Etagen", "zimmer": "📅 Zeitstrahl", "reinigung": "🧹 Reinigung"}
+MITTE = {"etagen": "Etagenplan", "zimmer": "Zeitstrahl", "reinigung": "Reinigung"}
 LAYER = {"belegung": "Belegung", "abreise": "Abreisen 7 Tage", "maengel": "Mängel"}
 SCHRIFT_DATEIEN = ("PTSans-Regular", "PT_Sans-Web-Regular", "PTSans-Bold", "PT_Sans-Web-Bold", "pt-sans")
 
@@ -134,11 +134,14 @@ body.leitstand .m-schleier { display: none !important; }
 .ls-sknopf { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 6px;
   border: 1px solid rgba(255,255,255,.22); background: transparent; color: #fff; font: inherit; cursor: pointer;
   white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+.ls-sknopf .q-icon { font-size: 16px; flex: none; }
 .ls-sknopf:hover { background: rgba(255,255,255,.10); }
 .ls-sknopf.orange { background: var(--ls-orange); border-color: var(--ls-orange); }
 /* Hauptbühne: drei Spalten */
 .ls-main { display: grid; grid-template-columns: minmax(0, 24fr) minmax(0, 48fr) minmax(0, 28fr); min-height: 0; min-width: 0; }
 .ls-main.breit { grid-template-columns: minmax(0, 19fr) minmax(0, 53fr) minmax(0, 28fr); }
+.ls-main.ohne-insp { grid-template-columns: minmax(0, 19fr) minmax(0, 81fr); }      /* 0.65: leere Details-Spalte weg */
+.ls-main.ohne-insp > .ls-col.rechts { display: none; }
 .ls-col { min-height: 0; min-width: 0; overflow: auto; border-right: 1px solid var(--ls-linie); background: var(--ls-weiss); }
 .ls-col.mitte { background: var(--ls-grund); display: flex; flex-direction: column; overflow: hidden; }
 .ls-col.rechts { border-right: 0; background: var(--ls-weiss); }
@@ -243,12 +246,12 @@ body.leitstand.abtipp-schmal .ls-spine, body.leitstand.abtipp-schmal .ls-fuss { 
 """
 
 FUSS = {
-    "dispo": [("↑ ↓", "Liste"), ("Enter", "grünen Vorschlag zuweisen"), ("/", "Live-Suche"), ("1–4", "Bühne"),
+    "dispo": [("↑ ↓", "Liste"), ("Enter", "grünen Vorschlag zuweisen"), ("/", "Suche"), ("1–4", "Bereich"),
               ("Strg+Z", "Rückgängig"), ("Strg+Umschalt+L", "Ansicht wechseln")],
-    "andere": [("/", "Live-Suche"), ("1–4", "Bühne"), ("Strg+Z", "Rückgängig"), ("Strg+Umschalt+L", "Ansicht wechseln")],
+    "andere": [("/", "Suche"), ("1–4", "Bereich"), ("Strg+Z", "Rückgängig"), ("Strg+Umschalt+L", "Ansicht wechseln")],
 }
-KUERZEL = [("1 · 2 · 3 · 4", "Bühne wählen"), ("/ oder Strg+K", "Omnibar"), ("↑ / ↓", "Arbeitsstrom"),
-           ("Enter", "grünen Zimmervorschlag zuweisen"), ("Esc", "Inspektor schließen / Suche leeren"),
+KUERZEL = [("1 · 2 · 3 · 4", "Bereich wählen"), ("/ oder Strg+K", "Suche"), ("↑ / ↓", "Arbeitsliste"),
+           ("Enter", "grünen Zimmervorschlag zuweisen"), ("Esc", "Details schließen / Suche leeren"),
            ("Strg+Z", "letzte Änderung zurück"), ("Strg+Umschalt+L", "klassische Ansicht"),
            ("L · S", "Postfach-Aufgabe lösen / später"), ("1–6 · E · N", "Abtipp-Modus")]
 
@@ -414,12 +417,14 @@ class Leitstand(Ansicht):
                 attr(self.undo_knopf, title="Letzte Änderung zurücknehmen (Strg+Z)")
                 k = ui.element("button").classes("ls-sknopf orange")
                 with k:
-                    ui.label("📌 Abtipp-Modus")
+                    ui.icon("keyboard")
+                    ui.label("Abtipp-Modus")
                 k.on("click", self._abtipp)
                 attr(k, title="Firmenprogramm Eintrag für Eintrag ins Trägersystem übertragen")
                 w = ui.element("button").classes("ls-sknopf")
                 with w:
-                    ui.label("⇄ Ansicht wechseln")
+                    ui.icon("swap_horiz")
+                    ui.label("Klassische Ansicht")
                 w.on("click", lambda: umschalten(self))
                 attr(w, title="Zur klassischen Oberfläche (Strg+Umschalt+L)")
             self.ls_main = ui.element("main").classes("ls-main")
@@ -434,7 +439,7 @@ class Leitstand(Ansicht):
                         self.inhalt = ui.element("div").classes("m-inhalt")
                 with ui.element("aside").classes("ls-col rechts"):
                     with ui.element("div").classes("ls-insp-k"):
-                        self.insp_titel = ui.label("Inspektor").classes("ls-titel")
+                        self.insp_titel = ui.label("Details").classes("ls-titel")
                         self.insp_zu = knopf("", self._insp_schliessen, "leise", "close", "Schließen (Esc)")
                     self.inspektor = ui.element("div").classes("ls-insp m-formular")
                     self.ungespeichert = ui.label("Ungespeichert – Speichern im Formular, Esc verwirft").classes(
@@ -478,7 +483,8 @@ class Leitstand(Ansicht):
         s = aenderungen.letzter()
         self.undo_knopf.clear()
         with self.undo_knopf:
-            ui.label(f"↶ Rückgängig: {s.titel}" if s else "↶ Rückgängig").style(
+            ui.icon("undo")
+            ui.label(f"Rückgängig: {s.titel}" if s else "Rückgängig").style(
                 "overflow:hidden; text-overflow:ellipsis; white-space:nowrap")
         if s:
             attr(self.undo_knopf, title=f"„{s.titel}“ zurücknehmen (Strg+Z)")
@@ -554,7 +560,7 @@ class Leitstand(Ansicht):
         if self.buehne == "akten":
             return next((t for k, t, _s, _a in AKTEN if k == self.ls_akte), "Akten")
         if self.buehne == "radar":
-            return next((t for k, t in RADAR if k == self.ansicht_von("auswertung", "prognose")), "Radar")
+            return next((t for k, t in RADAR if k == self.ansicht_von("auswertung", "prognose")), "Auswertung")
         return "Bau & Budget"
 
     # ---- Spalte 1: Arbeitsstrom (Bühne Disposition) -------------------------------------------
@@ -580,9 +586,9 @@ class Leitstand(Ansicht):
                         p.on("click", lambda: self._mitte_setzen("reinigung"))
             # 1) Sofort klären / als Nächstes
             offen = [k for k in karten if k.stufe in ("dringend", "bald") and self._text_passt(k.titel, k.detail)]
-            ui.label(f"Sofort klären · {len(offen)}").classes("ls-gruppe")
+            ui.label(f"Offene Aufgaben · {len(offen)}").classes("ls-gruppe")
             if not offen:
-                ui.label("Nichts Dringendes.").classes("ls-leer")
+                ui.label("Keine offenen Aufgaben.").classes("ls-leer")
             for k in offen:
                 self._eintrag(("karte", k.id), k.stufe, k.titel, k.detail, "")
             # 2) Anreisen zum Zuteilen
@@ -830,6 +836,10 @@ class Leitstand(Ansicht):
         self.inspektor.classes(remove="ungespeichert")
         self.ungespeichert.classes(remove="an")
         f = self.fokus
+        leer = not ((f and f[0] == "karte" and any(x.id == f[1] for x in self.karten))
+                    or (f and f[0] == "person" and self._fokus_zeile() is not None))
+        # 0.65: In den Bereichen 2–4 klappt die Details-Spalte weg, solange dort nichts steht (mehr Platz für die Mitte)
+        self.ls_main.classes(add="ohne-insp") if leer and self.buehne != "dispo" else self.ls_main.classes(remove="ohne-insp")
         with self.inspektor:
             if f and f[0] == "karte" and (k := next((x for x in self.karten if x.id == f[1]), None)):
                 self.insp_titel.set_text("Aufgabe")
@@ -839,7 +849,7 @@ class Leitstand(Ansicht):
                 self.insp_titel.set_text(z.name)
                 self._person_inspektor(z)
                 return
-            self.insp_titel.set_text("Inspektor")
+            self.insp_titel.set_text("Details")
             ui.label("Links eine Aufgabe, Person oder in der Mitte ein Zimmer wählen – hier erscheinen Angaben, Vorschläge "
                      "und alle Formulare. Nichts wird verdeckt.").classes("ls-hilfe")
             if self.buehne == "dispo" and self.stand is not None:
@@ -887,6 +897,7 @@ class Leitstand(Ansicht):
     def panel(self, titel: str, bauen, breit: bool = False) -> None:
         weiter = self.panel_def is not None and self.panel_def[0] == titel and self.panel_geaendert()
         self.panel_def = (titel, bauen)
+        self.ls_main.classes(remove="ohne-insp")
         self.insp_titel.set_text(titel)
         self.inspektor.clear()
         with self.inspektor:

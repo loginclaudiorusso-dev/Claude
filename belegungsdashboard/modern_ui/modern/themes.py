@@ -14,6 +14,8 @@ from .stil import T as _ORIGINAL
 
 LAYOUTS = {
     "original": ("Original-Zustand", "Bisheriges Design und Layout – exakt wie vorher", "restart_alt"),
+    "office": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen und Ausklappmenüs – vertraut wie Word "
+                                        "und Excel", "view_agenda"),
     "grid": ("Classic Enterprise Grid", "Einklappbare Seitenleiste, hohe Datendichte, volle Funktion", "view_sidebar"),
     "canvas": ("AI-Canvas & Prompt", "Zentrale Eingabe (Strg+K, /) filtert live – Antworten als Karten", "auto_awesome"),
     "showcase": ("Showcase", "Schwebendes Dock oben, großzügige Karten, viel Weißraum, Glas", "dashboard"),

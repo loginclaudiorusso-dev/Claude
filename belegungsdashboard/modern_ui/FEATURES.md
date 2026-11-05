@@ -1,11 +1,16 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.64.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.65.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
 Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft offline, die KI ist optional.
 
+## Darstellung Menüband (wie Office)
+- Titelleiste mit Schnellzugriff (Rückgängig, Aktualisieren), Suchfeld und Standort
+- Registerkarten Datei/Start/Belegung/Planung/Auswertung/Verwalten/Ansicht mit Gruppen, großen Symbolen und Ausklappmenüs für die Unteransichten
+- Statusleiste (Standort, offene/dringende Aufgaben, Datenstand, Version); hell und dunkel
+
 ## Heute
-- Tageszentrale als einzige Ansicht (0.64): Kennzahlen, „Als Nächstes“ nummeriert mit direkter Aktion, nächste 7 Tage (bezugsfertig), freie Zimmer 5 Wochen mit EMR/DZ, Outlook-Vorschau (nur lesen)
+- Tagesübersicht als einzige Ansicht (0.64, sachliche Überschriften 0.65): Kennzahlen, „Als Nächstes“ nummeriert mit direkter Aktion, nächste 7 Tage (bezugsfertig), freie Zimmer 5 Wochen mit EMR/DZ, Outlook-Vorschau (nur lesen)
 - Postfach wie Outlook als Vertiefung („Fälle ansehen“, „Alle Aufgaben“, zurück zur Tageszentrale): links Aufgaben, rechts alle Fälle mit Einzel- und Sammelaktion; Erledigtes verschwindet, Pfeiltasten
 - Schloss/Schlüssel defekt: FM-Auftrag mit Frist (nächster Einzug) statt Umplanen, solange die Anreise ≥ 3 Tage entfernt ist
 - Aufgaben als Karten mit 1-Klick-Lösung („dringend“ / „als Nächstes“ / „zur Info“), „Später“ verschiebt auf morgen
@@ -142,7 +147,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Seitenleiste wie in Office: einklappen, beim Darüberfahren klappt sie über dem Inhalt auf, „Leiste anheften“ hält sie offen (Strg+B)
 - Tabellenvorlage: Kopfzeile und Zeilen teilen ein Spaltenraster – nichts verrutscht
 - Auslastung in der Zimmerliste ohne Gästezimmer (die Gästeetage läuft unabhängig vom Tagesgeschäft)
-- Leitstand-Workbench: zweite Oberfläche (je PC, Strg+Umschalt+L) – 4 Bühnen, Live-Omnibar, Gebäude-Matrix mit Klick-Zuteilung, fest angedockter Inspektor, Tastenleiste, Corporate Design
+- Leitstand-Workbench: zweite Oberfläche (je PC, Strg+Umschalt+L) – 4 Bereiche (Disposition, Verwaltung, Auswertung, Bau & Budget), Live-Suche, Gebäude-Matrix mit Klick-Zuteilung, Details-Spalte (klappt leer weg), Tastenleiste, Corporate Design
 - Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 6 Themes (INNternat, Original, inn-tegrativ, Linear Monochrome, Executive Obsidian, Soft Nordic), hell/dunkel, Dichte
 - Haptik: Knöpfe geben beim Drücken nach, Arbeitsbalken beim Speichern, einrastende Bestätigung
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird

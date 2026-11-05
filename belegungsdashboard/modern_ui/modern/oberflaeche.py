@@ -305,6 +305,9 @@ class Ansicht:
     def aufbauen(self) -> None:
         ui.add_css(CSS)
         ui.add_css(themes.CSS)                 # greift nur mit body.pro – im Original-Zustand gilt allein das bisherige CSS
+        from . import menueband_ui
+
+        ui.add_css(menueband_ui.CSS)           # 0.65: Menüband wie in Office (nur mit body.lay-office)
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         with ui.element("div").classes("m-app"):
@@ -321,11 +324,12 @@ class Ansicht:
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
                     ui.element("div").style("flex: 1")
                     self.stand_anzeige = ui.label("").classes("m-datenstand")
-                    knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)")
+                    knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)").classes(
+                        "m-kopf-doppelt")                            # im Menüband steht beides schon oben
                     from . import leitstand_ui
 
                     knopf("", lambda: leitstand_ui.umschalten(self), "leise", "view_quilt",
-                          "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)")
+                          "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)").classes("m-kopf-doppelt")
                     self.glocke = ui.element("span")                 # 0.64: Neuigkeiten stecken im Aufgaben-Knopf
                     self.glocke.set_visibility(False)
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke")
@@ -415,6 +419,9 @@ class Ansicht:
         pro = self.design["layout"] != "original"
         # Nur neu bauen, wenn sich Seite oder Darstellung ändert – sonst nur die Zahl an „Heute“ anpassen. So bleibt ein
         # Knopf, auf den gerade geklickt wird, stehen (z. B. direkt nach dem Start, wenn die Daten ankommen).
+        from . import menueband_ui
+
+        menueband_ui.fuellen(self)                                     # 0.65: Menüband (nur im Layout „office“)
         sig = (self.seite, repr(sorted(self.design.items())))
         if sig == getattr(self, "_nav_sig", None):
             self._nav_zahlen_setzen()
@@ -487,6 +494,8 @@ class Ansicht:
     def _topnav_fuellen(self, dringend: int) -> None:
         """Showcase-Dock (0.46): Standort · angeheftete Bereiche · je Gruppe ein Menü mit dem Rest (Betrieb, Überblick,
         Verwalten, Leitung) · rechts Suche, Hell/Dunkel, Anheften und „Dock anpassen“."""
+        if self.design["layout"] == "office":                          # dort liegt das Menüband
+            return
         self.topnav.clear()
         if self.design["layout"] != "showcase":
             return
@@ -835,6 +844,8 @@ class Ansicht:
                 neu["modus"] = themes.THEMES[aenderung["theme"]][2]
         if "layout" in aenderung and aenderung["layout"] != "original" and alt["layout"] == "original" and "theme" not in aenderung:
             neu["theme"] = "original"
+        if aenderung.get("layout") == "office" and "theme" not in aenderung:     # 0.65: Menüband hell wie Office
+            neu["theme"], neu["modus"] = "innternat", "hell"
         if aenderung.get("layout") == "original":
             neu["theme"] = "original"
             if alt["vollbild"] and "vollbild" in aenderung and not aenderung["vollbild"]:
@@ -1163,7 +1174,7 @@ class Ansicht:
                 knopf("", lambda: self.center_umschalten(False), "leise", "close", "Schließen (Esc)")
             with ui.element("div").classes("m-cinhalt"):
                 if not self.karten:
-                    ui.label("Alles erledigt.\nNeue Aufgaben erscheinen hier von selbst.").classes("m-cleer").style(
+                    ui.label("Keine offenen Aufgaben.\nNeue Aufgaben erscheinen hier automatisch.").classes("m-cleer").style(
                         "white-space: pre-line")
                 for stufe, titel in STUFEN:
                     ks = [k for k in self.karten if k.stufe == stufe]

@@ -41,7 +41,7 @@ def test_fuenf_themes_drei_layouts_und_farben():
     from modern.stil import T
 
     assert list(themes.THEMES) == ["innternat", "original", "inn", "linear", "obsidian", "nordic"]
-    assert list(themes.LAYOUTS) == ["original", "grid", "canvas", "showcase"]
+    assert list(themes.LAYOUTS) == ["original", "office", "grid", "canvas", "showcase"]
     assert {k: v for k, v in themes.farben({}).items() if k in T} == dict(T)
     for t in ("innternat", "inn", "linear", "obsidian", "nordic"):
         assert set(themes.modi(t)) == {"hell", "dunkel"}

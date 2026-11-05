@@ -233,13 +233,13 @@ def _defekte(a):
 
 
 SCHRITTE = [
-    ("today", "Hier beginnt der Tag", "Links stehen die Aufgaben – der farbige Knopf löst sie mit einem Klick, „Später“ verschiebt "
+    ("today", "Aufgaben", "Links stehen die Aufgaben – der farbige Knopf löst sie mit einem Klick, „Später“ verschiebt "
                                       "auf morgen. Rot umrandet = dringend."),
-    ("ads_click", "Zahlen sind Knöpfe", "Die Kacheln oben (frei, belegt, ohne Zimmer …) führen direkt zu den Zimmern oder filtern."),
+    ("ads_click", "Kennzahlen", "Die Kacheln oben (frei, belegt, ohne Zimmer …) führen direkt zu den Zimmern oder filtern."),
     ("meeting_room", "Zimmer zuteilen", "Unter „Anreisen“ das Zimmer in der Zeile wählen – grün ist der passende Vorschlag. "
                                         "Gespeichert wird sofort."),
-    ("undo", "Nichts kann schiefgehen", "Jede Änderung lässt sich mit „Rückgängig“ (unten im Hinweis) oder Strg+Z zurücknehmen."),
-    ("search", "Alles finden", "Strg+K sucht Personen, Zimmer und Seiten."),
+    ("undo", "Rückgängig", "Jede Änderung lässt sich mit „Rückgängig“ (unten im Hinweis) oder Strg+Z zurücknehmen."),
+    ("search", "Suche", "Strg+K sucht Personen, Zimmer und Seiten."),
 ]
 
 
@@ -251,7 +251,7 @@ def _willkommen(a) -> None:
         with ui.element("div").classes("m-w-kopf"):
             ui.icon("waving_hand").classes("m-w-gruss")
             with ui.element("div"):
-                ui.label("Willkommen – so funktioniert die neue Oberfläche").classes("m-btitel")
+                ui.label("Erste Schritte in der neuen Oberfläche").classes("m-btitel")
                 ui.label("Fünf Dinge, dann kennen Sie alles Wichtige.").classes("m-ptext")
 
             async def weg():
@@ -433,6 +433,14 @@ def _kategorie(kid: str) -> str:
     return KATEGORIE.get(kid.split(":")[0].split("_")[0], "Aufgabe")
 
 
+def untertitel(dringend: int, weitere: int) -> str:
+    """Sachliche Zeile unter „Tagesübersicht“ (0.65)."""
+    if dringend:
+        return (f"{dringend} dringende Aufgabe{'n' if dringend != 1 else ''}"
+                + (f", {weitere} weitere offen." if weitere else "."))
+    return f"Keine dringenden Aufgaben – {weitere} weitere offen." if weitere else "Keine offenen Aufgaben."
+
+
 def _zentrale(a, t: Tag) -> None:
     jetzt = [k for k in a.karten if k.stufe == "dringend"]
     naechste = [k for k in a.karten if k.stufe in ("dringend", "bald")]
@@ -442,16 +450,13 @@ def _zentrale(a, t: Tag) -> None:
         with ui.element("header").classes("m-tz-kopf"):
             ui.label(f"{WOCHENTAGE[a.heute.weekday()]} · {a.heute.day}. {MONATE_LANG[a.heute.month - 1]} {a.heute.year}").classes(
                 "m-tz-datum")
-            ui.label("Der Tag im Griff.").classes("m-tz-titel")
-            ui.label(f"{len(jetzt)} Punkt{'e brauchen' if len(jetzt) != 1 else ' braucht'} heute deine Aufmerksamkeit, "
-                     f"{len(naechste) - len(jetzt)} weitere stehen an." if jetzt else
-                     "Nichts Dringendes – " + (f"{len(naechste)} Punkte stehen als Nächstes an." if naechste else
-                                               "alles erledigt.")).classes("m-tz-sub")
+            ui.label("Tagesübersicht").classes("m-tz-titel")
+            ui.label(untertitel(len(jetzt), len(naechste) - len(jetzt))).classes("m-tz-sub")
         _zahlen(a, t, len(jetzt), heute_an)
         with ui.element("div").classes("m-tz-raster"):
             with ui.element("section").classes("m-tz-links"):
                 with ui.element("div").classes("m-tz-ab"):
-                    ui.label("Als Nächstes")
+                    ui.label("Offene Aufgaben")
                     ui.label(f"nach Dringlichkeit sortiert · {len(naechste)} offen").classes("m-tz-meta")
                 if not naechste:
                     with ui.element("div").classes("m-tz-leer"):
@@ -477,7 +482,7 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
     eilig, offen = t.reinigung
     np_ = t.np
     werte = [
-        ("jetzt", n_jetzt, "Jetzt klären", "dringende Punkte" if n_jetzt else "nichts Dringendes",
+        ("jetzt", n_jetzt, "Dringend", "Aufgaben mit Frist" if n_jetzt else "keine dringenden Aufgaben",
          "krit" if n_jetzt else "ok", "priority_high" if n_jetzt else "check_circle",
          lambda: a.setzen(heute_ansicht="postfach", laden=False)),
         ("an", heute_an["an"] if heute_an else 0, "Anreisen heute",
