@@ -312,6 +312,10 @@ class Ansicht:
                     ui.element("div").style("flex: 1")
                     self.stand_anzeige = ui.label("").classes("m-datenstand")
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)")
+                    from . import leitstand_ui
+
+                    knopf("", lambda: leitstand_ui.umschalten(self), "leise", "view_quilt",
+                          "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)")
                     self.glocke = ui.element("button").classes("m-knopf leise m-glocke")
                     attr(self.glocke, title="Neuigkeiten")
                     self.glocke.on("click", self._neuigkeiten_panel)
@@ -1579,6 +1583,13 @@ class Ansicht:
     async def _taste(self, e) -> None:
         if not e.action.keydown:
             return
+        if e.modifiers.ctrl and e.modifiers.shift and e.key.name.lower() == "l":   # 0.62: Leitstand ⇄ klassisch
+            from . import leitstand_ui
+
+            await leitstand_ui.umschalten(self)
+            return
+        if (extra := getattr(self, "_extra_taste", None)) is not None and await extra(e):
+            return
         if e.modifiers.ctrl and e.key.name.lower() == "z":
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
@@ -1785,7 +1796,9 @@ async def startseite() -> None:
     if erster:
         await run.io_bound(standort_kern.waehlen, standort_kern.gemerkt(), False)
     ui.page_title(f"Belegung – {standort_kern.aktiv().name}")
-    a = Ansicht()
+    from . import leitstand_ui
+
+    a = (leitstand_ui.Leitstand if await run.io_bound(leitstand_ui.an) else Ansicht)()   # 0.62: je PC gemerkt
     a.aufbauen()
     if erster:
         await ui.context.client.connected()
