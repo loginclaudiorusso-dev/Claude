@@ -47,7 +47,8 @@ def daten(a) -> None:
                "darstellung": darstellung, "skala": getattr(a, "mn_skala", "gleich"),
                "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
                "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
-               "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1}
+               "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1,
+               "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80}
 
 
 def zeichnen(a) -> None:
@@ -124,6 +125,18 @@ def _linien(name: str, r, farbe: str, h: int) -> list[dict]:
              "lineStyle": {"color": farbe, "width": 2.5, "type": "dashed"}, "itemStyle": {"color": farbe}}]
 
 
+def _baender(r, farbe: str, h: int) -> list[dict]:
+    """0.57: Wahrscheinlichkeitsbänder als gestapelte Flächen – außen 95 %, innen 80 % (nur im Prognoseteil)."""
+    def reihe(fn):
+        return [round(fn(z), 2) if k >= h else None for k, z in enumerate(r.zeilen)]
+    basis = {"type": "line", "symbol": "none", "stack": f"band-{r.familie}", "lineStyle": {"opacity": 0},
+             "tooltip": {"show": False}, "silent": True, "name": r.familie, "legendHoverLink": False}
+    return [{**basis, "data": reihe(lambda z: z.klein95)},
+            {**basis, "data": reihe(lambda z: z.klein - z.klein95), "areaStyle": {"color": farbe, "opacity": .10}},
+            {**basis, "data": reihe(lambda z: z.gross - z.klein), "areaStyle": {"color": farbe, "opacity": .22}},
+            {**basis, "data": reihe(lambda z: z.gross95 - z.gross), "areaStyle": {"color": farbe, "opacity": .10}}]
+
+
 def _prognosebereich(t: dict, x: list, h: int) -> dict:
     return {"silent": True, "itemStyle": {"color": t["akzent"], "opacity": .05},
             "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "formatter": "Prognose"},
@@ -146,6 +159,9 @@ def _ein_diagramm(reihen: dict) -> None:
     serien = []
     for i, (fam, r) in enumerate(reihen.items()):
         serien += _linien(fam, r, farben[i % len(farben)], h)
+    if len(reihen) == 1:                                   # bei mehreren Linien wären die Bänder unlesbar
+        r = next(iter(reihen.values()))
+        serien += _baender(r, farben[0], h)
     serien[0]["markArea"] = _prognosebereich(t, x, h)
     opt["series"] = serien
     opt["legend"]["data"] = list(reihen)
@@ -157,7 +173,7 @@ def _raster(reihen: dict, gleiche_skala: bool) -> None:
 
     t = sa._T()
     farben = _farben()
-    hoch = max((z.erwartet for r in reihen.values() for z in r.zeilen), default=0) * 1.1 or None
+    hoch = max((z.gross95 for r in reihen.values() for z in r.zeilen), default=0) * 1.05 or None
     with ui.element("div").classes("m-mn-raster"):
         for i, (fam, r) in enumerate(reihen.items()):
             x, h = _achsen(r)
@@ -173,7 +189,7 @@ def _raster(reihen: dict, gleiche_skala: bool) -> None:
                     opt["yAxis"]["max"] = round(hoch)
                 opt["grid"] = {"left": 34, "right": 8, "top": 10, "bottom": 22}
                 opt["legend"] = {"show": False}
-                serien = _linien(fam, r, farben[i % len(farben)], h)
+                serien = _linien(fam, r, farben[i % len(farben)], h) + _baender(r, farben[i % len(farben)], h)
                 serien[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
                 opt["series"] = serien
                 sa._chart(opt)
@@ -187,7 +203,10 @@ def _kpis(d: dict) -> None:
     naechst = sum(r.naechstes_jahr for r in reihen)
     with ui.element("div").classes("m-kpis"):
         if reihen:
-            _kpi(f"Erwartet {d['plan_jahr']}", _z(naechst), f"Neuanmeldungen Winter + Sommer · {len(reihen)} Maßnahme(n)")
+            alle = [z for r in reihen for z in r.zeilen if z.hj[0] == d["plan_jahr"]]
+            a80, b80 = mk.summen_spanne(alle, 80)
+            a95, b95 = mk.summen_spanne(alle, 95)
+            _kpi(f"Erwartet {d['plan_jahr']}", _z(naechst), f"80 %: {_z(a80)}–{_z(b80)} · 95 %: {_z(a95)}–{_z(b95)}")
         if mit_trend:
             hoch = max(mit_trend, key=lambda r: r.trend)
             tief = min(mit_trend, key=lambda r: r.trend)
@@ -206,7 +225,13 @@ def _plan_tabelle(a, d) -> None:
     kommend = [z.hj for z in r0.zeilen if z.art != "ist"]
     gr = {f: g for f, g, _t in d["liste"]}
     with ui.element("section").classes("m-block m-breit"):
-        ui.label("Für den Wirtschaftsplan – erwartete Neuanmeldungen je Startwelle").classes("m-btitel")
+        with ui.element("div").classes("m-zeile-flex"):
+            ui.label("Für den Wirtschaftsplan – erwartete Neuanmeldungen je Startwelle").classes("m-btitel")
+            ui.element("div").style("flex:1")
+            segmente({80: "Spanne 80 %", 95: "Spanne 95 %"}, d["stufe"], lambda v: a.setzen(mn_stufe=v, nur_seite=True),
+                     sofort=True)
+        st = d["stufe"]
+        lo_a, hi_a = ("klein", "gross") if st == 80 else ("klein95", "gross95")
         with ui.element("div").classes("m-tab-scroll"):
             sp = "minmax(110px, 1.2fr) minmax(110px, 1fr) auto auto auto " + " ".join("auto" for _ in kommend) + " 44px"
             with tabelle(sp):
@@ -216,7 +241,7 @@ def _plan_tabelle(a, d) -> None:
                     for h in kommend:
                         ui.label(mk.hj_text(h) + (" (läuft)" if h == kommend[0] else ""))
                     ui.label("")
-                summe = [0.0] * len(kommend)
+                spalten: list[list] = [[] for _ in kommend]
                 for fam, r in sorted(reihen.items(), key=lambda x: -x[1].jahr_mittel):
                     with ui.element("div").classes("m-raster m-zeile"):
                         ui.label(fam).classes("m-name")
@@ -233,24 +258,27 @@ def _plan_tabelle(a, d) -> None:
                             if z is None:
                                 ui.label("–")
                                 continue
-                            summe[i] += z.erwartet
+                            spalten[i].append(z)
                             wo = " · eigene Planung" if z.geplant else (f" · {_z(z.ist + z.gebucht)} schon gebucht/begonnen"
                                                                          if z.ist + z.gebucht else "")
-                            el = ui.label(f"{_z(z.erwartet)} ({_z(z.klein)}–{_z(z.gross)})").classes("m-mono")
-                            el.props(f'title="{mk.hj_text(h)}: erwartet {_z(z.erwartet)}, Spanne {_z(z.klein)}–'
-                                     f'{_z(z.gross)}{wo}"')
+                            el = ui.label(f"{_z(z.erwartet)} ({_z(getattr(z, lo_a))}–{_z(getattr(z, hi_a))})").classes("m-mono")
+                            el.props(f'title="{mk.hj_text(h)}: erwartet {_z(z.erwartet)} · 80 %: {_z(z.klein)}–'
+                                     f'{_z(z.gross)} · 95 %: {_z(z.klein95)}–{_z(z.gross95)}{wo}"')
                         knopf("", lambda fam=fam: a.aendern(mk.sichtbar_schritt, fam, False), "leise", "visibility_off",
                               "Diese Maßnahme ausblenden")
                 with ui.element("div").classes("m-raster m-zeile m-summe"):
                     ui.label("Summe").classes("m-name")
                     for _ in range(4):
                         ui.label("")
-                    for s in summe:
-                        ui.label(_z(s)).classes("m-mono")
+                    for zs_ in spalten:
+                        u, o = mk.summen_spanne(zs_, st)
+                        ui.label(f"{_z(sum(z.erwartet for z in zs_))} ({_z(u)}–{_z(o)})").classes("m-mono")
                     ui.label("")
         ui.label("Alle Teilnehmenden (Pendler und Internat) · Neuanmeldung = in den ersten 6 Wochen eines Kurses dabei · "
-                 "Trend = letzte 12 Monate gegen die 12 davor (grün ab +10 %, rot ab −10 %) · in Klammern die übliche "
-                 "Spanne aus dem Rückwärtstest · schon gebuchte Starts zählen fest, dazu die erwartete Nachbuchung "
+                 "Trend = letzte 12 Monate gegen die 12 davor (grün ab +10 %, rot ab −10 %) · in Klammern die Spanne: "
+                 "mit 80 % (bzw. 95 %) Wahrscheinlichkeit liegt das Ergebnis darin – berechnet aus den Fehlern des "
+                 "Rückwärtstests; im Diagramm innen 80 %, außen 95 % · Summe: Abweichungen gleichen sich teils aus, "
+                 "deshalb schmaler als die Summe der Spannen · schon gebuchte Starts zählen fest, dazu die erwartete Nachbuchung "
                  f"({d['quelle']}) · eigene geplante Plätze ersetzen die Schätzung.").classes("m-xk-hinweis")
 
 

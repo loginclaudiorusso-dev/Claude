@@ -1,3 +1,3 @@
 """Neue Oberfläche für „Belegung“ (NiceGUI). Nutzt Daten und Regeln des Hauptprogramms im Ordner darüber."""
 
-__version__ = "0.56.0"
+__version__ = "0.57.0"

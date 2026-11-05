@@ -972,13 +972,26 @@ class HZeile:
     ist: float                    # schon begonnen (bzw. Ist)
     gebucht: float                # schon gebucht, Start noch offen
     erwartet: float               # Schätzung gesamt (Ist + gebucht + Nachbuchung bzw. Verfahren)
-    klein: float
+    klein: float                  # 80 %: mit 80 % Wahrscheinlichkeit zwischen klein und gross
     gross: float
     geplant: bool = False         # eigene geplante Plätze
+    klein95: float = 0.0          # 0.57: 95 %-Spanne
+    gross95: float = 0.0
 
     @property
     def text(self) -> str:
         return hj_text(self.hj)
+
+
+def summen_spanne(zeilen: list, stufe: int = 80) -> tuple[float, float]:
+    """Spanne einer Summe mehrerer Schätzungen. Die Abweichungen gleichen sich teils aus – deshalb nicht die Spannen
+    addieren (zu breit), sondern die Abstände zum erwarteten Wert quadratisch (unabhängig angenommen)."""
+    e = sum(z.erwartet for z in zeilen)
+    lo, hi = (("klein", "gross") if stufe == 80 else ("klein95", "gross95"))
+    unten = sum((z.erwartet - getattr(z, lo)) ** 2 for z in zeilen) ** .5
+    oben = sum((getattr(z, hi) - z.erwartet) ** 2 for z in zeilen) ** .5
+    sicher = sum(z.ist + z.gebucht for z in zeilen if z.art != "ist")
+    return max(sicher, e - unten), e + oben
 
 
 @dataclass
@@ -992,6 +1005,11 @@ class NReihe:
     naechstes_jahr: float         # erwartet im nächsten Kalenderjahr (H1 + H2)
     eingestellt: bool
     klein_massnahme: bool
+
+    def jahr_spanne(self, jahr: int, stufe: int = 80) -> tuple[float, float]:
+        """Spanne der Neuanmeldungen eines Jahres (Winter + Sommer)."""
+        return summen_spanne([z for z in self.zeilen if z.hj[0] == jahr], stufe)
+
 
     @property
     def trend(self) -> float | None:
@@ -1082,13 +1100,34 @@ def bestes_verfahren(tests: list[VTest]) -> str:
     return gut[0].verfahren if gut else "mittel3"
 
 
-def _spanne(rel: list[float]) -> tuple[float, float]:
-    """Typische Abweichung aus dem Rückwärtstest (10.–90. Perzentil), sonst ±25 %."""
+Z80, Z95 = 1.2816, 1.96            # Normalverteilung: 80 % bzw. 95 % liegen innerhalb ±z Standardabweichungen
+
+
+def _quantil(r: list[float], q: float) -> float:
+    """Lineares Quantil einer sortierten Liste."""
+    x = q * (len(r) - 1)
+    i = int(x)
+    return r[i] if i + 1 >= len(r) else r[i] + (x - i) * (r[i + 1] - r[i])
+
+
+def _spanne(rel: list[float]) -> tuple[float, float, float, float]:
+    """Spanne aus den relativen Fehlern des Rückwärtstests: (unten 80 %, oben 80 %, unten 95 %, oben 95 %).
+
+    80 %: 10.–90. Perzentil der Fehler. 95 %: 2,5.–97,5. Perzentil, wenn mindestens 40 Fehler vorliegen – sonst aus der
+    80-%-Spanne hochgerechnet (× 1,96 / 1,28, wie bei einer Normalverteilung); bei wenigen Werten wären die äußersten
+    Fehler Zufall. Ohne Test: ±25 % bzw. ±38 %."""
     if len(rel) < 5:
-        return -.25, .25
-    r = sorted(rel)
-    lo, hi = r[int(.1 * (len(r) - 1))], r[int(round(.9 * (len(r) - 1)))]
-    return max(-.9, min(lo, -.05)), max(hi, .05)
+        lo, hi = -.25, .25
+    else:
+        r = sorted(rel)
+        lo, hi = _quantil(r, .1), _quantil(r, .9)
+    lo, hi = max(-.9, min(lo, -.05)), max(hi, .05)
+    if len(rel) >= 40:
+        r = sorted(rel)
+        lo95, hi95 = min(_quantil(r, .025), lo), max(_quantil(r, .975), hi)
+    else:
+        lo95, hi95 = lo * Z95 / Z80, hi * Z95 / Z80
+    return lo, hi, max(-.95, lo95), hi95
 
 
 def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | None = None, zurueck: int = 8,
@@ -1108,7 +1147,7 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
     starts = _starts(ks, daten_ab)
     tests = tests if tests is not None else verfahren_testen(roh)
     verfahren = verfahren or bestes_verfahren(tests)
-    lo, hi = _spanne(next((t.fehler for t in tests if t.verfahren == verfahren), []))
+    lo, hi, lo95, hi95 = _spanne(next((t.fehler for t in tests if t.verfahren == verfahren), []))
     pk = pickup_kurve(vorlauf)
     geplant: dict[tuple, int] = {}
     for p in roh.get("plaetze") or []:
@@ -1132,7 +1171,7 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
                 continue
             if n < 0:
                 i = _hj_summe(eigene, h)
-                zeilen.append(HZeile(h, "ist", i, 0.0, i, i, i))
+                zeilen.append(HZeile(h, "ist", i, 0.0, i, i, i, False, i, i))
                 continue
             ist = _hj_summe(eigene, h, stichtag)
             gebuchte = [k for k in eigene if stichtag < k.start <= hj_ende(h)
@@ -1157,10 +1196,14 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
                 rest = hist_rest if n > 0 else nachbuchung(0.0, hist_rest, pk(d))
             gesamt = ist + max(rest, geb)
             plan = geplant.get((fam, h))
-            zeilen.append(HZeile(h, "laufend" if n == 0 else "prognose", ist, geb,
-                                 float(plan) if plan is not None else gesamt,
-                                 float(plan) if plan is not None else max(ist + geb, gesamt * (1 + lo)),
-                                 float(plan) if plan is not None else gesamt * (1 + hi), plan is not None))
+            sicher = ist + geb                     # schon begonnen bzw. gebucht – untere Grenze
+            if plan is not None:
+                p_ = float(plan)
+                zeilen.append(HZeile(h, "laufend" if n == 0 else "prognose", ist, geb, p_, p_, p_, True, p_, p_))
+            else:
+                zeilen.append(HZeile(h, "laufend" if n == 0 else "prognose", ist, geb, gesamt,
+                                     max(sicher, gesamt * (1 + lo)), gesamt * (1 + hi), False,
+                                     max(sicher, gesamt * (1 + lo95)), gesamt * (1 + hi95)))
         heute = stichtag
 
         def neu_zw(a: date, b: date) -> float:
