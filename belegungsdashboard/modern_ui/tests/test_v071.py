@@ -31,7 +31,7 @@ def test_katalog_aus_dem_menueband():
 
 
 def test_synonyme_und_rangfolge():
-    assert _erstes("drucken").ziel == ("aktion", "drucken") and _erstes("pdf").ziel == ("aktion", "drucken")
+    assert _erstes("drucken").ziel == ("aktion", "drucken") and _erstes("pdf").ziel == ("aktion", "exportieren")
     assert _erstes("abtippen").ziel[:3] == ("seite", "anreisen", "eintragen")
     assert _erstes("kaputt").ziel[:3] == ("seite", "zimmer", "maengel")
     assert _erstes("Mängel").ziel[:3] == ("seite", "zimmer", "maengel")    # Umlaute egal

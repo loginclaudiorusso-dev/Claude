@@ -23,7 +23,8 @@ def test_leitung_abschaltbar():
 
 
 def test_datei_wie_backstage():
-    assert [p.text for p in mb.DATEI] == ["Drucken … (Strg+P)", "Importieren", "Informationen & Sicherung", "Optionen"]
+    assert [p.text for p in mb.DATEI] == ["Drucken … (Strg+P)", "Exportieren …", "Importieren", "Informationen & Sicherung",
+                                          "Optionen"]
     assert ("seite", "daten", None, {}) in [p.ziel for p in mb.DATEI]
 
 

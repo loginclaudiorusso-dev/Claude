@@ -164,6 +164,7 @@ LAYOUT_NAMEN = {"office": "Menüband (wie Office)", "original": "Original-Zustan
 
 DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten, Programm
     Punkt("Drucken … (Strg+P)", "print", A("drucken"), False),
+    Punkt("Exportieren …", "ios_share", A("exportieren"), False),
     Punkt("Importieren", "upload_file", S("daten"), False),
     Punkt("Informationen & Sicherung", "backup", S("einstellungen", "sicherung"), False),
     Punkt("Optionen", "settings", A("optionen"), False),

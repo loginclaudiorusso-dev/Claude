@@ -90,6 +90,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from . import hilfe_ui
 
         hilfe_ui.drucken(a)
+    elif name == "exportieren":                             # 0.73
+        from . import hilfe_ui
+
+        await hilfe_ui.exportieren(a)
     elif name == "info":
         from belegung import __version__ as haupt
 
