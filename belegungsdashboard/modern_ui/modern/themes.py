@@ -194,6 +194,13 @@ def bereinigen(d: dict | None) -> dict:
     erg["dock"] = [str(x) for x in dock][:14] if isinstance(dock, list) else None
     erg["dock_fest"] = d.get("dock_fest", True) is not False
     erg.update(_dk.bereinigen(d))
+    # 0.72: Helligkeit (hell | gedämpft | dunkel) und der bisherige Modus (hell | dunkel) bleiben stimmig. Ältere
+    # Einstellungen ohne Helligkeit übernehmen den Modus – wer dunkel hatte, bleibt dunkel.
+    # Der Modus entscheidet „hell oder nicht“, die Helligkeit verfeinert „nicht hell“ zu gedämpft oder dunkel.
+    if "helligkeit" not in d or (erg["modus"] == "dunkel" and erg["helligkeit"] == "hell"):
+        erg["helligkeit"] = "dunkel" if erg["modus"] == "dunkel" else "hell"
+    elif erg["modus"] == "hell" and erg["helligkeit"] != "hell" and "hell" in modi(erg["theme"]):
+        erg["helligkeit"] = "hell"
     return erg
 
 

@@ -53,7 +53,10 @@ DG_LEGENDE = {"oben": "oben", "unten": "unten", "aus": "aus"}
 
 STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig", "zoom": 100, "schrift": "standard",
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
-            "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True}
+            "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True,
+            "helligkeit": "hell", "faerbung": "akzent"}
+HELLIGKEIT = {"hell": "Hell", "gedaempft": "Gedämpft", "dunkel": "Dunkel"}          # 0.72
+FAERBUNG = {"akzent": "Nur Akzent", "ganz": "Ganzes Design"}
 
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})$")
 
@@ -75,6 +78,8 @@ def bereinigen(d: dict) -> dict:
     except (TypeError, ValueError):
         pass
     e["schrift"] = d.get("schrift") if d.get("schrift") in SCHRIFTEN else "standard"
+    e["helligkeit"] = d.get("helligkeit") if d.get("helligkeit") in HELLIGKEIT else "hell"
+    e["faerbung"] = d.get("faerbung") if d.get("faerbung") in FAERBUNG else "akzent"
     e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     for k in ("band_gross", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):
@@ -145,10 +150,98 @@ def standard_farbe(d: dict) -> bool:
     return d.get("farbe", "petrol") == "petrol"
 
 
+def naechste_helligkeit(h: str) -> str:
+    """Schalter in der Statusleiste: Hell → Gedämpft → Dunkel → Hell."""
+    reihe = list(HELLIGKEIT)
+    return reihe[(reihe.index(h) + 1) % len(reihe)] if h in reihe else "hell"
+
+
+# ---- 0.72: Ton-Paletten – aus EINER Farbe das ganze Design (Flächen, Ränder, Text), je Helligkeit ----------------
+# Ebenen-Grundtöne je Stufe; jede Ebene bekommt einen Anteil der Farbe (× Stärke: 1 = ganzes Design, 0,25 = dezent)
+_EBENEN = {
+    "hell": dict(basis="#FFFFFF", bg=.145, fl=.045, fls=.075, fl2=.19, band=.10, reiter=.18, rand=.30, rand2=.42,
+                 hover=.22, an=.30),
+    "gedaempft": dict(bg=("#33373B", .20), fl=("#40454A", .18), fls=("#3A3F44", .18), fl2=("#4B5156", .18),
+                      band=("#2E3236", .20), reiter=("#272B2F", .20), rand=("#5A6167", .20), rand2=("#6C747A", .20),
+                      hover=("#4A5055", .30), an=("#4A5055", .45)),
+    "dunkel": dict(bg=("#121416", .12), fl=("#1A1D20", .12), fls=("#16191C", .12), fl2=("#22262A", .12),
+                   band=("#0F1113", .12), reiter=("#0B0D0E", .12), rand=("#2C3136", .16), rand2=("#3A4046", .16),
+                   hover=("#262A2E", .28), an=("#262A2E", .42)),
+}
+_STATUS_HELL = dict(ok="#2F7A3E", krit="#B42318", warn="#9A5B00", blau="#1D5BB8")
+_STATUS_DUNKEL = dict(ok="#8BD69B", krit="#FF9A8B", warn="#F2C46B", blau="#9CC2F5")
+
+
+def ton_palette(c: str, stufe: str, staerke: float = 1.0) -> dict:
+    """Alle Töne einer Stufe aus der Farbe ``c``. Text wird so lange nachgedunkelt/aufgehellt, bis er lesbar ist
+    (Haupttext hell ≥ 12 : 1, gedämpft/dunkel ≥ 7 : 1 = WCAG AAA; Nebentext ≥ 6,5 : 1; leiser Text ≥ 4,5 : 1;
+    Akzent auf Karten ≥ 4,6 : 1)."""
+    stufe = stufe if stufe in _EBENEN else "hell"
+    e = _EBENEN[stufe]
+    p: dict = {}
+    for k in ("bg", "fl", "fls", "fl2", "band", "reiter", "rand", "rand2", "hover", "an"):
+        if stufe == "hell":
+            p[k] = mischen(e["basis"], c, e[k] * staerke)
+        else:
+            basis, anteil = e[k]
+            p[k] = mischen(basis, c, anteil * staerke)
+    if stufe == "hell":
+        p["text"] = lesbar(mischen("#000000", c, .18 * staerke), p["bg"], 12)
+        p["text2"] = lesbar(mischen("#000000", c, .38 * staerke), p["bg"], 6.5)
+        p["text3"] = lesbar(mischen("#6E6E6E", c, .45 * staerke), p["bg"], 4.5)
+        p["akzent"] = lesbar(c, p["fl"], 4.6)
+        p["titel"] = mischen(c, "#000000", .30)
+        p.update(_STATUS_HELL)
+    else:
+        p["text"] = lesbar(mischen("#FFFFFF", c, .10 * staerke), p["bg"], 7)
+        p["text2"] = lesbar(mischen("#E4E7EA", c, .25 * staerke), p["bg"], 6.5)
+        p["text3"] = lesbar(mischen("#A4AAB0", c, .30 * staerke), p["bg"], 4.5)
+        p["akzent"] = lesbar(mischen(c, "#FFFFFF", .35), p["fl"], 4.6)
+        p["titel"] = mischen("#1E2124" if stufe == "gedaempft" else "#0E1012", c, .45 if stufe == "gedaempft" else .35)
+        p.update(_STATUS_DUNKEL)
+    p["akzent_text"] = "#FFFFFF" if kontrast("#FFFFFF", p["akzent"]) >= 4.5 else "#111111"
+    p["dunkel"] = stufe != "hell"
+    return p
+
+
+def ton_variablen(p: dict) -> dict[str, str]:
+    a = .18 if p["dunkel"] else .10
+    v = {"--bg": p["bg"], "--fl": p["fl"], "--fl2": p["fl2"], "--fls": p["fls"], "--rand": p["rand"], "--rand2": p["rand2"],
+         "--text": p["text"], "--text2": p["text2"], "--text3": p["text3"], "--akzent": p["akzent"],
+         "--akzent-text": p["akzent_text"], "--akzent-hell": p["akzent"], "--akzent-hover": p["akzent"],
+         "--fokus": p["akzent"], "--kopf": p["band"], "--rot": p["krit"], "--orange": p["warn"], "--gruen": p["ok"],
+         "--blau": p["blau"], "--ob-akzent": p["akzent"], "--ob-band": p["band"], "--ob-reiter": p["reiter"],
+         "--ob-rand": p["rand"], "--ob-text": p["text"], "--ob-text2": p["text2"], "--ob-hover": p["hover"],
+         "--ob-an": p["an"], "--ob-fl": p["bg"], "--glas": p["fls"], "--glas2": p["fl"], "--glasrand": p["rand"]}
+    for st, c in (("ok", p["ok"]), ("krit", p["krit"]), ("warn", p["warn"]), ("blau", p["blau"]),
+                  ("akzent", p["akzent"]), ("neutral", p["text3"])):
+        v.update({f"--s-{st}-bg": f"color-mix(in srgb, {c} {int(a * 100)}%, transparent)", f"--s-{st}-fg": c,
+                  f"--s-{st}-bd": f"color-mix(in srgb, {c} 45%, transparent)"})
+    return v
+
+
+def _titelleiste(v: dict, tl: str, titel_bg: str, dunkel: bool) -> None:
+    if tl == "hell":
+        v.update({"--ob-titel": "#FFFFFF" if not dunkel else "#1E2626",
+                  "--ob-titel-text": "#1F2A2A" if not dunkel else "#E6EEEE"})
+    elif tl == "dunkel":
+        v.update({"--ob-titel": "#1F2626", "--ob-titel-text": "#FFFFFF"})
+    else:
+        v.update({"--ob-titel": titel_bg, "--ob-titel-text": "#FFFFFF" if kontrast("#FFFFFF", titel_bg) >= 4.5
+                  else "#111111"})
+
+
 def css_variablen(d: dict, dunkel: bool) -> dict[str, str]:
-    """CSS-Variablen für <body> (inline – gehen den Theme-Klassen vor). Leer, wenn alles Standard ist."""
+    """CSS-Variablen für <body> (inline – gehen den Theme-Klassen vor). Leer, wenn alles Standard ist.
+    0.72: „Ganzes Design“ oder „Gedämpft“ → Ton-Palette aus der Farbe (alle Flächen, Ränder, Texte)."""
     v: dict[str, str] = {}
-    if not standard_farbe(d) or d.get("titelleiste", "farbig") != "farbig":
+    hl = d.get("helligkeit", "dunkel" if dunkel else "hell")
+    if d.get("faerbung") == "ganz" or hl == "gedaempft":
+        c, _t = akzent(d)
+        p = ton_palette(c, hl, 1.0 if d.get("faerbung") == "ganz" else .25)
+        v.update(ton_variablen(p))
+        _titelleiste(v, d.get("titelleiste", "farbig"), p["titel"], p["dunkel"])
+    elif not standard_farbe(d) or d.get("titelleiste", "farbig") != "farbig":
         c, titel = akzent(d)
         if dunkel:
             fl = "#141B1B"
@@ -163,15 +256,7 @@ def css_variablen(d: dict, dunkel: bool) -> dict[str, str]:
                       "--akzent-text": "#FFFFFF" if kontrast("#FFFFFF", a) >= 4.5 else "#111111", "--ob-akzent": a,
                       "--ob-an": mischen(c, "#FFFFFF", .8), "--ob-hover": mischen(c, "#FFFFFF", .88)})
             titel_bg = titel
-        tl = d.get("titelleiste", "farbig")
-        if tl == "hell":
-            v.update({"--ob-titel": "#FFFFFF" if not dunkel else "#1E2626",
-                      "--ob-titel-text": "#1F2A2A" if not dunkel else "#E6EEEE"})
-        elif tl == "dunkel":
-            v.update({"--ob-titel": "#1F2626", "--ob-titel-text": "#FFFFFF"})
-        else:
-            v.update({"--ob-titel": titel_bg, "--ob-titel-text": "#FFFFFF" if kontrast("#FFFFFF", titel_bg) >= 4.5
-                      else "#111111"})
+        _titelleiste(v, d.get("titelleiste", "farbig"), titel_bg, dunkel)
     schrift = SCHRIFTEN.get(d.get("schrift", "standard"), SCHRIFTEN["standard"])[1]
     if schrift:
         v.update({"--schrift": schrift, "--titel-schrift": schrift, "--ob-schrift": schrift})

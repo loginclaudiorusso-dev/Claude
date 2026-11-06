@@ -79,8 +79,8 @@ ERSTE_SCHRITTE = [
     ("Automatisch gespeichert", "Es gibt kein „Speichern“: jede Änderung ist sofort gespeichert – auch für die "
                                 "anderen PCs."),
     ("Neuigkeiten", "Die Glocke oben rechts zeigt neue Meldungen; die Zahl verschwindet, wenn sie gelesen sind."),
-    ("Darstellung", "Zoom, Kompakt, Vollbild und Hell/Dunkel unten rechts in der Statusleiste; Farben, Schrift und "
-                    "Programm-Einstellungen unter Datei → Optionen."),
+    ("Darstellung", "Zoom, Kompakt, Vollbild und Helligkeit (Hell → Gedämpft → Dunkel) unten rechts in der "
+                    "Statusleiste; Farbton, „Ganzes Design“, Schrift und Programm-Einstellungen unter Datei → Optionen."),
     ("Standort", "Der Standort steht oben neben „INNternat“ – Klick wechselt ihn."),
 ]
 TASTEN = [

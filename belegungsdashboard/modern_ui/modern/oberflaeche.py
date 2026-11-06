@@ -858,6 +858,12 @@ class Ansicht:
             if alt["vollbild"] and "vollbild" in aenderung and not aenderung["vollbild"]:
                 if not self._vollbild_nativ(False):
                     ui.run_javascript("document.fullscreenElement && document.exitFullscreen()")
+        if "helligkeit" in aenderung:                                          # 0.72: Helligkeit → passender Modus
+            soll = "hell" if aenderung["helligkeit"] == "hell" else "dunkel"
+            if soll in themes.modi(neu.get("theme", "innternat")):
+                neu["modus"] = soll
+        elif neu.get("modus") != alt.get("modus"):                              # alter Hell/Dunkel-Schalter
+            neu["helligkeit"] = "hell" if neu["modus"] == "hell" else "dunkel"
         self.design = themes.bereinigen(neu)
         themes.AKTIV = self.design
         self.body.classes(remove=" ".join(themes.ALLE_KLASSEN))
@@ -868,7 +874,7 @@ class Ansicht:
         if self.design["layout"] != "canvas" and self.prompt:
             self.prompt_eingabe.set_value("")
             self.prompt, self._antwort = "", None
-        diagramm = ("farbe", "farbe_eigen", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
+        diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
                       or any(alt.get(k) != self.design.get(k) for k in diagramm))
         if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \

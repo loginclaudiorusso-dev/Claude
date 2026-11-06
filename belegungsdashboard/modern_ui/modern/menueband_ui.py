@@ -66,8 +66,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         a.center_umschalten(True)
     elif name == "neuigkeiten":
         a._neuigkeiten_panel()
-    elif name == "modus":
-        await a.design_setzen(modus="dunkel" if d["modus"] == "hell" else "hell")
+    elif name == "modus":                                   # 0.72: Hell → Gedämpft → Dunkel
+        from . import darstellung_kern as dk
+
+        await a.design_setzen(helligkeit=dk.naechste_helligkeit(d.get("helligkeit", "hell")))
     elif name == "dichte":
         await a.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal")
     elif name == "vollbild":
@@ -330,7 +332,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
             ui.label(f"Version {__version__}")
             with ui.element("div").classes("m-ob-zoom"):    # wie in Word/Excel: Ansicht-Schalter und Zoom unten rechts
                 an = {"dichte": a.design.get("dichte") == "kompakt", "vollbild": bool(a.design.get("vollbild")),
-                      "modus": a.design.get("modus") == "dunkel"}
+                      "modus": a.design.get("helligkeit", "hell") != "hell"}
                 for p in mb.STATUSLEISTE:
                     z = ui.element("button").classes("m-ob-zk" + (" an" if an.get(p.ziel[1]) else ""))
                     attr(z, title=p.tipp or p.text, aria_label=p.text)

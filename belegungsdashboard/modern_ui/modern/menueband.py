@@ -175,7 +175,7 @@ TITELLEISTE = [Punkt("Neuigkeiten", "notifications", A("neuigkeiten"), False),
 # Statusleiste rechts (wie in Word/Excel): Darstellung des Arbeitsbereichs
 STATUSLEISTE = [Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
                 Punkt("Vollbild", "fullscreen", A("vollbild"), False, "Vollbild ein/aus"),
-                Punkt("Hell / Dunkel", "contrast", A("modus"), False, "Zwischen hell und dunkel wechseln"),
+                Punkt("Helligkeit", "contrast", A("modus"), False, "Helligkeit: Hell → Gedämpft → Dunkel"),
                 Punkt("Verkleinern", "remove", A("zoom:-"), False), Punkt("100 %", "", A("zoom:100"), False),
                 Punkt("Vergrößern", "add", A("zoom:+"), False)]
 

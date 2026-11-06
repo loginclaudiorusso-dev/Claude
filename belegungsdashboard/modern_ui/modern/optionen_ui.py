@@ -119,12 +119,16 @@ def _farben(a, d: dict, setzen) -> None:
         with ui.element("div").classes("m-opt-hinweis"):
             ui.label("Farben und Schrift gibt es in den weiteren Darstellungen. Am vertrautesten ist das Menüband.")
             knopf("Menüband einschalten", lambda: setzen(layout="office"), "primaer", "view_agenda")
-    _titel("Design", "Hell oder dunkel – wie das Office-Design „Weiß“ bzw. „Schwarz“.")
+    _titel("Helligkeit", "Hell, gedämpft (etwas dunkler, im Farbton – wie „Dunkelgrau“ in Office) oder dunkel. "
+           "Auch unten rechts in der Statusleiste.")
     if len(themes.modi(d["theme"])) > 1:
-        _wahl({"hell": "Hell", "dunkel": "Dunkel"}, d["modus"], lambda m: setzen(modus=m),
-              {"hell": "light_mode", "dunkel": "dark_mode"})
+        _wahl(dk.HELLIGKEIT, d["helligkeit"], lambda h: setzen(helligkeit=h),
+              {"hell": "light_mode", "gedaempft": "contrast", "dunkel": "dark_mode"})
     else:
         ui.label("Dieses Farbthema gibt es nur in einer Variante.").classes("m-opt-unter")
+    _titel("Färbung", "„Nur Akzent“ färbt Titelleiste, Symbole und Knöpfe. „Ganzes Design“ färbt auch Hintergrund, "
+           "Karten, Menüband, Ränder und Text in Abstufungen des Farbtons – die Lesbarkeit wird dabei geprüft.")
+    _wahl(dk.FAERBUNG, d["faerbung"], lambda f: setzen(faerbung=f), {"akzent": "format_color_text", "ganz": "format_paint"})
     _titel("Farbschema", "Akzentfarbe für Titelleiste, Symbole, Knöpfe und Diagramme.")
     with ui.element("div").classes("m-opt-schemata"):
         for k, (name, farbe, titel) in dk.FARBSCHEMATA.items():
@@ -241,7 +245,8 @@ def _zurueck(a, d: dict, setzen) -> None:
     _titel("Auf Standard zurücksetzen")
     ui.label("Setzt Farben, Zoom, Schrift und Diagramme zurück. Das Layout (z. B. Menüband) bleibt.").classes("m-opt-unter")
     with ui.element("div").classes("m-opt-zeile"):
-        knopf("Farben & Design", lambda: setzen(**{k: dk.STANDARD[k] for k in ("farbe", "farbe_eigen", "titelleiste")}),
+        knopf("Farben & Design", lambda: setzen(**{k: dk.STANDARD[k] for k in ("farbe", "farbe_eigen", "titelleiste", "helligkeit",
+                                                                            "faerbung")}),
               "", "palette")
         knopf("Anzeige & Schrift", lambda: setzen(zoom=100, schrift="standard", band_gross=False, dichte="normal"), "",
               "format_size")
