@@ -283,7 +283,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
             attr(such, title="Suchen (Strg+K)")
             with such:
                 ui.icon("search")
-                ui.label("Suchen: Name, Zimmer, Seite …")
+                ui.label("Suchen oder Befehl: Name, Zimmer, „drucken“ …")
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")

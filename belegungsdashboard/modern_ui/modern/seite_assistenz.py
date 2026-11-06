@@ -343,5 +343,8 @@ def _fragen(a) -> None:
                     zeichnen_verlauf()
 
                 feld.on("keydown.enter", lambda: senden())
+                if (neu := getattr(a, "as_frage_neu", "")):        # 0.71: Frage aus der Befehlssuche (Strg+K)
+                    a.as_frage_neu = ""
+                    ui.timer(0.05, lambda: senden(neu), once=True)
                 knopf("Senden", lambda: senden(), "primaer", "send")
                 knopf("Neues Gespräch", lambda: (a.as_chat.clear(), zeichnen_verlauf()), "leise")

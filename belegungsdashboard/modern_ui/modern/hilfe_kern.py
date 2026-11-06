@@ -72,7 +72,9 @@ ERSTE_SCHRITTE = [
     ("Registerkarten", "Oben wie in Word und Excel: Start (Heute, Termine, Assistenz), Anreisen, Zimmer & Haus, "
                        "Auswertung, Verwalten. Ein Klick auf eine Schaltfläche öffnet die Ansicht; ein Punkt am Reiter "
                        "zeigt, wo die offene Seite liegt."),
-    ("Suchen", "Das Suchfeld oben (Strg+K) findet Personen, Zimmer und Seiten."),
+    ("Suchen und Befehle", "Das Suchfeld oben (Strg+K) findet Personen, Zimmer, Seiten und Befehle – z. B. „drucken“, "
+                           "„neuer Termin“, „abtippen“, „2-408 Mangel“ oder eine Frage wie „Wie viele Zimmer sind im "
+                           "Dezember frei?“."),
     ("Rückgängig", "Jede Änderung lässt sich mit Strg+Z oder dem Pfeil oben links zurücknehmen."),
     ("Automatisch gespeichert", "Es gibt kein „Speichern“: jede Änderung ist sofort gespeichert – auch für die "
                                 "anderen PCs."),

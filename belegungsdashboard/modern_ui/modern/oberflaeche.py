@@ -312,6 +312,7 @@ class Ansicht:
 
         ui.add_css(optionen_ui.CSS)            # 0.66: Optionen-Dialog
         ui.add_css(hilfe_ui.CSS)               # 0.68: Hilfe, Drucken (auch Druck-CSS für Strg+P)
+        ui.add_css(suche_palette.CSS)          # 0.71: Befehlssuche
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom
