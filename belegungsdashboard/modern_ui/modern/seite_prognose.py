@@ -99,6 +99,35 @@ def _option_roh(c: dict) -> dict:
     return _trend(o, t, c, zs, ort, zaehl, szen)
 
 
+def _berechnung_monat(a, pg, kap: int, i: int) -> list:
+    """0.75: Berechnung eines Monats für Detailpanel und ƒx – (Schlüssel, Werte, Aktionen) aus dem Kennzahlen-Katalog."""
+    zs = ak.szenario(pg, kap, 0)
+    if not 0 <= i < len(zs):
+        return []
+    z, pz = zs[i], pg.zeilen[i]
+    zu_zimmern = [("Nicht nutzbare Zimmer ansehen", lambda: a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute,
+                                                                       zu_filter=frozenset({"nicht_nutzbar"})))]
+    erg = []
+    if z.art == "ist" and z.ist is not None:
+        erg.append(("belegung", {}, []))
+        if kap:
+            erg.append(("auslastung", {"belegung": z.ist, "kapazitaet": kap}, []))
+        rueck = {m: (ist, p) for m, ist, p in pg.rueckblick}
+        if z.monat in rueck:
+            ist, p = rueck[z.monat]
+            erg.append(("backtest", {"ist": ist, "vorher": p}, []))
+    else:
+        erg.append(("prognose", {"erwartet": z.erwartet, "vertraege": pz.vertraege, "gesichert": pz.gesichert},
+                    [("Anreisen ansehen", lambda: a.oeffnen("anreisen", ansicht="zuteilen"))]))
+        erg.append(("band80", {"lo": z.lo80, "hi": z.hi80}, []))
+        if kap:
+            erg.append(("auslastung", {"belegung": z.erwartet, "kapazitaet": kap}, []))
+            erg.append(("reserve", {"belegung": z.erwartet, "kapazitaet": kap}, []))
+    if kap:
+        erg.append(("kapazitaet", {}, zu_zimmern))
+    return erg
+
+
 def _szenario_aktiv(c) -> bool:
     return c["kap"] != (c["pg"].kapazitaet or 0) or bool(c["offset"])
 
@@ -304,6 +333,15 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
                                  "data": [{"xAxis": labels[li + 1]}]}
     if zeig(2) and not start:
         reihen[6]["markPoint"] = _spotlights(t, zs, labels, kap)
+    # 0.75: Engpass-Zone – rot hinterlegt, wo die obere 80 %-Grenze die Kapazität erreicht (sichtbar, bevor es knapp wird)
+    from . import kennzahlen_katalog as kk
+
+    zonen = kk.engpass_bereiche([z.hi80 if z.art != "ist" else None for z in zs], kap) if kap and zeig(4) and not start else []
+    if zonen:
+        reihen[7]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["rot"], .10)},
+                                 "label": {"show": True, "position": "insideBottom", "color": t["rot"], "fontSize": 11,
+                                           "formatter": "Engpass möglich"},
+                                 "data": [[{"xAxis": labels[v]}, {"xAxis": labels[b]}] for v, b in zonen]}
     zusatz = {z.monat: z.vertraege for z in c["pg"].zeilen}
     blind = {mon: p + zusatz.get(mon, 0.0) for mon, _i, p in c["pg"].rueckblick} if c["backtest"] else {}
     reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 6, "color": t["orange"],
@@ -841,6 +879,15 @@ def zeichnen(a) -> None:
                 chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes(
                     "m-chart m-xg-chart" + (" gross" if praes else ""))
                 box["chart"] = chart
+                # 0.75: Klick auf einen Monat → Werte und Berechnung im Detailpanel; ƒx Berechnung unter dem Graph
+                if not praes:
+                    from . import diagramm_ui
+
+                    diagramm_ui.anbinden(a, chart, lambda i: _berechnung_monat(a, c()["pg"], zustand["kap"], i))
+                    zs_ = ak.szenario(c()["pg"], zustand["kap"], 0)
+                    naechster = next((i for i, z in enumerate(zs_) if z.art == "prognose"), None)
+                    if naechster is not None:
+                        diagramm_ui.fx_kasten(_berechnung_monat(a, c()["pg"], zustand["kap"], naechster))
                 if story:
                     ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
                 schluessel = jetzt if trend else a.aw_chart

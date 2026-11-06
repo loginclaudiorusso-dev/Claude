@@ -151,14 +151,14 @@ body.lay-office.band-zu .m-ob-reiter { border-bottom: 1px solid var(--ob-rand); 
 /* ---------- Detailpanel rechts: angedockt, Liste bleibt sichtbar (kein Abdunkeln) ---------- */
 body.lay-office .m-schleier { display: none !important; }
 body.lay-office .m-center, body.lay-office .m-center.offen { position: fixed !important; top: var(--af-oben, 216px) !important;
-  right: 0; bottom: 24px !important; height: auto !important; width: PANEL_BREITEpx !important; z-index: 25;
+  right: 0; bottom: 24px !important; height: auto !important; width: var(--af-pb, PANEL_BREITEpx) !important; z-index: 25;
   background: var(--ob-fl) !important; border-left: 1px solid var(--rand) !important; border-radius: 0 !important;
   box-shadow: -2px 0 8px rgba(0,0,0,.05) !important; backdrop-filter: none !important; transition: none !important; }
 body.lay-office .m-center:not(.offen) { transform: translateX(110%) !important; visibility: hidden; }
 body.lay-office .m-center.offen { transform: none !important; visibility: visible; }
-body.lay-office .m-center.offen.breit, body.lay-office .m-center.breit { width: PANEL_BREITpx !important; }
-body.lay-office:has(.m-center.offen) .m-inhalt { margin-right: PANEL_BREITEpx; }
-body.lay-office:has(.m-center.offen.breit) .m-inhalt { margin-right: PANEL_BREITpx; }
+body.lay-office .m-center.offen.breit, body.lay-office .m-center.breit { width: var(--af-pb, PANEL_BREITpx) !important; }
+body.lay-office:has(.m-center.offen) .m-inhalt { margin-right: var(--af-pb, PANEL_BREITEpx); }
+body.lay-office:has(.m-center.offen.breit) .m-inhalt { margin-right: var(--af-pb, PANEL_BREITpx); }
 body.lay-office .m-center .m-ckopf { min-height: 44px; padding: 6px 8px 6px 16px; }
 body.lay-office .m-center .m-ckopf .m-titel { font-size: 16px; font-weight: 600; }
 /* ---------- Heute: Sprung-Kacheln · links Aufgaben 60 % · rechts freie Zimmer, 7 Tage, Outlook ---------- */
@@ -197,6 +197,33 @@ body.lay-office .m-tz-wann { font-size: 13px !important; font-weight: 400 !impor
 @media (max-width: 1100px) {   /* schmal: Panel liegt über der Liste statt daneben */
   body.lay-office:has(.m-center.offen) .m-inhalt { margin-right: 0; } }
 @media print { body.lay-office .m-inhalt { margin-right: 0 !important; } }
+/* ---------- 0.75 Symbolstil: Linie (Standard) · Gefüllt · Rund – immer EINE Familie ---------- */
+body.lay-office.sym-gefuellt .material-icons { font-family: "Material Icons" !important; }
+body.lay-office.sym-rund .material-icons { font-family: "Material Icons Round" !important; }
+/* ---------- 0.75 Knopfstil – gilt für alle Knöpfe und Chips gleichzeitig ---------- */
+body.lay-office.knopf-weich .m-knopf { border-radius: 8px !important; }
+body.lay-office.knopf-weich .m-knopf:not(.primaer):not(.leise) { border-color: transparent !important;
+  background: color-mix(in srgb, var(--ob-akzent) 10%, var(--ob-fl)) !important; }
+body.lay-office.knopf-weich .m-stat:not(.an) { border-color: transparent !important; background: color-mix(in srgb, var(--ob-akzent) 7%, var(--ob-fl)) !important; }
+body.lay-office.knopf-kontur .m-knopf { border-radius: 6px !important; }
+body.lay-office.knopf-kontur .m-knopf.primaer { background: transparent !important; color: var(--ob-akzent) !important;
+  border: 1.5px solid var(--ob-akzent) !important; }
+body.lay-office.knopf-kontur .m-knopf.primaer:hover { background: var(--ob-akzent) !important; color: #fff !important; }
+body.lay-office.knopf-kontur .m-stat { background: transparent !important; }
+body.lay-office.knopf-kraeftig .m-knopf { border-radius: 16px !important; }
+body.lay-office.knopf-kraeftig .m-knopf.primaer { box-shadow: 0 1px 3px rgba(0,0,0,.25) !important; }
+body.lay-office.knopf-kraeftig .m-knopf:not(.primaer):not(.leise) { border-color: transparent !important;
+  background: color-mix(in srgb, var(--ob-text) 7%, var(--ob-fl)) !important; }
+body.lay-office.knopf-kraeftig .m-stat:not(.an) { border-color: transparent !important; background: color-mix(in srgb, var(--ob-text) 6%, var(--ob-fl)) !important; }
+/* ---------- 0.75 Hoher Kontrast: schwarz auf weiß, kräftige Ränder, deutlicher Fokus (Beamer, schwache Monitore) ---------- */
+body.lay-office.kontrast { --text: #000 !important; --text2: #1A1A1A !important; --text3: #333 !important; --rand: #000 !important;
+  --rand2: #000 !important; --bg: #FFF !important; --fl: #FFF !important; --fl2: #F2F2F2 !important; --ob-text: #000 !important;
+  --ob-text2: #1A1A1A !important; --ob-rand: #000 !important; --ob-fl: #FFF !important; --ob-band: #FFF !important; }
+body.lay-office.kontrast .m-knopf, body.lay-office.kontrast .m-stat, body.lay-office.kontrast .m-badge,
+body.lay-office.kontrast .q-field__control { border: 2px solid #000 !important; }
+body.lay-office.kontrast .m-zeile, body.lay-office.kontrast .m-tkopf { border-bottom: 1px solid #000 !important; }
+body.lay-office.kontrast *:focus-visible { outline: 3px solid #000 !important; outline-offset: 2px !important; }
+body.lay-office.kontrast .m-zweite, body.lay-office.kontrast .m-ptext { color: #1A1A1A !important; }
 """.replace("STATUS_VARS", _status_css()).replace("PANEL_BREITE", str(PANEL_BREITE)).replace("PANEL_BREIT", str(PANEL_BREIT))
 
 # Oberkante des Detailpanels = Unterkante der Kontextzeile (Menüband kann wachsen, einklappen oder zoomen)

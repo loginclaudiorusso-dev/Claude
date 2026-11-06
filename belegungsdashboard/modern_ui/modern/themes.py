@@ -238,6 +238,13 @@ def klassen(d: dict) -> list[str]:
         k.append("band-gross")
     if d["layout"] == "office" and d.get("band_zu"):
         k.append("band-zu")                     # 0.74: Menüband eingeklappt (Strg+F1)
+    if d["layout"] == "office":                 # 0.75: Knopf-/Symbolstil, hoher Kontrast
+        if d.get("knopfstil", "klar") != "klar":
+            k.append(f"knopf-{d['knopfstil']}")
+        if d.get("symbolstil", "linie") != "linie":
+            k.append(f"sym-{d['symbolstil']}")
+        if d.get("kontrast"):
+            k.append("kontrast")
     return k
 
 
@@ -249,7 +256,8 @@ def stil(d: dict) -> str:
     return _dk.style_text(_dk.css_variablen(d, d["modus"] != "hell"))
 
 
-ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
+ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "knopf-weich", "knopf-kontur",
+                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------

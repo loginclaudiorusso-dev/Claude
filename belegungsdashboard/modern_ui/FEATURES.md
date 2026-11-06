@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.74.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.75.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -8,6 +8,8 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Titelleiste mit Schnellzugriff (Rückgängig, Aktualisieren), Suchfeld und Standort
 - Registerkarten je Arbeitsbereich (Start, Anreisen, Zimmer & Haus, Auswertung, Verwalten) mit sichtbaren Ansichten, jeder Befehl genau einmal; Kontext-Registerkarte „Diagramm“ mit Gruppenpfeil ↘; Punkt am Reiter der offenen Seite
 - Statusleiste mit Kompakt, Vollbild, Hell/Dunkel und Zoom; Standort als Auswahl neben dem Programmnamen; Datei: Drucken, Importieren, Informationen & Sicherung, Optionen (inkl. Programm-Einstellungen, Oberfläche, „Leitung anzeigen“)
+- Diagramme (0.75): groß, Höhe ziehbar (gemerkt), Diagramm ⇄ Tabelle, Kopieren, Klick → Werte und Berechnung im Detailpanel, ƒx Berechnung aus dem Kennzahlen-Katalog (Worte · Formel mit Werten · Grundlage), Engpass-Zone in der Prognose, Engpässe als Heatmap; Detailpanel-Breite ziehbar
+- Design-Vorlagen (0.75): Petrol, Nordic Slate, Sand, Dunkel · Präsentation, Hoher Kontrast; Knopfstil Klar/Weich/Kontur/Kräftig, Symbolstil Linie/Gefüllt/Rund
 - Arbeitsfläche aus einem Guss (0.74): EINE Kontextzeile (Titel → Kontext → Chips → Suche → Filter → ⋯ → Hauptaktion rechts), Tabellenzeilen 36/28/44 px (Komfort neu), Köpfe fest, Menüband einklappbar (Strg+F1), Detailpanel rechts angedockt (Liste bleibt bedienbar), Heute mit Sprung-Kacheln und 60/40-Aufteilung, eine Umriss-Symbolfamilie, feste Schriftskala, Null-Chips grau, Zahlen der Ansicht in der Statusleiste
 - Arbeitsfläche: Kennzahlen als eine Chip-Zeile, Heute ohne doppelte Überschrift, Zimmervorschlag als 1-Klick-Knopf in der Zimmerspalte, eine Tagesauswahl in der Zimmer-Übersicht
 - Seitenkopf ohne Doppeltes (Ansichts-Umschalter, Aufgaben, Datenstand); Titel nennt die Ansicht

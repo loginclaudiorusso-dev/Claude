@@ -317,6 +317,10 @@ class Ansicht:
 
         ui.add_css(arbeitsflaeche.CSS)         # 0.74: Arbeitsfläche – Kontextzeile, feste Größen, Detailpanel
         ui.add_body_html(arbeitsflaeche.JS)
+        from . import diagramm_ui
+
+        ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
+        ui.add_body_html(diagramm_ui.JS)
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom

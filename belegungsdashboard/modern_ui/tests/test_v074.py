@@ -53,7 +53,7 @@ def test_null_chips_bleiben_stehen():
 
 def test_detailpanel_angedockt():
     assert "body.lay-office .m-schleier { display: none" in af.CSS  # kein Abdunkeln – Liste bleibt bedienbar
-    assert f"margin-right: {af.PANEL_BREITE}px" in af.CSS
+    assert f"margin-right: var(--af-pb, {af.PANEL_BREITE}px)" in af.CSS
     assert "--af-oben" in af.JS
 
 

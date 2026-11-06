@@ -54,9 +54,40 @@ DG_LEGENDE = {"oben": "oben", "unten": "unten", "aus": "aus"}
 STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig", "zoom": 100, "schrift": "standard",
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
+            "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent"}
 HELLIGKEIT = {"hell": "Hell", "gedaempft": "Gedämpft", "dunkel": "Dunkel"}          # 0.72
 FAERBUNG = {"akzent": "Nur Akzent", "ganz": "Ganzes Design"}
+# 0.75: Knopf- und Symbolstil – gelten immer für ALLE Knöpfe bzw. Symbole gleichzeitig (nie gemischt)
+KNOPFSTILE = {"klar": "Klar (wie Office)", "weich": "Weich", "kontur": "Kontur", "kraeftig": "Kräftig"}
+SYMBOLSTILE = {"linie": "Linie", "gefuellt": "Gefüllt", "rund": "Rund"}
+SYMBOL_SCHRIFT = {"linie": "Material Icons Outlined", "gefuellt": "Material Icons", "rund": "Material Icons Round"}
+# 0.75: fertige Vorlagen – ein Klick setzt Farbe, Helligkeit, Färbung, Titelleiste und Kontrast. Die Statusfarben
+# (frei grün, belegt blau, geplant violett …) bleiben in jeder Vorlage gleich.
+VORLAGEN = {
+    "petrol": ("Petrol (Standard)", "ruhig, wie gewohnt",
+               {"farbe": "petrol", "helligkeit": "hell", "faerbung": "akzent", "titelleiste": "farbig", "kontrast": False}),
+    "nordic": ("Nordic Slate", "kühl, klar, maximale Schärfe",
+               {"farbe": "eigen", "farbe_eigen": "#2563EB", "helligkeit": "hell", "faerbung": "akzent",
+                "titelleiste": "dunkel", "kontrast": False}),
+    "sand": ("Sand (warm)", "papierähnlich, augenschonend",
+             {"farbe": "eigen", "farbe_eigen": "#B45309", "helligkeit": "hell", "faerbung": "ganz", "titelleiste": "farbig",
+              "kontrast": False}),
+    "praesentation": ("Dunkel · Präsentation", "für Beamer und Cockpit",
+                      {"farbe": "eigen", "farbe_eigen": "#0891B2", "helligkeit": "dunkel", "faerbung": "akzent",
+                       "titelleiste": "farbig", "kontrast": False}),
+    "kontrast": ("Hoher Kontrast", "schwarz auf weiß, kräftige Ränder",
+                 {"farbe": "eigen", "farbe_eigen": "#005A9E", "helligkeit": "hell", "faerbung": "akzent",
+                  "titelleiste": "dunkel", "kontrast": True}),
+}
+
+
+def vorlage_von(d: dict) -> str | None:
+    """Welche Vorlage passt zu den aktuellen Einstellungen? (für die Markierung in den Optionen)"""
+    for k, (_n, _t, werte) in VORLAGEN.items():
+        if all(d.get(f) == w for f, w in werte.items() if not (f == "farbe_eigen" and d.get("farbe") != "eigen")):
+            return k
+    return None
 
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})$")
 
@@ -82,7 +113,9 @@ def bereinigen(d: dict) -> dict:
     e["faerbung"] = d.get("faerbung") if d.get("faerbung") in FAERBUNG else "akzent"
     e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
-    for k in ("band_gross", "band_zu", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):
+    e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
+    e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
+    for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):
         if k in d:
             e[k] = bool(d[k])
     return e

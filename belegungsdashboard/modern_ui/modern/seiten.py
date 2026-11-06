@@ -855,6 +855,7 @@ def aw_zeichnen(a) -> None:
                 f'<b>{E(tief.kw) if tief else "–"}</b> ({tief.frei_nach if tief else 0} frei)</span>', sanitize=False)
         knopf("Grenzen ändern", lambda: a.oeffnen("einstellungen", ansicht="allgemein"), "leise", "tune").style("margin-left:auto")
     with a.inhalt:
+        _engpass_heatmap(a, aw)
         with ui.element("div").classes("m-zwei"):
             with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
                 ui.label("Freie Zimmer je Woche – jetzt und nach Planung").classes("m-btitel")
@@ -908,6 +909,48 @@ def aw_zeichnen(a) -> None:
                                 ui.element("div").classes("m-bar akzent").style(f"width:{max(1, h.quote)}%")
                             ui.label(f"{h.quote} %").classes("m-mono")
                         ui.label(f"{h.belegt} belegt · {h.frei} frei · {h.gesperrt} gesperrt").classes("m-zweite")
+
+
+def _engpass_heatmap(a, aw) -> None:
+    """0.75: Wo wird es eng? – Woche × Art als Heatmap. Zahl = frei; orange = knapp, rot = kritisch (mit Symbol, nicht nur
+    Farbe); Klick → Einzelheiten der Woche im Detailpanel. ƒx zeigt, wie gezählt wird."""
+    from . import diagramm_ui
+
+    if not aw.wochen:
+        return
+    zeilen = [("frei_nach_planung", "Frei nach Planung", "gesamt", lambda w: w.frei_nach),
+              ("emr", "EMR", "emr", lambda w: w.emr), ("doppel", "Doppel UWT", "doppel", lambda w: w.doppel),
+              ("frei_jetzt", "Frei jetzt", None, lambda w: w.frei_jetzt)]
+    hoch = max([w.frei_jetzt for w in aw.wochen] + [1])
+    with ui.element("section").classes("m-block m-heat-block"):
+        with ui.element("div").classes("m-heat-kopf"):
+            ui.label("Wo wird es eng? · Woche × Art").classes("m-btitel")
+            ui.label("Zahl = frei · orange = knapp · rot = kritisch · Klick: Einzelheiten").classes("m-zweite")
+            fx = ui.element("button").classes("m-dg-knopf")
+            with fx:
+                ui.html("<b>ƒx</b> Berechnung", sanitize=False)
+            fx.on("click", js_handler="(e) => { const b = e.target.closest('button'); b.classList.toggle('an', "
+                                      "b.closest('section').querySelector('.m-fx').classList.toggle('offen')); }")
+        with ui.element("div").classes("m-heat").style(f"grid-template-columns: 150px repeat({len(aw.wochen)}, minmax(44px, 1fr))"):
+            ui.label("")
+            for w in aw.wochen:
+                ui.label(w.kw.split(" · ")[0]).classes("m-heat-kw")
+            for schluessel, name, art, wert in zeilen:
+                ui.label(name).classes("m-heat-name")
+                for w in aw.wochen:
+                    st = w.stufen.get(art, "ok") if art else "ok"
+                    z = wert(w)
+                    b = ui.element("button").classes(f"m-heat-zelle {STUFE_AW.get(st, 'ok')}")
+                    if st == "ok":
+                        b.style(f"--anteil: {min(1.0, max(0.0, z / hoch)):.2f}")
+                    attr(b, title=f"{w.kw} · {name}: {z} frei" + ("" if st == "ok" else f" – {st}"),
+                         aria_label=f"{w.kw} {name} {z} frei {st}")
+                    with b:
+                        if st != "ok":
+                            ui.icon("warning" if st == "knapp" else "error_outline")
+                        ui.label(str(z))
+                    b.on("click", lambda w=w, art=art: _engpass_panel(a, w, art or "gesamt"))
+        diagramm_ui.fx_kasten([(k, {}, []) for k, *_r in zeilen])
 
 
 def _engpass_panel(a, w, art: str) -> None:

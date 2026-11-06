@@ -87,7 +87,7 @@ def _chart_basis() -> dict:
             "xAxis": {"type": "category", **achse}, "yAxis": {"type": "value", **achse, "scale": True}}
 
 
-def _chart(opt: dict) -> None:
+def _chart(opt: dict, a=None) -> None:
     """Legende in den Farben der Linien/Flächen (sonst nimmt ECharts seine Standardpalette)."""
     for se in opt["series"]:
         se["color"] = se.get("lineStyle", {}).get("color") or se.get("areaStyle", {}).get("color") or _T()["text3"]
@@ -95,7 +95,11 @@ def _chart(opt: dict) -> None:
             se["color"] = se["areaStyle"]["color"]
     from . import diagramm_stil
 
-    ui.echart(diagramm_stil.anwenden(opt, themes.AKTIV)).classes("m-chart")      # 0.66: Diagrammtyp aus den Optionen
+    chart = ui.echart(diagramm_stil.anwenden(opt, themes.AKTIV)).classes("m-chart")      # 0.66: Diagrammtyp aus den Optionen
+    if a is not None:                          # 0.75: Klick auf einen Monat/Tag → Werte und Berechnung im Detailpanel
+        from . import diagramm_ui
+
+        diagramm_ui.anbinden(a, chart)
 
 
 def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "") -> None:
@@ -138,7 +142,7 @@ def _lage(a) -> None:
                     opt["series"].append({"name": "Kapazität", "type": "line", "data": [lg.kapazitaet] * len(v["tage"]),
                                           "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
                 opt["legend"]["data"] = ["Ist", "Prognose", "80 %-Spanne", "Kapazität"]
-                _chart(opt)
+                _chart(opt, a)
             with ui.element("section").classes("m-block"):
                 ui.label("Zusammensetzung heute").classes("m-btitel")
                 gesamt = max(lg.belegt, 1)
@@ -250,7 +254,7 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                 stich = det.tage[sum(det.ist) - 1]
                 opt["series"][0]["markLine"] = {"symbol": "none", "label": {"formatter": "Stichtag", "color": _T()["text3"]},
                                                 "lineStyle": {"color": _T()["text3"], "type": "dashed"}, "data": [{"xAxis": stich}]}
-            _chart(opt)
+            _chart(opt, a)
         with ui.element("section").classes("m-block"):
             ui.label("Personentage je Monat").classes("m-btitel")
             ui.label("Summe der belegten Plätze über alle Tage – hell = Prognose").classes("m-ptext")
@@ -260,7 +264,7 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
             opt["series"] = [{"name": "Personentage", "type": "bar", "barMaxWidth": 28,
                               "data": [{"value": w_, "itemStyle": {"color": _T()["akzent"], "opacity": 1 if i_ else .4}}
                                        for _m, w_, i_ in det.monate], "lineStyle": {"color": _T()["akzent"]}}]
-            _chart(opt)
+            _chart(opt, a)
         with ui.element("section").classes("m-block"):
             ui.label("Häuser").classes("m-btitel")
             ui.label("Belegung laut Pivot (nur Reha)" + (f", Stand {det.haeuser_stand:%d.%m.%Y}" if det.haeuser_stand else "")

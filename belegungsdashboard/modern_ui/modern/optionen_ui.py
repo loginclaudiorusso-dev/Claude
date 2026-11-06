@@ -119,6 +119,26 @@ def _farben(a, d: dict, setzen) -> None:
         with ui.element("div").classes("m-opt-hinweis"):
             ui.label("Farben und Schrift gibt es in den weiteren Darstellungen. Am vertrautesten ist das Menüband.")
             knopf("Menüband einschalten", lambda: setzen(layout="office"), "primaer", "view_agenda")
+    if office:
+        _titel("Vorlagen", "Ein Klick setzt Farbe, Helligkeit, Färbung und Titelleiste passend zusammen – danach lässt "
+               "sich alles einzeln weiter anpassen. Die Statusfarben (frei, belegt, geplant …) bleiben immer gleich.")
+        aktiv = dk.vorlage_von(d)
+        hinter = {"sand": "#FAF3EA", "praesentation": "#111827"}
+        with ui.element("div").classes("m-opt-vorlagen"):
+            for k, (name, unter, werte) in dk.VORLAGEN.items():
+                b = ui.element("button").classes("m-opt-vorlage" + (" an" if k == aktiv else ""))
+                attr(b, aria_pressed=str(k == aktiv).lower(), title=f"{name} – {unter}")
+                farbe = werte.get("farbe_eigen") if werte.get("farbe") == "eigen" else dk.FARBSCHEMATA[werte["farbe"]][1]
+                with b:
+                    with ui.element("span").classes("m-opt-vmuster").style(
+                            f"background:{hinter.get(k, '#FFFFFF')};" + ("outline:2px solid #000;" if werte.get("kontrast") else "")):
+                        ui.element("i").style(f"background:{farbe}")
+                        for s in ("#1E6B34", "#1F4E8C", "#5B3A9E"):
+                            ui.element("i").classes("st").style(f"background:{s}")
+                    ui.label(name).classes("m-name")
+                    ui.label(unter).classes("m-opt-unter")
+                b.on("click", lambda werte=werte: setzen(**werte))
+        _haken("Hoher Kontrast (schwarz auf weiß, kräftige Ränder)", d.get("kontrast", False), lambda x: setzen(kontrast=x))
     _titel("Helligkeit", "Hell, gedämpft (etwas dunkler, im Farbton – wie „Dunkelgrau“ in Office) oder dunkel. "
            "Auch unten rechts in der Statusleiste.")
     if len(themes.modi(d["theme"])) > 1:
@@ -186,6 +206,21 @@ def _anzeige(a, d: dict, setzen) -> None:
     _titel("Dichte")
     _wahl({"kompakt": "Kompakt (28 px)", "normal": "Standard (36 px)", "komfort": "Komfort (44 px)"}, d["dichte"], lambda x: setzen(dichte=x))
     if d["layout"] == "office":
+        _titel("Knöpfe", "Gilt für alle Knöpfe und Chips gleichzeitig. Die Hauptaktion bleibt in jedem Stil erkennbar.")
+        _wahl(dk.KNOPFSTILE, d.get("knopfstil", "klar"), lambda x: setzen(knopfstil=x),
+              {"klar": "smart_button", "weich": "blur_on", "kontur": "crop_square", "kraeftig": "radio_button_checked"})
+        _titel("Symbole", "Eine Symbolfamilie in drei Stilen – alle im Programm enthalten, auch ohne Internet.")
+        with ui.element("div").classes("m-opt-wahl"):
+            for k, text in dk.SYMBOLSTILE.items():
+                an = d.get("symbolstil", "linie") == k
+                b = ui.element("button").classes("m-opt-chip m-opt-sym" + (" an" if an else ""))
+                attr(b, aria_pressed=str(an).lower())
+                with b:
+                    for s in ("person", "bed", "apartment", "warning", "event"):
+                        stil = f"font-family:'{dk.SYMBOL_SCHRIFT[k]}';font-style:normal;font-size:18px;font-feature-settings:'liga'"
+                        ui.html(f'<i style="{stil}">{s}</i>', sanitize=False)
+                    ui.label(text)
+                b.on("click", lambda k=k: setzen(symbolstil=k))
         _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
         _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
 
@@ -280,6 +315,13 @@ CSS = r"""
 .m-opt-chip .q-icon { font-size: 18px; color: var(--ob-akzent, var(--akzent, #007F7F)); }
 .m-opt-chip:hover { background: var(--ob-hover, rgba(0,0,0,.05)); }
 .m-opt-chip.an { border-color: var(--ob-akzent, var(--akzent, #007F7F)); background: var(--ob-an, rgba(0,127,127,.14)); font-weight: 600; }
+.m-opt-vorlagen { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.m-opt-vorlage { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 8px; cursor: pointer;
+  border: 1px solid var(--rand); border-radius: 6px; background: var(--fl); color: var(--text); }
+.m-opt-vorlage.an { border-color: var(--akzent); box-shadow: inset 0 0 0 1px var(--akzent); }
+.m-opt-vmuster { display: flex; gap: 4px; align-items: center; height: 30px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--rand); }
+.m-opt-vmuster i { width: 30px; height: 16px; border-radius: 3px; } .m-opt-vmuster i.st { width: 10px; height: 10px; border-radius: 5px; }
+.m-opt-sym { gap: 6px; }
 .m-opt-schemata { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
 .m-opt-schema { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font: inherit;
   color: inherit; background: transparent; border: 1px solid var(--ob-rand, var(--rand, #ccc)); text-align: left; }
