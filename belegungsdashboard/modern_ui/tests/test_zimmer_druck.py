@@ -106,7 +106,9 @@ def test_kachel_mehrfach_und_mangelart():
     assert p("frei", 2, False, {"heizung"}, {"frei", "maengel"}) and not p("frei", 0, False, set(), {"frei", "maengel"})
     assert not p("belegt", 2, False, {"heizung"}, {"frei", "maengel"})
     assert p("belegt", 2, False, {"heizung"}, frozenset(), ["heizung"]) and not p("belegt", 2, False, {"wand"}, frozenset(), ["heizung"])
-    assert p("frei", 3, True, {"schimmel"}, {"frei"}, ["stufe:3"]) and not p("frei", 2, False, {"heizung"}, {"frei"}, ["stufe:3"])
+    # 0.70: ein freies, aber unbewohnbares Zimmer ist „nicht nutzbar“, nicht „frei“
+    assert p("frei", 3, True, {"schimmel"}, {"nicht_nutzbar"}, ["stufe:3"]) and not p("frei", 3, True, {"schimmel"}, {"frei"})
+    assert not p("frei", 2, False, {"heizung"}, {"frei"}, ["stufe:3"])
     assert not p("frei", 2, False, {"heizung"}, {"frei"}, ["stufe:3", "heizung"])       # Stufe und Art: beides muss passen
     assert zk.kachel_text({"geplant", "frei", "maengel"}, ["heizung"]) == "frei oder geplant · mit Mängeln · Mangel: Heizung defekt"
 

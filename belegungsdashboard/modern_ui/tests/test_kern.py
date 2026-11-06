@@ -36,7 +36,8 @@ def test_zeilen_ohne_zimmer_mit_vorschlag(leute):
     assert all(z.optionen[0].art == "vorschlag" and z.optionen[0].text.endswith("passt") for z in zs)
     assert kern.zaehlen(zs) == {"alle": 3, "handeln": 0, "maengel": 0, "ohne": 3}
     k = kern.kennzahlen(st, leute)
-    assert k["frei"] > 0 and set(k) == {"frei", "belegt", "gesperrt"}
+    assert k["frei"] > 0 and set(k) == {"frei", "belegt", "nicht_nutzbar", "gesperrt"}   # 0.70: „gesperrt“ = Alias
+    assert k["gesperrt"] == k["nicht_nutzbar"]
 
 
 def test_vorschlaege_uebernehmen_und_rueckgaengig(leute):

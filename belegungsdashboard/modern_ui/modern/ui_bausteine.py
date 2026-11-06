@@ -60,12 +60,14 @@ ZUSTAND = {
     "frei": ("ok", "check_circle", "frei"), "teilweise": ("ok", "adjust", "1 Bett frei"),
     "belegt": ("blau", "person", "belegt"), "geplant": ("akzent", "schedule", "geplant"),
     "gesperrt": ("neutral", "block", "gesperrt"), "maengel": ("warn", "priority_high", "Mängel"),
+    "nicht_nutzbar": ("neutral", "block", "nicht nutzbar"),                # 0.70: Zustand (Grund im Detail)
     "unbewohnbar": ("krit", "report", "unbewohnbar"), "pruefen": ("warn", "warning", "prüfen"),
     "ohne": ("krit", "person_off", "ohne Zimmer"),
 }
 SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "handeln": "error", "alle": "groups",
            "np": "trending_flat", "offen": "pending", "eilig": "bolt", "erledigt": "task_alt", "laufend": "key",
-           "mail": "mail", "weitere": "apartment", "neu": "fiber_new", "bereit": "verified", "unfertig": "cleaning_services", 3: "report", 2: "priority_high",
+           "mail": "mail", "weitere": "apartment", "neu": "fiber_new", "bereit": "verified", "unfertig": "cleaning_services",
+           "nicht_nutzbar": "block", 3: "report", 2: "priority_high",
            1: "info"}
 
 

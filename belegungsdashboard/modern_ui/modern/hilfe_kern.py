@@ -18,6 +18,10 @@ SEITEN = {
         "Im Menü ⋯ der Seite: Anreiseliste, Schlüsselliste und Zimmerschilder drucken.",
     ]),
     "zimmer": ("Zimmer", "Alle Zimmer mit Belegung, Sperren und Mängeln.", [
+        "Jedes Zimmer hat genau einen Zustand: frei, geplant, belegt oder nicht nutzbar (gesperrt oder wegen eines "
+        "Mangels unbewohnbar – gestreift). Zusammen ergeben sie alle Zimmer.",
+        "Dazu zwei Markierungen, die auf jedem Zustand liegen können: „nicht bezugsfertig“ (Besen: Reinigung offen – "
+        "zuteilen geht trotzdem) und „mit Mangel“ (!).",
         "Ein Zimmer anklicken öffnet die Zimmerkarte: Bewohner, Verlauf, Mängel, Sperre.",
         "Eine Sperre (z. B. Renovierung) lässt sich in der Zimmerkarte früher beenden („fertig renoviert ab …“).",
         "Filter oben (Tag, Haus, frei/belegt/gesperrt) wirken sofort.",

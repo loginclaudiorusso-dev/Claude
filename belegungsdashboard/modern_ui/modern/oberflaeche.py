@@ -1013,7 +1013,7 @@ class Ansicht:
                            {"neu": "Personen, die in den letzten 7 Tagen in die Listen gekommen sind"})
                 ui.element("div").classes("m-trennlinie")
                 zimmer = [("frei", k["frei"], f"frei am {tag:%d.%m.}", "ok"), ("belegt", k["belegt"], "belegt", "blau"),
-                          ("gesperrt", k["gesperrt"], "gesperrt", "neutral")]
+                          ("nicht_nutzbar", k["nicht_nutzbar"], "nicht nutzbar", "neutral")]
                 np_ = getattr(self, "np", None)
                 if np_ and np_.tiefst:
                     text, frei, stufe = np_.tiefst
@@ -1027,7 +1027,7 @@ class Ansicht:
                            {"np": "Mindestens so viele Zimmer bleiben frei, wenn alle Anreisen der nächsten 12 Wochen ein "
                                   "Zimmer hätten – Klick: alle Wochen",
                             "frei": "Klick: diese Zimmer in der Übersicht", "belegt": "Klick: diese Zimmer in der Übersicht",
-                            "gesperrt": "Klick: diese Zimmer in der Übersicht",
+                            "nicht_nutzbar": "Gesperrt oder unbewohnbar – Klick: diese Zimmer in der Übersicht",
                             "bereit": "Zimmer gespeichert, kein Konflikt, Reinigung erledigt – Klick: was fehlt und was "
                                       "vorzubereiten ist"})
         with self.inhalt:

@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.69.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.70.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -45,6 +45,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Archiv früherer Anreisen (Mehr → Archiv): beliebiger Zeitraum, Suche nach Name/Maßnahme/Gruppe/Zimmer, Zimmer laut Planung, Gebäudeplan oder Zimmerhistorie; Drucken und Excel
 
 ## Zimmer
+- Zimmerzustände (0.70): frei, geplant, belegt, nicht nutzbar (schließen sich aus, zusammen = alle Zimmer) plus Markierungen „nicht bezugsfertig“ und „mit Mangel“ – einheitlich in Übersicht, Liste, Karten, Anreisen, Heute und Leitstand
 - Zimmer hinzufügen, die im Gebäudeplan fehlen (Einstellungen → Zimmer-Stammdaten oder Zimmer → Bearbeiten); entfernen: selbst angelegte löschen, Zimmer aus dem Gebäudeplan auf „gehört nicht zum Internat“
 - Änderungen je Zeitraum (Zuteilungen, Umzüge/Auszüge, Mängel) mit Excel-Export
 - Übersicht als Kacheln je Haus/Etage, Stichtag wählbar, mehrere Kacheln kombinierbar, Filter nach Mangelart, Status „nicht bezugsfertig“

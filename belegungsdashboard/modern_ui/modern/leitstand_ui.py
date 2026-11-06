@@ -854,7 +854,7 @@ class Leitstand(Ansicht):
                      "und alle Formulare. Nichts wird verdeckt.").classes("ls-hilfe")
             if self.buehne == "dispo" and self.stand is not None:
                 k = kern.kennzahlen(self.stand, self.heute)
-                ui.label(f"Heute: {k['frei']} frei · {k['belegt']} belegt · {k['gesperrt']} gesperrt").classes("ls-hilfe")
+                ui.label(f"Heute: {k['frei']} frei · {k['belegt']} belegt · {k['nicht_nutzbar']} nicht nutzbar").classes("ls-hilfe")
 
     def _person_inspektor(self, z: kern.Zeile) -> None:
         b = next((x for x in self.stand.bedarf if x.schluessel == z.schluessel), None)

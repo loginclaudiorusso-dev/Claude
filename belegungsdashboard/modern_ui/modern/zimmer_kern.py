@@ -14,7 +14,28 @@ from belegung import zimmerplan as zp
 
 from .kern import _schritt, kurz
 
-STATUS = {"": "Alle", "frei": "Frei", "belegt": "Belegt", "geplant": "Geplant", "gesperrt": "Gesperrt"}
+STATUS = {"": "Alle", "frei": "Frei", "geplant": "Geplant", "belegt": "Belegt", "nicht_nutzbar": "Nicht nutzbar"}
+
+# 0.70 – Zimmerzustände: VIER Zustände, die sich ausschließen und zusammen alle Zimmer ergeben, dazu ZWEI Markierungen,
+# die auf jedem Zustand liegen können. Gerechnet wird nur hier (der Gebäudeplan und das Hauptprogramm bleiben gleich):
+#   frei            mindestens ein Bett frei und bewohnbar (auch wenn die Reinigung vor dem Einzug noch offen ist –
+#                   zuteilen geht, die Reinigung kommt vor der Anreise; das zeigt die Markierung „nicht bezugsfertig“)
+#   geplant         nur geplant, noch nicht eingezogen
+#   belegt          alle Betten belegt (ein belegtes Zimmer mit schwerem Mangel bleibt belegt – die Markierung warnt)
+#   nicht nutzbar   gesperrt laut Gebäudeplan ODER frei, aber wegen eines Mangels nicht bewohnbar
+# Markierungen: „nicht bezugsfertig“ (Reinigung offen / dringender Mangel) · „mit Mangel“ (offener Mangel jeder Stufe)
+ZUSTAENDE = {"frei": "frei", "geplant": "geplant", "belegt": "belegt", "nicht_nutzbar": "nicht nutzbar"}
+MARKEN = {"unfertig": "nicht bezugsfertig", "maengel": "mit Mangel"}
+_ALT = {"gesperrt": "nicht_nutzbar", "unbewohnbar": "nicht_nutzbar"}       # Sprünge/gemerkte Filter aus älteren Versionen
+
+
+def zustand(status: str, unbewohnbar: bool = False) -> str:
+    """Zustand eines Zimmers aus dem Status am Tag (frei | teilweise | belegt | geplant | gesperrt) und „unbewohnbar“."""
+    if status == "gesperrt":
+        return "nicht_nutzbar"
+    if status in ("belegt", "geplant"):
+        return status
+    return "nicht_nutzbar" if unbewohnbar else "frei"
 MERKMALE = {"maengel": "Mängel", "reno": "Renoviert", "Vinyl": "Vinyl", "Teppich": "Teppich", "tiere": "Tier",
             "doppel": "Doppelzimmer", "maenner": "Bad über Flur"}
 # Seltenere Filter (wie „Filter ▾“ im bisherigen Programm)
@@ -44,12 +65,20 @@ def filter_bauen(haus: str = "", status: str = "", schnell: set[str] | None = No
                  mehr: dict | None = None) -> zl.Filter:
     schnell = schnell or set()
     m = {**MEHR_LEER, **(mehr or {})}
-    return zl.Filter(haus=haus, status=status, text=text.strip(),
+    status = _ALT.get(status, status)
+    f = zl.Filter(haus=haus, status=status if status in ("belegt", "geplant") else "", text=text.strip(),
                      renoviert="ja" if "reno" in schnell else m["renoviert"],
                      boeden=set(m["boeden"]) | ({"Vinyl", "Teppich"} & schnell),
                      merkmale=set(m["merkmale"]) | {x for x in schnell if x in ("tiere", "doppel", "maenner")},
                      nur_internat=not m["alle"], gruppen=set(m["gruppen"]), gruppen_modus=m["modus"],
                      maengel=set(m["maengel"]) | ({"*"} if "maengel" in schnell else set()))
+    f.zustand = status if status in ("frei", "nicht_nutzbar") else ""   # frei/nicht nutzbar: eigene Regel (s. zustand)
+    return f
+
+
+def _zustand_passt(stand: zp.Planstand, f, r) -> bool:
+    z = getattr(f, "zustand", "")
+    return not z or zustand(r.status, r.zimmer.id in stand.lage.unbewohnbar) == z
 
 
 def mehr_aktiv(mehr: dict | None) -> int:
@@ -77,8 +106,8 @@ def filter_optionen(heute: date) -> dict:
 def zaehler(stand: zp.Planstand, haus: str, tag: date, alle: bool = False) -> dict[str, int]:
     """Zahlen an den Status-Knöpfen (für das gewählte Haus)."""
     zs = zl.filtern(stand, zl.Filter(nur_internat=not alle, haus=haus), tag)
-    n = {s: sum(1 for r in zs if r.status == s or (s == "frei" and r.status == "teilweise"))
-         for s in ("frei", "belegt", "geplant", "gesperrt")}
+    unbew = stand.lage.unbewohnbar
+    n = {s: sum(1 for r in zs if zustand(r.status, r.zimmer.id in unbew) == s) for s in ZUSTAENDE}
     n[""] = len(zs)
     return n
 
@@ -101,7 +130,7 @@ def auslastung_basis(zs: list) -> tuple[int, int]:
 
 
 def _sortiert(stand: zp.Planstand, f: zl.Filter, tag: date) -> list:
-    return sorted(zl.filtern(stand, f, tag), key=lambda r: (zp._haus_sort(r.zimmer.haus), zp._etage_sort(r.zimmer.etage),
+    return sorted((r for r in zl.filtern(stand, f, tag) if _zustand_passt(stand, f, r)), key=lambda r: (zp._haus_sort(r.zimmer.haus), zp._etage_sort(r.zimmer.etage),
                                                             r.zimmer.nummer))
 
 
@@ -110,14 +139,15 @@ def liste(stand: zp.Planstand, f: zl.Filter, tag: date) -> list[LZeile]:
     for r in _sortiert(stand, f, tag):
         z = r.zimmer
         st = mg.stufe(r.maengel)
+        zu = zustand(r.status, z.id in stand.lage.unbewohnbar)
         erg.append(LZeile(z.id, z.kurz, zp.flur_text(z).split(" · ", 1)[-1], zl.merkmal_kurz(z), zl.reno_text(z) or "",
-                          r.boden or "", r.heute, r.status, ", ".join(sorted({mg.NAMEN.get(m.art, m.art) for m in r.maengel})),
+                          r.boden or "", r.heute, "nicht_nutzbar" if zu == "nicht_nutzbar" else r.status, ", ".join(sorted({mg.NAMEN.get(m.art, m.art) for m in r.maengel})),
                           st, z.notiz))
     return erg
 
 
 def liste_druck(stand: zp.Planstand, f: zl.Filter, tag: date, namen: bool = True) -> str:
-    return zl.liste_html(zl.filtern(stand, f, tag), f, namen)
+    return zl.liste_html([r for r in zl.filtern(stand, f, tag) if _zustand_passt(stand, f, r)], f, namen)
 
 
 def liste_tsv(stand: zp.Planstand, f: zl.Filter, tag: date) -> tuple[str, int]:
@@ -214,7 +244,8 @@ def _kkarte(stand: zp.Planstand, r, tag: date) -> KKarte:
     merkmale = [x for x in (f"renoviert {zl.reno_text(z)}" if z.renoviert else "", r.boden, "Tier" if z.tiere else "",
                             "Bad über den Flur" if z.nur_maenner else "", "Gäste" if z.gaeste else "") if x]
     st = mg.stufe(r.maengel)
-    k = KKarte(z.id, z.kurz, z.betten, r.status, " · ".join(merkmale), st,
+    zu = zustand(r.status, z.id in stand.lage.unbewohnbar)
+    k = KKarte(z.id, z.kurz, z.betten, "nicht_nutzbar" if zu == "nicht_nutzbar" else r.status, " · ".join(merkmale), st,
                " · ".join(m.text for m in sorted(r.maengel, key=lambda m: -m.stufe)),
                any(getattr(m, "unbewohnbar", False) for m in r.maengel))
     for b in r.belegungen:
@@ -786,15 +817,16 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
 # Kachel-Auswahl der Übersicht: mehrere Kacheln gleichzeitig. Status-Kacheln schließen sich gegenseitig aus und werden
 # deshalb mit „oder“ verknüpft (frei oder geplant), Mängel/unbewohnbar sind Eigenschaften und schränken zusätzlich ein
 # (frei + mit Mängeln = freie Zimmer mit Mängeln). Der Mangelart-Filter (Stufe/Art) gilt immer zusätzlich.
-KACHEL_STATUS = ("frei", "belegt", "geplant", "gesperrt")
-KACHEL_EIGENSCHAFT = ("unfertig", "maengel", "unbewohnbar")
+KACHEL_STATUS = tuple(ZUSTAENDE)                       # 0.70: die vier Zustände (schließen sich aus → „oder“)
+KACHEL_EIGENSCHAFT = tuple(MARKEN)                     # Markierungen (schränken zusätzlich ein)
 
 
 def kacheln(wert) -> frozenset:
-    """Kachel-Auswahl vereinheitlichen – andere Seiten springen noch mit einem einzelnen Schlüssel („frei“) hierher."""
+    """Kachel-Auswahl vereinheitlichen – andere Seiten springen mit einem einzelnen Schlüssel („frei“) hierher; alte
+    Schlüssel („gesperrt“, „unbewohnbar“) werden zu „nicht nutzbar“."""
     if not wert:
         return frozenset()
-    return frozenset({wert} if isinstance(wert, str) else wert)
+    return frozenset(_ALT.get(w, w) for w in ({wert} if isinstance(wert, str) else wert))
 
 
 def mangel_passt(stufe: int, arten, filt) -> bool:
@@ -809,11 +841,12 @@ def mangel_passt(stufe: int, arten, filt) -> bool:
 
 
 def kachel_passt(status: str, stufe: int, unbewohnbar: bool, arten, auswahl, filt=None, unfertig: bool = False) -> bool:
+    auswahl = kacheln(auswahl)
     st = auswahl & set(KACHEL_STATUS)
     ei = auswahl & set(KACHEL_EIGENSCHAFT)
-    if st and not (status in st or ("frei" in st and status == "teilweise")):
+    if st and zustand(status, unbewohnbar) not in st:
         return False
-    if ei and not (("maengel" in ei and stufe) or ("unbewohnbar" in ei and unbewohnbar) or ("unfertig" in ei and unfertig)):
+    if ei and not (("maengel" in ei and stufe) or ("unfertig" in ei and unfertig)):
         return False
     return mangel_passt(stufe, arten, filt)
 
@@ -836,8 +869,8 @@ def kachel_text(auswahl, filt=None) -> str:
 # Drucken & Excel: Zimmer nach Filter (Liste/Karten) bzw. Kachel (Übersicht) – mit „frei ab“ / „frei bis“
 # ---------------------------------------------------------------------------------------
 
-KACHEL_TEXT = {"frei": "frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt",
-               "maengel": "mit Mängeln", "unbewohnbar": "unbewohnbar", "unfertig": "nicht bezugsfertig"}
+KACHEL_TEXT = {"frei": "frei", "belegt": "belegt", "geplant": "geplant", "nicht_nutzbar": "nicht nutzbar",
+               "maengel": "mit Mängeln", "unfertig": "nicht bezugsfertig"}
 STATUS_TEXT = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "geplant", "gesperrt": "gesperrt"}
 
 

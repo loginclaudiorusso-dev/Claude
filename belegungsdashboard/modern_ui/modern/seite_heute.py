@@ -23,7 +23,8 @@ class Tag:
     np: object = None                                    # kern.NachPlanung
     willkommen: bool = False                             # „Erste Schritte“ zeigen (bis „Verstanden“)
     woche: list = field(default_factory=list)            # Tageszentrale: je Tag (Datum, Anreisen, mit Zimmer, bereit, Abreisen)
-    nicht_nutzbar: int = 0                               # unbewohnbare Zimmer
+    nicht_nutzbar: int = 0                               # 0.70: Zustand „nicht nutzbar“ (gesperrt oder unbewohnbar)
+    unbewohnbar: int = 0                                 # davon wegen eines Mangels (das ist der Alarm)
     mit_maengeln: int = 0                                # Zimmer mit offenen Mängeln
 
 
@@ -37,7 +38,11 @@ def tag_daten(stand, heute: date) -> Tag:
         t.abreisen.append(("heute" if a.tag == heute else "morgen", a.name, kurz(a.zimmer)))
     dringend, offen = cockpit.reinigung_heute(stand, heute)
     t.reinigung = (len(dringend), len(offen))
-    t.nicht_nutzbar = len(stand.lage.unbewohnbar)
+    from .kern import kennzahlen
+
+    t.nicht_nutzbar = kennzahlen(stand, heute)["nicht_nutzbar"]
+    t.unbewohnbar = sum(1 for zid in stand.lage.unbewohnbar if zid in stand.lage.zimmer
+                        and stand.lage.status_am(zid, heute)[0] in ("frei", "teilweise"))
     try:
         from belegung import maengel
 
@@ -508,9 +513,11 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
          lambda: a.oeffnen("anreisen", ansicht="zuteilen", kennung=a.heute.isoformat()) if heute_an else a.oeffnen("anreisen")),
         ("rein", eilig, "Reinigung vor Einzug", f"offen · {offen} weitere heute", "warn" if eilig else "ok", "cleaning_services",
          lambda: a.oeffnen("reinigung", rg_zeitraum="heute")),
-        ("zimmer", t.nicht_nutzbar, "Zimmer nicht nutzbar", f"{t.mit_maengeln} Zimmer mit Mängeln",
-         "krit" if t.nicht_nutzbar else "ok", "report" if t.nicht_nutzbar else "verified",
-         lambda: a.oeffnen("zimmer", ansicht="maengel")),
+        ("zimmer", t.nicht_nutzbar, "Zimmer nicht nutzbar",
+         (f"davon {t.unbewohnbar} wegen Mangel · " if t.unbewohnbar else "gesperrt laut Gebäudeplan · " if t.nicht_nutzbar
+          else "") + f"{t.mit_maengeln} mit Mängeln",
+         "krit" if t.unbewohnbar else "ok", "report" if t.unbewohnbar else "verified",   # Sperren sind geplant – kein Alarm
+         lambda: a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=frozenset({"nicht_nutzbar"}))),
     ]
     if np_ and np_.tiefst:
         text, frei, stufe = np_.tiefst

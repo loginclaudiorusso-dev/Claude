@@ -427,6 +427,7 @@ CSS += """
 .m-kachel.geplant, .m-legende i.geplant { background: var(--fl); border: 1.5px dashed var(--akzent); color: #C7CEFF; }
 .m-kachel.gesperrt, .m-legende i.gesperrt { background: repeating-linear-gradient(135deg, #2A2D34 0 5px, #22252B 5px 10px); color: var(--text3); }
 .m-kachel.unbew { border: 2px solid var(--rot); }
+.m-kachel.nn { background: repeating-linear-gradient(135deg, #2A2D34 0 5px, #22252B 5px 10px); color: var(--text3); }   /* 0.70 */
 .m-kachel.strittig { outline: 2px dashed var(--orange); outline-offset: 1px; }
 .m-kachel-s { position: absolute; top: -6px; left: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
   border-radius: 6px; padding: 0 4px; line-height: 14px; }

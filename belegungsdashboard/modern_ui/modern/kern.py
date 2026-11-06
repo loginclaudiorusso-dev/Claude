@@ -275,13 +275,17 @@ def zaehlen(zs: list[Zeile]) -> dict[str, int]:
 
 
 def kennzahlen(stand: zp.Planstand, tag: date) -> dict[str, int]:
-    """Internatszimmer (ohne Gästezimmer) am Tag: frei | belegt | gesperrt."""
-    erg = {"frei": 0, "belegt": 0, "gesperrt": 0}
+    """Internatszimmer (ohne Gästezimmer) am Tag nach den Zimmerzuständen (0.70): frei | belegt (inkl. geplant) |
+    nicht_nutzbar (gesperrt oder unbewohnbar). „gesperrt“ bleibt als gleichwertiger Name für ältere Aufrufer."""
+    from .zimmer_kern import zustand
+
+    erg = {"frei": 0, "belegt": 0, "nicht_nutzbar": 0}
     for z in stand.zimmer:
         if not z.aktiv or z.gaeste:
             continue
-        s = stand.lage.status_am(z.id, tag)[0]
-        erg["frei" if s in ("frei", "teilweise") else ("gesperrt" if s == "gesperrt" else "belegt")] += 1
+        zu = zustand(stand.lage.status_am(z.id, tag)[0], z.id in stand.lage.unbewohnbar)
+        erg["belegt" if zu in ("belegt", "geplant") else zu] += 1
+    erg["gesperrt"] = erg["nicht_nutzbar"]
     return erg
 
 

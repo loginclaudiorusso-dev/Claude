@@ -822,28 +822,35 @@ def _uebersicht(a) -> None:
 
     haeuser = a.daten["haeuser"]
     alle = [k for et in haeuser.values() for ks in et.values() for k in ks]
-    n = {s: sum(1 for k in alle if k.status == s) for s in ("frei", "teilweise", "belegt", "geplant", "gesperrt")}
+    # 0.70: vier Zustände (zusammen = alle Zimmer) und zwei Markierungen
+    zu = {k.zimmer: zk.zustand(k.status, k.unbewohnbar) for k in alle}
+    n = {s: sum(1 for v in zu.values() if v == s) for s in zk.ZUSTAENDE}
+    n["teilweise"] = sum(1 for k in alle if k.status == "teilweise" and zu[k.zimmer] == "frei")
     defekt = sum(1 for k in alle if k.stufe)
     f = zk.kacheln(a.zu_filter)
     mf = a.zl_mehr.get("maengel") or []
     with a.leiste:
-        unbew = sum(1 for k in alle if k.unbewohnbar)
         unfertig = sum(1 for k in alle if k.nicht_fertig)
-        # Die Kacheln sind zugleich die Legende: gleiche Symbole und Farben wie die Zimmer darunter
-        kennzahlen([("frei", n["frei"] + n["teilweise"], "frei" + (f" · davon {n['teilweise']} mit 1 Bett" if n["teilweise"] else ""), "ok"),
-                    ("unfertig", unfertig, "nicht bezugsfertig", "warn"),
-                    ("belegt", n["belegt"], "belegt", "blau"), ("geplant", n["geplant"], "geplant", "akzent"),
-                    ("gesperrt", n["gesperrt"], "gesperrt", "neutral"), ("maengel", defekt, "mit Mängeln", "warn"),
-                    ("unbewohnbar", unbew, "unbewohnbar", "krit")], f,
+        unbew = sum(1 for k in alle if k.unbewohnbar and zu[k.zimmer] == "nicht_nutzbar")
+        # Die Chips sind zugleich Legende und Filter: links die vier Zustände (zusammen = alle Zimmer), rechts die
+        # zwei Markierungen, die auf jedem Zustand liegen können
+        kennzahlen([("frei", n["frei"], "frei" + (f" · davon {n['teilweise']} mit 1 Bett" if n["teilweise"] else ""), "ok"),
+                    ("geplant", n["geplant"], "geplant", "akzent"), ("belegt", n["belegt"], "belegt", "blau"),
+                    ("nicht_nutzbar", n["nicht_nutzbar"], "nicht nutzbar", "neutral")], f,
                    lambda k: a.setzen(zu_filter=f ^ {k}, laden=False),
-                   {k: t + " – Klick: dazunehmen/wegnehmen (mehrere möglich)" for k, t in {
-                       "frei": f"Mindestens ein Bett frei: {n['frei']} ganz leer, {n['teilweise']} Doppelzimmer mit einem freien "
-                               "Bett (grün umrandet)",
-                       "belegt": "Alle Betten belegt (blau)", "geplant": "Nur geplant, noch nicht eingezogen (violett)",
-                       "gesperrt": "Gesperrt (gestreift)", "maengel": "Offene Mängel (Marke „!“ an der Kachel)",
-                       "unbewohnbar": "Wegen eines Mangels nicht bewohnbar (roter Rahmen)",
-                       "unfertig": "Frei, aber noch nicht bezugsfertig: Reinigung bis zu diesem Tag offen oder dringender "
-                                   "Mangel (Besen an der Kachel)"}.items()})
+                   {"frei": f"Bewohnbar, mindestens ein Bett frei: {n['frei'] - n['teilweise']} ganz leer, {n['teilweise']} "
+                            "Doppelzimmer mit einem freien Bett (gestrichelt) – Klick: filtern (mehrere Zustände möglich)",
+                    "geplant": "Nur geplant, noch nicht eingezogen (violett) – Klick: filtern",
+                    "belegt": "Alle Betten belegt (blau) – Klick: filtern",
+                    "nicht_nutzbar": f"Gesperrt laut Gebäudeplan oder wegen eines Mangels unbewohnbar ({unbew}) – gestreift; "
+                                     "der Grund steht in der Zimmerkarte – Klick: filtern"})
+        ui.element("div").classes("m-trennlinie")
+        kennzahlen([("unfertig", unfertig, "nicht bezugsfertig", "warn"), ("maengel", defekt, "mit Mangel", "warn")], f,
+                   lambda k: a.setzen(zu_filter=f ^ {k}, laden=False),
+                   {"unfertig": "Markierung: Reinigung bis zu diesem Tag offen oder dringender Mangel (Besen an der Kachel) "
+                                "– zuteilen geht trotzdem – Klick: nur diese",
+                    "maengel": "Markierung: offener Mangel jeder Stufe (Marke „!“) – auch an belegten Zimmern – Klick: nur "
+                               "diese"})
         _mangel_menue(a)
         if f or mf:
             knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
@@ -877,6 +884,7 @@ def _uebersicht(a) -> None:
                                 for k in ks:
                                     passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf, bool(k.nicht_fertig))
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus") \
+                                        + (" nn" if zu[k.zimmer] == "nicht_nutzbar" else "") \
                                         + (" strittig" if k.strittig else "")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=k.titel)

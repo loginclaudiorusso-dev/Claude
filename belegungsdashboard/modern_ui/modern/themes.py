@@ -341,6 +341,8 @@ body.pro .m-kachel.geplant, body.pro .m-legende i.geplant, body.pro .m-zs-b.gepl
 body.pro .m-kachel.gesperrt, body.pro .m-legende i.gesperrt, body.pro .m-zs-b.gesperrt, body.pro .m-zs-punkt.gesperrt { background: repeating-linear-gradient(135deg, var(--s-neutral-bg) 0 5px, var(--fl2) 5px 10px); color: var(--s-neutral-fg); box-shadow: inset 0 0 0 1px var(--s-neutral-bd); }
 body.pro .m-zs-b.konflikt, body.pro .m-legende i.konflikt { background: var(--s-krit-bg); color: var(--s-krit-fg); box-shadow: inset 0 0 0 1px var(--s-krit-fg); }
 body.pro .m-kachel.unbew { border: 2px solid var(--s-krit-fg); }
+body.pro .m-kachel.nn { background: repeating-linear-gradient(135deg, var(--s-neutral-bg) 0 5px, var(--fl2) 5px 10px);
+  color: var(--s-neutral-fg); }                     /* 0.70: „nicht nutzbar“ einheitlich gestreift (Grund: roter Rahmen = Mangel) */
 body.pro .m-kachel-m { background: var(--s-warn-fg); color: var(--fls); }
 body.pro .m-zs-tag.heute { color: var(--akzent-hell); } body.pro .m-zs-jetzt { background: var(--akzent-hell); }
 body.pro .m-zs-kopf, body.pro .m-tkopf { background: var(--bg); }
