@@ -60,7 +60,7 @@ def zeichnen(a) -> None:
         ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",
                   on_change=lambda e: a.setzen(mn_auswahl=list(e.value or []), mn_darstellung=None, nur_seite=True)).classes(
             "m-feld").props('dense outlined dark use-chips clearable options-dense popup-content-class="m-popup"').style(
-            "min-width:320px;max-width:620px")
+            "min-width:280px;max-width:420px")
         haupt = [f for f, g, _t in d["liste"] if g == "lang"]
         if haupt and d["auswahl"] != haupt:
             knopf("Nur Hauptmaßnahmen", lambda: a.setzen(mn_auswahl=haupt, mn_darstellung=None, nur_seite=True), "leise",

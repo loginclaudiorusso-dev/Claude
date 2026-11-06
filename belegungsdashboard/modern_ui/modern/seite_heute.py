@@ -495,9 +495,15 @@ def _zentrale(a, t: Tag) -> None:
                         knopf(f"{len(info)} Hinweis{'e' if len(info) != 1 else ''} zur Info",
                               lambda: a.setzen(heute_ansicht="postfach", pf_auswahl=info[0].id, laden=False), "leise", "info")
             with ui.element("aside").classes("m-tz-rechts"):
-                outlook_block(a)
-                _woche_block(a, t)
-        _frei_block(a, t)
+                if a.design.get("layout") == "office":     # 0.74: freie Zimmer kompakt rechts oben – über dem Falz
+                    _frei_block(a, t)
+                    _woche_block(a, t)
+                    outlook_block(a)
+                else:
+                    outlook_block(a)
+                    _woche_block(a, t)
+        if a.design.get("layout") != "office":
+            _frei_block(a, t)
 
 
 def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:

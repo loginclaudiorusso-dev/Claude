@@ -296,7 +296,7 @@ def rg_zeichnen(a) -> None:
         return _rg_last(a)
     with a.werkzeuge:
         segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w))
-        knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "", "add")
+        knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "primaer", "add")
         with knopf("Drucken", None, "", "print"):
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("Reinigungsliste (gewählter Zeitraum)", lambda: _rg_drucken(a))

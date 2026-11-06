@@ -184,7 +184,7 @@ def _anzeige(a, d: dict, setzen) -> None:
                     f"font-family:{fam}" if fam else "")
             b.on("click", lambda k=k: setzen(schrift=k))
     _titel("Dichte")
-    _wahl({"normal": "Normal", "kompakt": "Kompakt (mehr Zeilen)"}, d["dichte"], lambda x: setzen(dichte=x))
+    _wahl({"kompakt": "Kompakt (28 px)", "normal": "Standard (36 px)", "komfort": "Komfort (44 px)"}, d["dichte"], lambda x: setzen(dichte=x))
     if d["layout"] == "office":
         _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
         _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))

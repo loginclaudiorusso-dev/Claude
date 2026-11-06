@@ -332,6 +332,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
         with ui.element("footer").classes("m-ob-status"):
             ui.label("Bereit")
             ui.label(getattr(a.stand_anzeige, "text", "")).classes("m-ob-status-m")   # Datenstand – ohne Doppel-Zähler
+            a._ob_info = ui.label(getattr(a, "status_info", "")).classes("m-ob-status-m m-ob-info")  # 0.74: Zahlen der Ansicht
             ui.element("div").style("flex:1")
             ui.label(f"Version {__version__}")
             with ui.element("div").classes("m-ob-zoom"):    # wie in Word/Excel: Ansicht-Schalter und Zoom unten rechts

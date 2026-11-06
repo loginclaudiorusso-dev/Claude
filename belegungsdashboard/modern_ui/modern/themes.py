@@ -186,7 +186,7 @@ def bereinigen(d: dict | None) -> dict:
     if erg["layout"] == "original":
         erg["theme"] = "original"
     erg["modus"] = d.get("modus") if d.get("modus") in modi(erg["theme"]) else THEMES[erg["theme"]][2]
-    erg["dichte"] = "kompakt" if d.get("dichte") == "kompakt" else "normal"
+    erg["dichte"] = d.get("dichte") if d.get("dichte") in ("kompakt", "komfort") else "normal"   # 0.74: + Komfort
     erg["schmal"] = bool(d.get("schmal"))
     erg["vollbild"] = bool(d.get("vollbild"))
     erg["notiz"] = str(d.get("notiz") or "")[:5000]
@@ -228,14 +228,16 @@ def klassen(d: dict) -> list[str]:
     k = ["pro", f"lay-{d['layout']}", f"th-{d['theme']}", f"mod-{d['modus']}"]
     if d["modus"] == "hell":
         k.append("hell")
-    if d["dichte"] == "kompakt":
-        k.append("dichte-kompakt")
+    if d["dichte"] in ("kompakt", "komfort"):
+        k.append(f"dichte-{d['dichte']}")
     if d["schmal"] or d["layout"] == "canvas":
         k.append("nav-schmal")
     if d["layout"] == "showcase" and not d["dock_fest"]:
         k.append("dock-auto")
     if d["layout"] == "office" and d["band_gross"]:
         k.append("band-gross")
+    if d["layout"] == "office" and d.get("band_zu"):
+        k.append("band-zu")                     # 0.74: Menüband eingeklappt (Strg+F1)
     return k
 
 
@@ -247,7 +249,7 @@ def stil(d: dict) -> str:
     return _dk.style_text(_dk.css_variablen(d, d["modus"] != "hell"))
 
 
-ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
+ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------

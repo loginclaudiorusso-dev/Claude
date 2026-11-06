@@ -313,6 +313,10 @@ class Ansicht:
         ui.add_css(optionen_ui.CSS)            # 0.66: Optionen-Dialog
         ui.add_css(hilfe_ui.CSS)               # 0.68: Hilfe, Drucken (auch Druck-CSS für Strg+P)
         ui.add_css(suche_palette.CSS)          # 0.71: Befehlssuche
+        from . import arbeitsflaeche
+
+        ui.add_css(arbeitsflaeche.CSS)         # 0.74: Arbeitsfläche – Kontextzeile, feste Größen, Detailpanel
+        ui.add_body_html(arbeitsflaeche.JS)
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom
@@ -326,10 +330,12 @@ class Ansicht:
             with ui.element("div").classes("m-haupt"):
                 self.topnav = ui.element("nav").classes("m-topnav")     # Showcase: schwebendes Dock
                 self._prompt_bauen()                                    # AI-Canvas: zentrale Eingabe
-                with ui.element("header").classes("m-kopf"):
+                # 0.74: Kopf + Leiste bilden zusammen die EINE Kontextzeile (im Office-Layout eine Zeile, sonst wie bisher)
+                self.kontextzeile = ui.element("div").classes("m-kz")
+                with self.kontextzeile, ui.element("header").classes("m-kopf"):
                     self.titel = ui.label("Anreisen").classes("m-titel")
                     self.werkzeuge = ui.element("div").classes("m-werkzeuge")
-                    ui.element("div").style("flex: 1")
+                    ui.element("div").classes("m-kz-luft").style("flex: 1")
                     self.stand_anzeige = ui.label("").classes("m-datenstand m-kopf-doppelt")   # Menüband: Statusleiste
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)").classes(
                         "m-kopf-doppelt")                            # im Menüband steht beides schon oben
@@ -342,7 +348,8 @@ class Ansicht:
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke m-kopf-doppelt")
                     attr(self.aufgaben_knopf, title="Aufgaben & Neuigkeiten (A)")
                     self.aufgaben_knopf.on("click", lambda: self.center_umschalten())
-                self.leiste = ui.element("div").classes("m-leiste")
+                with self.kontextzeile:
+                    self.leiste = ui.element("div").classes("m-leiste")
                 self.inhalt = ui.element("div").classes("m-inhalt")
             self.schleier = ui.element("div").classes("m-schleier")
             self.schleier.on("click", self._schliessen)
@@ -901,6 +908,7 @@ class Ansicht:
         self._glocke_fuellen()
         for c in (self.werkzeuge, self.leiste, self.inhalt):
             c.clear()
+        self.status_info = ""                   # 0.74: Zahlen der Ansicht für die Statusleiste (wie in Excel)
         titel = register.TITEL[self.seite]
         from . import menueband_ui
 
@@ -919,6 +927,8 @@ class Ansicht:
         else:
             register.SEITEN[self.seite][1](self)
         self.leiste.set_visibility(bool(self.leiste.default_slot.children))
+        if (info := getattr(self, "_ob_info", None)) is not None:
+            info.set_text(self.status_info)
         if self.panel_def is None:
             self._center()
 
@@ -1041,13 +1051,13 @@ class Ansicht:
             if not self.kennung:
                 leer("Keine Anreisen ab heute in den Listen.")
                 return
-            # 0.69: Primäraktion links direkt über der Tabelle – dort, wo gearbeitet wird (nicht rechts neben den Zahlen)
+            # 0.74: Hauptaktion immer rechts außen in der Kontextzeile (feste Stelle auf jeder Seite)
             offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")]
             if offen:
-                with ui.element("div").classes("m-aktionszeile"):
-                    knopf(f"Alle {len(offen)} Vorschläge übernehmen" if len(offen) > 1 else "Vorschlag übernehmen",
-                          self._alle_vorschlaege, "primaer", "done_all")
-                    ui.label("Grün = frei und passend. Einzeln: ✓ in der Zimmerspalte.").classes("m-zweite")
+                with self.leiste:
+                    knopf(f"Alle Vorschläge übernehmen ({len(offen)})" if len(offen) > 1 else "Vorschlag übernehmen",
+                          self._alle_vorschlaege, "primaer", "done_all",
+                          "Übernimmt die passenden freien Zimmer. Einzeln: ✓ in der Zimmerspalte.")
             with ui.element("div").classes("m-raster m-zuteil m-tkopf"):
                 for t in ("", "Name", "Gruppe", "Zeitraum", "Zimmer", "Hinweis"):
                     ui.label(t)
@@ -1649,6 +1659,8 @@ class Ansicht:
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
             await self.suchen()
+        elif e.key.name == "F1" and e.modifiers.ctrl and self.design["layout"] == "office":   # 0.74: wie Office
+            await self.design_setzen(band_zu=not self.design.get("band_zu"))
         elif e.key.name == "F1":                                         # 0.68: Hilfe zur offenen Seite
             from . import hilfe_ui
 

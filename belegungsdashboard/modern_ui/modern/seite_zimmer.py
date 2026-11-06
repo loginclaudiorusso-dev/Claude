@@ -94,7 +94,7 @@ def _aenderungen(a) -> None:
             von.on_value_change(lambda e: tag("ae_von", e.value))
             bis = ui.input("bis", value=a.ae_bis.isoformat()).classes("m-feld").props("dense outlined dark type=date")
             bis.on_value_change(lambda e: tag("ae_bis", e.value))
-        ui.label(f"{len(zs)} Änderungen").classes("m-kpi")
+        a.status_info = f"{len(zs)} Änderung{'en' if len(zs) != 1 else ''} vom {a.ae_von:%d.%m.%Y} bis {a.ae_bis:%d.%m.%Y}"
 
         async def export():
             try:
@@ -103,7 +103,9 @@ def _aenderungen(a) -> None:
                 a.toast(f"Nicht gespeichert: {exc}", fehler=True)
                 return
             a.toast(text if seiten._datei_oeffnen(str(pfad)) else f"{text}: {pfad}", rueck=False)
-        knopf("Excel", export, "", "table_view").style("margin-left:auto")
+        with knopf("", None, "leise m-kz-mehr", "more_horiz", "Mehr: Excel"):
+            with ui.menu().props('dark class="m-menue"'):
+                ui.menu_item("Änderungen als Excel", export)
     sp = "140px 112px minmax(150px, 1fr) minmax(180px, 1.4fr) minmax(130px, 1fr) 100px 100px"
     with a.inhalt:
         if not zs:
@@ -191,11 +193,27 @@ async def _gezogen(a, args) -> None:
 
 def _filterleiste(a, ansicht: str) -> None:
     """Gemeinsame Such- und Filterleiste für Karten und Liste (wie „Zimmer finden“ im bisherigen Programm)."""
+    # 0.74: EINE Kontextzeile – Haus als Auswahl, Stichtag ‹ › als Kontext, Zustände als Filter-Chips, seltene Filter
+    # (auch die Schnellfilter Mängel, Vinyl …) unter „Filter“, Drucken/Export unter ⋯; die Zahlen stehen in der Statusleiste
     with a.werkzeuge:
-        segmente({"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}, a.zl_haus,
-                 lambda h: a.setzen(zl_haus=h))
+        haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}
+        ui.select(haeuser, value=a.zl_haus if a.zl_haus in haeuser else "", on_change=lambda e: a.setzen(zl_haus=e.value or "")
+                  ).classes("m-hauswahl").props('dense outlined dark options-dense popup-content-class="m-popup"').style(
+            "width: 150px")
+        with ui.element("div").classes("m-tagwahl"):
+            knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
+            tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style(
+                "width:150px")
+            attr(tag, title="Stichtag – Status und Bewohner an diesem Tag")
+            tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+            knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
+            if a.zu_tag != a.heute:
+                knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
     n = a.daten["n"]
     with a.leiste:
+        kennzahlen([(s, n.get(s, 0), t, {"frei": "ok", "geplant": "akzent", "belegt": "blau"}.get(s, "neutral"))
+                    for s, t in zk.STATUS.items() if s],
+                   a.zl_status, lambda s: a.setzen(zl_status="" if s == a.zl_status else s))
         suche = ui.input(placeholder="Zimmer, Name, Hinweis …", value=a.zl_text).classes("m-feld m-sucheingabe").props(
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(zl_text=suche.value or ""))
@@ -203,27 +221,12 @@ def _filterleiste(a, ansicht: str) -> None:
         from .ui_bausteine import live_suche
 
         live_suche(suche, lambda t: a.setzen(zl_text=t), "zimmer")
-        segmente({s: (t if not s else f"{t} {n.get(s, 0)}") for s, t in zk.STATUS.items()}, a.zl_status,
-                 lambda s: a.setzen(zl_status=s))
-        with ui.element("div").classes("m-segm").props('role="group"'):
-            for k, text in zk.MERKMALE.items():
-                an = k in a.zl_schnell
-                b = ui.element("button").classes("an" if an else "")
-                attr(b, aria_pressed=str(an).lower())
-                with b:
-                    ui.label(text)
-                b.on("click", lambda k=k: a.setzen(zl_schnell=a.zl_schnell ^ {k}))
         _filter_menue(a)
         if a.zl_schnell or a.zl_status or a.zl_text or zk.mehr_aktiv(a.zl_mehr):
-            knopf("Zurücksetzen", lambda: a.setzen(zl_schnell=set(), zl_status="", zl_text="", zl_mehr={}), "leise", "close")
-    with a.leiste:
-        tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
-        attr(tag, title="Stichtag – Status und Bewohner an diesem Tag")
-        tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
-        if a.zu_tag != a.heute:
-            knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
-        ui.label(a.daten["kpi"]).classes("m-kpi m-mono")
-        with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
+            knopf("", lambda: a.setzen(zl_schnell=set(), zl_status="", zl_text="", zl_mehr={}), "leise m-kz-rechts",
+                  "filter_alt_off", "Alle Filter zurücksetzen")
+        a.status_info = a.daten["kpi"]
+        with knopf("", None, "leise m-kz-mehr", "more_horiz", "Mehr: Drucken, Excel, Kopieren"):
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("Zimmerliste drucken (mit Bewohnern)", lambda: _drucken(a, "liste"))
                 ui.menu_item("Zimmerliste drucken (ohne Namen)", lambda: _drucken(a, "liste_ohne"))
@@ -235,7 +238,7 @@ def _filterleiste(a, ansicht: str) -> None:
                 ui.separator()
                 ui.menu_item("FM-Mängelbericht drucken", lambda: _drucken(a, "fm"))
         if ansicht == "liste":
-            with knopf("Bearbeiten", None, "", "edit"):
+            with knopf("", None, "m-kz-rechts", "edit", "Bearbeiten: Eigenschaften, Renovierungsliste, Zimmer hinzufügen"):
                 with ui.menu().props('dark class="m-menue"'):
                     ui.menu_item("Eigenschaften der markierten Zimmer …", lambda: _eigenschaften_panel(a))
                     ui.menu_item("Renovierungsliste einfügen …", lambda: _renovierungen_panel(a))
@@ -248,7 +251,7 @@ def _filter_menue(a) -> None:
     """Seltenere Filter – Boden, Mangel, Renovierung, Gäste/Bad über Flur, Personengruppe, außer Betrieb."""
     m = {**zk.MEHR_LEER, **a.zl_mehr}
     opt = zk.filter_optionen(a.heute)
-    n = zk.mehr_aktiv(a.zl_mehr)
+    n = zk.mehr_aktiv(a.zl_mehr) + len(a.zl_schnell)
 
     def umschalten(art: str, wert: str):
         return a.setzen(zl_mehr={**m, art: sorted(set(m[art]) ^ {wert})})
@@ -261,8 +264,11 @@ def _filter_menue(a) -> None:
             ui.icon("check_box" if an else "check_box_outline_blank").classes("m-mhaken" + (" an" if an else ""))
             ui.label(text)
 
-    with knopf(f"Filter · {n}" if n else "Filter", None, "akzent" if n else "", "filter_list"):
+    with knopf(f"Filter · {n}" if n else "Filter", None, "akzent m-kz-rechts" if n else "m-kz-rechts", "filter_list"):
         with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
+            ui.label("Schnellfilter").classes("m-mgruppe")              # 0.74: früher eine eigene Leiste
+            for k, t in zk.MERKMALE.items():
+                eintrag(t, k in a.zl_schnell, lambda k=k: a.setzen(zl_schnell=a.zl_schnell ^ {k}))
             ui.label("Boden").classes("m-mgruppe")
             for k, t in opt["boeden"].items():
                 eintrag(t, k in m["boeden"], lambda k=k: umschalten("boeden", k))
@@ -855,8 +861,8 @@ def _uebersicht(a) -> None:
         if f or mf:
             knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
                   "leise", "close")
-        # 0.69: EINE Tagesauswahl ‹ Datum › (vorher Text „am …“ und ein zweites Datumsfeld)
-        with ui.element("div").classes("m-tagwahl"):
+        # 0.69: EINE Tagesauswahl ‹ Datum › – 0.74: als Kontext gleich hinter dem Titel
+        with a.werkzeuge, ui.element("div").classes("m-tagwahl"):
             knopf("", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), "leise", "chevron_left", "Tag zurück")
             tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined dark type=date").style(
                 "width:150px")
@@ -865,7 +871,7 @@ def _uebersicht(a) -> None:
             knopf("", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), "leise", "chevron_right", "Tag weiter")
             if a.zu_tag != a.heute:
                 knopf("Heute", lambda: a.setzen(zu_tag=a.heute), "leise")
-        with knopf("Drucken & Export", None, "", "print").style("margin-left:auto"):
+        with knopf("", None, "leise m-kz-mehr", "more_horiz", "Mehr: Drucken, Excel"):
             with ui.menu().props('dark class="m-menue"'):
                 was = f"nur „{zk.kachel_text(f, mf)}“" if f or mf else "alle Zimmer"
                 ui.menu_item(f"Drucken – {was} (mit Bewohnern)", lambda: _drucken(a, "kachel"))
@@ -906,14 +912,17 @@ def _maengel(a) -> None:
         n = {st: sum(1 for z in zs if z.stufe == st) for st in (3, 2, 1)}
         kennzahlen([(3, n[3], "nicht bewohnbar", "krit"), (2, n[2], "dringend", "warn"), (1, n[1], "leicht", "neutral")],
                    a.dz_filter, lambda k: a.setzen(dz_filter=None if k == a.dz_filter else k, laden=False))
-        ui.label(f"{sum(len(z.maengel) for z in zs)} offene Mängel").classes("m-kpi")
+        a.status_info = f"{sum(len(z.maengel) for z in zs)} offene Mängel in {len(zs)} Zimmern"
         _mangel_menue(a)
-        knopf("FM-Bericht drucken", lambda: _fm(a, "druck"), "", "print").style("margin-left:auto")
-        knopf("FM-Liste (Excel)", lambda: _fm(a, "excel"), "", "table_view")
-        knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "leise", "content_copy")
         from .seite_daten import _hochladen
 
         _hochladen(a, "Erledigte aus FM-Liste", ".xlsx", lambda f: _fm_zurueck(a, f), art="leise")
+        # 0.74: eine Hauptaktion rechts außen, Drucken/Excel unter ⋯ (auch Datei → Drucken/Exportieren)
+        with knopf("", None, "leise m-kz-mehr", "more_horiz", "Mehr: FM-Bericht, FM-Liste"):
+            with ui.menu().props('dark class="m-menue"'):
+                ui.menu_item("FM-Bericht drucken", lambda: _fm(a, "druck"))
+                ui.menu_item("FM-Liste als Excel", lambda: _fm(a, "excel"))
+        knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "primaer", "content_copy")
     sp = "116px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
     with a.inhalt:
         if not zs:

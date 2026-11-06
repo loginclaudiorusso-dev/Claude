@@ -207,7 +207,7 @@ def zeichnen(a) -> None:
             ui.label("Planjahr bzw. 5 Jahre ab").classes("m-zweite")
         segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, d["jahr"],
                  lambda j: a.setzen(st_jahr=j, nur_seite=True), sofort=True)
-        knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "", "print").style("margin-left:auto")
+        knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "primaer", "print").style("margin-left:auto")
     {"cockpit": _cockpit, "vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
      "grundlagen": _grundlagen}[ansicht_](a)
 

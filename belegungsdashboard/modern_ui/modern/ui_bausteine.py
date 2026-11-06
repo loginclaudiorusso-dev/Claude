@@ -62,7 +62,7 @@ ZUSTAND = {
     "gesperrt": ("neutral", "block", "gesperrt"), "maengel": ("warn", "priority_high", "Mängel"),
     "nicht_nutzbar": ("neutral", "block", "nicht nutzbar"),                # 0.70: Zustand (Grund im Detail)
     "unbewohnbar": ("krit", "report", "unbewohnbar"), "pruefen": ("warn", "warning", "prüfen"),
-    "ohne": ("krit", "person_off", "ohne Zimmer"),
+    "ohne": ("warn", "person_off", "ohne Zimmer"),
 }
 SYMBOLE = {**{k: v[1] for k, v in ZUSTAND.items()}, "ohne": "person_off", "handeln": "error", "alle": "groups",
            "np": "trending_flat", "offen": "pending", "eilig": "bolt", "erledigt": "task_alt", "laufend": "key",

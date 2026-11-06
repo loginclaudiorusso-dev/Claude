@@ -36,7 +36,7 @@ def werkzeuge(a) -> None:
 def mehr_menue(a) -> None:
     """„Mehr“ im Kopf der Ansicht Zuteilen – seltene Aktionen gebündelt statt vieler Knöpfe."""
     with a.werkzeuge:
-        with knopf("Mehr", None, "leise", "more_horiz"):
+        with knopf("Mehr", None, "leise m-kz-mehr", "more_horiz"):
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("Anreiseliste drucken", lambda: _drucken(a, "anreise"))
                 ui.menu_item("Schlüsselliste drucken", lambda: _drucken(a, "schluessel"))
