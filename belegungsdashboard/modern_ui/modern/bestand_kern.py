@@ -26,23 +26,25 @@ _KURS = re.compile(r"^[A-Z]{2}\s+\S")
 LUECKE_TAGE = 30              # größere Lücke = Unterbrechung
 LAUFEND_TAGE = 3              # Austritt so nah am letzten Ist-Tag = läuft noch (zensiert)
 AUFFAELLIG = {"Hauptmaßnahme": 913, "Assessment": 92}     # > 30 Monate bzw. > 3 Monate
-GRUPPEN = ("Assessment", "Vorbereitung", "Hauptmaßnahme", "IBTZ", "Sonstige")
+GRUPPEN = ("Assessment", "Vorbereitung", "Hauptmaßnahme", "IBTZ", "Sonstige", "Ignoriert")   # Ignoriert: zählt nirgends
 
 # Zuordnungstabelle – Startwerte. „offen“ = laut Prompt noch zu klären (Dauer bzw. Art nicht gesichert).
 ZUORDNUNG_STANDARD = [
-    {"muster": "ASS", "art": "Assessment", "gruppe": "Assessment", "soll_tage": 42, "standort": "",
-     "offen": "manche Assessments dauern 4 Wochen – Kürzel klären"},
-    {"muster": "RVL", "art": "Reha-Vorbereitungslehrgang", "gruppe": "Vorbereitung", "soll_tage": 91, "standort": "", "offen": ""},
-    {"muster": "RVT", "art": "RVT", "gruppe": "Vorbereitung", "soll_tage": None, "standort": "",
-     "offen": "Bedeutung und Solldauer klären"},
-    {"muster": "IBTZ", "art": "IBTZ", "gruppe": "IBTZ", "soll_tage": None, "standort": "", "offen": ""},
-    {"muster": "CNC", "art": "Hauptmaßnahme CNC", "gruppe": "Hauptmaßnahme", "soll_tage": 730, "standort": "", "offen": ""},
-    {"muster": "M-GA", "art": "Hauptmaßnahme M-GA", "gruppe": "Hauptmaßnahme", "soll_tage": 730, "standort": "", "offen": ""},
-    {"muster": "BFS", "art": "Hauptmaßnahme BFS", "gruppe": "Hauptmaßnahme", "soll_tage": 730, "standort": "", "offen": ""},
-    {"muster": "JobTrain", "art": "JobTrain", "gruppe": "Sonstige", "soll_tage": None, "standort": "",
-     "offen": "Maßnahmeart und Dauer klären"},
-    {"muster": "Bauhelfer", "art": "Bauhelfer", "gruppe": "Sonstige", "soll_tage": None, "standort": "",
-     "offen": "Maßnahmeart und Dauer klären"},
+    # 0.77: Solldauer „aus Anmeldung“ = gemessen je Kursfamilie aus den Daten der Zimmerbelegung (Anreiselisten mit
+    # eingetragener Abreise, Gebäudeplan) – so werden 4- und 6-wöchige Assessments, RVT usw. von selbst unterschieden.
+    {"muster": "EMR", "art": "EMR-Assessment", "gruppe": "Assessment", "soll_tage": None, "soll_quelle": "anmeldung"},
+    {"muster": "ASPQ", "art": "Assessment ASPQ", "gruppe": "Assessment", "soll_tage": None, "soll_quelle": "anmeldung"},
+    {"muster": "ASS", "art": "Assessment", "gruppe": "Assessment", "soll_tage": 42, "soll_quelle": "anmeldung"},
+    {"muster": "RVL", "art": "Reha-Vorbereitungslehrgang", "gruppe": "Vorbereitung", "soll_tage": 91, "soll_quelle": "anmeldung"},
+    {"muster": "RVT", "art": "RVT", "gruppe": "Vorbereitung", "soll_tage": 91, "soll_quelle": "anmeldung"},
+    {"muster": "IBTZ", "art": "IBTZ", "gruppe": "IBTZ", "soll_tage": None},
+    {"muster": "VW", "art": "Hauptmaßnahme VW", "gruppe": "Hauptmaßnahme", "soll_tage": 730, "soll_quelle": "anmeldung",
+     "max_plaetze": None, "offen": "maximale Kursgröße eintragen (nur VW erreicht sie)"},
+    {"muster": "CNC", "art": "Hauptmaßnahme CNC", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
+    {"muster": "M-GA", "art": "Hauptmaßnahme M-GA", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
+    {"muster": "BFS", "art": "Hauptmaßnahme BFS", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
+    {"muster": "JobTrain", "art": "JobTrain", "gruppe": "Ignoriert", "soll_tage": None},      # für uns ohne Belang
+    {"muster": "Bauhelfer", "art": "Bauhelfer", "gruppe": "Ignoriert", "soll_tage": None},
 ]
 
 
@@ -99,6 +101,58 @@ def zuordnen(name: str, tabelle: list[dict]) -> dict | None:
     return None
 
 
+def _ganz(x) -> int | None:
+    try:
+        return int(x) if x not in (None, "") and int(x) > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def familie(kurs: str) -> str:
+    """„GS ASS PS 260909“ → „GS ASS PS“ – Kurs ohne Start-/Nummernteil."""
+    return " ".join(x for x in kurs.split() if not re.search(r"\d", x)) or kurs
+
+
+# ---- Solldauer aus den Daten der Zimmerbelegung (0.77) -----------------------------------------------------
+
+@dataclass
+class Messung:
+    familie: str
+    n: int
+    median: float
+    p10: float
+    p90: float
+    quelle: str            # Anmeldung | Gebäudeplan
+
+
+def anmeldedauern(eintraege) -> dict[str, Messung]:
+    """``eintraege``: (Maßnahme, von, bis, Quelle) aus Anreiselisten (nur mit eingetragener Abreise) und Gebäudeplan.
+    Je Kursfamilie die Dauer in Kalendertagen (von bis bis, beide Tage gezählt). Anmeldungen haben Vorrang; der
+    Gebäudeplan zählt nur für Familien, die in den Anmeldungen seltener als 3-mal vorkommen."""
+    roh: dict[tuple[str, str], list[int]] = {}
+    for massnahme, von, bis, quelle in eintraege:
+        if not massnahme or not von or not bis or bis < von:
+            continue
+        fam = familie(massnahme.upper().strip())
+        roh.setdefault((fam, quelle), []).append((bis - von).days + 1)
+    erg: dict[str, Messung] = {}
+    for quelle in ("Gebäudeplan", "Anmeldung"):
+        for (fam, q), werte in roh.items():
+            if q != quelle or (quelle == "Anmeldung" and len(werte) < 3 and fam in erg):
+                continue
+            erg[fam] = Messung(fam, len(werte), stt.median(werte), _quantil(werte, .1), _quantil(werte, .9), quelle)
+    return erg
+
+
+def soll_tage(kurs: str, e: dict | None, gemessen: dict[str, Messung]) -> tuple[int | None, str]:
+    """Solldauer eines Kurses und woher sie kommt."""
+    if e is None:
+        return None, ""
+    if e.get("soll_quelle") == "anmeldung" and (m := gemessen.get(familie(kurs.upper()))) and m.n >= 3:
+        return round(m.median), f"{m.quelle}, n = {m.n}"
+    return e.get("soll_tage"), "Tabelle" if e.get("soll_tage") else ""
+
+
 def tabelle_bereinigen(roh) -> list[dict]:
     erg = []
     for e in roh if isinstance(roh, list) else []:
@@ -110,7 +164,9 @@ def tabelle_bereinigen(roh) -> list[dict]:
             soll = None
         erg.append({"muster": str(e["muster"]).strip(), "art": str(e.get("art") or e["muster"]).strip(),
                     "gruppe": e.get("gruppe") if e.get("gruppe") in GRUPPEN else "Sonstige", "soll_tage": soll,
-                    "standort": str(e.get("standort") or "").strip().upper(), "offen": str(e.get("offen") or "").strip()})
+                    "standort": str(e.get("standort") or "").strip().upper(), "offen": str(e.get("offen") or "").strip(),
+                    "soll_quelle": "anmeldung" if e.get("soll_quelle") == "anmeldung" else "",
+                    "max_plaetze": _ganz(e.get("max_plaetze"))})
     return erg
 
 
@@ -213,6 +269,7 @@ class ArtZeile:
     p10: float | None
     p90: float | None
     unterbrochen: int
+    soll_text: str = ""            # z. B. „28 Tage (Anmeldung, n = 40)“ oder „28–42 Tage je Kurs“
 
 
 @dataclass
@@ -242,6 +299,8 @@ class Bericht:
     kuenftig_personentage: int
     kuenftig_personen: int
     hinweise: list = field(default_factory=list)
+    gemessen: list = field(default_factory=list)      # Messung je Kursfamilie aus der Zimmerbelegung (genutzt)
+    ignoriert: tuple = (0, 0)                         # (Kurse, Aufenthalte) der Gruppe „Ignoriert“
 
 
 def _quantil(werte: list[float], q: float) -> float | None:
@@ -254,8 +313,10 @@ def _quantil(werte: list[float], q: float) -> float | None:
     return w[a] + (w[b] - w[a]) * (pos - a)
 
 
-def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stichtag: date) -> Bericht:
-    """Prüfbericht Schritt 1 – noch keine Prognose."""
+def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stichtag: date,
+            gemessen: dict[str, Messung] | None = None) -> Bericht:
+    """Prüfbericht Schritt 1 – noch keine Prognose. ``gemessen``: Solldauern aus der Zimmerbelegung je Kursfamilie."""
+    gemessen = gemessen or {}
     letzter = min(stichtag, date.fromisoformat(meta["bis"])) if meta.get("bis") else stichtag
     kurse: dict[str, list[Aufenthalt]] = {}
     for x in aufenthalte:
@@ -280,16 +341,25 @@ def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stic
     je_art: dict[str, list[Aufenthalt]] = {}
     for k, xs in kurse.items():
         e = zuordnung[k]
-        if e is not None:
+        if e is not None and e["gruppe"] != "Ignoriert":
             je_art.setdefault(e["art"], []).extend(xs)
     eintrag = {e["art"]: e for e in tabelle}
     arten = []
     for art, xs in sorted(je_art.items(), key=lambda t: (GRUPPEN.index(eintrag[t[0]]["gruppe"]), t[0])):
         e = eintrag[art]
         fertig_ = [x.kalendertage for x in xs if not laeuft(x) and not x.halbjahr]
-        arten.append(ArtZeile(art, e["gruppe"], e["soll_tage"], e["offen"], len(xs), sum(1 for x in xs if laeuft(x)),
-                              stt.median(fertig_) if fertig_ else None, _quantil(fertig_, .1), _quantil(fertig_, .9),
-                              sum(1 for x in xs if x.luecke > LUECKE_TAGE)))
+        sollen = {soll_tage(k, e, gemessen) for k in {x.kurs for x in xs}}
+        werte = sorted({s for s, _q in sollen if s})
+        quellen = sorted({q for s, q in sollen if s and q != "Tabelle"})
+        if not werte:
+            text = ""
+        elif len(werte) == 1:
+            text = f"{werte[0]} Tage" + (f" ({quellen[0]})" if len(quellen) == 1 else " (aus Anmeldung)" if quellen else "")
+        else:
+            text = f"{werte[0]}–{werte[-1]} Tage je Kurs" + (" (aus Anmeldung)" if quellen else "")
+        arten.append(ArtZeile(art, e["gruppe"], werte[0] if len(werte) == 1 else None, e["offen"], len(xs),
+                              sum(1 for x in xs if laeuft(x)), stt.median(fertig_) if fertig_ else None,
+                              _quantil(fertig_, .1), _quantil(fertig_, .9), sum(1 for x in xs if x.luecke > LUECKE_TAGE), text))
 
     # Wochenend-Prüfung: Hauptmaßnahmen ab 4 Wochen (sonst alle ab 4 Wochen)
     def gruppe(x: Aufenthalt) -> str | None:
@@ -302,8 +372,9 @@ def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stic
     regulaer = []
     for x in aufenthalte:
         e = zuordnung.get(x.kurs)
-        if e and e["gruppe"] == "Hauptmaßnahme" and e["soll_tage"] and not laeuft(x) and not x.halbjahr:
-            soll_ende = kursstart(x.kurs, kurse[x.kurs]) + timedelta(days=e["soll_tage"])
+        soll, _q = soll_tage(x.kurs, e, gemessen)
+        if e and e["gruppe"] == "Hauptmaßnahme" and soll and not laeuft(x) and not x.halbjahr:
+            soll_ende = kursstart(x.kurs, kurse[x.kurs]) + timedelta(days=soll)
             if abs((x.aus - soll_ende).days) <= 30:
                 regulaer.append(x.anwesend / x.kalendertage)
     quote = stt.median(regulaer) if regulaer else None
@@ -345,7 +416,11 @@ def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stic
         ohne_start=ohne_start, offene_regeln=offene, wochenende_anteil=we_anteil, wochenende_basis=len(basis),
         anwesend_quote=quote, anwesend_basis=len(regulaer), wochenende_text=we_text, arten=arten, auffaellig=auff,
         kuenftig_spalten=int(meta.get("kuenftig_spalten", 0)), kuenftig_personentage=int(meta.get("kuenftig_tage", 0)),
-        kuenftig_personen=int(meta.get("kuenftig_personen", 0)), hinweise=hinweise)
+        kuenftig_personen=int(meta.get("kuenftig_personen", 0)), hinweise=hinweise,
+        gemessen=sorted((m for f, m in gemessen.items() if any(familie(k.upper()) == f for k in kurse)
+                         or zuordnen(f, tabelle) is not None), key=lambda m: m.familie),
+        ignoriert=(sum(1 for k in kurse if zuordnung[k] and zuordnung[k]["gruppe"] == "Ignoriert"),
+                   sum(len(xs) for k, xs in kurse.items() if zuordnung[k] and zuordnung[k]["gruppe"] == "Ignoriert")))
 
 
 
@@ -362,7 +437,7 @@ def tabelle(roh: dict | None = None) -> list[dict]:
     from . import massnahmen_kern as mk
 
     eigen = (roh if roh is not None else mk._roh()).get("zuordnung_arten")
-    return tabelle_bereinigen(eigen) if eigen is not None else [dict(e) for e in ZUORDNUNG_STANDARD]
+    return tabelle_bereinigen(eigen if eigen is not None else ZUORDNUNG_STANDARD)
 
 
 def tabelle_schritt(neu: list[dict] | None) -> str:

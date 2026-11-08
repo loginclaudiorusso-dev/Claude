@@ -92,7 +92,7 @@ def test_bericht_wochenenden_und_zuordnung():
         cnc = next(z for z in r.arten if z.art == "Hauptmaßnahme CNC")
         assert cnc.n == 6 and cnc.laufend == 0 and cnc.p10 is not None
         assert r.anwesend_basis == 4                                  # 4 regulär beendete (±30 Tage um Soll-Ende)
-        assert any("RVT" == m for m, *_ in r.offene_regeln)
+        assert [m for m, *_ in r.offene_regeln] == ["VW"]                # RVT/ASS seit 0.77 gemessen, nur VW offen
 
 
 def test_bericht_auffaellig():

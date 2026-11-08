@@ -11,13 +11,28 @@ from . import bestand_kern as bk
 from . import massnahmen_kern as mk
 from .ui_bausteine import attr, badge, knopf, leer
 
-OFFENE_FRAGEN = [
-    "Welche Assessment-Kürzel dauern 4 Wochen, welche 6?",
-    "RVT: Bedeutung und Solldauer?",
-    "JobTrain, Bauhelfer und andere Sonderkurse: Maßnahmeart und Dauer?",
-    "Enthält die Pivot geplante künftige Tage? (siehe „Künftige Tage“ – der Bericht prüft es)",
-    "Gibt es eine maximale Kursgröße je Maßnahmeart?",
+# 0.77: geklärt – Antworten stehen hier, damit sie im Bericht nachvollziehbar bleiben
+GEKLAERT = [
+    ("Assessment 4 oder 6 Wochen?", "Gemessen je Kursfamilie aus den Daten der Zimmerbelegung (Anmeldungen mit Abreise, "
+                                     "Gebäudeplan) – siehe „Solldauer aus der Zimmerbelegung“."),
+    ("RVT: Solldauer?", "Ebenso aus den RVT-Anmeldungen der Zimmerbelegung gemessen."),
+    ("JobTrain, Bauhelfer und ähnliche Sonderkurse?", "Für uns ohne Belang – Gruppe „Ignoriert“, sie zählen nirgends."),
+    ("Geplante künftige Tage im Pivot?", "Prüft der Bericht selbst (Block „Künftige Tage“)."),
+    ("Maximale Kursgröße?", "Wird nur bei VW erreicht – Obergrenze nur dort eintragen."),
 ]
+
+
+def eintraege(stand) -> list:
+    """(Maßnahme, von, bis, Quelle) aus der Zimmerbelegung: Anreiselisten mit eingetragener Abreise und belegte
+    Zeiträume im Gebäudeplan (ohne Teilstücke eines Umzugs). Namen werden dabei nicht verwendet."""
+    if stand is None:
+        return []
+    erg = [(b.massnahme, b.liste_anreise or b.von, b.bis, "Anmeldung") for b in getattr(stand, "bedarf", [])
+           if b.massnahme and not b.bis_angenommen]
+    lage = getattr(stand, "lage", None)
+    for bs in (getattr(lage, "belegungen", {}) or {}).values():
+        erg += [(x.massnahme, x.von, x.bis, "Gebäudeplan") for x in bs if x.art == "belegt" and x.massnahme and not x.umzug]
+    return erg
 
 
 def _z(x, nk: int = 0) -> str:
@@ -34,7 +49,8 @@ def daten(a) -> dict:
     if not aufenthalte:
         return {"leer": bool(roh.get("pivot")), "bericht": None}
     stich = date.fromisoformat(meta["stichtag"]) if meta.get("stichtag") else a.heute
-    return {"bericht": bk.bericht(aufenthalte, meta, bk.tabelle(roh), stich), "leer": False}
+    gemessen = bk.anmeldedauern(eintraege(getattr(a, "stand", None)))        # nur zur Laufzeit, nie gespeichert
+    return {"bericht": bk.bericht(aufenthalte, meta, bk.tabelle(roh), stich, gemessen), "leer": False}
 
 
 def zeichnen(a, d: dict) -> None:
@@ -78,11 +94,41 @@ def zeichnen(a, d: dict) -> None:
         with ui.element("div").classes("m-bst-raster"):
             _nicht_zugeordnet(a, b)
             _offen(b)
+        _gemessen(b)
         _auffaellig(b)
         with ui.element("section").classes("m-block"):
-            ui.label("Offene Fragen – vor Schritt 2 klären, nicht raten").classes("m-btitel")
-            for i, f in enumerate(OFFENE_FRAGEN, 1):
-                ui.label(f"{i}. {f}").classes("m-ptext")
+            ui.label("Geklärte Fragen").classes("m-btitel")
+            for frage, antwort in GEKLAERT:
+                with ui.element("div").classes("m-bst-zeile"):
+                    ui.label(frage).classes("m-name")
+                    ui.label(antwort).classes("m-zweite")
+            if b.ignoriert[0]:
+                from .arbeitsflaeche import mehrzahl
+
+                ui.label(f"Ignoriert: {mehrzahl(b.ignoriert[0], 'Kurs', 'Kurse')} mit "
+                         f"{mehrzahl(b.ignoriert[1], 'Aufenthalt', 'Aufenthalten')}.").classes("m-ptext")
+
+
+def _gemessen(b: bk.Bericht) -> None:
+    with ui.element("section").classes("m-block"):
+        ui.label("Solldauer aus der Zimmerbelegung (Anmeldungen mit Abreise, Gebäudeplan)").classes("m-btitel")
+        if not b.gemessen:
+            ui.label("Keine passenden Anmeldungen gefunden – es gilt die Solldauer aus der Tabelle.").classes("m-ptext")
+            return
+        sp = "minmax(160px,1.2fr) 120px 70px minmax(150px,1fr) minmax(150px,1fr)"
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for t in ("Kursfamilie", "Quelle", "Fälle", "Median", "10 % – 90 %"):
+                ui.label(t)
+        for m in b.gemessen:
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                ui.label(m.familie).classes("m-name")
+                ui.label(m.quelle).classes("m-zweite")
+                ui.label(_z(m.n))
+                ui.label(_monate(m.median))
+                ui.label(f"{_z(m.p10)} – {_z(m.p90)} Tage")
+        ui.label("Gemessen wird bei jedem Öffnen aus den aktuellen Daten der Zimmerbelegung (Abreise − Anreise + 1). "
+                 "Ab 3 Anmeldungen je Kursfamilie gilt der Median als Solldauer für Einträge mit „Soll aus Anmeldung“; "
+                 "sonst der Gebäudeplan, sonst die Tabelle.").classes("m-zweite").style("white-space:normal")
 
 
 def _abnahme(a, b: bk.Bericht) -> None:
@@ -127,7 +173,7 @@ def _arten(b: bk.Bericht) -> None:
                 ui.label(_z(z.laufend))
                 ui.label(_monate(z.median))
                 ui.label(f"{_z(z.p10)} – {_z(z.p90)} Tage" if z.p10 is not None else "–")
-                ui.label(_monate(z.soll_tage) if z.soll_tage else ("flexibel" if z.gruppe == "IBTZ" else "offen"))
+                ui.label(z.soll_text or ("flexibel" if z.gruppe == "IBTZ" else "offen")).style("white-space:normal")
                 ui.label(_z(z.unterbrochen))
         ui.label("Laufend = Austritt höchstens 3 Tage vor dem Stichtag; diese Fälle gelten später als „noch nicht beendet“ "
                  "(zensiert) und fehlen in Median und Spanne.").classes("m-zweite").style("white-space:normal")
@@ -184,7 +230,9 @@ def zuordnung_panel(a) -> None:
     def bauen():
         ui.label("Reihenfolge zählt: der erste passende Eintrag gewinnt. Muster = Kürzel (ganzes Wort, z. B. „ASS“), "
                  "Teiltext ab 5 Zeichen (z. B. „Bauhelfer“) oder „re:“ + regulärer Ausdruck. Solldauer in Tagen "
-                 "(leer = flexibel bzw. offen). Standort leer = alle.").classes("m-ptext")
+                 "(leer = flexibel bzw. offen); „aus Anmeldung messen“ nimmt je Kurs die Dauer aus der Zimmerbelegung. "
+                 "Standort leer = alle. Gruppe „Ignoriert“ = zählt nirgends. Max. Plätze nur, wo die Kursgröße erreicht "
+                 "wird (VW).").classes("m-ptext")
         liste = ui.element("div").classes("m-bst-tab")
 
         def neu_zeichnen():
@@ -200,6 +248,10 @@ def zuordnung_panel(a) -> None:
                                   on_change=lambda ev, e=e: e.update(gruppe=ev.value)).props("dense outlined").classes("m-feld")
                         ui.number("Soll (Tage)", value=e["soll_tage"], min=1, step=1,
                                   on_change=lambda ev, e=e: e.update(soll_tage=ev.value)).props("dense outlined").classes("m-feld")
+                        ui.checkbox("Soll aus Anmeldung messen", value=e.get("soll_quelle") == "anmeldung",
+                                    on_change=lambda ev, e=e: e.update(soll_quelle="anmeldung" if ev.value else "")).props("dense")
+                        ui.number("max. Plätze je Kurs", value=e.get("max_plaetze"), min=1, step=1,
+                                  on_change=lambda ev, e=e: e.update(max_plaetze=ev.value)).props("dense outlined").classes("m-feld")
                         ui.input("Standort", value=e["standort"], on_change=lambda ev, e=e: e.update(standort=ev.value)).props(
                             "dense outlined").classes("m-feld")
                         ui.input("Zu klären", value=e["offen"], on_change=lambda ev, e=e: e.update(offen=ev.value)).props(
