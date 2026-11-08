@@ -149,8 +149,9 @@ def _massnahmen_block(a) -> None:
                  if pv else "Maßnahmen-Pivot: noch keiner").classes("m-name")
         ui.label(f"Anreiselisten: {li['kurse']} Kurse aus {len(li['dateien'])} Datei(en)" if li else
                  "Anreiselisten (Pendler/Internat): noch keine").classes("m-name")
-        ui.label("Pivot mit Personen und ihren Maßnahmen je Tag (z. B. „pivot_TNHM.xlsx“). Gespeichert werden nur die "
-                 "Teilnehmerzahlen je Kurs und Tag – keine Namen. Anreiselisten „Teilnehmer Beginn“ als Word oder PDF: "
+        ui.label("Pivot mit Personen und ihren Maßnahmen je Tag (z. B. „pivot_TNHM.xlsx“). Gespeichert werden die "
+                 "Teilnehmerzahlen je Kurs und Tag und – fürs Bestandsmodell – je Teilnahme nur eine fortlaufende Nummer "
+                 "(bei jedem Einlesen neu vergeben), Kurs, Ein- und Austritt; keine Namen. Anreiselisten „Teilnehmer Beginn“ als Word oder PDF: "
                  "P = Pendler, ohne P Internat, K = Kostenzusage; übernommen werden nur Zählwerte je Kurs. Große Pivots "
                  "brauchen ein paar Minuten.").classes("m-ptext")
 
@@ -192,7 +193,8 @@ def _massnahmen_block(a) -> None:
                 finally:
                     Path(pfad).unlink(missing_ok=True)
                 if await a.aendern(mk.pivot_schritt, erg, name):
-                    ok.append((name, erg.text + " · gespeichert sind nur Zählwerte, keine Namen"))
+                    ok.append((name, erg.text + f" · {len(erg.bestand.get('aufenthalte', []))} Aufenthalte (nur Nummern, "
+                                                "keine Namen) – Prüfbericht unter Auswertung → Maßnahmen"))
             fertig("Maßnahmen-Pivot", ok, fehler)
 
         async def listen(dateien):

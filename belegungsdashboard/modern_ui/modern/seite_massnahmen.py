@@ -24,6 +24,11 @@ def _z(x: float | None, nk: int = 0) -> str:
 
 
 def daten(a) -> None:
+    if getattr(a, "mn_ansicht", "neu") == "bestand":       # 0.76: Bestandsmodell – Schritt 1 Prüfbericht
+        from . import bestand_ui
+
+        a.daten = {"bestand": bestand_ui.daten(a)}
+        return
     vor = int(getattr(a, "mn_vor", 4) or 4)
     if vor not in (2, 4, 6):
         vor = 4
@@ -53,8 +58,20 @@ def daten(a) -> None:
                "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80, "gruende": {f: r.grund for f, r in reihen.items()}}
 
 
+def _umschalter(a) -> None:
+    with a.werkzeuge:
+        segmente({"neu": "Neuanmeldungen", "bestand": "Bestandsmodell · Prüfbericht"}, getattr(a, "mn_ansicht", "neu"),
+                 lambda v: a.setzen(mn_ansicht=v, nur_seite=True))
+
+
 def zeichnen(a) -> None:
     d = a.daten
+    _umschalter(a)
+    if "bestand" in d:
+        from . import bestand_ui
+
+        bestand_ui.zeichnen(a, d["bestand"])
+        return
     with a.leiste:
         optionen = {f: f"{f} · {KURZ.get(g, g)}" for f, g, _t in d["liste"]}
         ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",

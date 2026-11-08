@@ -321,6 +321,9 @@ class Ansicht:
 
         ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
         ui.add_body_html(diagramm_ui.JS)
+        from . import bestand_ui
+
+        ui.add_css(bestand_ui.CSS)             # 0.76: Bestandsmodell – Prüfbericht, Zuordnungstabelle
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom

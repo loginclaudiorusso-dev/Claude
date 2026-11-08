@@ -264,6 +264,14 @@ def _allgemein(a) -> None:
     with a.inhalt:
         with ui.element("div").classes("m-zwei"):
             _darstellung(a)
+            with ui.element("section").classes("m-block"):          # 0.76: Zuordnungstabelle fürs Bestandsmodell
+                from . import bestand_kern as bk
+                from . import bestand_ui
+
+                ui.label("Maßnahmearten (Bestandsmodell)").classes("m-btitel")
+                ui.label(f"{len(bk.tabelle())} Einträge: Kursmuster → Maßnahmeart, Gruppe und Solldauer. Grundlage für "
+                         "Verbleib und Übergänge der Maßnahmen-Prognose.").classes("m-ptext")
+                knopf("Maßnahmearten zuordnen …", lambda: bestand_ui.zuordnung_panel(a), "", "rule")
             with ui.element("section").classes("m-block"):
                 ui.label("Zimmerplanung").classes("m-btitel")
                 for k, (text, _s, _mi, _ma) in ZAHLEN.items():

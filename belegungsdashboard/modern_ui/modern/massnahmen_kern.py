@@ -71,6 +71,7 @@ class PivotErgebnis:
     kurse: dict                    # Kurs → {"von": ISO, "werte": RLE, "dauer": Median-Tage je Person}
     personen: int
     luecken: list                  # [(von, bis)] überbrückt
+    bestand: dict = field(default_factory=dict)   # 0.76: Aufenthalte je Person (nur Nummern) + Prüfwerte fürs Bestandsmodell
 
     @property
     def text(self) -> str:
@@ -80,7 +81,7 @@ class PivotErgebnis:
         return t
 
 
-def pivot_aus_zeilen(zeilen) -> PivotErgebnis:
+def pivot_aus_zeilen(zeilen, stichtag: date | None = None) -> PivotErgebnis:
     """Zeilen (Tupel) des Pivots: Kopfzeile mit „Zeilenbeschriftungen“ und Tagesdaten, darunter Personen und ihre
     Maßnahme-Zeilen. Namen werden übersprungen."""
     it = iter(zeilen)
@@ -102,6 +103,14 @@ def pivot_aus_zeilen(zeilen) -> PivotErgebnis:
     von, bis = tage[0], tage[-1]
     n = (bis - von).days + 1
     pos = [(i, (d - von).days) for i, d in spalten]
+    # 0.76: Aufenthalte je Person und Kurs fürs Bestandsmodell (Namen werden nicht gespeichert – nur Nummern)
+    from . import bestand_kern as bk
+
+    stichtag = stichtag or date.today()
+    datum_idx = {i for i, _d in spalten}
+    hj_idx = [i for i, v in enumerate(kopf) if i and v not in (None, "") and i not in datum_idx
+              and not str(v).strip().lower().startswith("gesamt")]
+    sammler = bk.Sammler(von, stichtag)
     summen: dict[str, list[float]] = {}
     dauer: dict[str, list[int]] = {}
     personen = 0
@@ -111,6 +120,7 @@ def pivot_aus_zeilen(zeilen) -> PivotErgebnis:
         t = z[0].strip()
         if t.lower().startswith("gesamt"):
             break
+        sammler.zeile(t, [k for i, k in pos if i < len(z) and z[i]], any(i < len(z) and z[i] for i in hj_idx))
         if not _KURS.match(t):
             continue                                   # Personenzeile – nichts davon wird gelesen
         reihe = summen.setdefault(t, [0.0] * n)
@@ -145,7 +155,14 @@ def pivot_aus_zeilen(zeilen) -> PivotErgebnis:
         a, e = nz[0], nz[-1]
         kurse[kurs] = {"von": (von + timedelta(days=a)).isoformat(), "werte": _rle([round(w) for w in reihe[a:e + 1]]),
                        "dauer": int(stt.median(dauer.get(kurs) or [e - a + 1]))}
-    return PivotErgebnis(von, bis, kurse, personen, luecken)
+    sammler.ende()
+    bestand = {"aufenthalte": [x.als_liste() for x in sammler.aufenthalte],
+               "meta": {"von": von.isoformat(), "bis": bis.isoformat(), "stichtag": stichtag.isoformat(),
+                        "halbjahr_spalten": len(hj_idx), "teilsummen": sammler.teilsummen, "langnamen": sammler.langnamen,
+                        "nur_halbjahr": sammler.nur_halbjahr, "ohne_person": sammler.ohne_person,
+                        "kuenftig_spalten": sum(1 for d in tage if d > stichtag), "kuenftig_tage": sammler.kuenftig_tage,
+                        "kuenftig_personen": len(sammler.kuenftig_personen)}}
+    return PivotErgebnis(von, bis, kurse, personen, luecken, bestand)
 
 
 def pivot_lesen(pfad) -> PivotErgebnis:
@@ -163,6 +180,8 @@ def pivot_uebernehmen(erg: PivotErgebnis, datei: str) -> str:
     roh["pivot"] = {"datei": datei, "importiert_am": datetime.now().isoformat(timespec="seconds"),
                     "von": erg.von.isoformat(), "bis": erg.bis.isoformat(), "kurse": erg.kurse, "personen": erg.personen,
                     "luecken": [[a.isoformat(), b.isoformat()] for a, b in erg.luecken]}
+    if erg.bestand:
+        roh["bestand"] = erg.bestand
     _schreiben(roh)
     return f"Maßnahmen-Pivot übernommen: {erg.text}"
 
