@@ -83,6 +83,31 @@ KATALOG: dict[str, Kennzahl] = {
         "Nicht nutzbar", "Zimmer, die an dem Tag niemand beziehen kann.",
         "Nicht nutzbar = gesperrt laut Gebäudeplan + wegen eines Mangels unbewohnbar",
         "Gebäudeplan (Sperren, Renovierung) und Mängelliste; geht von der Kapazität ab.", "Zimmer"),
+    # 0.79: Bestandsmodell der Maßnahmen
+    "planwert": Kennzahl(
+        "Planwert (Maßnahmen)", "Die Zahl, mit der geplant wird: der mittlere Wert aus 1000 durchgerechneten Verläufen – "
+        "in der Hälfte der Fälle wird es mehr, in der Hälfte weniger.",
+        "Planwert = Median( schon da + fest angemeldet + aus Assessment/Vorbereitung + weitere Zugänge )",
+        "Maßnahmen-Pivot (Aufenthalte), Verbleibskurven, Übergänge, Zugänge der letzten 3 Jahre; Szenario „normal“.",
+        "Teilnehmende"),
+    "sicher": Kennzahl(
+        "Davon sicher", "Wer heute schon in der Maßnahme ist und voraussichtlich noch bleibt, plus fest Angemeldete.",
+        "Sicher = Σ Verbleib der Laufenden (aus der Verbleibskurve, abhängig von der bisherigen Dauer) + feste Anmeldungen",
+        "Laufende Aufenthalte im Pivot und geplante künftige Tage; vorzeitige Abgänge sind schon abgezogen.", "Teilnehmende"),
+    "abgangsquote": Kennzahl(
+        "Vorzeitige Abgangsquote", "Anteil, der eine Maßnahme vor dem Soll-Ende verlässt.",
+        "Abgangsquote = 1 − Verbleib 30 Tage vor dem Soll-Ende (Kaplan-Meier, Laufende zensiert)",
+        "Alle Aufenthalte der Maßnahmeart; unter 30 Fällen die Gruppe bzw. alle. Gründe werden nicht erfasst.", "%"),
+    "uebergangsquote": Kennzahl(
+        "Übergangsquote", "Anteil der Assessments (bzw. Vorbereitungen), auf die innerhalb von 12 Monaten die nächste "
+        "Stufe folgt.",
+        "Übergangsquote = Fälle mit Folge-Maßnahme ≤ 12 Monate ÷ Fälle mit abgeschlossenem 12-Monats-Fenster",
+        "Gleiche (pseudonyme) Person im Pivot; nur Assessments, die mindestens 12 Monate zurückliegen.", "%"),
+    "rueckblick": Kennzahl(
+        "Treffsicherheit (Rückblick)", "So weit lag das Modell früher daneben, wenn man es mit den damals bekannten Daten "
+        "rechnet.",
+        "mittlerer Fehler = Ø | Ist − Planwert | über rollierende Stichtage (alle 3 Monate, letzte 18 Monate)",
+        "Vergleich: „wie vor 12 Monaten“ (einfachste Annahme). Treffer = Ist lag in der 80 %-Spanne.", "Teilnehmende"),
 }
 
 # Reihen-Namen in den Diagrammen → Kennzahl (für Detailpanel und ƒx)

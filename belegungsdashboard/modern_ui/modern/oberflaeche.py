@@ -324,6 +324,9 @@ class Ansicht:
         from . import bestand_ui
 
         ui.add_css(bestand_ui.CSS)             # 0.76: Bestandsmodell – Prüfbericht, Zuordnungstabelle
+        from . import bestand_prognose_ui
+
+        ui.add_css(bestand_prognose_ui.CSS)    # 0.79: Bestandsprognose – Planung und Leitung, Wenn-dann
         self.body = ui.query("body")           # einmal holen – später auch ohne Slot-Kontext nutzbar
         self.body.classes(" ".join(["dark"] + themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom

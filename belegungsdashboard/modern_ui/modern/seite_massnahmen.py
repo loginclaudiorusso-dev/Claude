@@ -24,6 +24,11 @@ def _z(x: float | None, nk: int = 0) -> str:
 
 
 def daten(a) -> None:
+    if getattr(a, "mn_ansicht", "neu") == "prognose":      # 0.79: Bestandsprognose – Planung und Leitung
+        from . import bestand_prognose_ui
+
+        a.daten = {"bprog": bestand_prognose_ui.daten(a)}
+        return
     if getattr(a, "mn_ansicht", "neu") == "bestand":       # 0.76: Bestandsmodell – Schritt 1 Prüfbericht
         from . import bestand_ui
 
@@ -60,13 +65,19 @@ def daten(a) -> None:
 
 def _umschalter(a) -> None:
     with a.werkzeuge:
-        segmente({"neu": "Neuanmeldungen", "bestand": "Bestandsmodell · Prüfbericht"}, getattr(a, "mn_ansicht", "neu"),
+        segmente({"neu": "Neuanmeldungen", "prognose": "Bestandsprognose", "bestand": "Prüfbericht"},
+                 getattr(a, "mn_ansicht", "neu"),
                  lambda v: a.setzen(mn_ansicht=v, nur_seite=True))
 
 
 def zeichnen(a) -> None:
     d = a.daten
     _umschalter(a)
+    if "bprog" in d:
+        from . import bestand_prognose_ui
+
+        bestand_prognose_ui.zeichnen(a, d["bprog"])
+        return
     if "bestand" in d:
         from . import bestand_ui
 
