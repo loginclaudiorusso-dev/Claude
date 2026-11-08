@@ -333,15 +333,8 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
                                  "data": [{"xAxis": labels[li + 1]}]}
     if zeig(2) and not start:
         reihen[6]["markPoint"] = _spotlights(t, zs, labels, kap)
-    # 0.75: Engpass-Zone – rot hinterlegt, wo die obere 80 %-Grenze die Kapazität erreicht (sichtbar, bevor es knapp wird)
-    from . import kennzahlen_katalog as kk
-
-    zonen = kk.engpass_bereiche([z.hi80 if z.art != "ist" else None for z in zs], kap) if kap and zeig(4) and not start else []
-    if zonen:
-        reihen[7]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["rot"], .10)},
-                                 "label": {"show": True, "position": "insideBottom", "color": t["rot"], "fontSize": 11,
-                                           "formatter": "Engpass möglich"},
-                                 "data": [[{"xAxis": labels[v]}, {"xAxis": labels[b]}] for v, b in zonen]}
+    # 0.78: Die Engpass-Zone aus 0.75 ist wieder entfernt – sie lag als dritte Fläche über „Prognose →“ und „ab Monat 13“
+    # und wiederholte nur das Abzeichen „Engpass ab …“. Das Diagramm ist so wieder ruhig.
     zusatz = {z.monat: z.vertraege for z in c["pg"].zeilen}
     blind = {mon: p + zusatz.get(mon, 0.0) for mon, _i, p in c["pg"].rueckblick} if c["backtest"] else {}
     reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 6, "color": t["orange"],

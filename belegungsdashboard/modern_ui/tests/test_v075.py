@@ -51,9 +51,9 @@ def test_diagramm_leiste_und_ziehen():
     js = diagramm_ui.JS
     for teil in ("m-dg-griff", "Tabelle", "Kopieren", "Berechnung", "m_achse", "localStorage", "--af-pb", "convertFromPixel"):
         assert teil in js, teil
-    assert "calc(100vh - var(--af-oben, 216px) - 200px)" in diagramm_ui.CSS          # Prognose-Graph groß
+    assert "calc(100vh - var(--af-oben, 216px) - 390px)" in diagramm_ui.CSS          # Graph + Karten auf einen Blick
     q = (MOD / "seite_prognose.py").read_text(encoding="utf-8")
-    assert "diagramm_ui.anbinden" in q and "diagramm_ui.fx_kasten" in q and "Engpass möglich" in q
+    assert "diagramm_ui.anbinden" in q and "diagramm_ui.fx_kasten" in q and "Engpass möglich" not in q
     assert "def _engpass_heatmap" in (MOD / "seiten.py").read_text(encoding="utf-8")
 
 

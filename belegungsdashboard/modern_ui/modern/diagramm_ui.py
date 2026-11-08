@@ -163,7 +163,10 @@ body.lay-office .m-mn-kachel .m-chart { height: 220px !important; }
 body.lay-office .m-ex.b-dashboard { height: auto !important; }
 body.lay-office .m-ex.b-dashboard > .m-xg { flex: none !important; }
 body.lay-office .m-ex.b-dashboard .m-chart.m-xg-chart, body.lay-office .m-xsz .m-xg .m-chart.m-xg-chart {
-  flex: none !important; height: max(420px, calc(100vh - var(--af-oben, 216px) - 200px)) !important; }
+  flex: none !important; height: max(320px, calc(100vh - var(--af-oben, 216px) - 390px)) !important; }
+/* 0.78: Dashboard wieder auf EINEN Blick – Graph + kompakte Kennzahl-Karten ohne Scrollen (Erklärtext als Tooltip) */
+body.lay-office .m-ex.b-dashboard .m-xk-hinweis { display: none; }
+body.lay-office .m-ex.b-dashboard .m-xk-karte { cursor: help; }
 """
 
 JS = r"""<script>

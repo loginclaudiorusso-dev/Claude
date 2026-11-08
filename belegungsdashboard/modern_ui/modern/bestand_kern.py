@@ -39,7 +39,7 @@ ZUORDNUNG_STANDARD = [
     {"muster": "RVT", "art": "RVT", "gruppe": "Vorbereitung", "soll_tage": 91, "soll_quelle": "anmeldung"},
     {"muster": "IBTZ", "art": "IBTZ", "gruppe": "IBTZ", "soll_tage": None},
     {"muster": "VW", "art": "Hauptmaßnahme VW", "gruppe": "Hauptmaßnahme", "soll_tage": 730, "soll_quelle": "anmeldung",
-     "max_plaetze": None, "offen": "maximale Kursgröße eintragen (nur VW erreicht sie)"},
+     "max_plaetze": 24},                     # nur VW erreicht seine Kursgröße (24 Plätze)
     {"muster": "CNC", "art": "Hauptmaßnahme CNC", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
     {"muster": "M-GA", "art": "Hauptmaßnahme M-GA", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
     {"muster": "BFS", "art": "Hauptmaßnahme BFS", "gruppe": "Hauptmaßnahme", "soll_tage": 730},

@@ -36,8 +36,8 @@ def test_ignoriert_und_vw():
     t = bk.tabelle_bereinigen(bk.ZUORDNUNG_STANDARD)
     assert bk.zuordnen("GS JobTrain 20", t)["gruppe"] == "Ignoriert"
     vw = bk.zuordnen("GS VW 2506", t)
-    assert vw["gruppe"] == "Hauptmaßnahme" and "Kursgröße" in vw["offen"] and vw["max_plaetze"] is None
-    assert [e["muster"] for e in t if e["offen"]] == ["VW"]
+    assert vw["gruppe"] == "Hauptmaßnahme" and vw["max_plaetze"] == 24 and not vw["offen"]
+    assert [e["muster"] for e in t if e["offen"]] == []
     a = [bk.Aufenthalt(1, "GS JobTrain 20", H, H + timedelta(days=90), 60, 0, 0),
          bk.Aufenthalt(2, "GS ASS PS 260302", H, H + timedelta(days=27), 28, 8, 0)]
     r = bk.bericht(a, {"bis": "2026-12-31"}, t, date(2026, 12, 31), bk.anmeldedauern(_e("GS ASS PS 260909", 28)))

@@ -18,7 +18,7 @@ GEKLAERT = [
     ("RVT: Solldauer?", "Ebenso aus den RVT-Anmeldungen der Zimmerbelegung gemessen."),
     ("JobTrain, Bauhelfer und ähnliche Sonderkurse?", "Für uns ohne Belang – Gruppe „Ignoriert“, sie zählen nirgends."),
     ("Geplante künftige Tage im Pivot?", "Prüft der Bericht selbst (Block „Künftige Tage“)."),
-    ("Maximale Kursgröße?", "Wird nur bei VW erreicht – Obergrenze nur dort eintragen."),
+    ("Maximale Kursgröße?", "Wird nur bei VW erreicht: 24 Plätze."),
 ]
 
 
