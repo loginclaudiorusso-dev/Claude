@@ -330,8 +330,10 @@ def rg_zeichnen(a) -> None:
             for t in ("", "Zimmer", "Lage", "Heute", "Art", "Auszug", "Danach", "Sauber bis", "Priorität", ""):
                 ui.label(t)
         for z in zs:
-            with ui.element("div").classes("m-raster m-zeile" + (" fertig" if z.erledigt else "")).style(
-                    f"grid-template-columns:{RG_SPALTEN}"):
+            zeile = ui.element("div").classes("m-raster m-zeile" + (" fertig" if z.erledigt else "")).style(
+                f"grid-template-columns:{RG_SPALTEN}")
+            attr(zeile, data_rg=z.schluessel)                 # 0.81: Druck übernimmt die Bildschirm-Reihenfolge
+            with zeile:
                 with ui.element("div"):
                     b = ui.element("button").classes("m-haken" + (" an" if z.erledigt else ""))
                     attr(b, title="Als gereinigt markieren" if not z.erledigt else "Wieder offen", aria_pressed=str(z.erledigt).lower())
@@ -453,8 +455,25 @@ def _rg_hinzu_panel(a) -> None:
     a.panel("Zimmer zur Reinigung hinzufügen", bauen)
 
 
+# 0.81: Reihenfolge der Zeilen, wie sie gerade auf dem Bildschirm steht (Spaltensortierung per Klick auf die
+# Überschrift wirkt nur im Browser über style.order) – plus die gewählte Spalte für den Untertitel.
+RG_REIHENFOLGE_JS = """(() => {
+  const z = [...document.querySelectorAll('[data-rg]')];
+  const o = (e) => e.style.order === '' ? 0 : parseInt(e.style.order, 10);
+  z.sort((a, b) => o(a) - o(b));
+  const s = document.querySelector('.m-tkopf > .m-sort-auf, .m-tkopf > .m-sort-ab');
+  return { k: z.map(e => e.getAttribute('data-rg')),
+           s: s ? s.innerText.trim() + (s.classList.contains('m-sort-ab') ? ' (absteigend)' : '') : '' };
+})()"""
+
+
 async def _rg_drucken(a) -> None:
-    text = await run.io_bound(sk.reinigung_druck, a.rg_von, a.rg_bis, a.heute)
+    try:
+        info = await ui.run_javascript(RG_REIHENFOLGE_JS, timeout=3) or {}
+    except Exception:                       # noqa: BLE001 – ohne Antwort: übliche Reihenfolge nach Frist
+        info = {}
+    text = await run.io_bound(sk.reinigung_druck, a.rg_von, a.rg_bis, a.heute, list(info.get("k") or []),
+                              str(info.get("s") or ""))
     html_drucken(a, text, f"Reinigungsliste_{a.rg_von:%Y-%m-%d}")
 
 

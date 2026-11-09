@@ -3,6 +3,7 @@ Hauptprogramms. Änderungen laufen wie in ``kern`` als Schritt mit Rückgängig.
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -231,12 +232,57 @@ def zimmer_kurzliste(stand: zp.Planstand) -> list[str]:
                                    key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer))]
 
 
-def reinigung_druck(von: date, bis: date, heute: date | None = None) -> str:
-    """Druckfertiges HTML der Reinigungsliste (gleiche Liste wie im Hauptprogramm)."""
+def reinigung_druck(von: date, bis: date, heute: date | None = None, reihenfolge: list[str] | None = None,
+                    sortiert_nach: str = "") -> str:
+    """Druckfertiges HTML der Reinigungsliste – im Aufbau wie im Hauptprogramm, aber (0.81) in der Reihenfolge, die
+    auf dem Bildschirm eingestellt ist (reihenfolge = Schlüssel der Zeilen von oben nach unten). Ohne eigene
+    Sortierung gilt die übliche Reihenfolge nach Frist."""
     heute = heute or date.today()
     stand = zp.laden()
-    rs = rl.sortiert(_reinigungen(stand, von, bis), heute, rl.erledigt())
-    return rl.html_text(rs, von, bis, False, f"Stand {heute:%d.%m.%Y}", heute=heute, fertig=rl.erledigt())
+    fertig = rl.erledigt()
+    rs = in_reihenfolge(rl.sortiert(_reinigungen(stand, von, bis), heute, fertig), reihenfolge or [])
+    return druck_html(rs, von, bis, f"Stand {heute:%d.%m.%Y}", heute, fertig, sortiert_nach)
+
+
+def in_reihenfolge(rs: list, reihenfolge: list[str]) -> list:
+    """Reinigungen in die Bildschirm-Reihenfolge bringen; was dort nicht steht (z. B. weggefiltert), folgt danach in
+    der bisherigen Reihenfolge."""
+    platz = {k: i for i, k in enumerate(reihenfolge)}
+    return sorted(rs, key=lambda r: platz.get(rl.schluessel(r), len(platz)))       # sorted ist stabil
+
+
+def druck_html(rs: list, von: date, bis: date, stand: str, heute: date, fertig, sortiert_nach: str = "") -> str:
+    """Wie reinigungsliste.html_text des bisherigen Programms (gleiches Druckbild), nur ohne erneutes Sortieren."""
+    e = html.escape
+    breiten = (5, 10, 18, 7, 18, 20, 22)
+    kopf = ("", "Zimmer", "Lage", "Betten", "Auszug", "Sauber bis spätestens", "Notiz")
+    teile = [
+        "<html><head><meta charset='utf-8'><style>",
+        "body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #111; }",
+        "h1 { font-size: 14pt; margin: 0; } .sub { color: #555; }",
+        "th { text-align: left; font-size: 8.5pt; color: #333; background-color: #e9ecf0; }",
+        ".eilig { font-weight: bold; }",
+        "</style></head><body>",
+        f"<h1>{e(rl.titel(von, bis))}</h1>",
+        f"<div class='sub'>{rl.zaehlung(rs)}" + (f" · Gebäudeplan-Stand {e(stand)}" if stand else "")
+        + (f" · sortiert nach {e(sortiert_nach)}" if sortiert_nach else "")
+        + " · sauber bis spätestens = letzter Werktag vor der nächsten Anreise (Sa/So wird nicht gereinigt)"
+        " · ☐ nach der Reinigung abhaken</div><br>",
+    ]
+    if not rs:
+        teile.append("<p>In dieser Woche zieht niemand aus und kein leeres Zimmer muss vorbereitet werden.</p>")
+    else:
+        teile.append("<table width='100%' cellspacing='0' cellpadding='5' border='1' "
+                     "style='border-collapse: collapse; border-color: #b8bec6;'><tr>"
+                     + "".join(f"<th width='{b}%'>{k}</th>" for b, k in zip(breiten, kopf)) + "</tr>")
+        for r, z in zip(rs, rl.zeilen(rs)):
+            p = rl.prioritaet(r, heute, fertig)
+            klasse = " class='eilig'" if p <= 1 or r.knapp else " style='color: #888;'" if p == 9 else ""
+            teile.append(f"<tr{klasse}><td align='center' style='font-size: 12pt;'>{'☑' if p == 9 else '☐'}</td>"
+                         + "".join(f"<td>{e(x)}</td>" for x in z) + f"<td>{e(rl.notiz(r))}</td></tr>")
+        teile.append("</table>")
+    teile.append("</body></html>")
+    return "\n".join(teile)
 
 
 # ---------------------------------------------------------------------------------------
