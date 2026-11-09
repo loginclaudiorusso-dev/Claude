@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.81.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.82.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -118,6 +118,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Bestandsprognose (0.79): Planung („Plane mit X, davon Y sicher“) und Leitung (80 %-Spanne, drei Szenarien mit Auslöser, Frühindikator, Herkunft, Abgangsquoten, Rückblick-Test), Wenn-dann per Klick auf einen Monat; Kaplan-Meier, Übergänge, 1000 Simulationen, VW-Kappe 24
 - Halb belegte Doppelzimmer als halb gefüllte Kachel (statt gestrichelt wie „geplant“); Reinigungsliste „Offen – auch ältere“ (14 Tage zurück, wie der Besen) mit Spalte „Heute“ (belegt/frei) (0.80)
 - Reinigungsliste drucken in der am Bildschirm gewählten Sortierung (z. B. nach Zimmer), Untertitel „sortiert nach …“ (0.81)
+- Facility-Checks: Zeitraum wählbar (auch ältere offene, eigener Zeitraum), Filter offen/erledigt/alle, Drucken in der Bildschirm-Sortierung (0.82)
 - Bestandsmodell (0.77): Solldauer je Kursfamilie aus der Zimmerbelegung gemessen (Anmeldungen mit Abreise, Gebäudeplan), Gruppe „Ignoriert“ (JobTrain, Bauhelfer), Kursgröße nur VW
 - Bestandsmodell Schritt 1 (0.76): Aufenthalte je Person und Kurs (nur Nummern, keine Namen), Kursstart aus dem Kursnamen, Zuordnungstabelle Maßnahmearten (Einstellungen), Prüfbericht: Umfang, künftige Tage, Wochenend-Prüfung, Dauern je Maßnahmeart, Kurse ohne Zuordnung, auffällige Fälle, offene Fragen
 - Maßnahmen im Vergleich: Teilnehmende je Maßnahmenart (alle, nicht nur Internat), jede als eigene Kurve – Ist durchgezogen, Prognose gestrichelt (gebuchter Bestand + erwartete neue Kurse aus bis zu drei Vorjahren); keine Summe, keine Betten (die stehen in der allgemeinen Prognose)

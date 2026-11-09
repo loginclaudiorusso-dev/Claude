@@ -227,7 +227,8 @@ def rg_daten(a) -> None:
     if a.ansicht_von("reinigung", "liste") == "facility":
         from belegung import eintragen
 
-        a.daten = eintragen.facility_checks(a.stand.lage, a.heute - timedelta(days=14), a.heute + timedelta(days=45))
+        a.fc_von, a.fc_bis = sk.fc_zeitraum(a.fc_zeitraum, a.heute, a.fc_von, a.fc_bis)
+        a.daten = eintragen.facility_checks(a.stand.lage, a.fc_von, a.fc_bis)
         return
     if a.ansicht_von("reinigung", "liste") == "last":
         a.daten = sk.reinigung_last(a.stand, a.heute)
@@ -248,7 +249,7 @@ def facility_setzen(schluessel: str, an: bool) -> str:
     from .kern import _schritt
 
     heute = date.today()
-    c = next((x for x in eintragen.facility_checks(zp.laden().lage, heute - timedelta(days=60), heute + timedelta(days=90))
+    c = next((x for x in eintragen.facility_checks(zp.laden().lage, heute - timedelta(days=400), heute + timedelta(days=400))
               if x.schluessel == schluessel), None)
     if c is None:
         raise ValueError("Den Facility-Check gibt es nicht mehr.")
@@ -259,20 +260,38 @@ def facility_setzen(schluessel: str, an: bool) -> str:
 def _facility(a) -> None:
     from belegung import eintragen
 
-    cs = a.daten
+    alle = a.daten
+    with a.werkzeuge:                                  # 0.82: Zeitraum wählbar, Druck in der Bildschirm-Reihenfolge
+        segmente(sk.FC_ZEITRAUM, a.fc_zeitraum, lambda w: a.setzen(fc_zeitraum=w))
+        if a.fc_zeitraum == "eigen":
+            def _datum(feld: str, wert):
+                try:
+                    return a.setzen(**{feld: date.fromisoformat(wert or "")})
+                except ValueError:
+                    return None
+            ui.input("von", value=a.fc_von.isoformat()).classes("m-feld").style("width:150px;flex:0 0 auto;order:15").props("dense outlined type=date")                 .on("change", lambda e: _datum("fc_von", e.sender.value))
+            ui.input("bis", value=a.fc_bis.isoformat()).classes("m-feld").style("width:150px;flex:0 0 auto;order:15").props("dense outlined type=date")                 .on("change", lambda e: _datum("fc_bis", e.sender.value))
+        knopf("Drucken", lambda: _fc_drucken(a), "", "print")
+    n_offen = sum(1 for c in alle if not c.haken)
     with a.leiste:
-        ui.html(f'<span class="m-kpi"><b>{sum(1 for c in cs if not c.haken)}</b> offen · Auszüge nach mindestens '
-                f'{round(eintragen.facility_tage() / 30.44)} Monaten: {E(eintragen.FACILITY_AUFGABE)}</span>', sanitize=False)
+        kennzahlen([("offen", n_offen, "offen", "akzent"), ("erledigt", len(alle) - n_offen, "erledigt", "ok"),
+                    ("alle", len(alle), "alle", "neutral")], a.fc_filter, lambda f: a.setzen(fc_filter=f, laden=False))
+        ui.label(f"{a.fc_von:%d.%m.} – {a.fc_bis:%d.%m.%Y}").classes("m-kpi")
+        ui.html(f'<span class="m-kpi">Auszüge nach mindestens {round(eintragen.facility_tage() / 30.44)} Monaten: '
+                f'{E(eintragen.FACILITY_AUFGABE)}</span>', sanitize=False)
+    cs = [c for c in alle if a.fc_filter == "alle" or (a.fc_filter == "offen") != c.haken]
     sp = "36px 110px 90px minmax(160px, 1.4fr) minmax(120px, 1fr) 110px"
     with a.inhalt:
         if not cs:
-            leer("Keine Facility-Checks in den nächsten Wochen.")
+            leer("Keine offenen Facility-Checks in diesem Zeitraum." if alle else "Keine Facility-Checks in diesem Zeitraum.")
             return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
             for t in ("", "Auszug", "Zimmer", "Bewohner", "Maßnahme", "Aufenthalt"):
                 ui.label(t)
         for c in cs:
-            with ui.element("div").classes("m-raster m-zeile" + (" fertig" if c.haken else "")).style(f"grid-template-columns:{sp}"):
+            zeile = ui.element("div").classes("m-raster m-zeile" + (" fertig" if c.haken else "")).style(f"grid-template-columns:{sp}")
+            attr(zeile, data_rg=c.schluessel)
+            with zeile:
                 with ui.element("div"):
                     b = ui.element("button").classes("m-haken" + (" an" if c.haken else ""))
                     attr(b, title="Erledigt", aria_pressed=str(c.haken).lower())
@@ -467,11 +486,22 @@ RG_REIHENFOLGE_JS = """(() => {
 })()"""
 
 
-async def _rg_drucken(a) -> None:
+async def _bildschirm_reihenfolge() -> dict:
     try:
-        info = await ui.run_javascript(RG_REIHENFOLGE_JS, timeout=3) or {}
-    except Exception:                       # noqa: BLE001 – ohne Antwort: übliche Reihenfolge nach Frist
-        info = {}
+        return await ui.run_javascript(RG_REIHENFOLGE_JS, timeout=3) or {}
+    except Exception:                       # noqa: BLE001 – ohne Antwort: übliche Reihenfolge
+        return {}
+
+
+async def _fc_drucken(a) -> None:
+    info = await _bildschirm_reihenfolge()
+    text = await run.io_bound(sk.facility_druck, a.fc_von, a.fc_bis, a.heute, list(info.get("k") or []),
+                              str(info.get("s") or ""), a.fc_filter)
+    html_drucken(a, text, f"Facility-Checks_{a.fc_von:%Y-%m-%d}")
+
+
+async def _rg_drucken(a) -> None:
+    info = await _bildschirm_reihenfolge()
     text = await run.io_bound(sk.reinigung_druck, a.rg_von, a.rg_bis, a.heute, list(info.get("k") or []),
                               str(info.get("s") or ""))
     html_drucken(a, text, f"Reinigungsliste_{a.rg_von:%Y-%m-%d}")

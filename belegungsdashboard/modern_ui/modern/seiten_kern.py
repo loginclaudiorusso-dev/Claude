@@ -244,11 +244,81 @@ def reinigung_druck(von: date, bis: date, heute: date | None = None, reihenfolge
     return druck_html(rs, von, bis, f"Stand {heute:%d.%m.%Y}", heute, fertig, sortiert_nach)
 
 
-def in_reihenfolge(rs: list, reihenfolge: list[str]) -> list:
-    """Reinigungen in die Bildschirm-Reihenfolge bringen; was dort nicht steht (z. B. weggefiltert), folgt danach in
+def in_reihenfolge(rs: list, reihenfolge: list[str], schluessel=rl.schluessel) -> list:
+    """Zeilen in die Bildschirm-Reihenfolge bringen; was dort nicht steht (z. B. weggefiltert), folgt danach in
     der bisherigen Reihenfolge."""
     platz = {k: i for i, k in enumerate(reihenfolge)}
-    return sorted(rs, key=lambda r: platz.get(rl.schluessel(r), len(platz)))       # sorted ist stabil
+    return sorted(rs, key=lambda r: platz.get(schluessel(r), len(platz)))          # sorted ist stabil
+
+
+# ---------------------------------------------------------------------------------------
+# Facility-Checks (0.82): Zeitraum wählbar, Druck in der Bildschirm-Reihenfolge
+# ---------------------------------------------------------------------------------------
+
+FC_ZEITRAUM = {"offen": "Offen – auch ältere", "woche": "Diese Woche", "naechste": "Nächste Woche",
+               "sechs": "Nächste 6 Wochen", "eigen": "Eigener Zeitraum"}
+FC_ZURUECK = 90          # „Offen – auch ältere“: so weit zurück (abgehakte Checks merkt sich das Programm 180 Tage)
+
+
+def fc_zeitraum(wahl: str, heute: date, von: date | None = None, bis: date | None = None) -> tuple[date, date]:
+    if wahl == "offen":
+        return heute - timedelta(days=FC_ZURUECK), heute + timedelta(days=45)
+    if wahl in ("woche", "naechste"):
+        return zeitraum(wahl, heute)
+    if wahl == "eigen" and von and bis:
+        return (von, bis) if von <= bis else (bis, von)
+    return heute - timedelta(days=14), heute + timedelta(days=45)
+
+
+def fc_schluessel(c) -> str:
+    return c.schluessel
+
+
+def facility_druck(von: date, bis: date, heute: date | None = None, reihenfolge: list[str] | None = None,
+                   sortiert_nach: str = "", nur: str = "alle") -> str:
+    """Druckfertiges HTML der Facility-Checks im Zeitraum – in der Reihenfolge vom Bildschirm. nur: offen |
+    erledigt | alle (wie der Filter auf dem Bildschirm)."""
+    from belegung import eintragen
+
+    heute = heute or date.today()
+    cs = eintragen.facility_checks(zp.laden().lage, von, bis)
+    cs = [c for c in cs if nur == "alle" or (nur == "offen") != c.haken]
+    return facility_html(in_reihenfolge(cs, reihenfolge or [], fc_schluessel), von, bis, heute, sortiert_nach)
+
+
+def facility_html(cs: list, von: date, bis: date, heute: date, sortiert_nach: str = "") -> str:
+    from belegung import eintragen
+    from .standort_kern import kurz as zkurz
+
+    e = html.escape
+    breiten = (5, 13, 10, 24, 22, 10, 16)
+    kopf = ("", "Auszug", "Zimmer", "Bewohner", "Maßnahme", "Aufenthalt", "Notiz")
+    offen = sum(1 for c in cs if not c.haken)
+    teile = [
+        "<html><head><meta charset='utf-8'><style>",
+        "body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #111; }",
+        "h1 { font-size: 14pt; margin: 0; } .sub { color: #555; }",
+        "th { text-align: left; font-size: 8.5pt; color: #333; background-color: #e9ecf0; }",
+        "</style></head><body>",
+        f"<h1>Facility-Checks · {von:%d.%m.} – {bis:%d.%m.%Y}</h1>",
+        f"<div class='sub'>{len(cs)} Zimmer, davon {offen} offen · Aufgabe: {e(eintragen.FACILITY_AUFGABE)}"
+        + f" · Stand {heute:%d.%m.%Y}" + (f" · sortiert nach {e(sortiert_nach)}" if sortiert_nach else "")
+        + " · ☐ nach der Prüfung abhaken</div><br>",
+    ]
+    if not cs:
+        teile.append("<p>In diesem Zeitraum gibt es keine Facility-Checks.</p>")
+    else:
+        teile.append("<table width='100%' cellspacing='0' cellpadding='5' border='1' "
+                     "style='border-collapse: collapse; border-color: #b8bec6;'><tr>"
+                     + "".join(f"<th width='{b}%'>{k}</th>" for b, k in zip(breiten, kopf)) + "</tr>")
+        for c in cs:
+            zellen = (f"{c.bis:%d.%m.%Y}", zkurz(c.zimmer), c.name, c.massnahme, f"{c.monate} Monate", "")
+            grau = " style='color: #888;'" if c.haken else ""
+            teile.append(f"<tr{grau}><td align='center' style='font-size: 12pt;'>"
+                         f"{'☑' if c.haken else '☐'}</td>" + "".join(f"<td>{e(str(x))}</td>" for x in zellen) + "</tr>")
+        teile.append("</table>")
+    teile.append("</body></html>")
+    return "\n".join(teile)
 
 
 def druck_html(rs: list, von: date, bis: date, stand: str, heute: date, fertig, sortiert_nach: str = "") -> str:

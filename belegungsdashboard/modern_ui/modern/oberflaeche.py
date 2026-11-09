@@ -110,6 +110,8 @@ class Ansicht:
         self.zs_modus, self.zs_flur, self.fl_wochen = "zimmer", "", 8   # Zeitstrahl: Zimmer | Flure (Abreisewellen)
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
         self.rg_von = self.rg_bis = self.heute
+        self.fc_zeitraum, self.fc_filter = "sechs", "offen"          # 0.82: Facility-Checks mit Zeitraum und Filter
+        self.fc_von, self.fc_bis = self.heute - timedelta(days=14), self.heute + timedelta(days=45)
         self.zl_haus, self.zl_status, self.zl_text = "", "", ""
         self.zl_schnell: set[str] = set()
         self.zl_mehr: dict = {}                # seltenere Zimmerfilter (Boden, Mangel, Renovierung, Gruppe …)
