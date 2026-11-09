@@ -95,12 +95,19 @@ def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heut
 # Reinigung
 # ---------------------------------------------------------------------------------------
 
-ZEITRAUM = {"heute": "Heute", "woche": "Diese Woche", "naechste": "Nächste Woche"}
+ZEITRAUM = {"heute": "Heute", "woche": "Diese Woche", "naechste": "Nächste Woche", "offen": "Offen – auch ältere"}
+# 0.80: So weit zurück zählt eine nicht abgehakte Reinigung als „nicht bezugsfertig“ (Besen an der Kachel) – dieselbe
+# Spanne zeigt „Offen – auch ältere“ in der Reinigungsliste, damit jeder Besen dort auch zu finden ist.
+OFFEN_ZURUECK = 14
+ZUSTAND_HEUTE = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "zugeteilt",
+                 "gesperrt": "gesperrt"}
 
 
 def zeitraum(wahl: str, heute: date) -> tuple[date, date]:
     if wahl == "heute":
         return heute, heute
+    if wahl == "offen":
+        return heute - timedelta(days=OFFEN_ZURUECK), heute + timedelta(days=7)
     von, bis = rl.woche(heute)
     if wahl == "naechste":
         von, bis = von + timedelta(days=7), bis + timedelta(days=7)
@@ -122,6 +129,7 @@ class RZeile:
     notiz: str = ""
     details: str = ""
     manuell_id: str = ""
+    heute: str = ""          # 0.80: Zustand des Zimmers heute – frei | teilweise | belegt | geplant | gesperrt
 
     @property
     def stufe(self) -> str:
@@ -142,8 +150,15 @@ def reinigung(stand: zp.Planstand, von: date, bis: date, heute: date | None = No
         p = rl.prioritaet(r, heute, fertig)
         erg.append(RZeile(rl.schluessel(r), r.zimmer.kurz, zp.flur_text(r.zimmer), r.art, rl.auszug_datum(r),
                           rl.einzug_text(r, True), rl.frist_text(r), p, rl.prio_text(r, heute, fertig), p == 9,
-                          rl.notiz(r), rl.details(r, True), r.manuell_id))
+                          rl.notiz(r), rl.details(r, True), r.manuell_id, _zustand_heute(stand, r.zimmer.id, heute)))
     return erg
+
+
+def _zustand_heute(stand: zp.Planstand, zid: str, heute: date) -> str:
+    try:
+        return stand.lage.status_am(zid, heute)[0]
+    except (KeyError, AttributeError):
+        return ""
 
 
 @dataclass

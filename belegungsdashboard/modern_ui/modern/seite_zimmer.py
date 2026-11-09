@@ -845,7 +845,7 @@ def _uebersicht(a) -> None:
                     ("nicht_nutzbar", n["nicht_nutzbar"], "nicht nutzbar", "neutral")], f,
                    lambda k: a.setzen(zu_filter=f ^ {k}, laden=False),
                    {"frei": f"Bewohnbar, mindestens ein Bett frei: {n['frei'] - n['teilweise']} ganz leer, {n['teilweise']} "
-                            "Doppelzimmer mit einem freien Bett (gestrichelt) – Klick: filtern (mehrere Zustände möglich)",
+                            "Doppelzimmer mit einem freien Bett (halb gefüllt) – Klick: filtern (mehrere Zustände möglich)",
                     "geplant": "Nur geplant, noch nicht eingezogen (violett) – Klick: filtern",
                     "belegt": "Alle Betten belegt (blau) – Klick: filtern",
                     "nicht_nutzbar": f"Gesperrt laut Gebäudeplan oder wegen eines Mangels unbewohnbar ({unbew}) – gestreift; "
@@ -893,7 +893,8 @@ def _uebersicht(a) -> None:
                                         + (" nn" if zu[k.zimmer] == "nicht_nutzbar" else "") \
                                         + (" strittig" if k.strittig else "")
                                     b = ui.element("button").classes(kl)
-                                    attr(b, title=k.titel)
+                                    attr(b, title=("Doppelzimmer: ein Bett belegt bzw. zugeteilt, ein Bett frei\n" if k.status == "teilweise"
+                                                   else "") + k.titel)
                                     with b:
                                         ui.label(k.nr)
                                         if k.stufe:

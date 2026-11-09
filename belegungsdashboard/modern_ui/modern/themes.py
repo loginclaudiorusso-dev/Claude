@@ -352,7 +352,9 @@ body.pro .m-spur { background: var(--fl2); }
 body.pro .m-kachel { border-radius: var(--r); transition: none; color: var(--text); }
 body.pro .m-kachel:hover { transform: none; box-shadow: 0 0 0 1px var(--text3); filter: none; }
 body.pro .m-kachel.frei, body.pro .m-legende i.frei { background: color-mix(in srgb, var(--s-ok-fg) 30%, var(--fls)); border: 1px solid var(--s-ok-fg); }
-body.pro .m-kachel.teilweise, body.pro .m-legende i.teilweise { background: var(--fls); border: 1px dashed var(--s-ok-fg); }
+body.pro .m-kachel.teilweise, body.pro .m-legende i.teilweise { /* 0.80: halb belegt, halb frei – nicht mehr gestrichelt (wie „geplant“) */
+  background: linear-gradient(135deg, var(--s-blau-bg) 0 50%, color-mix(in srgb, var(--s-ok-fg) 30%, var(--fls)) 50% 100%);
+  color: var(--s-blau-fg); border: 1px solid var(--s-ok-fg); }
 body.pro .m-kachel.belegt, body.pro .m-legende i.belegt, body.pro .m-zs-b.belegt, body.pro .m-zs-punkt { background: var(--s-blau-bg); color: var(--s-blau-fg); box-shadow: inset 0 0 0 1px var(--s-blau-bd); }
 body.pro .m-kachel.geplant, body.pro .m-legende i.geplant, body.pro .m-zs-b.geplant, body.pro .m-zs-punkt.geplant { background: var(--fls); color: var(--s-akzent-fg); box-shadow: none; border: 1.5px dashed var(--s-akzent-fg); box-sizing: border-box; }
 body.pro .m-kachel.gesperrt, body.pro .m-legende i.gesperrt, body.pro .m-zs-b.gesperrt, body.pro .m-zs-punkt.gesperrt { background: repeating-linear-gradient(135deg, var(--s-neutral-bg) 0 5px, var(--fl2) 5px 10px); color: var(--s-neutral-fg); box-shadow: inset 0 0 0 1px var(--s-neutral-bd); }

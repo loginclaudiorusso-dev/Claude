@@ -772,13 +772,13 @@ def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
     ein dringender Mangel (Stufe 2) ist gemeldet. Unbewohnbare Zimmer sind eigens markiert und zählen hier nicht."""
     from belegung import reinigungsliste as rl
 
-    from .seiten_kern import _reinigungen
+    from .seiten_kern import OFFEN_ZURUECK, _reinigungen
 
     fertig = rl.erledigt()
     erg: dict[str, str] = {}
-    for r in _reinigungen(stand, tag - timedelta(days=14), tag):     # ältere offene Reinigungen sind meist nur nicht abgehakt
+    for r in _reinigungen(stand, tag - timedelta(days=OFFEN_ZURUECK), tag):   # ältere: meist nur nicht abgehakt
         if rl.schluessel(r) not in fertig and r.tag <= tag:
-            erg.setdefault(r.zimmer.id, f"{r.art} vom {r.tag:%d.%m.} offen")
+            erg.setdefault(r.zimmer.id, f"{r.art} vom {r.tag:%d.%m.} offen – abhaken: Reinigungsliste › Offen – auch ältere")
     for zid, ms in mg.offen_je_zimmer().items():
         if mg.stufe(ms) == 2 and zid not in erg:
             erg[zid] = "dringender Mangel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms if m.stufe == 2)

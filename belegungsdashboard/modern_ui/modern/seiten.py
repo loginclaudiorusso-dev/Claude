@@ -15,7 +15,7 @@ from nicegui import run, ui
 
 from . import seiten_kern as sk
 from .kern import kurz
-from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
+from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
 E = html.escape
@@ -237,7 +237,8 @@ def rg_daten(a) -> None:
     a.rg_von, a.rg_bis = von, bis
 
 
-RG_SPALTEN = "36px 70px minmax(80px, .8fr) minmax(90px, 1fr) minmax(100px, .9fr) minmax(120px, 1.5fr) minmax(100px, 1.2fr) 140px 36px"
+RG_SPALTEN = ("36px 70px minmax(80px, .8fr) 120px minmax(90px, 1fr) minmax(100px, .9fr) minmax(120px, 1.5fr) "
+              "minmax(100px, 1.2fr) 140px 36px")
 
 
 def facility_setzen(schluessel: str, an: bool) -> str:
@@ -316,12 +317,17 @@ def rg_zeichnen(a) -> None:
           or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
     with a.leiste:
         _mehrere_menue(a, [z for z in zs if not z.erledigt])
+    if a.rg_zeitraum == "offen":
+        with a.inhalt:
+            ui.label(f"Alle nicht abgehakten Reinigungen der letzten {sk.OFFEN_ZURUECK} Tage und der nächsten Woche – genau "
+                     "die, wegen derer ein Zimmer in der Übersicht den Besen trägt. Erledigte abhaken, dann verschwindet "
+                     "der Besen.").classes("m-ptext").style("margin:12px 20px 0")
     with a.inhalt:
         if not zs:
             leer("Keine offenen Reinigungen in diesem Zeitraum." if a.daten else "Keine Reinigungen in diesem Zeitraum.")
             return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{RG_SPALTEN}"):
-            for t in ("", "Zimmer", "Lage", "Art", "Auszug", "Danach", "Sauber bis", "Priorität", ""):
+            for t in ("", "Zimmer", "Lage", "Heute", "Art", "Auszug", "Danach", "Sauber bis", "Priorität", ""):
                 ui.label(t)
         for z in zs:
             with ui.element("div").classes("m-raster m-zeile" + (" fertig" if z.erledigt else "")).style(
@@ -334,6 +340,9 @@ def rg_zeichnen(a) -> None:
                     b.on("click", lambda z=z: a.aendern(sk.reinigung_setzen, [z.schluessel], not z.erledigt, a.rg_von, a.rg_bis))
                 attr(ui.label(z.zimmer).classes("m-name"), title=z.details)
                 ui.label(z.lage).classes("m-zweite")
+                with ui.element("div"):                 # 0.80: belegt oder frei – auf einen Blick
+                    if z.heute:
+                        badge(z.heute, sk.ZUSTAND_HEUTE.get(z.heute, z.heute))
                 attr(ui.label(z.art + (f" · {z.notiz}" if z.notiz and z.notiz != z.art else "")).classes("m-zweite"),
                      title=z.notiz or z.art)
                 ui.label(z.auszug).classes("m-mono")
