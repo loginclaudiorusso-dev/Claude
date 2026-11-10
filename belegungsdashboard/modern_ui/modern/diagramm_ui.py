@@ -238,6 +238,29 @@ body.m-dk-vollbild { overflow: hidden; }
 .m-dk.klein .m-dk-titel { font-size: 14px; }
 .m-dk.klein .m-dk-knoepfe .m-dg-knopf { height: 26px; padding: 0 6px; font-size: 12px; }
 .m-dk.klein .m-dk-knoepfe .m-dg-knopf > :not(i):not(b) { }
+/* 0.89: Darstellung wählbar (Karte | Klassisch | Einfach) */
+.m-dk-modus { display: inline-flex; align-items: center; gap: 8px; }
+.m-einfach { border: 1px solid var(--rand); border-radius: var(--r); background: var(--fl); padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px; margin-bottom: 10px; }
+.m-einfach-titel { font-size: 20px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.m-einfach-zahlen { display: flex; flex-wrap: wrap; gap: 12px; }
+.m-einfach-zahl { flex: 1 1 150px; border: 1px solid var(--rand); border-radius: var(--r); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px; }
+.m-einfach-gross { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.m-einfach-liste { display: flex; flex-direction: column; gap: 6px; }
+.m-einfach-zeile { display: grid; grid-template-columns: minmax(70px, 160px) minmax(0, 1fr) minmax(70px, auto);
+  align-items: center; gap: 10px; }
+.m-einfach-name { color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-einfach-zeile.ist .m-einfach-name { font-weight: 600; color: var(--text); }
+.m-einfach-spur { position: relative; height: 18px; background: var(--fl2); border-radius: 4px; }
+.m-einfach-balken { height: 100%; border-radius: 4px; background: var(--blau); }
+.m-einfach-balken.eng { background: var(--orange); }
+.m-einfach-zeile.ist .m-einfach-balken { background: var(--text2); }
+.m-einfach-voll, .m-einfach-marke { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); }
+.m-einfach-wert { font-variant-numeric: tabular-nums; text-align: right; color: var(--text); }
+.m-einfach-satz { color: var(--text2); }
+.m-einfach-details:not(.offen) { display: none; }
+@media print { .m-einfach-details:not(.offen) { display: none; } .m-einfach { break-inside: avoid; } }
 """
 
 JS = r"""<script>

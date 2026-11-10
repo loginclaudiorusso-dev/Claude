@@ -252,6 +252,70 @@ def gruppen(monate_: list[date], ist: list[bool], gesamt: list[float], uwt: list
     return _begrenzen(b)
 
 
+# ---- „Einfach“ für die Geschäftsführung (0.89): Aussage als Überschrift, höchstens drei Zahlen, Füllstand ---------
+
+@dataclass
+class Leitung:
+    titel: str = ""                                   # die Aussage – sie IST die Überschrift
+    zahlen: list = field(default_factory=list)        # (Bezeichnung, Zahl, Zusatz) – höchstens drei
+    balken: list = field(default_factory=list)        # (Monat, Wert, Anteil an der Kapazität oder None, Ist?)
+    unsicher: str = ""                                # Unsicherheit als Satz
+    stand: str = ""
+
+
+def leitung(ort: str, monate_: list[date], erwartet: list[float | None], ist: list[bool], stand: date,
+            kapazitaet: float | None = None, unten80: list[float | None] | None = None,
+            oben80: list[float | None] | None = None, kritisch: float = .85, monate_vor: int = 6) -> Leitung:
+    """Eine Aussage für die Leitung: reicht der Platz? Grundlage sind die geprüften Monate (bis 12 voraus); gezeigt
+    werden heute und die nächsten ``monate_vor`` Monate als Füllstand gegen „voll“."""
+    n = len(monate_)
+    li = max((i for i in range(n) if ist[i] and erwartet[i] is not None), default=None)
+    prog = [i for i in range(n) if not ist[i] and erwartet[i] is not None]
+    lg = Leitung(stand=_stand(stand, monate_[prog[0]] if prog else None))
+    if li is None and not prog:
+        lg.titel = f"{ort}: noch keine Zahlen."
+        return lg
+    o = lambda i: (oben80[i] if oben80 and oben80[i] is not None else erwartet[i])  # noqa: E731
+    u = lambda i: (unten80[i] if unten80 and unten80[i] is not None else erwartet[i])  # noqa: E731
+    zwoelf = prog[:12]
+    if kapazitaet:
+        eng = next((i for i in zwoelf if o(i) >= kritisch * kapazitaet), None)
+        gesamt = ort.strip().lower() in ("gesamt", "alle", "alle häuser")
+        wo = "Insgesamt" if gesamt else f"In {ort}"
+        spitze = max(o(i) for i in zwoelf) if zwoelf else None
+        if eng is None:
+            bis = monate_[zwoelf[-1]] if zwoelf else stand
+            lg.titel = (f"Insgesamt gibt es bis {lang(bis, stand)} genug freie Plätze." if gesamt
+                        else f"{ort} hat bis {lang(bis, stand)} genug freie Plätze.")
+        elif eng == zwoelf[0]:
+            lg.titel = f"{wo} ist es schon jetzt eng – bis zu {zahl(spitze)} von {zahl(kapazitaet)} Plätzen möglich."
+        else:
+            lg.titel = (f"{wo} wird es ab {lang(monate_[eng], stand)} eng – bis zu {zahl(spitze)} von "
+                        f"{zahl(kapazitaet)} Plätzen möglich.")
+    elif zwoelf:
+        lg.titel = (f"{ort}: in den nächsten {len(zwoelf[:monate_vor])} Monaten {zahl(min(erwartet[i] for i in zwoelf[:monate_vor]))} "
+                    f"bis {zahl(max(erwartet[i] for i in zwoelf[:monate_vor]))} belegt erwartet.")
+    else:
+        lg.titel = f"{ort}: heute {zahl(erwartet[li])} belegt."
+    if li is not None:
+        lg.zahlen.append(("Heute belegt", zahl(erwartet[li]), f"von {zahl(kapazitaet)} Plätzen" if kapazitaet else kurz(monate_[li])))
+    if zwoelf:
+        hoch = max(zwoelf, key=lambda i: erwartet[i])
+        lg.zahlen.append(("Höchstwert erwartet", zahl(erwartet[hoch]), lang(monate_[hoch], stand)))
+        if kapazitaet:
+            frei = kapazitaet - max(o(i) for i in zwoelf)
+            lg.zahlen.append(("Freie Plätze mindestens", zahl(max(frei, 0)), "auch im ungünstigen Fall" if frei >= 0
+                              else f"{zahl(-frei)} zu wenig möglich"))
+    zeig = ([li] if li is not None else []) + prog[:monate_vor]
+    lg.balken = [(kurz(monate_[i]) if i != li else "heute", erwartet[i], erwartet[i] / kapazitaet if kapazitaet else None,
+                  i == li) for i in zeig]
+    if prog:
+        i = prog[min(monate_vor, len(prog)) - 1]
+        lg.unsicher = (f"In 8 von 10 Fällen liegt die Belegung im {lang(monate_[i], stand)} zwischen {zahl(u(i))} und "
+                       f"{zahl(o(i))} – je weiter voraus, desto breiter.")
+    return lg
+
+
 def _begrenzen(b: Blick) -> Blick:
     b.saetze = b.saetze[:5]
     return b

@@ -107,6 +107,45 @@ def _karten_stil(o: dict, c: dict) -> dict:
     return o
 
 
+def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
+    """0.89: „Einfach“ für die Geschäftsführung – die Aussage ist die Überschrift, Füllstand gegen „voll“, höchstens drei
+    Zahlen, die Unsicherheit als Satz. „Details anzeigen“ blendet die Diagramm-Karte ein."""
+    from . import blick_kern as bk
+
+    zs = ak.szenario(pg, kap, 0)
+    lg = bk.leitung(ort, [z.monat for z in zs], [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs],
+                    [z.art == "ist" for z in zs], a.daten["stichtag"], kap or None, [z.lo80 for z in zs], [z.hi80 for z in zs])
+    with ui.element("section").classes("m-einfach"):
+        ui.label(lg.titel).classes("m-einfach-titel")
+        with ui.element("div").classes("m-einfach-zahlen"):
+            for bez, wert, zusatz in lg.zahlen:
+                with ui.element("div").classes("m-einfach-zahl"):
+                    ui.label(wert).classes("m-einfach-gross")
+                    ui.label(bez).classes("m-name")
+                    ui.label(zusatz).classes("m-zweite")
+        skala = max([kap or 0] + [w for _m, w, _a, _i in lg.balken]) * 1.08 or 1
+        with ui.element("div").classes("m-einfach-liste"):
+            for monat, wert, anteil, ist in lg.balken:
+                with ui.element("div").classes("m-einfach-zeile" + (" ist" if ist else "")):
+                    ui.label(monat).classes("m-einfach-name")
+                    with ui.element("div").classes("m-einfach-spur"):
+                        ui.element("div").classes("m-einfach-balken" + (" eng" if anteil and anteil >= .85 else "")
+                                                  ).style(f"width:{100 * wert / skala:.1f}%")
+                        if kap:
+                            attr(ui.element("div").classes("m-einfach-voll").style(f"left:{100 * kap / skala:.1f}%"),
+                                 title=f"voll: {bk.zahl(kap)} Plätze")
+                    ui.label(bk.zahl(wert) + (f" · {round(100 * anteil)} %" if anteil is not None else "")).classes("m-einfach-wert")
+        if kap:
+            ui.label(f"Strich = voll ({bk.zahl(kap)} Plätze)").classes("m-zweite")
+        if lg.unsicher:
+            ui.label(lg.unsicher).classes("m-einfach-satz")
+        with ui.element("div").classes("m-zeile-flex"):
+            ui.label(lg.stand).classes("m-zweite")
+            knopf("Details ausblenden" if a.dg_details else "Details anzeigen",
+                  lambda: (setattr(a, "dg_details", not a.dg_details), neu_zeichnen(False)), "leise",
+                  "expand_less" if a.dg_details else "expand_more").style("margin-left:auto")
+
+
 def blick_gruppen(sm, pg, kap: int, stichtag, kont: dict | None):
     """0.87: „Auf einen Blick“ für „inkl. UWTler und Mieter“ – Gesamt gegen Kapazität, Kontingente, Vertragsende."""
     from . import blick_kern as bk
@@ -862,6 +901,10 @@ def zeichnen(a) -> None:
         a.aw_kap, a.aw_kap_basis = kap_echt, kap_echt
     praes = a.aw_modus == "praes"
     _praes_klasse(a, praes)
+    from . import diagramm_karte
+
+    km = diagramm_karte.modus()                       # 0.89: Karte | Klassisch | Einfach (je PC)
+    klassisch = praes or km == "klassisch"
     # Animation: beim ersten Öffnen und auf Wunsch – nicht bei jedem Filterwechsel, nie bei „weniger Bewegung“
     animiert = not a.weniger_bewegung and ((a.aw_anim and not a.aw_anim_gezeigt) or a._anim_jetzt)
     a.aw_anim_gezeigt, a._anim_jetzt = True, False
@@ -875,7 +918,7 @@ def zeichnen(a) -> None:
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
                             "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else "",
-                            "karte": not praes, **ueber}
+                            "karte": not klassisch, **ueber}
     ds = a.daten["ds"]
     box: dict = {}
     sm = a.daten.get("sm") or []
@@ -1043,6 +1086,8 @@ def zeichnen(a) -> None:
                 knopf("", lambda: graph_zeichnen(True), "leise m-xg-symbol", "play_arrow",
                       "Aufbau abspielen – Graph neu aufbauen (geführte Animation)")
             _optionen(a, pg, True, graph_wechsel)
+            if not praes:
+                diagramm_karte.modus_wahl(a)
 
         def graph_zeichnen(animiert_: bool):
             graph_box.clear()
@@ -1061,10 +1106,11 @@ def zeichnen(a) -> None:
                             segmente({12: "12M", 24: "24M"}, a.aw_horizont,        # 0.86: 36 Monate entfallen
                                      lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
                             werkzeuge()
-                with ui.element("div").classes("m-xg-kopf"):
+                with ui.element("div").classes("m-xg-kopf" + (" m-weg" if km == "einfach" and not praes and not a.dg_details
+                                                              else "")):
                     _js_segmente(CHARTS, a.aw_chart, "tab")
                     with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
-                        if praes:
+                        if klassisch:
                             attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · "
                                                             "übrige) oder – bei „Gesamt“ – die drei Standorte parallel")
                             ansichten = {"kurve": "Belegung", "status": "Nach Status"}
@@ -1080,7 +1126,7 @@ def zeichnen(a) -> None:
                             if a.aw_standort == konfig.GESAMT:
                                 _js_schalter("standorte", "Standorte einzeln", "stacked_line_chart", jetzt == "standorte",
                                              "Die drei Standorte nebeneinander statt der Summe")
-                    _status_badge(a, pg, True, praes)
+                    _status_badge(a, pg, True, klassisch)
                     if praes and trend and not a.aw_status and not parallel:
                         with ui.element("div").classes("m-xg-schritte"):
                             knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
@@ -1091,12 +1137,24 @@ def zeichnen(a) -> None:
                         with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
                             werkzeuge()
                 story = (animiert_ and trend and not a.aw_status and not parallel and (not praes or a.aw_schritt == 4))
-                if praes:
-                    chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes("m-chart m-xg-chart gross")
-                else:                                # 0.87: Diagramm-Karte – Kopf, Knöpfe, „Auf einen Blick“, ƒx
-                    from . import diagramm_karte
+                if klassisch:                        # Präsentation und Darstellung „Klassisch“ (wie bis 0.86)
+                    chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes(
+                        "m-chart m-xg-chart" + (" gross" if praes else ""))
+                    if not praes:
+                        from . import diagramm_ui
 
+                        diagramm_ui.anbinden(a, chart, lambda i: _berechnung_monat(a, c()["pg"], zustand["kap"], i))
+                        zs_k = ak.szenario(c()["pg"], zustand["kap"], 0)
+                        n_k = next((i for i, z in enumerate(zs_k) if z.art == "prognose"), None)
+                        if n_k is not None:
+                            diagramm_ui.fx_kasten(_berechnung_monat(a, c()["pg"], zustand["kap"], n_k))
+                else:                                # 0.87: Diagramm-Karte – Kopf, Knöpfe, „Auf einen Blick“, ƒx
                     pg_, kap_ = c()["pg"], zustand["kap"]
+                    halter = None
+                    if km == "einfach":              # 0.89: Leitungsansicht; „Details“ öffnet die Karte darunter
+                        _einfach(a, pg_, kap_, konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort), graph_zeichnen)
+                        halter = ui.element("div").classes("m-einfach-details" + (" offen" if a.dg_details else ""))
+                        halter.__enter__()
                     blick, alt = blick_daten(pg_, c().get("pg_lang"), kap_, a.daten["stichtag"])
                     ort = konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)
                     v_ = variante(True)
@@ -1123,11 +1181,13 @@ def zeichnen(a) -> None:
                     naechster = next((i for i, z in enumerate(zs_) if z.art == "prognose"), None)
                     if naechster is not None:
                         karte.fx(_berechnung_monat(a, pg_, kap_, naechster))
+                    if halter is not None:
+                        halter.__exit__(None, None, None)
                 box["chart"] = chart
                 if story:
                     ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
                 schluessel = jetzt if trend else a.aw_chart
-                with ui.element("div").classes("m-xg-fuss" + ("" if praes else " m-weg")):     # 0.87: eine Legende (oben)
+                with ui.element("div").classes("m-xg-fuss" + ("" if klassisch else " m-weg")):     # 0.87: eine Legende (oben)
                     for k, art in (("kurve", "trend"), ("status", "status"), ("standorte", "standorte"), ("reserve", "reserve"),
                                    ("jahr", "jahr")):
                         leg = ui.html(_legende_text(art, kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)

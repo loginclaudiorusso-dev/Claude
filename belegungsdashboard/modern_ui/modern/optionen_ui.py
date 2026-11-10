@@ -226,6 +226,9 @@ def _anzeige(a, d: dict, setzen) -> None:
 
 
 def _diagramme(a, d: dict, setzen) -> None:
+    _titel("Darstellung der Auswertung", "Belegungsprognose, Tagesverlauf und Maßnahmen-Kacheln. „Einfach“ ist für "
+           "Präsentationen vor der Geschäftsführung gedacht. Umschalten geht auch direkt über dem Diagramm.")
+    _wahl({k: t for k, (t, _b) in dk.DG_MODI.items()}, d.get("dg_modus", "karte"), lambda x: setzen(dg_modus=x))
     _titel("Diagrammtyp", "Gilt für Verläufe (Belegung, Prognose, Maßnahmen, Steuerung). Unsicherheitsbänder und die "
            "Kapazitätslinie bleiben, wie sie sind.")
     _wahl({k: t for k, (t, _i) in dk.DG_TYPEN.items()}, d["dg_typ"], lambda x: setzen(dg_typ=x),

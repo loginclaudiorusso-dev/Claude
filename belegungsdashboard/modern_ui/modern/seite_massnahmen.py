@@ -101,6 +101,10 @@ def zeichnen(a) -> None:
         segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"], lambda v: a.setzen(mn_vor=v, nur_seite=True),
                  sofort=True)
         knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
+        if d["darstellung"] == "je":
+            from . import diagramm_karte
+
+            diagramm_karte.modus_wahl(a)
     with a.inhalt:
         if not d["stand"]["pivot"]:
             leer("Noch kein Maßnahmen-Pivot eingelesen. Unter Daten & Import → „Maßnahmen-Prognose“ hochladen.")
@@ -121,7 +125,15 @@ def zeichnen(a) -> None:
                 if d["darstellung"] == "ein":
                     _ein_diagramm(d["reihen"])
                 else:
-                    _raster(a, d["reihen"], d["skala"] == "gleich", pv)
+                    from . import diagramm_karte
+
+                    m_ = diagramm_karte.modus()                  # 0.89: Darstellung wählbar
+                    if m_ == "klassisch":
+                        _raster_klassisch(d["reihen"], d["skala"] == "gleich")
+                    elif m_ == "einfach":
+                        _raster_einfach(d["reihen"])
+                    else:
+                        _raster(a, d["reihen"], d["skala"] == "gleich", pv)
                 tr = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
                 if tr and tr.treffer80[1]:
                     ui.label(f"Rückwärtstest (gepunktet): In {tr.treffer80[0]} von {tr.treffer80[1]} vergangenen Wellen lag "
@@ -297,6 +309,64 @@ def _raster(a, reihen: dict, gleiche_skala: bool, pivot: dict | None = None) -> 
                 with diagramm_karte.Karte(a, fam, f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)} · "
                                                   f"Datenstand {stand:%d.%m.%Y}", blick, klein=True) as k:
                     k.anbinden(k.chart(opt))
+
+
+def _raster_klassisch(reihen: dict, gleiche_skala: bool) -> None:
+    """Darstellung „Klassisch“ – wie bis 0.86: Linien je Maßnahme mit 80/95-%-Bändern."""
+    from . import seite_auswertung as sa
+
+    t = sa._T()
+    farben = _farben()
+    hoch = max((z.gross95 for r in reihen.values() for z in r.zeilen), default=0) * 1.05 or None
+    with ui.element("div").classes("m-mn-raster"):
+        for i, (fam, r) in enumerate(reihen.items()):
+            x, h = _achsen(r)
+            with ui.element("div").classes("m-mn-kachel"):
+                with ui.element("div").classes("m-zeile-flex"):
+                    ui.label(fam).classes("m-name")
+                    ui.label(f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)}"
+                             ).classes("m-zweite").style("margin-left:auto")
+                opt = sa._chart_basis()
+                opt["xAxis"]["data"] = x
+                opt["yAxis"]["scale"] = False
+                if gleiche_skala and hoch:
+                    opt["yAxis"]["max"] = round(hoch)
+                opt["grid"] = {"left": 34, "right": 8, "top": 10, "bottom": 22}
+                opt["legend"] = {"show": False}
+                serien = _linien(fam, r, farben[i % len(farben)], h) + _baender(r, farben[i % len(farben)], h)
+                opt["tooltip"] = {"trigger": "axis", ":formatter": _tooltip({fam: r}, [farben[i % len(farben)]])}
+                opt["grid"]["top"] = 18
+                serien[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
+                opt["series"] = serien
+                sa._chart(opt)
+
+
+def _raster_einfach(reihen: dict) -> None:
+    """Darstellung „Einfach“ (Geschäftsführung): EINE sortierte Balkenliste – je Maßnahme „nächstes Jahr“, die Marke
+    zeigt die letzten 12 Monate. Die Aussage steht als Überschrift darüber."""
+    from . import blick_kern as bk
+
+    zeilen = sorted(reihen.items(), key=lambda x: -(x[1].naechstes_jahr or 0))
+    summe = sum(r.naechstes_jahr or 0 for _f, r in zeilen)
+    vorher = sum(r.letzte12 or 0 for _f, r in zeilen)
+    hoch = max([r.naechstes_jahr or 0 for _f, r in zeilen] + [r.letzte12 or 0 for _f, r in zeilen] + [1])
+    with ui.element("section").classes("m-einfach"):
+        ui.label(f"Nächstes Jahr rund {bk.zahl(summe)} Neuanmeldungen – "
+                 f"{bk.vergleich(summe - vorher, bk.schwelle_fuer(vorher, None), 'in den letzten 12 Monaten')} "
+                 f"({bk.zahl(vorher)}).").classes("m-einfach-titel")
+        with ui.element("div").classes("m-einfach-liste"):
+            for fam, r in zeilen:
+                n, v = r.naechstes_jahr or 0, r.letzte12 or 0
+                with ui.element("div").classes("m-einfach-zeile"):
+                    ui.label(fam).classes("m-einfach-name")
+                    with ui.element("div").classes("m-einfach-spur"):
+                        ui.element("div").classes("m-einfach-balken").style(f"width:{100 * n / hoch:.1f}%")
+                        attr(ui.element("div").classes("m-einfach-marke").style(f"left:{100 * v / hoch:.1f}%"),
+                             title=f"letzte 12 Monate: {bk.zahl(v)}")
+                    ui.label(f"≈ {bk.zahl(n)}").classes("m-einfach-wert")
+                    ui.label(f"zuletzt {bk.zahl(v)}").classes("m-zweite")
+        ui.label("Balken = erwartet im nächsten Jahr · Strich = letzte 12 Monate. Schwankung je Maßnahme: siehe "
+                 "Darstellung „Karte“ oder „Klassisch“.").classes("m-zweite")
 
 
 def _kpis(d: dict) -> None:

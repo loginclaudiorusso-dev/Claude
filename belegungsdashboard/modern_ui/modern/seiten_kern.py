@@ -99,7 +99,9 @@ def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heut
 ZEITRAUM = {"heute": "Heute", "woche": "Diese Woche", "naechste": "Nächste Woche", "offen": "Offen – auch ältere"}
 # 0.80: So weit zurück zählt eine nicht abgehakte Reinigung als „nicht bezugsfertig“ (Besen an der Kachel) – dieselbe
 # Spanne zeigt „Offen – auch ältere“ in der Reinigungsliste, damit jeder Besen dort auch zu finden ist.
-OFFEN_ZURUECK = 14
+# 0.89: 60 statt 14 Tage – eine vergessene Reinigung verschwindet nicht nach zwei Wochen still. Wurde das Zimmer
+# nach dem Reinigungstag wieder bezogen, gilt sie als erledigt (siehe ``zimmer_kern.nicht_bezugsfertig``).
+OFFEN_ZURUECK = 60
 ZUSTAND_HEUTE = {"frei": "frei", "teilweise": "1 Bett frei", "belegt": "belegt", "geplant": "zugeteilt",
                  "gesperrt": "gesperrt"}
 

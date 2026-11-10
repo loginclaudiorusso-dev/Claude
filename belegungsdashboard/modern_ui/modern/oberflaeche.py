@@ -109,7 +109,8 @@ class Ansicht:
         self.zs_start = self.heute - timedelta(days=self.heute.weekday())
         self.zs_modus, self.zs_flur, self.fl_wochen = "zimmer", "", 8   # Zeitstrahl: Zimmer | Flure (Abreisewellen)
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
-        self.rg_zimmer = ""                       # 0.86: Reinigungsliste nur für ein Zimmer (Klick auf den Besen)
+        self.rg_zimmer = ""
+        self.dg_details = False                   # 0.89: „Einfach“ – Details (Diagramm-Karte) eingeblendet?                       # 0.86: Reinigungsliste nur für ein Zimmer (Klick auf den Besen)
         self.rg_von = self.rg_bis = self.heute
         self.fc_zeitraum, self.fc_filter = "sechs", "offen"          # 0.82: Facility-Checks mit Zeitraum und Filter
         self.fc_von, self.fc_bis = self.heute - timedelta(days=14), self.heute + timedelta(days=45)
@@ -894,7 +895,7 @@ class Ansicht:
         if self.design["layout"] != "canvas" and self.prompt:
             self.prompt_eingabe.set_value("")
             self.prompt, self._antwort = "", None
-        diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
+        diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_modus", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
                       or any(alt.get(k) != self.design.get(k) for k in diagramm))
         if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \

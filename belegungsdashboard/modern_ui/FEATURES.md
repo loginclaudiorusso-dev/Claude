@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.88.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.89.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -60,6 +60,10 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Flur-Raster: je Flur und Woche die Zahl paralleler Abreisewellen (Ampel), Klick zeigt Wellen und Zimmer
 - Zimmerkarte: Bewohner, Zimmer ändern, fest/geplant, Umzug planen, Mängel melden/beheben/unbewohnbar, Notizen mit Wiedervorlage
 - Abbruch / vorzeitiger Auszug in der Zimmerkarte – Abreise überall gekürzt, Zimmer wird frei
+- Nichtanreise in der Zimmerkarte: „Nicht angereist“ – Zimmer wird frei, Grund in der Bemerkung, Rückgängig möglich (0.89)
+- Übergabeprotokoll Einzug/Auszug je Bewohner: Inventar zum Abhaken, Zustand, bekannte Mängel, Schlüssel, Unterschriften (0.89)
+- Notfallliste: wer ist laut Plan jetzt im Haus – je Haus eine Seite, nach Etage/Zimmer, Abhak-Spalte, Stand mit Uhrzeit (0.89)
+- Offene Reinigung zählt 60 Tage zurück; danach bezogene Zimmer gelten als gereinigt (0.89)
 - Defekte Zimmer nach Dringlichkeit, FM-Bericht (Druck/Excel), Erledigte aus FM-Liste übernehmen
 - Drucken und Excel je Auswahl mit „belegt bis / frei ab / frei bis / freie Tage“
 - Zimmerhistorie: wer wann im Zimmer war; Suche findet auch ehemalige Bewohner
@@ -91,6 +95,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Prognose als Executive-Dashboard: 12/24/36 Monate, 80/95-%-Bänder, Backtest
 - Szenarien mit Schattenkurve (z. B. ±10 %, Kapazitätskürzung), Kontingente für UWT/Mieter
 - Standorte parallel, Netto/Brutto, Präsentationsmodus, Export
+- Darstellung der Diagramme wählbar: Karte (mit „Auf einen Blick“) · Klassisch (wie bis 0.86) · Einfach (Aussage als Überschrift, drei Zahlen, Füllstand gegen „voll“, Unsicherheit als Satz – für die Geschäftsführung) (0.89)
 - Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel); Klick zeigt je Woche freie Zimmer je Tag, welche Zimmer frei/belegt und von wem
 
 ## Daten & Import

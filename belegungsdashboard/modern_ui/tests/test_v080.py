@@ -13,7 +13,7 @@ MOD = Path(__file__).resolve().parent.parent / "modern"
 def test_zeitraum_offen_deckt_besen_ab():
     heute = date(2026, 11, 9)
     von, bis = sk.zeitraum("offen", heute)
-    assert (heute - von).days == sk.OFFEN_ZURUECK == 14 and (bis - heute).days == 7
+    assert (heute - von).days == sk.OFFEN_ZURUECK == 60 and (bis - heute).days == 7
     assert sk.ZEITRAUM["offen"] == "Offen – auch ältere"
     assert "OFFEN_ZURUECK" in (MOD / "zimmer_kern.py").read_text(encoding="utf-8")
 

@@ -509,6 +509,39 @@ async def _drucken(a, art: str) -> None:
     seiten.html_drucken(a, text, name)
 
 
+async def notfall_drucken(a) -> None:
+    """0.89: Notfallliste – Stand JETZT (heute, aktuelle Uhrzeit), alle Häuser, jedes Haus auf eigener Seite."""
+    from datetime import datetime
+
+    from . import notfall_kern as nk
+    from . import standort_kern
+
+    try:
+        zs = await run.io_bound(nk.zeilen, a.stand, a.heute)
+    except Exception as exc:                     # noqa: BLE001
+        a.toast(f"Notfallliste nicht erstellt: {exc}", fehler=True)
+        return
+    ort = getattr(standort_kern.aktiv(), "name", "")
+    seiten.html_drucken(a, nk.druck_html(zs, datetime.now(), ort), f"Notfallliste_{a.heute:%Y-%m-%d}")
+
+
+def uebergabe_drucken(a, k, p, art: str) -> None:
+    """0.89: Übergabeprotokoll (Einzug/Auszug) mit Inventar des Zimmers und bekannten Mängeln."""
+    from belegung import inventar
+
+    from . import notfall_kern as nk
+    from . import standort_kern
+
+    try:
+        inv = inventar.laden()
+        liste = [(g.name, n) for gid, n in (inv.zimmer.get(k.zimmer) or {}).items() if (g := inv.gegenstand(gid))]
+    except Exception:                            # noqa: BLE001 – ohne Inventar: leere Zeilen zum Ausfüllen
+        liste = []
+    html = nk.uebergabe_html(k.kurz, k.lage, p.name, p.gruppe, p.von, p.bis, art, sorted(liste),
+                             [m[1] for m in k.maengel], getattr(standort_kern.aktiv(), "name", ""))
+    seiten.html_drucken(a, html, f"Uebergabe_{art}_{k.kurz}")
+
+
 def _auswahl(a, kachel: bool):
     """(Filter, Kacheln, Mangelart) der sichtbaren Auswahl – Übersicht: die angeklickten Kacheln und die Mangelart,
     Liste/Karten: die Filterleiste (dort steckt die Mangelart schon im Filter)."""
@@ -641,6 +674,13 @@ def _karte(a, k: zk.Karte) -> None:
                 elif p.umzug_moeglich:
                     knopf("Umzug planen …", lambda p=p: _umzug(a, k, p), "", "swap_horiz")
                 knopf("Notiz", lambda p=p: _notiz(a, k, p.schluessel, p.name), "leise", "edit_note")
+                with knopf("Übergabe", None, "leise", "assignment", "Übergabeprotokoll drucken – Einzug oder Auszug"):
+                    with ui.menu().props('dark class="m-menue"'):
+                        ui.menu_item("Übergabeprotokoll Einzug", lambda p=p: uebergabe_drucken(a, k, p, "einzug"))
+                        ui.menu_item("Übergabeprotokoll Auszug", lambda p=p: uebergabe_drucken(a, k, p, "auszug"))
+                if p.art == "geplant" and p.von <= a.heute:      # 0.89: angemeldet, nicht erschienen
+                    knopf("Nicht angereist", lambda p=p: _nach(a, zk.nichtanreise, p.schluessel, zimmer=k.zimmer), "leise",
+                          "person_off", "Angemeldet, aber nicht erschienen – Zimmer wird frei (Rückgängig möglich)")
                 if not p.kommt:
                     knopf("Auszug / Abbruch …", lambda p=p: _auszug(a, k, p), "leise", "logout",
                           "Abbruch oder vorzeitiger Auszug – das Zimmer wird danach frei")
@@ -878,6 +918,10 @@ def _uebersicht(a) -> None:
                 ui.menu_item(f"Drucken – {was} (ohne Namen)", lambda: _drucken(a, "kachel_ohne"))
                 ui.menu_item(f"Als Excel – {was} mit „frei bis“", lambda: _auswahl_excel(a, True, kachel=True))
                 ui.menu_item("Als Excel – ohne Namen", lambda: _auswahl_excel(a, False, kachel=True))
+                ui.separator()
+                ui.menu_item("Notfallliste drucken – wer ist im Haus? (je Haus, zum Abhaken)", lambda: notfall_drucken(a))
+        knopf("Notfallliste", lambda: notfall_drucken(a), "leise", "emergency",
+              "Wer ist laut Plan jetzt im Haus? Je Haus und Etage, mit Abhak-Spalte für den Sammelplatz – zum Drucken")
     with a.inhalt:
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():

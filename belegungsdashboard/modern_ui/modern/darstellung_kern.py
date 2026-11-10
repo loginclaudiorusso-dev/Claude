@@ -55,7 +55,11 @@ STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig"
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
-            "helligkeit": "hell", "faerbung": "akzent"}
+            "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte"}
+# 0.89: Darstellung der Auswertungs-Diagramme – je nach Publikum wählbar (gilt je PC)
+DG_MODI = {"karte": ("Karte", "Diagramm-Karte mit Knöpfen, „Auf einen Blick“ und einheitlichem Stil"),
+           "klassisch": ("Klassisch", "Wie bis Version 0.86: Diagramm mit Legende unten und Leiste darunter"),
+           "einfach": ("Einfach", "Für die Geschäftsführung: die Aussage als Überschrift, Füllstand, höchstens drei Zahlen")}
 HELLIGKEIT = {"hell": "Hell", "gedaempft": "Gedämpft", "dunkel": "Dunkel"}          # 0.72
 FAERBUNG = {"akzent": "Nur Akzent", "ganz": "Ganzes Design"}
 # 0.75: Knopf- und Symbolstil – gelten immer für ALLE Knöpfe bzw. Symbole gleichzeitig (nie gemischt)
@@ -113,6 +117,7 @@ def bereinigen(d: dict) -> dict:
     e["faerbung"] = d.get("faerbung") if d.get("faerbung") in FAERBUNG else "akzent"
     e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
+    e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
     e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
     for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):

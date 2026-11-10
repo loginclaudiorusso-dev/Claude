@@ -236,6 +236,9 @@ def _belegung(a) -> None:
         for text, v, b in (("Letzter Monat", (st.replace(day=1) - timedelta(days=1)).replace(day=1), st.replace(day=1) - timedelta(days=1)),
                            ("Dieses Jahr", date(st.year, 1, 1), st), ("Nächste 3 Monate", st, st + timedelta(days=91))):
             knopf(text, lambda v=v, b=b: a.setzen(aw_von=v, aw_bis=b), "leise")
+        from . import diagramm_karte
+
+        diagramm_karte.modus_wahl(a)                    # 0.89: Klassisch | Karte | Einfach
     det: ak.BDetails = a.daten["det"]
     with a.inhalt:
         with ui.element("div").classes("m-kpis"):
@@ -266,9 +269,32 @@ def _belegung(a) -> None:
 
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
     farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
+    from . import diagramm_karte
+
     with ui.element("div").classes("m-zwei"):
-        with ui.element("div").classes("m-breit"):
-            _tagesverlauf_karte(a, det, zr, farben)
+        if diagramm_karte.modus() == "klassisch":         # 0.89: wie bis 0.86
+            with ui.element("section").classes("m-block m-breit"):
+                ui.label(f"Tagesverlauf {ak.STANDORTE.get(a.aw_standort, '')} nach Belegungsart"
+                         + (" – ab dem Stichtag Prognose" if not all(det.ist) else "")).classes("m-btitel")
+                opt = _chart_basis()
+                opt["xAxis"]["data"] = det.tage
+                opt["yAxis"]["scale"] = False
+                opt["series"] = [{"name": k, "type": "line", "stack": "art", "data": v, "symbol": "none",
+                                  "lineStyle": {"color": farben[i % len(farben)], "width": 1},
+                                  "areaStyle": {"color": farben[i % len(farben)], "opacity": .35}}
+                                 for i, (k, v) in enumerate(det.kategorien.items())]
+                if zr.kapazitaet:
+                    opt["series"].append({"name": "Kapazität", "type": "line", "data": [zr.kapazitaet] * len(det.tage),
+                                          "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
+                if not all(det.ist) and any(det.ist):
+                    stich = det.tage[sum(det.ist) - 1]
+                    opt["series"][0]["markLine"] = {"symbol": "none", "label": {"formatter": "Stichtag", "color": _T()["text3"]},
+                                                    "lineStyle": {"color": _T()["text3"], "type": "dashed"},
+                                                    "data": [{"xAxis": stich}]}
+                _chart(opt, a)
+        else:
+            with ui.element("div").classes("m-breit"):
+                _tagesverlauf_karte(a, det, zr, farben)
         with ui.element("section").classes("m-block"):
             ui.label("Personentage je Monat").classes("m-btitel")
             ui.label("Summe der belegten Plätze über alle Tage – hell = Prognose").classes("m-ptext")

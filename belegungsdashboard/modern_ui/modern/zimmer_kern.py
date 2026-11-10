@@ -590,6 +590,37 @@ def auszug(zid: str, schluessel: str, datum: date, grund: str = "Abbruch") -> st
             "Bitte auch im Belegungssystem buchen.")
 
 
+def nichtanreise(schluessel: str, tag: date | None = None) -> str:
+    """0.89: angemeldet, aber nicht erschienen – die Person braucht kein Zimmer mehr (Internat = nein), die
+    Zimmerzuweisung entfällt, der Grund steht in der Bemerkung. Ein Schritt, ein Rückgängig.
+    Liefert eine neu eingelesene Anreiseliste die Person wieder mit Internat, braucht sie wieder ein Zimmer."""
+    from dataclasses import replace
+
+    from belegung import anreiseliste, protokoll
+
+    tag = tag or date.today()
+    personen, _ = anreiseliste.laden()
+    p = next((x for x in personen if x.schluessel == schluessel), None)
+    if p is None:
+        raise ValueError("Nur Personen aus der Anreiseliste lassen sich als „nicht angereist“ buchen.")
+    if p.anreise > tag:
+        raise ValueError(f"Die Anreise ist erst am {p.anreise:%d.%m.%Y} – erst ab dann als „nicht angereist“ buchen.")
+    stand = zp.laden()
+    zuw = stand.zugewiesen(schluessel)
+
+    def aktion():
+        text = f"Nichtanreise (gebucht {tag:%d.%m.%Y})"
+        neu = replace(p, internat=False, bemerkung=f"{p.bemerkung} · {text}" if p.bemerkung else text)
+        anreiseliste.person_speichern(neu, p.schluessel)
+        if zuw:
+            zp.zuweisungen_entfernen({schluessel}, "Nichtanreise")
+        protokoll.eintragen([{"aktion": "Nichtanreise", "name": p.name, "person": schluessel,
+                              "alt": zuw["zimmer"] if zuw else "", "neu": "", "von": tag.isoformat(), "quelle": "Zimmerkarte"}])
+    _schritt(f"{p.name}: Nichtanreise", aktion, [anreiseliste.DATEI, zp.ZUWEISUNGEN])
+    frei = f" – {kurz(zuw['zimmer'])} ist wieder frei" if zuw else ""
+    return f"{p.name}: nicht angereist{frei}. Bitte auch im Belegungssystem stornieren."
+
+
 def wechsel_pruefen(person: str, nach: str) -> Wechsel:
     from . import kern
 
@@ -767,6 +798,11 @@ class Kachel:
     strittig: str = ""               # eigene Planung widerspricht dem Gebäudeplan (Text) – Zimmer erst klären
 
 
+def _seither_bezogen(stand: zp.Planstand, zid: str, gereinigt: date, tag: date) -> bool:
+    """0.89: Zog nach dem Reinigungstag jemand ein (bis ``tag``), war das Zimmer offensichtlich fertig."""
+    return any(b.art == "belegt" and gereinigt < b.von <= tag for b in stand.lage.belegungen.get(zid, []))
+
+
 def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
     """Zimmer, die am ``tag`` frei sind, aber noch nicht bezugsfertig: eine Reinigung bis zu diesem Tag ist offen oder
     ein dringender Mangel (Stufe 2) ist gemeldet. Unbewohnbare Zimmer sind eigens markiert und zählen hier nicht."""
@@ -777,7 +813,7 @@ def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
     fertig = rl.erledigt()
     erg: dict[str, str] = {}
     for r in _reinigungen(stand, tag - timedelta(days=OFFEN_ZURUECK), tag):   # ältere: meist nur nicht abgehakt
-        if rl.schluessel(r) not in fertig and r.tag <= tag:
+        if rl.schluessel(r) not in fertig and r.tag <= tag and not _seither_bezogen(stand, r.zimmer.id, r.tag, tag):
             erg.setdefault(r.zimmer.id, f"{r.art} vom {r.tag:%d.%m.} offen – abhaken: Reinigungsliste › Offen – auch ältere")
     for zid, ms in mg.offen_je_zimmer().items():
         if mg.stufe(ms) == 2 and zid not in erg:
