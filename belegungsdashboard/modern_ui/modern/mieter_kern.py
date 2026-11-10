@@ -118,11 +118,29 @@ def _edge() -> str | None:
     return None
 
 
+# 0.87: Einheitliche Schrift. Das HTML des Hauptprogramms hat kein <!doctype> (für Qt gedacht) – Edge rechnet es dann
+# im Kompatibilitätsmodus, und darin erben Tabellen die Schriftgröße nicht: nummerierte Absätze, Bankdaten und
+# Unterschriftenblock standen in 12 pt statt 10,5 pt. Mit doctype und dieser Regel erbt alles die Schrift des Textes.
+EINHEITLICH_CSS = ("<style>table, tr, td, th { font-family: inherit; font-size: inherit; color: inherit; "
+                   "line-height: inherit; } p { line-height: 1.3; }</style>")
+
+
+def einheitlich(html: str) -> str:
+    """doctype davor und Schrift-Vererbung für Tabellen – Wortlaut und Aufbau bleiben unverändert."""
+    if "<!doctype" in html[:200].lower():
+        return html
+    t = html if "<html" in html.lower() else f"<html><body>{html}</body></html>"
+    i = t.lower().index("<html")
+    j = t.index(">", i) + 1
+    return "<!doctype html>" + t[:j] + f"<head><meta charset='utf-8'>{EINHEITLICH_CSS}</head>" + t[j:]
+
+
 def html_als_pdf(html: str) -> bytes | None:
     """HTML → PDF mit Edge/Chromium ohne Fenster. None, wenn kein Browser dafür da ist."""
     exe = _edge()
     if exe is None:
         return None
+    html = einheitlich(html)
     with tempfile.TemporaryDirectory() as tmp:
         quelle, ziel = Path(tmp) / "dokument.html", Path(tmp) / "dokument.pdf"
         quelle.write_text(html if "<html" in html.lower() else f"<!doctype html><meta charset='utf-8'>{html}", encoding="utf-8")
@@ -258,7 +276,7 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     extra = ""
     if pdf is None:                           # Vertrag als HTML daneben – im Browser drucken/als PDF speichern
         h = ziel.with_name(ziel.stem.replace("Mietunterlagen", "Mietvertrag") + ".html")
-        h.write_text(html, encoding="utf-8")
+        h.write_text(einheitlich(html), encoding="utf-8")
         extra = f" Mietvertrag als {h.name} (im Browser drucken)."
     def anlegen():
         mt.anlegen(mv)

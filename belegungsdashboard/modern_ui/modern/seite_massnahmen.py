@@ -121,7 +121,7 @@ def zeichnen(a) -> None:
                 if d["darstellung"] == "ein":
                     _ein_diagramm(d["reihen"])
                 else:
-                    _raster(d["reihen"], d["skala"] == "gleich")
+                    _raster(a, d["reihen"], d["skala"] == "gleich", pv)
                 tr = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
                 if tr and tr.treffer80[1]:
                     ui.label(f"Rückwärtstest (gepunktet): In {tr.treffer80[0]} von {tr.treffer80[1]} vergangenen Wellen lag "
@@ -246,33 +246,57 @@ def _ein_diagramm(reihen: dict) -> None:
     sa._chart(opt)
 
 
-def _raster(reihen: dict, gleiche_skala: bool) -> None:
+def _raster(a, reihen: dict, gleiche_skala: bool, pivot: dict | None = None) -> None:
+    """0.87: Jede Maßnahme als kompakte Diagramm-Karte – Neuanmeldungen sind Zählwerte → Balken (Prognose heller,
+    gestrichelter Rand), 80-%-Spanne als helle Fläche, Rückwärtstest gepunktet, „Auf einen Blick“ je Maßnahme."""
+    from datetime import date
+
+    from . import blick_kern as bk
+    from . import diagramm_karte, diagramm_stil
     from . import seite_auswertung as sa
 
     t = sa._T()
-    farben = _farben()
-    hoch = max((z.gross95 for r in reihen.values() for z in r.zeilen), default=0) * 1.05 or None
+    hoch = max((z.gross for r in reihen.values() for z in r.zeilen), default=0) * 1.12 or None
+    try:
+        stand = date.fromisoformat(str((pivot or {}).get("importiert_am") or "")[:10])
+    except ValueError:
+        stand = date.today()
     with ui.element("div").classes("m-mn-raster"):
-        for i, (fam, r) in enumerate(reihen.items()):
+        for fam, r in reihen.items():
             x, h = _achsen(r)
+            werte = [round(z.erwartet, 1) for z in r.zeilen]
+            opt = sa._chart_basis()
+            opt["xAxis"]["data"] = x
+            opt["xAxis"]["boundaryGap"] = True
+            opt["yAxis"]["scale"] = False
+            if gleiche_skala and hoch:
+                opt["yAxis"]["max"] = round(hoch)
+            opt["grid"] = {"left": 34, "right": 10, "top": 18, "bottom": 22}
+            band = {"type": "line", "stack": f"band-{fam}", "symbol": "none", "silent": True, "rolle": "band",
+                    "tooltip": {"show": False}, "name": "_80"}
+            rueck = [round(z.rueck, 1) if z.art == "ist" and z.rueck is not None else None for z in r.zeilen]
+            serien = [{"name": "Ist", "rolle": "balken_ist", "type": "bar", "data": [w if k < h else None for k, w in enumerate(werte)]},
+                      {"name": "erwartet", "rolle": "balken_prognose", "type": "bar",
+                       "data": [w if k >= h else None for k, w in enumerate(werte)]},
+                      {**band, "data": [round(z.klein, 1) if k >= h else None for k, z in enumerate(r.zeilen)]},
+                      {**{k_: v for k_, v in band.items() if k_ != "tooltip"}, "name": "80-%-Spanne",
+                       "data": [round(z.gross - z.klein, 1) if k >= h else None for k, z in enumerate(r.zeilen)],
+                       "areaStyle": {"opacity": .16}}]
+            if any(v is not None for v in rueck):
+                serien.append({"name": "Rückwärtstest", "rolle": "test", "type": "line", "data": rueck, "symbol": "diamond",
+                               "symbolSize": 5, "lineStyle": {"color": t["text3"]}, "itemStyle": {"color": t["text3"]}})
+            opt["series"] = serien
+            opt["tooltip"] = {"trigger": "axis", ":formatter": _tooltip({fam: r}, [t["akzent"]])}
+            opt = diagramm_stil.einheitlich(opt, t, x[h - 1] if 0 < h <= len(x) else None, x[h] if h < len(x) else None,
+                                            legende=False)
+            imm = [z.im80 for z in r.zeilen if z.art == "ist" and z.im80 is not None]
+            blick = bk.wellen(x, werte, [k < h for k in range(len(x))], stand,
+                              [z.klein for z in r.zeilen], [z.gross for z in r.zeilen],
+                              (sum(imm), len(imm)) if imm else None, r.naechstes_jahr)
             with ui.element("div").classes("m-mn-kachel"):
-                with ui.element("div").classes("m-zeile-flex"):
-                    ui.label(fam).classes("m-name")
-                    ui.label(f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)}"
-                             ).classes("m-zweite").style("margin-left:auto")
-                opt = sa._chart_basis()
-                opt["xAxis"]["data"] = x
-                opt["yAxis"]["scale"] = False
-                if gleiche_skala and hoch:
-                    opt["yAxis"]["max"] = round(hoch)
-                opt["grid"] = {"left": 34, "right": 8, "top": 10, "bottom": 22}
-                opt["legend"] = {"show": False}
-                serien = _linien(fam, r, farben[i % len(farben)], h) + _baender(r, farben[i % len(farben)], h)
-                opt["tooltip"] = {"trigger": "axis", ":formatter": _tooltip({fam: r}, [farben[i % len(farben)]])}
-                opt["grid"]["top"] = 18
-                serien[0]["markArea"] = {**_prognosebereich(t, x, h), "label": {"show": False}}
-                opt["series"] = serien
-                sa._chart(opt)
+                with diagramm_karte.Karte(a, fam, f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)} · "
+                                                  f"Datenstand {stand:%d.%m.%Y}", blick, klein=True) as k:
+                    k.anbinden(k.chart(opt))
 
 
 def _kpis(d: dict) -> None:

@@ -167,6 +167,67 @@ body.lay-office .m-ex.b-dashboard .m-chart.m-xg-chart, body.lay-office .m-xsz .m
 /* 0.78: Dashboard wieder auf EINEN Blick – Graph + kompakte Kennzahl-Karten ohne Scrollen (Erklärtext als Tooltip) */
 body.lay-office .m-ex.b-dashboard .m-xk-hinweis { display: none; }
 body.lay-office .m-ex.b-dashboard .m-xk-karte { cursor: help; }
+/* ---------- 0.87 Diagramm-Karte ---------- */
+.m-dk { container-type: inline-size; position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  border: 1px solid var(--rand); border-radius: 10px; background: var(--fl); padding: 12px 14px 12px; }
+.m-dk-kopf { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.m-dk-titelblock { flex: 1 1 260px; min-width: 0; }
+.m-dk-titel { font-size: 15px; font-weight: 600; color: var(--text); line-height: 20px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.m-dk-titel [data-titel] { display: none; }
+.m-xg[data-tab="trend"] .m-dk-titel [data-titel="trend"], .m-xg[data-tab="reserve"] .m-dk-titel [data-titel="reserve"],
+.m-xg[data-tab="jahr"] .m-dk-titel [data-titel="jahr"] { display: inline; }
+.m-dk-unter { font-size: 12px; color: var(--text3); line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block; }
+.m-dk-knoepfe { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.m-dk-knoepfe .m-dg-knopf { height: 28px; font-size: 13px; }
+.m-dk-koerper { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 300px); gap: 14px; align-items: stretch; }
+.m-dk.blick-zu .m-dk-koerper { grid-template-columns: minmax(0, 1fr) 34px; }
+.m-dk-flaeche { position: relative; min-width: 0; }
+.m-dk-flaeche .m-chart { width: 100%; }
+.m-dk-griff { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; opacity: .55;
+  background: linear-gradient(135deg, transparent 0 55%, var(--text3) 55% 62%, transparent 62% 72%, var(--text3) 72% 79%, transparent 79%); }
+.m-dk-griff:hover { opacity: 1; }
+.m-dk-blick { min-width: 0; border-left: 1px solid var(--rand); padding-left: 14px; display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; line-height: 1.45; color: var(--text); }
+.m-dk-blick-kopf { display: flex; align-items: center; gap: 6px; }
+.m-dk-blick-titel { font-size: 13px; font-weight: 600; color: var(--text2); }
+.m-dk-zu { margin-left: auto; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text3);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.m-dk-zu:hover { background: var(--fl2, var(--bg)); color: var(--text); }
+.m-dk-saetze { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-dk-satz { padding: 6px 8px; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
+.m-dk-satz.still { cursor: default; }
+.m-dk-satz:not(.still):hover { background: color-mix(in srgb, var(--akzent) 7%, transparent); }
+.m-dk-satz.an { background: color-mix(in srgb, var(--akzent) 13%, transparent); border-left-color: var(--akzent); }
+.m-dk-satz:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.m-dk-monat:empty { display: none; }
+.m-dk-monat { border-top: 1px solid var(--rand); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.m-dk-monat-kopf { display: flex; align-items: center; }
+.m-dk-monat .m-fxk-raster { grid-template-columns: 76px minmax(0, 1fr); }
+.m-dk-stand { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--rand); font-size: 12px; color: var(--text3);
+  white-space: normal !important; }
+.m-dk.blick-zu .m-dk-blick > :not(.m-dk-blick-kopf) { display: none; }
+.m-dk.blick-zu .m-dk-blick-titel { writing-mode: vertical-rl; transform: rotate(180deg); }
+.m-dk.blick-zu .m-dk-blick-kopf { flex-direction: column-reverse; gap: 10px; }
+.m-dk.blick-zu .m-dk-blick { padding-left: 4px; }
+.m-dk.blick-zu .m-dk-zu .q-icon { transform: rotate(180deg); }
+.m-dk-fx .m-fx { margin-top: 0; }
+@container (max-width: 760px) {
+  .m-dk-koerper, .m-dk.blick-zu .m-dk-koerper { grid-template-columns: minmax(0, 1fr); }
+  .m-dk-blick { border-left: 0; border-top: 1px solid var(--rand); padding: 8px 0 0; }
+  .m-dk.blick-zu .m-dk-blick-titel { writing-mode: horizontal-tb; transform: none; }
+  .m-dk.blick-zu .m-dk-blick-kopf { flex-direction: row; }
+  .m-dk-zu .q-icon { transform: rotate(90deg); } .m-dk.blick-zu .m-dk-zu .q-icon { transform: rotate(-90deg); }
+}
+.m-dk.voll { position: fixed; inset: 0; z-index: 4000; border-radius: 0; margin: 0; overflow: auto; padding: 16px 20px; }
+body .m-dk.voll .m-chart, body.lay-office .m-dk.voll .m-chart { height: calc(100vh - 120px) !important; }
+body.m-dk-vollbild { overflow: hidden; }
+/* Kacheln: kompakte Karte */
+.m-dk.klein { padding: 10px 12px; }
+.m-dk.klein .m-dk-titel { font-size: 14px; }
+.m-dk.klein .m-dk-knoepfe .m-dg-knopf { height: 26px; padding: 0 6px; font-size: 12px; }
+.m-dk.klein .m-dk-knoepfe .m-dg-knopf > :not(i):not(b) { }
 """
 
 JS = r"""<script>
@@ -208,16 +269,100 @@ JS = r"""<script>
     const b = document.createElement('button'); b.type = 'button'; b.className = 'm-dg-knopf'; b.title = titel || text;
     b.innerHTML = (symbol ? `<i>${symbol}</i>` : '') + text; return b;
   }
+
+  // ---- 0.87 Diagramm-Karte: Knöpfe im Kopf, Ziehgriff unten rechts, Vollbild, „Auf einen Blick“ ----
+  const akzent = () => (getComputedStyle(document.body).getPropertyValue('--akzent') || '#0B6E66').trim();
+  function fokus(el, li) {
+    const c = inst(el); if (!c) return;
+    const o = c.getOption(); const x = (Array.isArray(o.xAxis) ? o.xAxis[0] : o.xAxis) || {}; const kat = x.data || [];
+    const namen = kat.map(k => typeof k === 'object' ? String(k.value ?? '') : String(k));
+    let i = parseInt(li.dataset.i, 10);
+    for (const alt of (li.dataset.xs || '').split('|').filter(Boolean)) { const j = namen.indexOf(alt); if (j >= 0) { i = j; break; } }
+    if (isNaN(i) || i < 0 || i >= namen.length) return;
+    const w = li.dataset.w === '' ? null : parseFloat(li.dataset.w);
+    const karte = el.closest('.m-dk');
+    karte.querySelectorAll('.m-dk-satz.an').forEach(x => x.classList.remove('an')); li.classList.add('an');
+    if (w == null) return;
+    c.setOption({ series: [{ id: 'm-fokus', type: 'line', data: [], markPoint: { symbol: 'pin', symbolSize: 46, animation: true,
+      itemStyle: { color: akzent() }, label: { show: true, color: '#fff', fontWeight: 'bold', fontSize: 12,
+      formatter: () => Math.round(w).toLocaleString('de-DE') }, data: [{ coord: [namen[i], w] }] } }] });
+    const si = (o.series || []).findIndex(s => s.name === li.dataset.r);
+    if (si >= 0) c.dispatchAction({ type: 'showTip', seriesIndex: si, dataIndex: i });
+  }
+  function karteAusstatten(el, karte) {
+    const flaeche = el.closest('.m-dk-flaeche') || el.parentElement;
+    const k = schluessel(el); const h = LS(k);
+    if (h) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('flex', 'none', 'important'); }
+    if (karte.dataset.dkOk) return; karte.dataset.dkOk = '1';
+    if (LS('dk-blick-zu') === '1') karte.classList.add('blick-zu');
+    const tab = document.createElement('div'); tab.className = 'm-dg-tab'; tab.style.display = 'none'; el.after(tab);
+    const griff = document.createElement('div'); griff.className = 'm-dk-griff';
+    griff.title = 'Ziehen: Diagramm höher oder flacher · Doppelklick: Standardhöhe'; flaeche.append(griff);
+    const b = (n) => karte.querySelector(`.m-dk-kopf [data-dk="${n}"]`);
+    const fx = karte.querySelector('.m-fx');
+    if (!fx) { const f = b('fx'); if (f) f.style.display = 'none'; }
+    else if (LS('dg-fx') === '1') { fx.classList.add('offen'); b('fx')?.classList.add('an'); }
+    const neuZeichnen = () => setTimeout(() => { const c = inst(el); if (c) c.resize(); }, 60);
+    const zeigen = (alsTabelle) => {
+      b('diagramm')?.classList.toggle('an', !alsTabelle); b('tabelle')?.classList.toggle('an', alsTabelle);
+      if (alsTabelle) { const c = inst(el); if (!c) return; const z = tabelle(c);
+        tab.innerHTML = '<table><thead><tr>' + z[0].map(x => `<th>${x}</th>`).join('') + '</tr></thead><tbody>' +
+          z.slice(1).map(r => '<tr>' + r.map(x => `<td>${x}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+        tab.style.height = el.offsetHeight + 'px'; tab.style.display = ''; el.style.display = 'none';
+      } else { tab.style.display = 'none'; el.style.display = ''; neuZeichnen(); }
+    };
+    karte.addEventListener('click', async (ev) => {
+      const k_ = ev.target.closest('[data-dk]'); const satz = ev.target.closest('.m-dk-satz:not(.still)');
+      if (satz && karte.contains(satz)) { fokus(el, satz); return; }
+      if (!k_ || !karte.contains(k_)) return;
+      const was = k_.dataset.dk;
+      if (was === 'diagramm') zeigen(false);
+      else if (was === 'tabelle') zeigen(true);
+      else if (was === 'fx' && fx) { const an = fx.classList.toggle('offen'); k_.classList.toggle('an', an); SP('dg-fx', an ? '1' : null); }
+      else if (was === 'kopieren') { const c = inst(el); if (!c) return;
+        const tsv = tabelle(c).map(r => r.join('\t')).join('\n'); const alt = k_.innerHTML;
+        try { await navigator.clipboard.writeText(tsv); k_.innerHTML = '<i>check</i>Kopiert'; }
+        catch (e) { k_.innerHTML = '<i>error_outline</i>Nicht kopiert'; }
+        setTimeout(() => { k_.innerHTML = alt; }, 1800); }
+      else if (was === 'voll') vollbild(karte, el, !karte.classList.contains('voll'));
+      else if (was === 'blick') { const zu = karte.classList.toggle('blick-zu'); SP('dk-blick-zu', zu ? '1' : null); neuZeichnen(); }
+    });
+    karte.addEventListener('keydown', (ev) => { const s = ev.target.closest && ev.target.closest('.m-dk-satz:not(.still)');
+      if (s && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); fokus(el, s); } });
+    griff.addEventListener('mousedown', (ev) => {
+      ev.preventDefault(); const y0 = ev.clientY, h0 = el.offsetHeight;
+      const zieh = (e) => { const h = Math.max(160, Math.min(2400, h0 + e.clientY - y0));
+        el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('flex', 'none', 'important'); };
+      const los = () => { document.removeEventListener('mousemove', zieh); document.removeEventListener('mouseup', los);
+        SP(k, String(el.offsetHeight)); neuZeichnen(); };
+      document.addEventListener('mousemove', zieh); document.addEventListener('mouseup', los);
+    });
+    griff.addEventListener('dblclick', () => { el.style.removeProperty('height'); el.style.removeProperty('flex'); SP(k, null); neuZeichnen(); });
+  }
+  function vollbild(karte, el, an) {
+    karte.classList.toggle('voll', an); document.body.classList.toggle('m-dk-vollbild', an);
+    const knopf = karte.querySelector('.m-dk-kopf [data-dk="voll"]');
+    if (knopf) { knopf.classList.toggle('an', an); knopf.innerHTML = an ? '<i>fullscreen_exit</i>Schließen' : '<i>fullscreen</i>Vollbild'; }
+    if (an) { el.dataset.hoehe = el.style.getPropertyValue('height'); el.style.removeProperty('height'); }
+    else if (el.dataset.hoehe) el.style.setProperty('height', el.dataset.hoehe, 'important');
+    setTimeout(() => { const c = inst(el); if (c) c.resize(); }, 80);
+  }
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return; const k = document.querySelector('.m-dk.voll'); if (!k) return;
+    ev.stopPropagation(); vollbild(k, k.querySelector('.m-chart'), false);
+  }, true);
   function ausstatten(el) {
     if (el.dataset.dg) return; el.dataset.dg = '1';
     if (el.closest('.m-opt, .q-dialog')) return;            // Vorschau in den Optionen: ohne Leiste
+    const karte = el.closest('.m-dk'); if (karte) { karteAusstatten(el, karte); return; }
     const k = schluessel(el); const h = LS(k);
     if (h) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('flex', 'none', 'important'); }
     const tab = document.createElement('div'); tab.className = 'm-dg-tab'; tab.style.display = 'none';
     const fuss = document.createElement('div'); fuss.className = 'm-dg-fuss';
     const griff = document.createElement('div'); griff.className = 'm-dg-griff';
     griff.title = 'Ziehen: Diagramm höher oder flacher · Doppelklick: Standardhöhe';
-    griff.innerHTML = '<i>drag_handle</i><span>Größe ziehen' + (el.classList.contains('m-dg') ? ' · Klick ins Diagramm: Werte und Berechnung' : '') + '</span>';
+    griff.innerHTML = '<i>drag_handle</i>';                  // 0.87: kein Hinweistext mehr – Tooltip genügt
+    if (el.classList.contains('m-dg')) griff.title += ' · Klick ins Diagramm: Werte und Berechnung';
     const gruppe = document.createElement('span'); gruppe.className = 'm-dg-gruppe';
     const bD = knopf('Diagramm', 'show_chart'), bT = knopf('Tabelle', 'table_rows', 'Dieselben Zahlen als Tabelle');
     bD.classList.add('an'); gruppe.append(bD, bT);
@@ -269,6 +414,8 @@ JS = r"""<script>
       try { if (!c.containPixel({gridIndex: 0}, p)) return; } catch (e) { return; }
       const x = c.convertFromPixel({gridIndex: 0}, p); if (!x) return;
       const i = Math.round(Array.isArray(x) ? x[0] : x); if (isNaN(i) || i < 0) return;
+      const karte = el.closest('.m-dk');                       // 0.87: zugehörige Sätze im Panel hervorheben
+      if (karte) karte.querySelectorAll('.m-dk-satz').forEach(s => s.classList.toggle('an', s.dataset.i === String(i)));
       getElement(el)?.$emit('m_achse', {index: i});
     });
   }

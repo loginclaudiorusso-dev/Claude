@@ -120,7 +120,9 @@ def test_diagramm_optionen_drei_modi_und_feste_achse():
     werte = [d["value"] for d in r["series"][0]["data"]]
     assert min(werte) < 0 and r["yAxis"]["scale"] is False                           # negative Reserve unter der Nulllinie
     j = sp.option({**basis, "art": "jahr", "schritt": 4})
-    assert [s["name"] for s in j["series"]] == ["Vorvorjahr (Ist)", "Vorjahr (Ist)", "Aktuell (Ist)", "Aktuell (Prognose)"]
+    assert [s["name"] for s in j["series"] if s.get("rolle") != "band"] == ["Vorvorjahr (Ist)", "Vorjahr (Ist)",
+                                                                            "Aktuell (Ist)", "Aktuell (Prognose)"]
+    assert any(s["name"] == "80-%-Spanne" for s in j["series"])                       # 0.87: Prognose mit 80-%-Band
     sz = sp.option({**basis, "art": "trend", "schritt": 4, "kap": 120})
     assert "SZENARIO" in sz["title"]["text"]
 

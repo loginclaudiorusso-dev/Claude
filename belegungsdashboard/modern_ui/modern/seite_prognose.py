@@ -76,7 +76,35 @@ def option(c: dict) -> dict:
     """0.66: Diagrammstil aus den Optionen (Linie/Fläche/Säulen, Gitter, Legende …) auf die Prognose anwenden."""
     from . import diagramm_stil
 
-    return diagramm_stil.anwenden(_option_roh(c), themes.AKTIV)
+    o = diagramm_stil.anwenden(_option_roh(c), themes.AKTIV)
+    return _karten_stil(o, c) if c.get("karte") else o
+
+
+def _karten_stil(o: dict, c: dict) -> dict:
+    """0.87: In der Diagramm-Karte gilt der einheitliche Stil (Farben, Beschriftung, eine Legende oben, Endbeschriftung).
+    Im Vorjahresvergleich kommen Datenstand-Linie und Prognosebereich dazu; Trend und Reserve haben eigene Marker."""
+    from . import diagramm_stil
+
+    stand = prog_ab = None
+    if c["art"] == "jahr":
+        vj = an.vorjahr(c.get("pg_lang") or c["pg"])
+        labels = [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}" for m in vj.monate]
+        ist = [i for i, x in enumerate(vj.aktuell_ist) if x]
+        if ist and ist[-1] + 1 < len(labels):
+            stand, prog_ab = labels[ist[-1]], labels[ist[-1] + 1]
+    return diagramm_stil.einheitlich(o, _t(), stand, prog_ab)
+
+
+def blick_daten(pg, pg_lang, kap: int, stichtag):
+    """0.87: „Auf einen Blick“ der Belegungsprognose – aus dem Vorjahresvergleich (12 Monate) und den 80-%-Grenzen."""
+    from . import blick_kern as bk
+
+    vj = an.vorjahr(pg_lang or pg)
+    oben = {z.monat: z.hi80 for z in ak.szenario(pg, kap, 0) if z.art != "ist"}
+    blick = bk.monate(vj.monate, vj.aktuell, vj.aktuell_ist, vj.vorjahr, stichtag, kap or None, pg.mae_1m,
+                      [oben.get(m) for m in vj.monate])
+    alt = {i: [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}", ak.monat_text(m)] for i, m in enumerate(vj.monate)}
+    return blick, alt
 
 
 def _option_roh(c: dict) -> dict:
@@ -318,7 +346,7 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     ]
     if li is not None and li + 1 < len(zs) and zeig(2):
         reihen[6]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
-                                 "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
+                                 "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "fontSize": 11,
                                            "formatter": "Prognose →"},
                                  "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
     if fort_ab < len(zs) and zeig(2):
@@ -384,7 +412,7 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
                        "animationDuration": 900})
     if li is not None and li + 1 < len(sm):
         reihen[-1]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
-                                  "label": {"show": True, "position": "insideTop", "color": t["text3"], "fontSize": 11,
+                                  "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "fontSize": 11,
                                             "formatter": "Prognose →"},
                                   "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
     if kap:
@@ -473,7 +501,14 @@ def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
     if letzte is not None and letzte + 1 < len(akt_prog):
         akt_prog[letzte] = akt_ist[letzte]
     rnd = lambda xs: [round(x, 1) if x is not None else None for x in xs]  # noqa: E731
+    band = {z.monat: (z.lo80, z.hi80) for z in ak.szenario(c["pg"], c["kap"], c["offset"]) if z.art != "ist"}
+    lo = [round(band[m][0], 1) if m in band and not i else None for m, i in zip(vj.monate, vj.aktuell_ist)]
+    br = [round(band[m][1] - band[m][0], 1) if m in band and not i else None for m, i in zip(vj.monate, vj.aktuell_ist)]
     o["series"] = [
+        {"name": "_u80", "rolle": "band", "type": "line", "stack": "vjb", "data": lo, "symbol": "none", "silent": True,
+         "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
+        {"name": "80-%-Spanne", "rolle": "band", "type": "line", "stack": "vjb", "data": br, "symbol": "none", "silent": True,
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": .16}},
         {"name": "Vorvorjahr (Ist)", "type": "line", "data": rnd(vj.vorvorjahr), "symbol": "none", "color": t["text3"],
          "lineStyle": {"color": t["text3"], "width": 1.2, "type": "dotted"}, "animationDuration": 700},
         {"name": "Vorjahr (Ist)", "type": "line", "data": rnd(vj.vorjahr), "symbol": "circle", "symbolSize": 4, "color": t["blau"],
@@ -484,15 +519,18 @@ def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
          "lineStyle": {"color": t["akzent"], "width": 2.4, "type": [7, 5]}, "animationDelay": 900, "animationDuration": 600},
     ]
     # keine Kapazitätslinie: hier geht es um den saisonalen Vergleich – sie würde die Unterschiede flach drücken
-    o["legend"]["data"] = [s["name"] for s in o["series"]]
+    o["legend"]["data"] = [s["name"] for s in o["series"] if not s["name"].startswith("_")]
     o["tooltip"]["valueFormatter"] = None
-    d = [{"m": l, "a": a, "v": v, "vv": vv, "ist": i} for l, a, v, vv, i in zip(labels, vj.aktuell, vj.vorjahr, vj.vorvorjahr, vj.aktuell_ist)]
+    d = [{"m": l, "a": a, "v": v, "vv": vv, "ist": i, "b": list(band[m]) if m in band and not i else None}
+         for l, a, v, vv, i, m in zip(labels, vj.aktuell, vj.vorjahr, vj.vorvorjahr, vj.aktuell_ist, vj.monate)]
     o["tooltip"][":formatter"] = (
         "(ps) => { const D = " + json.dumps(d) + "; const d = D[ps[0].dataIndex]; if (!d) return '';"
         " const f = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
         " const dl = (a, b) => (a == null || b == null) ? 'Vorjahr fehlt' : ((a - b >= 0 ? '+' : '−') + f(Math.abs(a - b)) + ' (' + (a - b >= 0 ? '+' : '−') + Math.abs(Math.round(100 * (a - b) / b)) + ' %)');"
-        " return `<b>${d.m}</b><br>${d.ist ? 'Ist' : 'Prognose'}: <b>${f(d.a)}</b><br>Vorjahr (Ist): ${f(d.v)}<br>"
-        "Vorvorjahr (Ist): ${f(d.vv)}<br><span style=\"opacity:.75\">Δ ggü. Vorjahr: ${dl(d.a, d.v)}</span>`; }")
+        " const f1 = v => v == null ? '–' : Number(v).toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 1});"
+        " return `<b>${d.m}</b><br>${d.ist ? 'Ist' : 'Prognose'}: <b>${f1(d.a)}</b>"
+        "${d.b ? '<br>80-%-Spanne: ' + f1(d.b[0]) + ' – ' + f1(d.b[1]) : ''}<br>Vorjahr (Ist): ${f1(d.v)}<br>"
+        "Vorvorjahr (Ist): ${f1(d.vv)}<br><span style=\"opacity:.75\">Differenz zum Vorjahr: ${dl(d.a, d.v)}</span>`; }")
     return o
 
 
@@ -667,7 +705,8 @@ def zeichnen(a) -> None:
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
-                            "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else "", **ueber}
+                            "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else "",
+                            "karte": not praes, **ueber}
     ds = a.daten["ds"]
     box: dict = {}
     sm = a.daten.get("sm") or []
@@ -873,22 +912,38 @@ def zeichnen(a) -> None:
                         with ui.element("div").style("margin-left:auto; display:flex; gap:6px; align-items:center"):
                             werkzeuge()
                 story = (animiert_ and trend and not a.aw_status and not parallel and (not praes or a.aw_schritt == 4))
-                chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes(
-                    "m-chart m-xg-chart" + (" gross" if praes else ""))
-                box["chart"] = chart
-                # 0.75: Klick auf einen Monat → Werte und Berechnung im Detailpanel; ƒx Berechnung unter dem Graph
-                if not praes:
-                    from . import diagramm_ui
+                if praes:
+                    chart = ui.echart(option(c(animiert_, "start" if story else "voll"))).classes("m-chart m-xg-chart gross")
+                else:                                # 0.87: Diagramm-Karte – Kopf, Knöpfe, „Auf einen Blick“, ƒx
+                    from . import diagramm_karte
 
-                    diagramm_ui.anbinden(a, chart, lambda i: _berechnung_monat(a, c()["pg"], zustand["kap"], i))
-                    zs_ = ak.szenario(c()["pg"], zustand["kap"], 0)
+                    pg_, kap_ = c()["pg"], zustand["kap"]
+                    blick, alt = blick_daten(pg_, c().get("pg_lang"), kap_, a.daten["stichtag"])
+                    ort = konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)
+                    gr = a.daten["gruppen"].text() if a.daten.get("gruppen") else ""
+                    unter = (f"{ort} · {'Brutto' if a.aw_brutto else 'Netto'}" + (f" · {gr}" if gr else "")
+                             + f" · Datenstand {a.daten['stichtag']:%d.%m.%Y}")
+                    karte = diagramm_karte.Karte(a, CHARTS.get(a.aw_chart, ""), unter, blick, titel_je=CHARTS,
+                                                 monate_alt=alt)
+                    chart = karte.chart(option(c(animiert_, "start" if story else "voll")), "m-xg-chart")
+                    vj_monate = an.vorjahr(c().get("pg_lang") or pg_).monate
+                    zs_ = ak.szenario(pg_, kap_, 0)
+
+                    def details(i: int):
+                        if a.aw_chart == "jahr":                 # Vorjahresvergleich: andere Monatsachse
+                            if not 0 <= i < len(vj_monate):
+                                return []
+                            i = next((j for j, z in enumerate(zs_) if z.monat == vj_monate[i]), -1)
+                        return _berechnung_monat(a, pg_, kap_, i)
+                    karte.anbinden(chart, details)
                     naechster = next((i for i, z in enumerate(zs_) if z.art == "prognose"), None)
                     if naechster is not None:
-                        diagramm_ui.fx_kasten(_berechnung_monat(a, c()["pg"], zustand["kap"], naechster))
+                        karte.fx(_berechnung_monat(a, pg_, kap_, naechster))
+                box["chart"] = chart
                 if story:
                     ui.timer(2.75, lambda: _story_weiter(chart, option(c(True, "voll"))), once=True)
                 schluessel = jetzt if trend else a.aw_chart
-                with ui.element("div").classes("m-xg-fuss"):
+                with ui.element("div").classes("m-xg-fuss" + ("" if praes else " m-weg")):     # 0.87: eine Legende (oben)
                     for k, art in (("kurve", "trend"), ("status", "status"), ("standorte", "standorte"), ("reserve", "reserve"),
                                    ("jahr", "jahr")):
                         leg = ui.html(_legende_text(art, kap_echt != zustand["kap"] or bool(zustand["offset"])), sanitize=False)

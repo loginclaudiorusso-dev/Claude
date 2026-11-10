@@ -109,3 +109,208 @@ def _liste(x) -> list[dict]:
     if isinstance(x, list):
         return [y for y in x if isinstance(y, dict)]
     return []
+
+
+# =====================================================================================================================
+# 0.87 Einheitlicher Diagrammstil – EINE Farb- und Beschriftungslogik für die Diagramm-Karten
+# =====================================================================================================================
+# Rolle einer Reihe: ausdrücklich ``se["rolle"]`` oder aus dem Namen erkannt (so gilt die Logik auch für ältere Bauweisen).
+#   ist        Aktuell Ist          Akzentfarbe, 3 px, durchgezogen, beschriftet
+#   prognose   Prognose             Akzentfarbe, gestrichelt, beschriftet
+#   band       80-%-Band            helle Akzentfläche (unsichtbare Hilfslinien)
+#   band95     95-%-Band            noch hellere Fläche (nur, wenn eingeschaltet)
+#   vorjahr    Vorjahr              neutrales Grau, 1,5 px
+#   vorvorjahr Vorvorjahr           dunkleres Grau, 1 px, gepunktet
+#   kapazitaet Kapazität            rot, 1,5 px, am rechten Rand „Kapazität 330“
+#   test       Rückwärtstest        dünn gepunktet, ohne Beschriftung
+#   stapel     Anteile (Tageswerte) gestapelte Stufenflächen in eigenen Farben
+#   balken_ist / balken_prognose    Zählwerte als Balken (Prognose heller, gestrichelter Rand)
+
+FOKUS_ID = "m-fokus"
+SCHRIFT = "Segoe UI, Inter, sans-serif"
+ZAHL_JS = "(v) => (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE')"
+WERT_JS = ("(p) => { const v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value; "
+           "return (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE'); }")
+
+
+def rolle(se: dict) -> str:
+    if se.get("rolle"):
+        return se["rolle"]
+    n = str(se.get("name") or "")
+    st = str(se.get("stack") or "")
+    if st == "b95" or "95" in n and ("Band" in n or "Spanne" in n):
+        return "band95"
+    if _band(se):
+        return "band"
+    if "Vorvorjahr" in n:
+        return "vorvorjahr"
+    if "Vorjahr" in n:
+        return "vorjahr"
+    if "Kapazität" in n:
+        return "kapazitaet"
+    if "Backtest" in n or "Rückwärtstest" in n:
+        return "test"
+    if se.get("type") == "line" and ("Prognose" in n or (se.get("lineStyle") or {}).get("type") in ("dashed", [7, 5])):
+        return "prognose"
+    if se.get("type") == "line" and ("Ist" in n or n == "Belegung"):
+        return "ist"
+    return ""
+
+
+def _label(farbe_hg: str) -> dict:
+    return {"show": True, "position": "top", "distance": 6, "fontSize": 12, "fontWeight": "bold", "color": "#fff",
+            "backgroundColor": farbe_hg, "padding": [2, 5], "borderRadius": 3, "textBorderWidth": 0,
+            ":formatter": WERT_JS}
+
+
+def _endlabel(text_js: str, farbe: str) -> dict:
+    return {"show": True, "fontSize": 12, "fontWeight": 600, "color": farbe, "distance": 6, ":formatter": text_js}
+
+
+def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str | None = None,
+                spanne: dict | None = None, tageswerte: bool = False, legende: bool = True) -> dict:
+    """Gibt eine Kopie im einheitlichen Stil zurück. ``stand``/``prognose_ab``: Kategorie der x-Achse für die Linie
+    „Datenstand“ bzw. den Beginn des hinterlegten Prognosebereichs. ``spanne``: {Index: (unten, oben)} für den Tooltip."""
+    o = copy.deepcopy(opt)
+    o.pop("title", None)
+    akzent, rot, grau, grau2 = t["akzent"], t.get("rot", "#d64545"), t.get("text3", "#8a8f98"), t.get("text2", "#5f6670")
+    label_hg = "rgba(24,28,34,.82)"
+    o["textStyle"] = {"color": t.get("text2", "#555"), "fontFamily": SCHRIFT, "fontSize": 12}
+    for ax in _liste(o.get("xAxis")) + _liste(o.get("yAxis")):
+        al = dict(ax.get("axisLabel") or {})
+        al.update({"fontSize": 12, "color": grau})
+        if ax.get("type") == "value":
+            al[":formatter"] = ZAHL_JS
+            al.pop("formatter", None)
+        ax["axisLabel"] = al
+    namen, rollen = [], {}
+    for se in o.get("series") or []:
+        r = rolle(se)
+        rollen[se.get("name") or ""] = r
+        if se.get("type") == "line":
+            se["smooth"] = False
+            if tageswerte and r in ("ist", "prognose", "stapel", ""):
+                se["step"] = "end"
+        if r == "ist":
+            se.update({"color": akzent, "symbol": "circle", "symbolSize": 5, "showSymbol": not tageswerte,
+                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": 3, "type": "solid"},
+                       "itemStyle": {"color": akzent}, "label": {**_label(label_hg), "show": not tageswerte},
+                       "labelLayout": {"hideOverlap": True}, "z": 5})
+        elif r == "prognose":
+            se.update({"color": akzent, "symbol": "emptyCircle", "symbolSize": 5, "showSymbol": not tageswerte,
+                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": 2.5, "type": "dashed"},
+                       "itemStyle": {"color": akzent}, "label": {**_label(label_hg), "show": not tageswerte},
+                       "labelLayout": {"hideOverlap": True}, "z": 5})
+        elif r in ("band", "band95"):
+            se["lineStyle"] = {"opacity": 0}
+            se["symbol"] = "none"
+            if se.get("areaStyle") is not None:
+                se["areaStyle"] = {"color": akzent, "opacity": .16 if r == "band" else .07}
+            se["color"] = akzent
+        elif r == "vorjahr":
+            se.update({"color": grau, "symbol": "none", "lineStyle": {"color": grau, "width": 1.5, "type": "solid"},
+                       "label": {"show": False}})
+        elif r == "vorvorjahr":
+            se.update({"color": grau2, "symbol": "none", "lineStyle": {"color": grau2, "width": 1, "type": "dotted"},
+                       "label": {"show": False}})
+        elif r == "kapazitaet":
+            werte = [v for v in _werte(se) if v is not None]
+            k = f"{round(max(werte)):,}".replace(",", ".") if werte else ""
+            se.update({"color": rot, "symbol": "none", "lineStyle": {"color": rot, "width": 1.5, "type": "solid"},
+                       "label": {"show": False}, "z": 4,
+                       "endLabel": _endlabel(f"() => {json_str(('Kapazität ' + k).strip())}", rot),
+                       "labelLayout": {"moveOverlap": "shiftY"}})
+        elif r == "test":
+            ls = dict(se.get("lineStyle") or {})
+            ls.update({"width": 1.2, "type": "dotted"})
+            se.update({"lineStyle": ls, "label": {"show": False}})
+        elif r == "balken_ist":
+            se.update({"type": "bar", "color": akzent, "itemStyle": {"color": akzent, "borderRadius": [3, 3, 0, 0]},
+                       "label": {**_label(label_hg), "position": "top"}, "labelLayout": {"hideOverlap": True},
+                       "barMaxWidth": 26, "barGap": "-100%"})
+        elif r == "balken_prognose":
+            se.update({"type": "bar", "color": akzent,
+                       "itemStyle": {"color": akzent, "opacity": .45, "borderColor": akzent, "borderWidth": 1.2,
+                                     "borderType": "dashed", "borderRadius": [3, 3, 0, 0]},
+                       "label": {**_label(label_hg), "position": "top"}, "labelLayout": {"hideOverlap": True},
+                       "barMaxWidth": 26, "barGap": "-100%"})
+        if r in ("ist", "prognose", "vorjahr", "vorvorjahr") and se.get("name") and se.get("type") == "line" and legende:
+            farbe = {"vorjahr": grau, "vorvorjahr": grau2}.get(r, akzent)
+            se["endLabel"] = _endlabel(f"() => {json_str(kurzname(se['name']))}", farbe)
+            se["labelLayout"] = {"hideOverlap": r in ("ist", "prognose"), "moveOverlap": "shiftY"}   # Enden nicht übereinander
+        if se.get("name") and r not in ("band", "band95") and not str(se["name"]).startswith("_") \
+                and (se.get("tooltip") or {}).get("show", True) is not False and se["name"] not in namen \
+                and any(v is not None for v in _werte(se)):            # leere Reihen nicht in die Legende
+            namen.append(se["name"])
+    # EINE Legende, oben, anklickbar
+    o["legend"] = {"show": legende and len(namen) > 1, "type": "scroll", "top": 2, "left": 4, "right": 4, "data": namen,
+                   "textStyle": {"color": t.get("text2", "#555"), "fontSize": 12}, "itemWidth": 18, "itemHeight": 8,
+                   "selectedMode": True}
+    g = o.get("grid") if isinstance(o.get("grid"), dict) else {}
+    hat_end = any((se.get("endLabel") or {}).get("show") for se in o.get("series") or [])
+    o["grid"] = {**g, "top": 40 if o["legend"]["show"] else 22, "left": g.get("left", 52), "bottom": g.get("bottom", 30),
+                 "right": max(g.get("right", 20) if isinstance(g.get("right"), (int, float)) else 20, 120 if hat_end else 24)}
+    # Tooltip: alle Werte mit einer Nachkommastelle, Differenz zum Vorjahr – vorhandene eigene Tooltips bleiben
+    tt = dict(o.get("tooltip") or {})
+    tt["trigger"] = "axis"
+    tt["confine"] = True
+    if ":formatter" not in tt and "formatter" not in tt:
+        tt[":formatter"] = tooltip_js(rollen, spanne)
+    o["tooltip"] = tt
+    # Datenstand (senkrechte Linie) und hinterlegter Prognosebereich auf einer eigenen, unsichtbaren Reihe – an ihr
+    # setzt auch „Auf einen Blick“ den hervorgehobenen Punkt (markPoint)
+    fokus = {"id": FOKUS_ID, "name": "", "type": "line", "data": [], "symbol": "none", "silent": True, "smooth": False,
+             "tooltip": {"show": False}, "z": 9}
+    if stand is not None:
+        fokus["markLine"] = {"silent": True, "symbol": "none", "lineStyle": {"color": grau2, "type": [3, 3], "width": 1.2},
+                             "label": {"formatter": "Datenstand", "position": "end", "fontSize": 12,
+                                       "color": grau2}, "data": [{"xAxis": stand}]}
+    if prognose_ab is not None:
+        xs = _liste(o.get("xAxis"))[0].get("data") if _liste(o.get("xAxis")) else None
+        ende = xs[-1] if xs else None
+        if ende is not None:
+            fokus["markArea"] = {"silent": True, "itemStyle": {"color": akzent, "opacity": .05},
+                                 "label": {"show": True, "position": "insideTopRight", "formatter": "Prognose",
+                                           "fontSize": 12, "color": grau},
+                                 "data": [[{"xAxis": prognose_ab}, {"xAxis": ende}]]}
+    o["series"] = [se for se in (o.get("series") or []) if se.get("id") != FOKUS_ID] + [fokus]
+    return o
+
+
+def json_str(s: str) -> str:
+    import json
+
+    return json.dumps(s, ensure_ascii=False)
+
+
+def kurzname(n: str) -> str:
+    """Name am Linienende kurz halten: „Aktuell (Prognose)“ → „Prognose“, „Vorjahr (Ist)“ → „Vorjahr“."""
+    for alt, neu in (("Aktuell (Ist)", "Aktuell"), ("Aktuell (Prognose)", "Prognose"), ("Prognose (erwartet)", "Prognose"),
+                     ("Vorvorjahr (Ist)", "Vorvorjahr"), ("Vorjahr (Ist)", "Vorjahr")):
+        if n == alt:
+            return neu
+    return n
+
+
+def tooltip_js(rollen: dict, spanne: dict | None = None) -> str:
+    import json
+
+    return ("(ps) => { if (!ps || !ps.length) return ''; const R = " + json.dumps(rollen, ensure_ascii=False) + ";"
+            " const S = " + json.dumps({str(k): v for k, v in (spanne or {}).items()}) + ";"
+            " const f1 = v => (v == null || isNaN(v)) ? '–' : Number(v).toLocaleString('de-DE', {minimumFractionDigits: 1,"
+            " maximumFractionDigits: 1});"
+            " const wert = p => Array.isArray(p.value) ? p.value[p.value.length - 1] : (p.value && typeof p.value === 'object'"
+            " ? p.value.value : p.value);"
+            " const zl = (m, n, v) => `<div style=\"display:flex;justify-content:space-between;gap:18px;line-height:1.6\">"
+            "<span>${m}${n}</span><b style=\"font-variant-numeric:tabular-nums\">${v}</b></div>`;"
+            " let h = `<div style=\"font-weight:600;margin-bottom:4px\">${ps[0].axisValueLabel}</div>`; let akt = null, vj = null, summe = 0, stapel = 0;"
+            " const gesehen = {};"
+            " for (const p of ps) { const n = p.seriesName; const r = R[n]; if (!n || n[0] === '_' || r === 'band' || r === 'band95'"
+            " || gesehen[n]) continue; const v = wert(p); if (v == null || v === '-') continue; gesehen[n] = 1;"
+            " h += zl(p.marker, n, f1(v)); if ((r === 'ist' || r === 'prognose' || r === 'balken_ist' || r === 'balken_prognose')"
+            " && akt == null) akt = v; if (r === 'vorjahr') vj = v; if (r === 'stapel') { summe += Number(v) || 0; stapel++; } }"
+            " if (stapel > 1) h += zl('', 'Zusammen', f1(summe));"
+            " const s = S[ps[0].dataIndex]; if (s) h += zl('', '80-%-Spanne', f1(s[0]) + ' – ' + f1(s[1]));"
+            " if (akt != null && vj != null) { const d = akt - vj; h += `<div style=\"opacity:.75;margin-top:2px\">Differenz zum"
+            " Vorjahr: ${d >= 0 ? '+' : '−'}${f1(Math.abs(d))}</div>`; }"
+            " return h; }")

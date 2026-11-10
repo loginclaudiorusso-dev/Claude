@@ -763,6 +763,7 @@ CSS += """
 .m-chart.m-xg-chart { height: 440px !important; }
 .m-chart.m-xg-chart.gross { height: calc(100vh - 400px) !important; min-height: 360px; }
 .m-xg-fuss { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: var(--text3); padding: 2px 4px 0; }
+.m-xg-fuss.m-weg { display: none; }   /* 0.87: zweite Legende unten entfällt (Diagramm-Karte) */
 .m-xg-fuss > div { display: contents; }
 .m-xg-fuss span { display: inline-flex; align-items: center; gap: 6px; }
 .m-xg-fuss i { display: inline-block; flex: none; }
@@ -1227,6 +1228,8 @@ CSS += """
 CSS += """
 /* 0.53: Maßnahmen je Maßnahme – Raster kleiner Diagramme */
 .m-mn-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.m-mn-raster:has(.m-dk) { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }   /* 0.87 */
+.m-mn-kachel:has(> .m-dk) { border: 0; padding: 0; background: none; }
 .m-mn-kachel { border: 1px solid var(--rand); border-radius: 10px; padding: 10px 12px 4px; background: var(--fl); min-width: 0; }
 .m-mn-kachel .m-chart { height: 170px !important; }
 """

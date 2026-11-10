@@ -102,6 +102,36 @@ def _chart(opt: dict, a=None) -> None:
         diagramm_ui.anbinden(a, chart)
 
 
+def _tagesverlauf_karte(a, det: ak.BDetails, zr, farben: list[str]) -> None:
+    """0.87: Tagesverlauf als Diagramm-Karte – Tageswerte als gestapelte Stufenflächen je Belegungsart."""
+    from . import blick_kern as bk
+    from . import diagramm_karte, diagramm_stil
+
+    n = len(det.tage)
+    stand = a.daten.get("stichtag") or a.heute
+    opt = _chart_basis()
+    opt["xAxis"]["data"] = det.tage
+    opt["yAxis"]["scale"] = False
+    opt["series"] = [{"name": k, "rolle": "stapel", "type": "line", "stack": "art", "data": v, "symbol": "none",
+                      "color": farben[i % len(farben)], "lineStyle": {"color": farben[i % len(farben)], "width": 1},
+                      "areaStyle": {"color": farben[i % len(farben)], "opacity": .35}}
+                     for i, (k, v) in enumerate(det.kategorien.items())]
+    if zr.kapazitaet:
+        opt["series"].append({"name": "Kapazität", "rolle": "kapazitaet", "type": "line", "data": [zr.kapazitaet] * n})
+    k_ist = sum(det.ist)
+    teil = 0 < k_ist < n
+    opt = diagramm_stil.einheitlich(opt, _T(), det.tage[k_ist - 1] if teil else None, det.tage[k_ist] if teil else None,
+                                    tageswerte=True)
+    summen = [round(sum(v[i] or 0 for v in det.kategorien.values()), 1) for i in range(n)]
+    tage = [zr.von + timedelta(days=i) for i in range(n)]
+    blick = bk.tage(tage, summen, list(det.ist), stand, zr.kapazitaet or None)
+    ort = ak.STANDORTE.get(a.aw_standort, "")
+    with diagramm_karte.Karte(a, "Tagesverlauf nach Belegungsart",
+                              f"{ort} · {'Brutto' if a.aw_brutto else 'Netto'} · {zr.von:%d.%m.%Y} – {zr.bis:%d.%m.%Y} · "
+                              f"Datenstand {stand:%d.%m.%Y}", blick) as k:
+        k.anbinden(k.chart(opt))
+
+
 def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "") -> None:
     with ui.element("div").classes("m-kpikarte"):
         ui.label(titel).classes("m-zweite")
@@ -237,24 +267,8 @@ def _belegung(a) -> None:
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
     farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
     with ui.element("div").classes("m-zwei"):
-        with ui.element("section").classes("m-block m-breit"):
-            ui.label(f"Tagesverlauf {ak.STANDORTE.get(a.aw_standort, '')} nach Belegungsart"
-                     + (" – ab dem Stichtag Prognose" if not all(det.ist) else "")).classes("m-btitel")
-            opt = _chart_basis()
-            opt["xAxis"]["data"] = det.tage
-            opt["yAxis"]["scale"] = False
-            opt["series"] = [{"name": k, "type": "line", "stack": "art", "data": v, "symbol": "none",
-                              "lineStyle": {"color": farben[i % len(farben)], "width": 1},
-                              "areaStyle": {"color": farben[i % len(farben)], "opacity": .35}}
-                             for i, (k, v) in enumerate(det.kategorien.items())]
-            if zr.kapazitaet:
-                opt["series"].append({"name": "Kapazität", "type": "line", "data": [zr.kapazitaet] * len(det.tage),
-                                      "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
-            if not all(det.ist) and any(det.ist):
-                stich = det.tage[sum(det.ist) - 1]
-                opt["series"][0]["markLine"] = {"symbol": "none", "label": {"formatter": "Stichtag", "color": _T()["text3"]},
-                                                "lineStyle": {"color": _T()["text3"], "type": "dashed"}, "data": [{"xAxis": stich}]}
-            _chart(opt, a)
+        with ui.element("div").classes("m-breit"):
+            _tagesverlauf_karte(a, det, zr, farben)
         with ui.element("section").classes("m-block"):
             ui.label("Personentage je Monat").classes("m-btitel")
             ui.label("Summe der belegten Plätze über alle Tage – hell = Prognose").classes("m-ptext")
