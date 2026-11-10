@@ -90,10 +90,10 @@ def test_wenn_dann_und_fruehindikator():
     basis = bp.simulieren(md, 0, 300)
     m = 6
     ziel = basis.median[-1, m] + 8
-    w = bp.wenn_dann(md, m, ziel, None, 200)
-    assert w.faktor > 0 and abs(w.erreicht - ziel) <= 2 and w.erreichbar
-    w2 = bp.wenn_dann(md, m, 0, None, 200)                                     # unter dem sicheren Bestand
-    assert not w2.erreichbar and w2.faktor == -100 and w2.sicher_im_monat > 0
+    w = bp.wenn_dann(md, m, ziel, None, 1000)                 # 0.86: bedingte Simulation statt Faktor-Suche
+    assert abs(w.erreicht - ziel) <= 2 and w.verlauf[m][1] == w.erreicht
+    w2 = bp.wenn_dann(md, m, 0, None, 1000)                                    # unter dem sicheren Bestand
+    assert not w2.erreichbar and w2.sicher_im_monat > 0 and w2.anteil == 0
     sz, r, jetzt, vorher = bp.fruehindikator(fs, L)
     assert sz in ("schwach", "basis", "stark") and jetzt >= 0 and vorher >= 0
 

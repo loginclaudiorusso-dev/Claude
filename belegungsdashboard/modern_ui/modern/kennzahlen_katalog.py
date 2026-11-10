@@ -88,16 +88,21 @@ KATALOG: dict[str, Kennzahl] = {
         "Planwert (Maßnahmen)", "Die Zahl, mit der geplant wird: der mittlere Wert aus 1000 durchgerechneten Verläufen – "
         "in der Hälfte der Fälle wird es mehr, in der Hälfte weniger.",
         "Planwert = Median( schon da + fest angemeldet + aus Assessment/Vorbereitung + weitere Zugänge )",
-        "Maßnahmen-Pivot (Aufenthalte), Verbleibskurven, Übergänge, Zugänge der letzten 3 Jahre; Szenario „normal“.",
+        "Maßnahmen-Pivot (Aufenthalte), Verbleibskurven, Übergänge, Zugänge der letzten 3 Jahre; Szenario „normal“. "
+        "Weitere Zugänge: Erfahrung je Monat minus schon Angemeldete, mit einem gemeinsamen Jahresfaktor je Verlauf "
+        "(Annahme ±12 %) – alle Maßnahmen schwanken zusammen.",
         "Teilnehmende"),
     "sicher": Kennzahl(
-        "Davon sicher", "Wer heute schon in der Maßnahme ist und voraussichtlich noch bleibt, plus fest Angemeldete.",
-        "Sicher = Σ Verbleib der Laufenden (aus der Verbleibskurve, abhängig von der bisherigen Dauer) + feste Anmeldungen",
-        "Laufende Aufenthalte im Pivot und geplante künftige Tage; vorzeitige Abgänge sind schon abgezogen.", "Teilnehmende"),
+        "Davon bekannt", "Wer heute schon in der Maßnahme ist und voraussichtlich noch bleibt, plus fest Angemeldete.",
+        "Sicher = Σ Laufende bis zum früheren aus geplantem Ende und vorzeitigem Abgang + feste Anmeldungen (ebenso)",
+        "Laufende Aufenthalte im Pivot und geplante künftige Tage; vorzeitige Abgänge (Verbleibskurve) sind abgezogen – "
+        "„sicher“ heißt also „bekannt“, nicht „garantiert“.", "Teilnehmende"),
     "abgangsquote": Kennzahl(
         "Vorzeitige Abgangsquote", "Anteil, der eine Maßnahme vor dem Soll-Ende verlässt.",
-        "Abgangsquote = 1 − Verbleib 30 Tage vor dem Soll-Ende (Kaplan-Meier, Laufende zensiert)",
-        "Alle Aufenthalte der Maßnahmeart; unter 30 Fällen die Gruppe bzw. alle. Gründe werden nicht erfasst.", "%"),
+        "Abgangsquote = 1 − Verbleib 30 Tage vor dem Soll-Ende (Kaplan-Meier; Laufende bis heute zensiert, reguläre "
+        "Enden zensiert)",
+        "Begonnene Aufenthalte der Maßnahmeart, nur bis heute erlebte Tage; unter 30 Fällen die Gruppe bzw. alle. "
+        "Gründe werden nicht erfasst.", "%"),
     "uebergangsquote": Kennzahl(
         "Übergangsquote", "Anteil der Assessments (bzw. Vorbereitungen), auf die innerhalb von 12 Monaten die nächste "
         "Stufe folgt.",
@@ -106,8 +111,9 @@ KATALOG: dict[str, Kennzahl] = {
     "rueckblick": Kennzahl(
         "Treffsicherheit (Rückblick)", "So weit lag das Modell früher daneben, wenn man es mit den damals bekannten Daten "
         "rechnet.",
-        "mittlerer Fehler = Ø | Ist − Planwert | über rollierende Stichtage (alle 3 Monate, letzte 18 Monate)",
-        "Vergleich: „wie vor 12 Monaten“ (einfachste Annahme). Treffer = Ist lag in der 80 %-Spanne.", "Teilnehmende"),
+        "mittlerer Fehler = Ø | Ist − Planwert | über rollierende Stichtage (jeden Monat, letzte 18 Monate)",
+        "Vergleich: „Bestand bleibt wie heute“ und „wie vor 12 Monaten“ – schlägt das Modell sie nicht, ist es zu "
+        "kompliziert. Treffer = Ist lag in der 80 %-Spanne (mit Anzahl).", "Teilnehmende"),
 }
 
 # Reihen-Namen in den Diagrammen → Kennzahl (für Detailpanel und ƒx)

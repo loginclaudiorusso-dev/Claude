@@ -353,7 +353,9 @@ body.pro .m-kachel { border-radius: var(--r); transition: none; color: var(--tex
 body.pro .m-kachel:hover { transform: none; box-shadow: 0 0 0 1px var(--text3); filter: none; }
 body.pro .m-kachel.frei, body.pro .m-legende i.frei { background: color-mix(in srgb, var(--s-ok-fg) 30%, var(--fls)); border: 1px solid var(--s-ok-fg); }
 body.pro .m-kachel.teilweise, body.pro .m-legende i.teilweise { /* 0.80: halb belegt, halb frei – nicht mehr gestrichelt (wie „geplant“) */
-  background: linear-gradient(135deg, var(--s-blau-bg) 0 50%, color-mix(in srgb, var(--s-ok-fg) 30%, var(--fls)) 50% 100%);
+  /* 0.86: zwei Bett-Segmente (links belegt, rechts frei) mit Trennstrich statt halber Diagonale */
+  background: linear-gradient(90deg, var(--s-blau-bg) 0 calc(50% - 1px), var(--s-ok-fg) calc(50% - 1px) calc(50% + 1px),
+                              color-mix(in srgb, var(--s-ok-fg) 30%, var(--fls)) calc(50% + 1px) 100%);
   color: var(--s-blau-fg); border: 1px solid var(--s-ok-fg); }
 body.pro .m-kachel.belegt, body.pro .m-legende i.belegt, body.pro .m-zs-b.belegt, body.pro .m-zs-punkt { background: var(--s-blau-bg); color: var(--s-blau-fg); box-shadow: inset 0 0 0 1px var(--s-blau-bd); }
 body.pro .m-kachel.geplant, body.pro .m-legende i.geplant, body.pro .m-zs-b.geplant, body.pro .m-zs-punkt.geplant { background: var(--fls); color: var(--s-akzent-fg); box-shadow: none; border: 1.5px dashed var(--s-akzent-fg); box-sizing: border-box; }

@@ -61,9 +61,11 @@ def zeichnen(a, d: dict) -> None:
         ui.select({"Alle": "Alle Maßnahmen", **{x: x for x in md.arten}}, value=art,
                   on_change=lambda e: a.setzen(mn_art=e.value, laden=False)).props(
             'dense outlined dark options-dense popup-content-class="m-popup"').style("width:230px")
-    if sicht == "leitung":
-        with a.leiste:
+    with a.leiste:
+        if sicht == "leitung":
             knopf("Szenarien …", lambda: _szenarien_panel(a, d["szen"]), "", "tune")
+        knopf("Belegung des Internats", lambda: a.oeffnen("auswertung", ansicht="prognose"), "leise", "hotel",
+              "Belegungsprognose: Betten je Standort (Zeitreihe) – die zweite Sicht auf dieselbe Zukunft")
     a.status_info = (f"Stichtag {erg['letzter']:%d.%m.%Y} · {len(md.faelle)} Aufenthalte · {bp.DURCHLAEUFE} "
                      "durchgerechnete Verläufe")
     with a.inhalt, ui.element("div").classes("m-rv m-bst"):
@@ -81,10 +83,11 @@ def _planung(a, d, art: str) -> None:
     with ui.element("section").classes("m-block m-bp-ansage"):
         ui.label(f"{'Alle Maßnahmen' if art == 'Alle' else art} · {_m(e.monate[k])}").classes("m-zweite")
         with ui.element("div").classes("m-bp-satz"):
-            ui.html(f"Plane mit <b>{plan}</b> Teilnehmenden – davon <b>{sicher}</b> schon sicher, "
+            ui.html(f"Plane mit <b>{plan}</b> Teilnehmenden – <b>{sicher}</b> davon sind schon da oder angemeldet, "
                     f"mit <b>{max(0, plan - sicher)}</b> weiteren rechnen wir.", sanitize=False)
-        ui.label("„Sicher“ = schon in der Maßnahme (vorzeitige Abgänge schon abgezogen) oder fest angemeldet.").classes(
-            "m-zweite")
+        ui.label("„Bekannt“ = schon in der Maßnahme oder fest angemeldet – bis zum geplanten Ende, erwartete vorzeitige "
+                 "Abgänge sind schon abgezogen. Für Zimmer lieber mit dem oberen Wert der Spanne planen (Leitungssicht): "
+                 "ein fehlendes Bett ist teurer als ein leeres.").classes("m-zweite").style("white-space:normal")
     with ui.element("section").classes("m-block"):
         ui.label("Planwerte je Maßnahmeart").classes("m-btitel")
         sp = "minmax(200px,1.6fr) " + " ".join(["minmax(120px,1fr)"] * len(SPALTEN)) + " minmax(160px,1.2fr)"
@@ -106,7 +109,7 @@ def _planung(a, d, art: str) -> None:
                     with ui.element("div").classes("m-bp-zelle"):
                         ui.label(str(p)).classes("m-name")
                         if s:
-                            ui.label(f"{si} sicher").classes("m-zweite")
+                            ui.label(f"{si} bekannt").classes("m-zweite")
                 hinweis = ""
                 if zeile_art in d["erg"]["szenarien"]["basis"].ueber_kapazitaet and \
                         d["erg"]["szenarien"]["basis"].ueber_kapazitaet[zeile_art] >= .5:
@@ -183,6 +186,9 @@ def _ampel(erg, szen) -> None:
         badge(farbe, f"Frühindikator: spricht für „{bp.SZENARIO_NAMEN[sz]}“")
         text = (f"Assessment-Eintritte der letzten 90 Tage: {jetzt} – im Vorjahr im selben Zeitraum {vorher}"
                 + (f" ({'+' if r >= 1 else '−'}{abs(round(100 * (r - 1)))} %)." if r is not None else "."))
+        if r is not None and not bp.ueber_zufall(jetzt, vorher) and abs(r - 1) > .1:
+            text += (f" Der Unterschied liegt noch im Rahmen des Zufalls (erst ab ±{round(2 * (jetzt + vorher) ** .5)} "
+                     "Eintritten auffällig).")
         if szen[sz].get("ausloeser"):
             text += f" Auslöser laut Szenario: {szen[sz]['ausloeser']}"
         ui.label(text).classes("m-zweite").style("white-space:normal")
@@ -254,6 +260,10 @@ def _abgaenge(md: bp.Modell) -> None:
             with ui.element("div").classes("m-bst-zeile"):
                 ui.label(a_).classes("m-name")
                 ui.label(f"vorzeitig: {_p(q)}" if q is not None else "vorzeitig: – (keine Solldauer)").classes("m-zweite")
+                if a_ in md.abgang_alt and q is not None:      # 0.86: Rechnung korrigiert – Unterschied sichtbar machen
+                    attr(ui.label(f"bis 0.85: {_p(md.abgang_alt[a_])}").classes("m-zweite"),
+                         title="Bis Version 0.85 zählten geplante, noch nicht erlebte Tage und künftige Anmeldungen in "
+                               "der Verbleibskurve mit – die Abgangsquote fiel dadurch zu niedrig aus.")
                 attr(ui.label(f"Kurve: {md.kurve_quelle[a_]} · {kv.n} Fälle").classes("m-zweite"),
                      title="Unter 30 Fällen wird die Kurve der Gruppe bzw. aller Maßnahmen genutzt.")
         for von, u in md.uebergaenge.items():
@@ -270,11 +280,13 @@ def _rueckblick(rb: list) -> None:
             if r.mae is None:
                 ui.label(f"{r.horizont} Monat(e) voraus: noch zu wenig Historie").classes("m-zweite")
                 continue
-            besser = r.mae_vorjahr is not None and r.mae < r.mae_vorjahr
-            ui.label(f"{r.horizont} Monat(e) voraus: im Schnitt ± {_z(r.mae, 1)} Teilnehmende daneben "
-                     f"({_p(r.wape)}), Ist in der 80 %-Spanne: {_p(r.treffer80)} · „wie vor 12 Monaten“: "
-                     f"± {_z(r.mae_vorjahr, 1)} {'→ Modell besser' if besser else '→ Modell nicht besser'}"
-                     f" · {mehrzahl(r.n, 'Stichtag', 'Stichtage')}").classes("m-ptext")
+            vergleich = r.mae_bleibt if r.mae_bleibt is not None else r.mae_vorjahr
+            besser = vergleich is not None and r.mae < vergleich
+            ui.label(f"{r.horizont} Monat(e) voraus: im Schnitt ± {_z(r.mae, 1)} Teilnehmende daneben ({_p(r.wape)}) · "
+                     f"{r.treffer} von {r.n} Stichtagen in der 80 %-Spanne · „Bestand bleibt wie heute“: "
+                     f"± {_z(r.mae_bleibt, 1)} · „wie vor 12 Monaten“: ± {_z(r.mae_vorjahr, 1)} "
+                     f"{'→ Modell besser' if besser else '→ Modell nicht besser als die einfache Annahme'}"
+                     + (" · wenige Stichtage – nur ein grober Anhalt" if r.n < 10 else "")).classes("m-ptext")
 
 
 def _wenn_dann_panel(a, erg, art: str, args) -> None:
@@ -307,14 +319,16 @@ def _wenn_dann_panel(a, erg, art: str, args) -> None:
             w = await run.io_bound(bp.wenn_dann, erg["modell"], k, float(feld.value or 0), None if art == "Alle" else art)
             ausgabe.clear()
             with ausgabe:
+                lo, hi = w.spanne
                 if w.erreichbar:
-                    richtung = "mehr" if w.faktor >= 0 else "weniger"
-                    ui.html(f"Damit es im {_m(w.monat)} <b>{round(w.ziel)}</b> sind, müssten die neuen Zugänge "
-                            f"etwa <b>{abs(w.faktor)} % {richtung}</b> sein als üblich.", sanitize=False).classes("m-ptext")
+                    ui.html(f"<b>{round(w.ziel)}</b> im {_m(w.monat)} kam in etwa <b>{max(1, round(100 * w.anteil))} von "
+                            f"100</b> durchgerechneten Verläufen vor. Gezeigt wird, wie es in genau diesen Verläufen "
+                            "weiterging.", sanitize=False).classes("m-ptext")
                 else:
-                    ui.html(f"<b>{round(w.ziel)}</b> ist allein über die Zugänge nicht erreichbar – schon da bzw. fest "
-                            f"angemeldet sind im {_m(w.monat)} rund <b>{round(w.sicher_im_monat)}</b>. Gerechnet wird mit "
-                            f"dem nächstmöglichen Wert ({round(w.erreicht)}).", sanitize=False).classes("m-ptext")
+                    ui.html(f"<b>{round(w.ziel)}</b> liegt außerhalb dessen, was das Modell für möglich hält (im "
+                            f"{_m(w.monat)} rund {round(lo)} bis {round(hi)}; schon da bzw. fest angemeldet: "
+                            f"{round(w.sicher_im_monat)}). Gezeigt werden die Verläufe, die am nächsten lagen "
+                            f"({round(w.erreicht)}).", sanitize=False).classes("m-ptext")
                 ui.label("Geht es so weiter:").classes("m-btitel")
                 for d_, med, lo, hi in w.verlauf[k::3] + ([w.verlauf[-1]] if (len(w.verlauf) - 1 - k) % 3 else []):
                     with ui.element("div").classes("m-bst-zeile"):

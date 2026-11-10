@@ -383,6 +383,7 @@ body.m-zieht .m-zs-zeile.ziel { background: color-mix(in srgb, var(--akzent) 16%
 .m-last-zahl { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .m-last-haus { font-size: 10.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-kachel-u { position: absolute; left: -5px; bottom: -5px; font-size: 13px; color: var(--orange); background: var(--bg); border-radius: 50%; padding: 1px; }
+.m-kachel-klick { cursor: pointer; } .m-kachel-klick:hover { outline: 2px solid var(--orange); }   /* 0.86 */
 .m-aenderung { display: grid; grid-template-columns: minmax(140px, .8fr) 2fr; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--rand); }
 .m-aenderung.betroffen { border-left: 3px solid var(--orange); padding-left: 8px; }
 .m-klassen { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 10px; }

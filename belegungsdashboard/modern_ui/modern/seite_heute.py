@@ -200,7 +200,7 @@ def _tagesblock(a, t: "Tag") -> None:
         eilig, offen = t.reinigung
         ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{eilig}</b> vor Einzug noch offen'
                 f'<span class="m-punktt">·</span><b>{offen}</b> weitere heute</span>', sanitize=False)
-        knopf("Reinigungsliste öffnen", lambda: a.oeffnen("reinigung", rg_zeitraum="heute"), "", "cleaning_services")
+        knopf("Reinigungsliste öffnen", lambda: a.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer=""), "", "cleaning_services")
     if t.neuigkeiten:
         with ui.element("div").classes("m-block"):
             ui.label("Neu seit gestern").classes("m-btitel")
@@ -518,7 +518,7 @@ def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
          if heute_an else "keine Anreisen", "krit" if heute_an and heute_an["an"] > heute_an["mit"] else "blau", "flight_land",
          lambda: a.oeffnen("anreisen", ansicht="zuteilen", kennung=a.heute.isoformat()) if heute_an else a.oeffnen("anreisen")),
         ("rein", eilig, "Reinigung vor Einzug", f"offen · {offen} weitere heute", "warn" if eilig else "ok", "cleaning_services",
-         lambda: a.oeffnen("reinigung", rg_zeitraum="heute")),
+         lambda: a.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer="")),
         ("zimmer", t.nicht_nutzbar, "Zimmer nicht nutzbar",
          (f"davon {t.unbewohnbar} wegen Mangel · " if t.unbewohnbar else "gesperrt laut Gebäudeplan · " if t.nicht_nutzbar
           else "") + f"{t.mit_maengeln} mit Mängeln",

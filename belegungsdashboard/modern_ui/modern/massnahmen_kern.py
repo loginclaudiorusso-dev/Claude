@@ -182,8 +182,36 @@ def pivot_uebernehmen(erg: PivotErgebnis, datei: str) -> str:
                     "luecken": [[a.isoformat(), b.isoformat()] for a, b in erg.luecken]}
     if erg.bestand:
         roh["bestand"] = erg.bestand
+        archivieren(roh["pivot"], erg.bestand)
     _schreiben(roh)
     return f"Maßnahmen-Pivot übernommen: {erg.text}"
+
+
+# 0.86: Jeder eingelesene Stand wird mit Datum abgelegt – nur pseudonyme Aufenthalte (Nummer, Kurs, Daten), keine Namen.
+# Erst damit lässt sich später ehrlich prüfen, was die Prognose mit dem damals Bekannten gesagt hätte (Buchungskurve).
+ARCHIV_ORDNER = f"{speicher.IMPORT_ORDNER}/massnahmen_archiv"
+ARCHIV_MAX = 60
+
+
+def archivieren(pivot: dict, bestand) -> str | None:
+    try:
+        tag = datetime.now().date().isoformat()
+        name = f"{ARCHIV_ORDNER}/bestand_{tag}.json"
+        speicher.schreiben(name, {"pivot": pivot, "bestand": bestand})
+        alle = sorted(speicher.pfad(name).parent.glob("bestand_*.json"))
+        for alt in alle[:-ARCHIV_MAX]:
+            alt.unlink(missing_ok=True)
+        return name
+    except OSError:                    # Archiv ist Zusatz – das Einlesen selbst darf daran nicht scheitern
+        return None
+
+
+def archiv_staende() -> list[str]:
+    """Daten der abgelegten Stände (ISO), älteste zuerst."""
+    try:
+        return [p.stem.removeprefix("bestand_") for p in sorted(speicher.pfad(f"{ARCHIV_ORDNER}/x").parent.glob("bestand_*.json"))]
+    except OSError:
+        return []
 
 
 def pivot_schritt(erg: PivotErgebnis, datei: str) -> str:

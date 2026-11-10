@@ -18,7 +18,7 @@ def _T() -> dict:
     return themes.farben(themes.AKTIV)
 
 
-ANSICHTEN = {"lage": "Überblick", "belegung": "Belegung", "prognose": "Prognose", "massnahmen": "Maßnahmen",
+ANSICHTEN = {"lage": "Überblick", "belegung": "Belegung", "prognose": "Belegungs\u00adprognose", "massnahmen": "Maßnahmen",
              "zimmer": "Engpässe"}                       # 0.69: eindeutiger (kein „Zimmer“ doppelt neben Zimmer & Haus)
 AMPEL = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit", "unbekannt": "neutral"}
 

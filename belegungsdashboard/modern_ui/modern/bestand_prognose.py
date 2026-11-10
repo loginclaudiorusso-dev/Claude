@@ -14,6 +14,20 @@
 * **Szenarien** wirken nur auf die übrigen Zugänge – Bestand und Pipeline sind in allen gleich.
 * **Kursgröße:** Wo eine Obergrenze hinterlegt ist (VW: 24), werden Zugänge je Startmonat gekappt; der Rest wird als
   „Nachfrage über Kapazität“ ausgewiesen.
+
+**0.86 (Challenge):**
+
+* Die Verbleibskurve rechnet nur mit **beobachteten** Tagen (bis zum Stichtag); künftige Eintritte stehen nicht in der
+  Kurve. Sie schätzt nur noch **vorzeitige** Abgänge – reguläre Enden (ab 30 Tage vor dem Soll-Ende) gelten als
+  zensiert. Das Ende eines Aufenthalts ist in der Simulation das frühere aus geplantem Ende (Pivot, sonst Solldauer)
+  und gezogenem vorzeitigem Abgang.
+* Bekannte künftige Eintritte, die keine Folge einer Vorstufe sind, werden von den „weiteren Zugängen“ des Monats
+  **abgezogen** (sie stecken schon in der Erfahrungsrate – sonst doppelt gezählt).
+* **Gemeinsamer Jahresfaktor** je Lauf (lognormal, Streuung JAHR_STREUUNG): alle Maßnahmearten schwanken gemeinsam
+  mit dem Bewilligungsverhalten – die Gesamtspanne wird ehrlicher breit.
+* **Frühindikator** meldet nur, was über dem Zufall liegt: |jetzt − vorher| > 2·√(jetzt + vorher).
+* **Rückblick** monatlich (18 Stichtage), mit Vergleich „Bestand bleibt wie heute“.
+* **Wenn-dann** als bedingte Simulation: aus 3000 Läufen die, die im gewählten Monat nahe am Wert lagen.
 """
 
 from __future__ import annotations
@@ -39,6 +53,10 @@ SZENARIEN_STANDARD = {"schwach": {"faktor": -15, "ausloeser": ""}, "basis": {"fa
                       "stark": {"faktor": 10, "ausloeser": ""}}
 SZENARIO_NAMEN = {"schwach": "wirtschaftlich schwach", "basis": "normal", "stark": "wirtschaftlich gut"}
 VORSTUFEN = {"Assessment": ("Vorbereitung", "Hauptmaßnahme"), "Vorbereitung": ("Hauptmaßnahme",)}
+JAHR_STREUUNG = 0.12      # Annahme: gemeinsame Jahresschwankung der Zugänge (±12 % typisch) – sichtbar in ƒx
+REGULAER_VOR_SOLL = 30    # Ende ab so vielen Tagen vor dem Soll-Ende = reguläres Ende (kein vorzeitiger Abgang)
+WD_LAEUFE = 3000          # Wenn-dann: so viele Läufe, davon die nächsten am gewählten Wert
+WD_AUSWAHL = 150
 
 
 # ---- Fälle -------------------------------------------------------------------------------------------------
@@ -53,21 +71,39 @@ class Fall:
     aus: date
     laufend: bool
     soll: int | None
+    geplant: date | None = None     # 0.86: geplantes Ende laut Pivot (nur wenn es nach dem Stichtag liegt)
 
     @property
     def dauer(self) -> int:
+        """Kalendertage vom ersten bis zum letzten Tag mit Wert (inkl.) – bei Laufenden einschließlich geplanter Tage."""
         return (self.aus - self.ein).days + 1
 
+    def beobachtet(self, letzter: date) -> int:
+        """0.86: nur die Tage bis zum Stichtag – so geht ein Laufender in die Verbleibskurve ein (zensiert)."""
+        return (min(self.aus, letzter) - self.ein).days + 1
 
-def faelle(aufenthalte: list[bk.Aufenthalt], tabelle: list[dict], gemessen: dict, letzter: date) -> list[Fall]:
+    def vorzeitig(self, soll: int | None) -> bool:
+        """Beendet und deutlich vor dem Soll-Ende (ohne Solldauer: jedes Ende zählt)."""
+        if self.laufend:
+            return False
+        s = self.soll or soll
+        return self.dauer < s - REGULAER_VOR_SOLL if s else True
+
+
+def faelle(aufenthalte: list[bk.Aufenthalt], tabelle: list[dict], gemessen: dict, letzter: date,
+           pivot_ende: date | None = None) -> list[Fall]:
+    """pivot_ende (0.86): letzter Tag im Pivot. Wer bis dorthin Werte hat, ist nur abgeschnitten – sein geplantes
+    Ende ist unbekannt (dann gilt die Solldauer), nicht der letzte Pivot-Tag."""
     erg = []
     for x in aufenthalte:
         e = bk.zuordnen(x.kurs, tabelle)
         if e is None or e["gruppe"] == "Ignoriert" or x.halbjahr:
             continue
         soll, _q = bk.soll_tage(x.kurs, e, gemessen)
+        abgeschnitten = pivot_ende is not None and x.aus >= pivot_ende - timedelta(days=bk.LAUFEND_TAGE)
         erg.append(Fall(x.person, x.kurs, e["art"], e["gruppe"], x.ein, x.aus,
-                        x.aus >= letzter - timedelta(days=bk.LAUFEND_TAGE), soll))
+                        x.aus >= letzter - timedelta(days=bk.LAUFEND_TAGE), soll,
+                        x.aus if x.aus > letzter and not abgeschnitten else None))
     return erg
 
 
@@ -83,6 +119,8 @@ class Kurve:
 
     def verbleib(self, t) -> np.ndarray:
         t = np.asarray(t, dtype=float)
+        if not len(self.tage):                       # 0.86: noch kein Abgang beobachtet → alle bleiben
+            return np.ones_like(t)
         i = np.searchsorted(self.tage, t, side="right")
         return np.where(i == 0, 1.0, self.s[np.maximum(i - 1, 0)])
 
@@ -141,6 +179,8 @@ class Modell:
     raten: dict              # Art → np.array(12) übrige Zugänge je Kalendermonat (Ø je Jahr)
     kappe: dict              # Art → max. Plätze je Startmonat
     folge: set = field(default_factory=set)   # Index der Vorstufen-Fälle, die schon eine Folge haben
+    erklaert: set = field(default_factory=set)   # 0.86: Index der Fälle, die Folge einer Vorstufe sind
+    abgang_alt: dict = field(default_factory=dict)   # 0.86: Abgangsquote nach der bisherigen Rechnung (Vergleich)
 
 
 def _personen(fs: list[Fall]) -> dict[int, list[int]]:
@@ -155,24 +195,33 @@ def _personen(fs: list[Fall]) -> dict[int, list[int]]:
 def modell(fs: list[Fall], letzter: date, tabelle: list[dict]) -> Modell:
     arten = sorted({f.art for f in fs})
     gruppe = {f.art: f.gruppe for f in fs}
-    # Verbleibskurven
-    def kurve(auswahl):
-        return km([f.dauer for f in auswahl], [not f.laufend for f in auswahl])
-    alle = kurve(fs)
-    kurven, quelle = {}, {}
-    for a in arten:
-        eigen = [f for f in fs if f.art == a]
-        gr = [f for f in fs if f.gruppe == gruppe[a]]
-        if len(eigen) >= MIN_FAELLE:
-            kurven[a], quelle[a] = kurve(eigen), "Art"
-        elif len(gr) >= MIN_FAELLE:
-            kurven[a], quelle[a] = kurve(gr), f"Gruppe {gruppe[a]}"
-        else:
-            kurven[a], quelle[a] = alle, "alle"
     soll = {}
     for a in arten:
         werte = [f.soll for f in fs if f.art == a and f.soll]
         soll[a] = int(np.median(werte)) if werte else None
+    # Verbleibskurven (0.86): nur beobachtete Tage, künftige Eintritte nicht; Ereignis = vorzeitiger Abgang
+    beob = [f for f in fs if f.ein <= letzter]
+
+    def kurve(auswahl):
+        return km([f.beobachtet(letzter) for f in auswahl], [f.vorzeitig(soll.get(f.art)) for f in auswahl])
+
+    def kurve_alt(auswahl):            # bis 0.85: geplante Tage mitgezählt, jedes Ende ein Ereignis
+        return km([f.dauer for f in auswahl], [not f.laufend for f in auswahl])
+
+    def waehlen(a, rechne, menge):
+        eigen = [f for f in menge if f.art == a]
+        gr = [f for f in menge if f.gruppe == gruppe[a]]
+        if len(eigen) >= MIN_FAELLE:
+            return rechne(eigen), "Art"
+        if len(gr) >= MIN_FAELLE:
+            return rechne(gr), f"Gruppe {gruppe[a]}"
+        return rechne(menge), "alle"
+    kurven, quelle, abgang_alt = {}, {}, {}
+    for a in arten:
+        kurven[a], quelle[a] = waehlen(a, kurve, beob)
+        alt, _q = waehlen(a, kurve_alt, fs)
+        if soll[a] and alt.n:
+            abgang_alt[a] = float(1 - alt.verbleib(max(1, soll[a] - REGULAER_VOR_SOLL)))
     # Übergänge
     pers = _personen(fs)
     uebergaenge, folge, erklaert = {}, set(), set()
@@ -204,7 +253,7 @@ def modell(fs: list[Fall], letzter: date, tabelle: list[dict]) -> Modell:
     for e in tabelle:
         if e.get("max_plaetze"):
             kappe[e["art"]] = int(e["max_plaetze"])
-    return Modell(letzter, fs, arten, gruppe, soll, kurven, quelle, uebergaenge, raten, kappe, folge)
+    return Modell(letzter, fs, arten, gruppe, soll, kurven, quelle, uebergaenge, raten, kappe, folge, erklaert, abgang_alt)
 
 
 # ---- Simulation ------------------------------------------------------------------------------------------------
@@ -245,7 +294,9 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
     ai = {a: i for i, a in enumerate(md.arten)}
     teile = []          # (quelle, art_index[N], run[N], start[N], ende[N])
 
-    def dazu(q: int, art: str, runs: np.ndarray, start: np.ndarray, alter: np.ndarray | None = None):
+    def dazu(q: int, art: str, runs: np.ndarray, start: np.ndarray, alter: np.ndarray | None = None,
+             plan: float | np.ndarray | None = None):
+        """plan (0.86): geplante Restdauer ab start – das Ende ist das frühere aus Plan und vorzeitigem Abgang."""
         if not len(runs):
             return
         kv = md.kurven[art]
@@ -255,7 +306,12 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
         else:
             dauer = kv.ziehen(alter, rng) if kv.n else np.full(len(runs), 10.0 ** 6)
             ende = start + (dauer - alter)
+        if plan is not None:
+            ende = np.minimum(ende, start + plan)
         teile.append((q, np.full(len(runs), ai[art]), runs, start.astype(float), ende.astype(float)))
+
+    def neu_plan(art: str):                   # neue Zugänge: reguläres Ende nach der typischen Solldauer
+        return float(md.soll[art]) if md.soll.get(art) else None
 
     alle_runs = np.arange(R)
     zugang = np.zeros((A, horizont + 1, R))     # Zugänge je Art, Monat (für die Kappe)
@@ -263,15 +319,21 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
     def monat_von(start: np.ndarray) -> np.ndarray:
         return np.clip(np.searchsorted(t, start, side="left"), 0, horizont)
 
-    # 1 Bestand (laufend) und 2 bekannte künftige Eintritte
-    for f in md.faelle:
+    # 1 Bestand (laufend) und 2 bekannte künftige Eintritte – mit geplantem Ende (Pivot, sonst Solldauer)
+    bekannt_frei = np.zeros((A, horizont + 1))    # 0.86: bekannte Eintritte ohne Vorstufe → von „weitere“ abziehen
+    for i, f in enumerate(md.faelle):
         if f.laufend and f.ein <= md.letzter:
-            alter = np.full(R, float((md.letzter - f.ein).days))
-            dazu(0, f.art, alle_runs, np.zeros(R), alter)
+            alter_tage = float((md.letzter - f.ein).days)
+            s_f = f.soll or md.soll.get(f.art)
+            plan = float((f.geplant - md.letzter).days + 1) if f.geplant else                 (max(s_f - alter_tage, 15.0) if s_f else None)
+            dazu(0, f.art, alle_runs, np.zeros(R), np.full(R, alter_tage), plan)
         elif f.ein > md.letzter:
             s = np.full(R, float((f.ein - md.letzter).days))
-            dazu(1, f.art, alle_runs, s)
-            zugang[ai[f.art], monat_von(s[:1])[0]] += 1
+            dazu(1, f.art, alle_runs, s, plan=float((f.geplant - f.ein).days + 1) if f.geplant else neu_plan(f.art))
+            m_ = monat_von(s[:1])[0]
+            zugang[ai[f.art], m_] += 1
+            if i not in md.erklaert:
+                bekannt_frei[ai[f.art], m_] += 1
 
     # 3 Pipeline aus laufenden/kürzlich beendeten Vorstufen ohne Folge
     def folgen(von_gruppe: str, start_vorstufe: np.ndarray, runs: np.ndarray, quelle: int, schon: np.ndarray):
@@ -297,7 +359,7 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
         for k, z in enumerate(ziele):
             m = art_wahl == k
             if m.any() and z in ai:
-                dazu(quelle, z, r[m], start[m])
+                dazu(quelle, z, r[m], start[m], plan=neu_plan(z))
                 np.add.at(zugang[ai[z]], (monat_von(start[m]), r[m]), 1)
                 if md.gruppe[z] in VORSTUFEN:              # z. B. Vorbereitung → Hauptmaßnahme
                     folgen(md.gruppe[z], start[m], r[m], quelle, np.zeros(m.sum()))
@@ -308,15 +370,16 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
             s0 = float((f.ein - md.letzter).days)
             folgen(f.gruppe, np.full(R, s0), alle_runs, 2, np.full(R, float((md.letzter - f.ein).days)))
 
-    # 4 übrige Zugänge (Saison × Szenario), Kappe je Startmonat
+    # 4 übrige Zugänge (Saison × Szenario × gemeinsamer Jahresfaktor), abzüglich schon bekannter, Kappe je Startmonat
     faktor = max(0.0, 1 + faktor_prozent / 100)
+    jahr = rng.lognormal(-JAHR_STREUUNG ** 2 / 2, JAHR_STREUUNG, R) if JAHR_STREUUNG > 0 else np.ones(R)
     ueber = {}
     for a in md.arten:
         for k in range(1, horizont + 1):
             lam = md.raten[a][tage[k].month - 1] * faktor
             if lam <= 0:
                 continue
-            n = rng.poisson(lam, R)
+            n = np.maximum(0, rng.poisson(lam * jahr) - int(bekannt_frei[ai[a], k]))
             kap = md.kappe.get(a)
             if kap is not None:
                 frei = np.maximum(0, kap - zugang[ai[a], k])
@@ -326,7 +389,7 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
                 continue
             runs = np.repeat(alle_runs, n)
             start = t[k - 1] + rng.random(len(runs)) * (t[k] - t[k - 1])
-            dazu(3, a, runs, start)
+            dazu(3, a, runs, start, plan=neu_plan(a))
             if md.gruppe[a] in VORSTUFEN:
                 folgen(md.gruppe[a], start, runs, 3, np.zeros(len(runs)))
 
@@ -374,7 +437,14 @@ def fruehindikator(fs: list[Fall], letzter: date, tage: int = 90) -> tuple[str, 
     if not vorher:
         return "basis", None, jetzt, vorher
     r = jetzt / vorher
+    if not ueber_zufall(jetzt, vorher):          # 0.86: Unterschied im Rahmen des Zufalls → „normal“
+        return "basis", r, jetzt, vorher
     return ("schwach" if r < .9 else "stark" if r > 1.1 else "basis"), r, jetzt, vorher
+
+
+def ueber_zufall(a: int, b: int) -> bool:
+    """Zwei Zählungen unterscheiden sich erst dann sicher, wenn |a − b| > 2·√(a + b) (Poisson, grob 95 %)."""
+    return abs(a - b) > 2 * (a + b) ** .5
 
 
 # ---- Wenn-dann --------------------------------------------------------------------------------------------------
@@ -383,42 +453,34 @@ def fruehindikator(fs: list[Fall], letzter: date, tage: int = 90) -> tuple[str, 
 class WennDann:
     monat: date
     ziel: float
-    faktor: float                 # nötige Abweichung der übrigen Zugänge in %
-    erreicht: float               # Median im gewählten Monat mit diesem Faktor
-    erreichbar: bool
-    verlauf: list[tuple[date, float, float, float]]   # (Monat, Median, p10, p90)
-    sicher_im_monat: float        # Bestand + fest Angemeldete im Monat (unabhängig vom Szenario)
+    anteil: float                 # 0.86: Anteil der Läufe, die im Monat so nah am Wert lagen (± Toleranz)
+    erreicht: float               # Median der ausgewählten Läufe im gewählten Monat
+    erreichbar: bool              # liegt der Wert in dem, was das Modell für möglich hält (1.–99. Perzentil)?
+    verlauf: list[tuple[date, float, float, float]]   # (Monat, Median, p10, p90) der ausgewählten Läufe
+    sicher_im_monat: float        # Bestand + fest Angemeldete im Monat
+    spanne: tuple[float, float] = (0.0, 0.0)          # 1.–99. Perzentil aller Läufe im Monat
 
 
-def wenn_dann(md: Modell, monat_index: int, ziel: float, art: str | None = None, durchlaeufe: int = 300) -> WennDann:
-    """„Wenn wir im Monat m X Teilnehmende haben – wie geht es weiter?“ Gesucht wird die Abweichung der übrigen
-    Zugänge (−100 … +200 %), mit der der Median im Monat m X erreicht; mit ihr läuft die Simulation weiter."""
-    def lauf(f):
-        e = simulieren(md, f, durchlaeufe)
-        return e, float(e.median[e.zeile(art), monat_index])
-    unten, oben = -100.0, 200.0
-    e_u, w_u = lauf(unten)
-    e_o, w_o = lauf(oben)
-    sicher = float(e_u.zerlegung[0, e_u.zeile(art), monat_index] + e_u.zerlegung[1, e_u.zeile(art), monat_index])
-    if ziel <= w_u:
-        f, e, w, ok = unten, e_u, w_u, abs(ziel - w_u) < .5
-    elif ziel >= w_o:
-        f, e, w, ok = oben, e_o, w_o, abs(ziel - w_o) < .5
-    else:
-        for _ in range(9):
-            mitte = (unten + oben) / 2
-            e_m, w_m = lauf(mitte)
-            if w_m < ziel:
-                unten = mitte
-            else:
-                oben = mitte
-        f = (unten + oben) / 2
-        e, w = lauf(f)
-        ok = True
+def wenn_dann(md: Modell, monat_index: int, ziel: float, art: str | None = None,
+              durchlaeufe: int = WD_LAEUFE) -> WennDann:
+    """„Wenn wir im Monat m X Teilnehmende haben – wie geht es weiter?“ (0.86: bedingte Simulation)
+
+    Statt eine dauerhafte Niveauänderung zu unterstellen, werden viele Läufe gerechnet und nur die weiterverfolgt,
+    die im Monat m nahe an X lagen – so kommen X auf dem Weg zustande, auf dem es auch wirklich passieren würde.
+    Liegt X außerhalb aller plausiblen Läufe, sagt das Ergebnis das (``erreichbar`` = False)."""
+    e = simulieren(md, 0.0, durchlaeufe, roh=True)
     z = e.zeile(art)
-    return WennDann(e.monate[monat_index], ziel, round(f), w, ok,
-                    [(d, float(e.median[z, i]), float(e.p10[z, i]), float(e.p90[z, i])) for i, d in enumerate(e.monate)],
-                    sicher)
+    werte = e.roh[z, :, monat_index]
+    lo, hi = float(np.percentile(werte, 1)), float(np.percentile(werte, 99))
+    toleranz = max(1.0, 0.03 * ziel)
+    anteil = float(np.mean(np.abs(werte - ziel) <= toleranz))
+    wahl = np.argsort(np.abs(werte - ziel), kind="stable")[:WD_AUSWAHL]
+    teil = e.roh[z, wahl, :]
+    verlauf = [(d, float(np.median(teil[:, i])), float(np.percentile(teil[:, i], 10)),
+                float(np.percentile(teil[:, i], 90))) for i, d in enumerate(e.monate)]
+    sicher = float(e.zerlegung[0, z, monat_index] + e.zerlegung[1, z, monat_index])
+    return WennDann(e.monate[monat_index], ziel, anteil, float(np.median(teil[:, monat_index])),
+                    lo <= ziel <= hi, verlauf, sicher, (lo, hi))
 
 
 # ---- Rückblick-Test ------------------------------------------------------------------------------------------------
@@ -431,6 +493,8 @@ class Rueckblick:
     wape: float | None
     treffer80: float | None
     mae_vorjahr: float | None     # Vergleich: „wie vor 12 Monaten“
+    mae_bleibt: float | None = None   # 0.86: Vergleich „Bestand bleibt wie heute“
+    treffer: int = 0                  # 0.86: Anzahl Stichtage mit Ist in der 80 %-Spanne
 
 
 def _abgeschnitten(fs: list[Fall], s: date) -> list[Fall]:
@@ -443,7 +507,7 @@ def _abgeschnitten(fs: list[Fall], s: date) -> list[Fall]:
     return erg
 
 
-def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int = 18, schritt: int = 3,
+def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int = 18, schritt: int = 1,
                durchlaeufe: int = 200) -> list[Rueckblick]:
     def anwesend(d: date) -> int:
         return sum(1 for f in fs if f.ein <= d <= f.aus)
@@ -462,7 +526,8 @@ def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int =
                 continue
             ist = anwesend(e.monate[h])
             vj = e.monate[h].replace(year=e.monate[h].year - 1)
-            fehler[h].append((ist, float(e.median[-1, h]), float(e.p10[-1, h]), float(e.p90[-1, h]), anwesend(vj)))
+            fehler[h].append((ist, float(e.median[-1, h]), float(e.p10[-1, h]), float(e.p90[-1, h]), anwesend(vj),
+                              anwesend(s)))
     erg = []
     for h, xs in fehler.items():
         if not xs:
@@ -471,10 +536,11 @@ def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int =
         ist = np.array([x[0] for x in xs], dtype=float)
         p = np.array([x[1] for x in xs])
         summe = ist.sum()
+        drin = [x[2] <= x[0] <= x[3] for x in xs]
         erg.append(Rueckblick(h, len(xs), float(np.mean(np.abs(ist - p))),
                               float(np.sum(np.abs(ist - p)) / summe) if summe else None,
-                              float(np.mean([x[2] <= x[0] <= x[3] for x in xs])),
-                              float(np.mean([abs(x[0] - x[4]) for x in xs]))))
+                              float(np.mean(drin)), float(np.mean([abs(x[0] - x[4]) for x in xs])),
+                              float(np.mean([abs(x[0] - x[5]) for x in xs])), int(sum(drin))))
     return erg
 
 
@@ -490,7 +556,7 @@ def alles(aufenthalte, meta: dict, tabelle: list[dict], gemessen: dict, szenarie
                   letzter)
     if schluessel in _CACHE:
         return _CACHE[schluessel]
-    fs = faelle(aufenthalte, tabelle, gemessen, letzter)
+    fs = faelle(aufenthalte, tabelle, gemessen, letzter, date.fromisoformat(meta["bis"]) if meta.get("bis") else None)
     md = modell(fs, letzter, tabelle)
     erg = {"modell": md, "faelle": fs, "letzter": letzter,
            "szenarien": {k: simulieren(md, float(szenarien.get(k, SZENARIEN_STANDARD[k]).get("faktor", 0)),

@@ -283,7 +283,9 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
         if li is not None and zs[li].ist is not None and li + 1 < len(zs):
             w[li] = round(zs[li].ist, 1)          # an die Ist-Linie anschließen
         return w
-    u80, o80, u95, o95 = prog("lo80"), prog("hi80"), prog("lo95"), prog("hi95")
+    def band(feld):          # 0.86: Bänder nur, solange der Backtest prüft (12 Monate) – danach nur der Verlauf
+        return [None if i >= fort_ab else w for i, w in enumerate(prog(feld))]
+    u80, o80, u95, o95 = band("lo80"), band("hi80"), band("lo95"), band("hi95")
     breite = lambda u, ob: [None if x is None or y is None else round(y - x, 1) for x, y in zip(u, ob)]  # noqa: E731
     b95 = c["b95"] and zeig(3)
     start = c.get("phase") == "start"           # Story-Aufbau, 1. Teil: Bänder noch auf dem Prognosestrich zusammengelegt
@@ -685,6 +687,8 @@ def zeichnen(a) -> None:
         with a.leiste:
             with ui.element("div").classes("m-xbereich"):
                 segmente(BEREICHE, a.aw_bereich, lambda v: a.setzen(aw_bereich=v, laden=False))
+            knopf("Teilnehmer je Maßnahme", lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose"),
+                  "leise", "groups", "Teilnehmer-Prognose je Maßnahmeart (Bestandsmodell) – die zweite Sicht")
             knopf("Präsentation", lambda: _modus(a, "praes"), "primaer", "slideshow",
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")
             _export_menue(a, pg, zustand, box, ex)
@@ -846,7 +850,7 @@ def zeichnen(a) -> None:
                         with ui.element("div").classes("m-xg-filter-rechts"):
                             segmente({False: "Netto", True: "Brutto"}, a.aw_brutto,
                                      lambda b_: a.setzen(aw_brutto=b_, nur_seite=True), sofort=True)
-                            segmente({12: "12M", 24: "24M", 36: "36M"}, a.aw_horizont,
+                            segmente({12: "12M", 24: "24M"}, a.aw_horizont,        # 0.86: 36 Monate entfallen
                                      lambda h: a.setzen(aw_horizont=h, nur_seite=True), sofort=True)
                             werkzeuge()
                 with ui.element("div").classes("m-xg-kopf"):

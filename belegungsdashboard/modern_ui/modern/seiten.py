@@ -315,7 +315,7 @@ def rg_zeichnen(a) -> None:
     if ansicht == "last":
         return _rg_last(a)
     with a.werkzeuge:
-        segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w))
+        segmente(sk.ZEITRAUM, a.rg_zeitraum, lambda w: a.setzen(rg_zeitraum=w, rg_zimmer=""))
         knopf("Zimmer hinzufügen", lambda: _rg_hinzu_panel(a), "primaer", "add")
         with knopf("Drucken", None, "", "print"):
             with ui.menu().props('dark class="m-menue"'):
@@ -334,6 +334,12 @@ def rg_zeichnen(a) -> None:
                   "gruen", "done_all")
     zs = [z for z in a.daten if a.rg_filter == "alle" or (a.rg_filter == "erledigt" and z.erledigt)
           or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
+    nur = getattr(a, "rg_zimmer", "")
+    if nur:                                    # 0.86: vom Besen an der Kachel – nur dieses Zimmer
+        zs = [z for z in zs if z.schluessel.rsplit("|", 1)[0] == nur]
+        with a.leiste:
+            knopf(f"Nur Zimmer {zs[0].zimmer if zs else nur.split('|')[-1]} ✕", lambda: a.setzen(rg_zimmer="", laden=False),
+                  "", "filter_alt_off", "Filter aufheben – alle Zimmer zeigen")
     with a.leiste:
         _mehrere_menue(a, [z for z in zs if not z.erledigt])
     if a.rg_zeitraum == "offen":

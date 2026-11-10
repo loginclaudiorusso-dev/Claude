@@ -109,6 +109,7 @@ class Ansicht:
         self.zs_start = self.heute - timedelta(days=self.heute.weekday())
         self.zs_modus, self.zs_flur, self.fl_wochen = "zimmer", "", 8   # Zeitstrahl: Zimmer | Flure (Abreisewellen)
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
+        self.rg_zimmer = ""                       # 0.86: Reinigungsliste nur für ein Zimmer (Klick auf den Besen)
         self.rg_von = self.rg_bis = self.heute
         self.fc_zeitraum, self.fc_filter = "sechs", "offen"          # 0.82: Facility-Checks mit Zeitraum und Filter
         self.fc_von, self.fc_bis = self.heute - timedelta(days=14), self.heute + timedelta(days=45)
@@ -129,7 +130,7 @@ class Ansicht:
         from belegung import konfig
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
-        self.aw_95, self.aw_backtest = True, False
+        self.aw_95, self.aw_backtest = False, False          # 0.86: 95 %-Band nur auf Wunsch (aus 18 Fehlern kaum schätzbar)
         self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
         self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
@@ -1102,7 +1103,7 @@ class Ansicht:
                 leer("Alles bereit – nichts vorzubereiten.")
             with ui.element("div").classes("m-paktionen"):
                 if any(p[0] == "blocker" and "nicht erledigt" in p[2] for p in b.punkte):
-                    knopf("Zur Reinigung", lambda: self.oeffnen("reinigung"), "", "cleaning_services")
+                    knopf("Zur Reinigung", lambda: self.oeffnen("reinigung", rg_zimmer=""), "", "cleaning_services")
                 knopf("Schließen", self.panel_zu, "leise")
 
         self.panel(f"Anreise {tag:%d.%m.} – bezugsfertig?", bauen)
@@ -1421,7 +1422,7 @@ class Ansicht:
             with ui.element("div").classes("m-paktionen"):
                 if k.aktion:
                     knopf(f"Alle {len(rs)} als gereinigt markieren", lambda: self._karte_loesen(k), "primaer", "done_all")
-                knopf("Reinigungsliste", lambda: self.oeffnen("reinigung", rg_zeitraum="heute"), "", "cleaning_services")
+                knopf("Reinigungsliste", lambda: self.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer=""), "", "cleaning_services")
             for r in rs:
                 with ui.element("div").classes("m-fall"):
                     with ui.element("div").classes("m-fall-t"):

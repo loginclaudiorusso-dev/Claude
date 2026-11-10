@@ -899,11 +899,20 @@ def _uebersicht(a) -> None:
                                         ui.label(k.nr)
                                         if k.stufe:
                                             ui.label("!" * k.stufe).classes("m-kachel-m")
-                                        if k.nicht_fertig:
-                                            ui.icon("cleaning_services").classes("m-kachel-u")
+                                        if k.nicht_fertig:      # 0.86: Klick auf den Besen → die Liste, aus der er kommt
+                                            besen = ui.icon("cleaning_services").classes("m-kachel-u m-kachel-klick")
+                                            attr(besen, title=k.nicht_fertig + " – Klick: anzeigen")
+                                            besen.on("click.stop", lambda k=k: _besen_oeffnen(a, k))
                                         if k.strittig:
                                             ui.label("?").classes("m-kachel-s")
                                     b.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
+
+
+def _besen_oeffnen(a, k):
+    """Besen = Reinigung offen (→ Reinigungsliste „Offen – auch ältere“, nur dieses Zimmer) oder dringender Mangel."""
+    if k.nicht_fertig.startswith("dringender Mangel"):
+        return a.oeffnen("zimmer", ansicht="maengel")
+    return a.oeffnen("reinigung", ansicht="liste", rg_zeitraum="offen", rg_filter="offen", rg_zimmer=k.zimmer)
 
 
 def _maengel(a) -> None:

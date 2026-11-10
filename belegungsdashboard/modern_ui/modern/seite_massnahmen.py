@@ -65,7 +65,7 @@ def daten(a) -> None:
 
 def _umschalter(a) -> None:
     with a.werkzeuge:
-        segmente({"neu": "Neuanmeldungen", "prognose": "Bestandsprognose", "bestand": "Prüfbericht"},
+        segmente({"neu": "Neuanmeldungen", "prognose": "Teilnehmer-Prognose", "bestand": "Prüfbericht"},   # 0.86: Name nach der Frage
                  getattr(a, "mn_ansicht", "neu"),
                  lambda v: a.setzen(mn_ansicht=v, nur_seite=True))
 
