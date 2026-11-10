@@ -10,7 +10,15 @@ set "INN=%~dp0"
 set "PROG=%INN%Programm"
 set "BELEGUNG_DATEN=%INN%Daten"
 set "INNTERNAT_START=%~f0"
+rem Eigene Instanz (z. B. Test-Installation auf einem anderen Laufwerk): INSTANZ.txt neben dieser Datei mit einem
+rem Namen wie "Test" - dann eigene lokale Umgebung, eigene Einstellungen und eigene Desktop-Verknuepfung.
+set "INST="
+if exist "%INN%INSTANZ.txt" set /p INST=<"%INN%INSTANZ.txt"
+set "INNTERNAT_INSTANZ=%INST%"
 set "INNTERNAT_LOKAL=%LOCALAPPDATA%\INNternat"
+set "VERKNUEPFUNG=INNternat"
+if defined INST set "INNTERNAT_LOKAL=%LOCALAPPDATA%\INNternat-%INST%"
+if defined INST set "VERKNUEPFUNG=INNternat %INST%"
 set "PYTHONPYCACHEPREFIX=%INNTERNAT_LOKAL%\pycache"
 set "VENV=%INNTERNAT_LOKAL%\venv"
 
@@ -46,7 +54,16 @@ if not exist "%VENV%\Scripts\python.exe" (
 )
 
 fc /b "%PROG%\modern_ui\requirements.txt" "%VENV%\requirements.installiert" >nul 2>nul
-if errorlevel 1 (
+if not errorlevel 1 goto pakete_ok
+rem Installationspaket: Ordner "Pakete" mit allen Windows-Paketen - Installation ohne Internet
+set "OFFLINE=0"
+if exist "%INN%Pakete\" (
+    echo Pakete werden aus dem Ordner Pakete installiert - ohne Internet ...
+    "%VENV%\Scripts\python.exe" -m pip install --no-index --find-links "%INN%Pakete" -r "%PROG%\modern_ui\requirements.txt" "pywebview>=5"
+    if not errorlevel 1 set "OFFLINE=1"
+)
+if "%OFFLINE%"=="1" goto pakete_fertig
+(
     echo Pakete werden installiert bzw. aktualisiert ...
     "%VENV%\Scripts\python.exe" -m pip install --upgrade pip >nul
     "%VENV%\Scripts\python.exe" -m pip install -r "%PROG%\modern_ui\requirements.txt"
@@ -57,12 +74,14 @@ if errorlevel 1 (
         exit /b 1
     )
     "%VENV%\Scripts\python.exe" -m pip install "pywebview>=5" >nul 2>nul
-    copy /y "%PROG%\modern_ui\requirements.txt" "%VENV%\requirements.installiert" >nul
 )
+:pakete_fertig
+copy /y "%PROG%\modern_ui\requirements.txt" "%VENV%\requirements.installiert" >nul
+:pakete_ok
 
 rem Einmalig: Verknuepfung "INNternat" auf dem Desktop dieses PCs
 if not exist "%INNTERNAT_LOKAL%\verknuepfung.erstellt" (
-    powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\INNternat.lnk'); $s.TargetPath=$env:INNTERNAT_START; $s.WorkingDirectory=$env:INNTERNAT_LOKAL; $s.WindowStyle=7; $s.Save()" >nul 2>nul
+    powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\'+$env:VERKNUEPFUNG+'.lnk'); $s.TargetPath=$env:INNTERNAT_START; $s.WorkingDirectory=$env:INNTERNAT_LOKAL; $s.WindowStyle=7; $s.Save()" >nul 2>nul
     echo ok> "%INNTERNAT_LOKAL%\verknuepfung.erstellt"
 )
 

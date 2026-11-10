@@ -43,6 +43,13 @@ Update einspielen
 3. Das neue Zip in denselben Ordner entpacken.
 Laufende PCs, die das Update verpasst haben, zeigen "Neue Version ist eingespielt – bitte neu starten".
 
+Test-Installation (INSTANZ.txt)
+-------------------------------
+Liegt neben "INNternat starten.bat" eine Datei INSTANZ.txt (z. B. mit "Test"), läuft diese Installation
+getrennt von anderen: eigene lokale Umgebung unter %LOCALAPPDATA%\INNternat-Test, eigene Desktop-Verknüpfung
+und eigener Autostart; das Tagesbriefing wird nicht von selbst verschickt. Liegt ein Ordner "Pakete" daneben,
+werden die Python-Pakete ohne Internet daraus installiert. Näheres: INSTALLATION.txt im Installationspaket.
+
 Das bisherige Programm (PySide)
 -------------------------------
 Im Netzwerkordner läuft nur die neue Oberfläche. Das bisherige Programm wird nicht mehr gestartet:

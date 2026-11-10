@@ -141,8 +141,12 @@ def faellig(jetzt: datetime) -> bool:
 
 def pruefen(jetzt: datetime | None = None) -> str | None:
     """Aus dem Melde-Takt: schickt das Briefing, wenn es heute fällig ist (sonst nichts)."""
+    import os
+
     from belegung import zimmerplan as zp
 
+    if os.environ.get("INNTERNAT_INSTANZ"):        # 0.83: Test-Installation (INSTANZ.txt) verschickt nichts von selbst –
+        return None                               # sonst käme das Briefing aus der Kopie der Daten ein zweites Mal
     jetzt = jetzt or datetime.now()
     return senden(zp.laden(), jetzt) if faellig(jetzt) else None
 

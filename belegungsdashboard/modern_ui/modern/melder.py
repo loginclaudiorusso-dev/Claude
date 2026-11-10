@@ -23,6 +23,15 @@ log = logging.getLogger(__name__)
 EINSTELLUNG = "modern_windows_meldungen"         # Standard: an
 TAKT_MINUTEN = 15                                # wie im Hauptprogramm
 AUTOSTART_DATEI = "INNternat_neue_Oberflaeche.cmd"
+
+
+def _autostart_datei() -> str:
+    """Eigene Instanz (INSTANZ.txt, z. B. Test-Installation): eigene Autostart-Datei, damit sie die andere nicht ersetzt."""
+    import os
+    import re
+
+    inst = re.sub(r"[^A-Za-z0-9_-]", "", os.environ.get("INNTERNAT_INSTANZ", ""))
+    return f"INNternat_{inst}.cmd" if inst else AUTOSTART_DATEI
 MINIMIERT = "--minimiert"
 # Windows kennt PowerShell als absendende App – so braucht es keine eigene Registrierung und kein Zusatzpaket.
 _APP_ID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
@@ -174,7 +183,7 @@ def autostart_moeglich() -> bool:
 
 def autostart_aktiv() -> bool:
     ordner = startordner()
-    return bool(ordner and (ordner / AUTOSTART_DATEI).exists())
+    return bool(ordner and (ordner / _autostart_datei()).exists())
 
 
 def autostart_befehl(ordner: Path) -> str:
@@ -196,7 +205,7 @@ def autostart_setzen(an_: bool, programm: Path) -> str:
     ordner = startordner()
     if ordner is None or sys.platform != "win32":
         raise OSError("„Mit Windows starten“ gibt es nur unter Windows.")
-    datei = ordner / AUTOSTART_DATEI
+    datei = ordner / _autostart_datei()
     if an_:
         ordner.mkdir(parents=True, exist_ok=True)
         datei.write_text(autostart_befehl(programm), encoding="utf-8", newline="")
