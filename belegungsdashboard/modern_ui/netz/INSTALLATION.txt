@@ -40,6 +40,13 @@ Was beim Testen anders ist
   bewusst einsetzen.
 - „Mit Windows starten“ legt einen eigenen Eintrag an und ersetzt den der echten Installation nicht.
 
+Wenn sich kein Fenster öffnet
+-----------------------------
+  „Fehlersuche.bat“ doppelklicken: INNternat startet sichtbar in einem schwarzen Fenster, Fehlermeldungen
+  bleiben dort stehen. Davon bitte einen Screenshot machen. Das Protokoll liegt zusätzlich unter
+  %LOCALAPPDATA%\INNternat-Test\modern_ui.log (in die Adresszeile des Explorers einfügen).
+  Die Oberfläche öffnet sich in einem Edge-Fenster.
+
 Wieder entfernen
 ----------------
   INNternat Test schließen, den Ordner INNternat_Test löschen, den Ordner %LOCALAPPDATA%\INNternat-Test löschen

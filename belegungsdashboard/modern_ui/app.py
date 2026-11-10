@@ -40,7 +40,20 @@ if sys.stdout is None or sys.stderr is None:      # pythonw.exe (ohne Konsole): 
     _log = open(PROTOKOLL, "a", encoding="utf-8", buffering=1)  # noqa: SIM115
     sys.stdout = sys.stdout or _log
     sys.stderr = sys.stderr or _log
-sys.excepthook = lambda t, e, tb: logging.getLogger("start").critical("Abbruch", exc_info=(t, e, tb))
+KONSOLE = "--konsole" in sys.argv               # 0.85: Fehlersuche.bat – Meldungen zusätzlich im schwarzen Fenster
+if KONSOLE:
+    logging.getLogger().addHandler(logging.StreamHandler(sys.__stderr__))
+
+
+def _abbruch(t, e, tb) -> None:
+    logging.getLogger("start").critical("Abbruch", exc_info=(t, e, tb))
+    if KONSOLE:
+        import traceback
+
+        traceback.print_exception(t, e, tb, file=sys.__stderr__)
+
+
+sys.excepthook = _abbruch
 
 from nicegui import app, ui  # noqa: E402
 
@@ -75,7 +88,9 @@ def _beenden_wenn_zu() -> None:
 
 
 def main() -> None:
-    nativ = "--browser" not in sys.argv
+    # 0.85: INNTERNAT_BROWSER (Installationspaket mit eigenem Python): gleich das Edge-Fenster – das eigene Fenster
+    # (pywebview/.NET) darf von Netzlaufwerken oft nicht starten.
+    nativ = "--browser" not in sys.argv and not os.environ.get("INNTERNAT_BROWSER")
     if nativ:
         try:
             import webview  # noqa: F401

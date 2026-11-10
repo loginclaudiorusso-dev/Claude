@@ -34,7 +34,8 @@ def bauen(ziel: Path, pakete: Path | None, instanz: str = "Test", ref: str = "HE
     Python mit allen Paketen (enthält python.exe → „Python/“, dann braucht der PC gar kein Python)."""
     instanz = "".join(c for c in instanz if c.isalnum() or c in "_-") or "Test"
     zusatz = {"INSTANZ.txt": f"{instanz}\r\n".encode("ascii"),
-              "INSTALLATION.txt": (HIER / "INSTALLATION.txt").read_bytes()}
+              "INSTALLATION.txt": (HIER / "INSTALLATION.txt").read_bytes(),
+              "Fehlersuche.bat": (HIER / "Fehlersuche.bat").read_bytes()}
     portabel = pakete is not None and (pakete / "pythonw.exe").exists()
     return _paket_bauen().bauen(ziel, ref, f"INNternat_{instanz}/", zusatz, None if portabel else pakete,
                                 pakete if portabel else None)

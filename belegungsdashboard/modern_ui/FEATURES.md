@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.84.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.85.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -121,6 +121,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Facility-Checks: Zeitraum wählbar (auch ältere offene, eigener Zeitraum), Filter offen/erledigt/alle, Drucken in der Bildschirm-Sortierung (0.82)
 - Komplettes Installationspaket (Test-Instanz, Python-Pakete ohne Internet, eigene Verknüpfung/Einstellungen, kein automatisches Briefing) (0.83)
 - Installationspaket mit portablem Python 3.13 samt Paketen – läuft ohne installiertes Python, ohne Admin-Rechte, ohne Internet (0.84)
+- Installationspaket: Oberfläche im Edge-Fenster (Netzlaufwerk), Fehlersuche.bat mit sichtbaren Fehlermeldungen (0.85)
 - Bestandsmodell (0.77): Solldauer je Kursfamilie aus der Zimmerbelegung gemessen (Anmeldungen mit Abreise, Gebäudeplan), Gruppe „Ignoriert“ (JobTrain, Bauhelfer), Kursgröße nur VW
 - Bestandsmodell Schritt 1 (0.76): Aufenthalte je Person und Kurs (nur Nummern, keine Namen), Kursstart aus dem Kursnamen, Zuordnungstabelle Maßnahmearten (Einstellungen), Prüfbericht: Umfang, künftige Tage, Wochenend-Prüfung, Dauern je Maßnahmeart, Kurse ohne Zuordnung, auffällige Fälle, offene Fragen
 - Maßnahmen im Vergleich: Teilnehmende je Maßnahmenart (alle, nicht nur Internat), jede als eigene Kurve – Ist durchgezogen, Prognose gestrichelt (gebuchter Bestand + erwartete neue Kurse aus bis zu drei Vorjahren); keine Summe, keine Betten (die stehen in der allgemeinen Prognose)

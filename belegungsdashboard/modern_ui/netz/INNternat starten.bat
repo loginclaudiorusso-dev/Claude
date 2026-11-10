@@ -34,6 +34,7 @@ rem Portables Python im Installationspaket (Ordner "Python" mit allen Paketen): 
 if exist "%INN%Python\pythonw.exe" (
     set "PYTHONNOUSERSITE=1"
     set "PYW=%INN%Python\pythonw.exe"
+    set "INNTERNAT_BROWSER=1"
     goto verknuepfung
 )
 
@@ -96,4 +97,15 @@ if not exist "%INNTERNAT_LOKAL%\verknuepfung.erstellt" (
 )
 
 rem Arbeitsordner lokal (cmd kann nicht in Netzwerkpfaden \\server\... arbeiten)
+rem Fehlersuche (Fehlersuche.bat): im selben Fenster mit Konsole starten, Meldungen bleiben sichtbar
+if /i "%~1"=="--konsole" (
+    echo Fehlersuche: INNternat laeuft in diesem Fenster - Fehlermeldungen erscheinen hier.
+    echo Protokoll: %INNTERNAT_LOKAL%\modern_ui.log
+    cd /d "%INNTERNAT_LOKAL%"
+    "%PYW:pythonw.exe=python.exe%" "%PROG%\modern_ui\app.py" --konsole --browser
+    echo.
+    echo INNternat wurde beendet. Bitte dieses Fenster abfotografieren oder den Text kopieren.
+    pause
+    exit /b
+)
 start "" /D "%INNTERNAT_LOKAL%" "%PYW%" "%PROG%\modern_ui\app.py" %*
