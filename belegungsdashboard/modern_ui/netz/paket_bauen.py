@@ -38,7 +38,7 @@ def _repo() -> Path:
 
 
 def bauen(ziel: Path, ref: str = "HEAD", praefix: str = "", zusatz: dict[str, bytes] | None = None,
-          pakete: Path | None = None) -> list[str]:
+          pakete: Path | None = None, python: Path | None = None) -> list[str]:
     """Zip schreiben; Rückgabe: Namen im Zip (ohne praefix).
 
     Installationspaket (0.83): praefix = oberster Ordner im Zip (z. B. „INNternat_Test/“), zusatz = weitere
@@ -53,6 +53,12 @@ def bauen(ziel: Path, ref: str = "HEAD", praefix: str = "", zusatz: dict[str, by
         for name, inhalt in (zusatz or {}).items():
             z.writestr(praefix + name, inhalt)
             namen.append(name)
+        for datei in sorted(p for p in python.rglob("*") if p.is_file()) if python else ():   # 0.84: portables Python
+            if "__pycache__" in datei.parts:
+                continue
+            n = f"Python/{datei.relative_to(python).as_posix()}"
+            z.write(datei, praefix + n)
+            namen.append(n)
         for whl in sorted(pakete.glob("*.whl")) if pakete else ():
             z.write(whl, f"{praefix}Pakete/{whl.name}", zipfile.ZIP_STORED)       # Wheels sind schon gepackt
             namen.append(f"Pakete/{whl.name}")

@@ -30,6 +30,13 @@ if not exist "%PROG%\modern_ui\app.py" (
 if not exist "%BELEGUNG_DATEN%" mkdir "%BELEGUNG_DATEN%"
 if not exist "%INNTERNAT_LOKAL%" mkdir "%INNTERNAT_LOKAL%"
 
+rem Portables Python im Installationspaket (Ordner "Python" mit allen Paketen): keine Python-Installation noetig
+if exist "%INN%Python\pythonw.exe" (
+    set "PYTHONNOUSERSITE=1"
+    set "PYW=%INN%Python\pythonw.exe"
+    goto verknuepfung
+)
+
 rem Kaputte oder kopierte Umgebung erkennen und neu anlegen
 if exist "%VENV%\Scripts\python.exe" (
     "%VENV%\Scripts\python.exe" -c "import sys" >nul 2>nul
@@ -79,6 +86,9 @@ if "%OFFLINE%"=="1" goto pakete_fertig
 copy /y "%PROG%\modern_ui\requirements.txt" "%VENV%\requirements.installiert" >nul
 :pakete_ok
 
+set "PYW=%VENV%\Scripts\pythonw.exe"
+
+:verknuepfung
 rem Einmalig: Verknuepfung "INNternat" auf dem Desktop dieses PCs
 if not exist "%INNTERNAT_LOKAL%\verknuepfung.erstellt" (
     powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\'+$env:VERKNUEPFUNG+'.lnk'); $s.TargetPath=$env:INNTERNAT_START; $s.WorkingDirectory=$env:INNTERNAT_LOKAL; $s.WindowStyle=7; $s.Save()" >nul 2>nul
@@ -86,4 +96,4 @@ if not exist "%INNTERNAT_LOKAL%\verknuepfung.erstellt" (
 )
 
 rem Arbeitsordner lokal (cmd kann nicht in Netzwerkpfaden \\server\... arbeiten)
-start "" /D "%INNTERNAT_LOKAL%" "%VENV%\Scripts\pythonw.exe" "%PROG%\modern_ui\app.py" %*
+start "" /D "%INNTERNAT_LOKAL%" "%PYW%" "%PROG%\modern_ui\app.py" %*

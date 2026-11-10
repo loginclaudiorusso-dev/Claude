@@ -48,7 +48,8 @@ Test-Installation (INSTANZ.txt)
 Liegt neben "INNternat starten.bat" eine Datei INSTANZ.txt (z. B. mit "Test"), läuft diese Installation
 getrennt von anderen: eigene lokale Umgebung unter %LOCALAPPDATA%\INNternat-Test, eigene Desktop-Verknüpfung
 und eigener Autostart; das Tagesbriefing wird nicht von selbst verschickt. Liegt ein Ordner "Pakete" daneben,
-werden die Python-Pakete ohne Internet daraus installiert. Näheres: INSTALLATION.txt im Installationspaket.
+werden die Python-Pakete ohne Internet daraus installiert. Liegt ein Ordner "Python" daneben
+(portables Python mit allen Paketen), wird direkt damit gestartet - dann muss auf dem PC kein Python installiert sein. Näheres: INSTALLATION.txt im Installationspaket.
 
 Das bisherige Programm (PySide)
 -------------------------------
