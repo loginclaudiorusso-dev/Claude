@@ -270,7 +270,7 @@ def test_story_aufbau_baender_erst_zu_dann_auf_und_spotlights():
     assert "markPoint" not in reihe(start, "Prognose (erwartet)")
     badges = [d["label"]["formatter"] for d in reihe(voll, "Prognose (erwartet)")["markPoint"]["data"]]
     assert badges[0] == "Höchststand Sep 2027: 131 · 87 %" and badges[1].startswith("Engpass ab")
-    assert reihe(start, "Ist")["markLine"]["label"]["formatter"] == "Stichtag 25.10."
+    assert reihe(start, "Ist")["markLine"]["label"]["formatter"] == "Datenstand 25.10.2026"          # 0.87
     assert reihe(start, "Ist")["animationDelay"] < reihe(start, "Prognose (erwartet)")["animationDelay"]
     assert voll["animationEasingUpdate"] == "cubicOut" and start["yAxis"]["max"] == voll["yAxis"]["max"]
 

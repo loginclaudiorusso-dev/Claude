@@ -86,13 +86,39 @@ def _karten_stil(o: dict, c: dict) -> dict:
     from . import diagramm_stil
 
     stand = prog_ab = None
+    if c["art"] == "trend" and c.get("status") and c.get("sm"):
+        return o                                           # eigene Gestaltung (zwei Flächen), schon einheitlich
     if c["art"] == "jahr":
         vj = an.vorjahr(c.get("pg_lang") or c["pg"])
         labels = [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}" for m in vj.monate]
         ist = [i for i, x in enumerate(vj.aktuell_ist) if x]
         if ist and ist[-1] + 1 < len(labels):
             stand, prog_ab = labels[ist[-1]], labels[ist[-1] + 1]
-    return diagramm_stil.einheitlich(o, _t(), stand, prog_ab)
+    o = diagramm_stil.einheitlich(o, _t(), stand, prog_ab)
+    if c["art"] == "trend" and not c.get("parallel"):    # 12 Monate zurück + 12 voraus, mehr über den Schieber
+        xs = o["xAxis"]["data"] if isinstance(o.get("xAxis"), dict) else []
+        li = max((i for i, z in enumerate(ak.szenario(c["pg"], c["pg"].kapazitaet or 0, 0)) if z.art == "ist"), default=None)
+        o["dataZoom"] = zoom(xs, li)
+        o["dataZoom"][0]["filterMode"] = "none" if o["dataZoom"] else None   # gestapelte Bänder nicht zerschneiden
+        o["grid"]["bottom"] = 58
+        for se in o["series"]:
+            if se.get("type") == "line" and len(se.get("data") or []) > 24:
+                se["showSymbol"] = False
+    return o
+
+
+def blick_gruppen(sm, pg, kap: int, stichtag, kont: dict | None):
+    """0.87: „Auf einen Blick“ für „inkl. UWTler und Mieter“ – Gesamt gegen Kapazität, Kontingente, Vertragsende."""
+    from . import blick_kern as bk
+
+    k = pg.kapazitaet or kap or 0
+    li = max((i for i, m in enumerate(sm) if m.art == "ist"), default=None)
+    gr = [m.uwt + m.mieter for m in sm]
+    blick = bk.gruppen([m.monat for m in sm], [m.art == "ist" for m in sm], [m.gesamt for m in sm], [m.uwt for m in sm],
+                       [m.mieter for m in sm], stichtag, k or None, k * kont["UWT"] / 100 if kont and k else None,
+                       k * (kont["UWT"] + kont["Mieter"]) / 100 if kont and k else None, bk.vertrags_grenze(gr, li),
+                       "Alle Bewohner")
+    return blick, {i: [ak.monat_text(m.monat)] for i, m in enumerate(sm)}
 
 
 def blick_daten(pg, pg_lang, kap: int, stichtag):
@@ -123,7 +149,7 @@ def _option_roh(c: dict) -> dict:
     if c.get("parallel") and c.get("sv"):
         return _parallel(o, t, c, zaehl)
     if c.get("status") and c.get("sm"):
-        return _status(o, t, c, zs, ort, zaehl, szen)
+        return _status_karte(o, t, c) if c.get("karte") else _status(o, t, c, zs, ort, zaehl, szen)
     return _trend(o, t, c, zs, ort, zaehl, szen)
 
 
@@ -358,8 +384,8 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     if li is not None and li + 1 < len(zs) and zeig(2):  # Stichtag-Marker trennt Vergangenheit und Zukunft
         reihen[4]["markLine"] = {"silent": True, "symbol": "none", "animationDelay": 1400, "animationDuration": 500,
                                  "lineStyle": {"color": t["text2"], "type": [2, 3], "width": 1.2},
-                                 "label": {"formatter": f"Stichtag {c['stichtag']:%d.%m.}", "color": t["text2"], "fontSize": 11,
-                                           "position": "insideEndTop"},
+                                 "label": {"formatter": f"Datenstand {c['stichtag']:%d.%m.%Y}", "color": t["text2"],
+                                           "fontSize": 12, "position": "end"},
                                  "data": [{"xAxis": labels[li + 1]}]}
     if zeig(2) and not start:
         reihen[6]["markPoint"] = _spotlights(t, zs, labels, kap)
@@ -452,6 +478,149 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
         " + (K ? z('transparent', 'Auslastung', Math.round(100 * d.g / K) + ' %') : '');"
         " if (d.se != null) h += z(C.sz, 'Szenario (Simulation)', f(d.se));"
         " return h; }")
+    return o
+
+
+# ---- 0.87: Belegung inkl. UWTler und Mieter als Diagramm-Karte ---------------------------------------------------
+GRUPPEN_FARBEN = {"UWT": "#3B6FE0", "Mieter": "#9B5DE5"}      # je Gruppe eine eigene Farbe (Kontingent in derselben)
+NETTO_TEXT = {False: "Netto (Internatsplätze ohne FRAI, Jugendhilfe und andere Bereiche)",
+              True: "Brutto (alle Plätze inkl. FRAI, Jugendhilfe und andere Bereiche)"}
+
+
+def zoom(labels: list[str], li: int | None, zurueck: int = 12, vor: int = 12) -> list[dict]:
+    """Standard-Ausschnitt: 12 Monate zurück und 12 voraus; mehr über den Schieber unter dem Diagramm."""
+    if not labels:
+        return []
+    m = li if li is not None else 0
+    return [{"type": "slider", "xAxisIndex": "all", "startValue": labels[max(0, m - zurueck)],
+             "endValue": labels[min(len(labels) - 1, m + vor)], "bottom": 6, "height": 18, "filterMode": "filter",
+             "brushSelect": False, "showDetail": False}]
+
+
+def _status_karte(o, t, c) -> dict:
+    """Zwei Flächen mit gemeinsamer Zeitachse. Oben: alle Bewohner gegen die Kapazität – die graue Linie zeigt nur die
+    Teilnehmenden, die farbige Fläche dazwischen ist der Anteil von UWTlern und Mietern. Unten: UWTler und Mieter als
+    gestapelte Balken gegen ihre Kontingente. Wo die bekannten Verträge enden, ist der Bereich schraffiert."""
+    from . import blick_kern as bk
+    from . import diagramm_stil as ds
+
+    sm = c["sm"]
+    pg = c["pg"]
+    kap = pg.kapazitaet or 0
+    n = len(sm)
+    labels = [ak.monat_text(m.monat) for m in sm]
+    li = max((i for i, m in enumerate(sm) if m.art == "ist"), default=None)
+    zs = {z.monat: z for z in ak.szenario(pg, kap, 0)}
+    gr = [m.uwt + m.mieter for m in sm]
+    grenze = bk.vertrags_grenze(gr, li)
+    kont = c.get("kontingent")
+    k_uwt = kap * kont["UWT"] / 100 if kont and kap else None
+    k_beide = kap * (kont["UWT"] + kont["Mieter"]) / 100 if kont and kap else None
+    fu, fm, warn, akz, grau = GRUPPEN_FARBEN["UWT"], GRUPPEN_FARBEN["Mieter"], t["rot"], t["akzent"], t["text3"]
+    r1 = lambda x: None if x is None else round(x, 1)  # noqa: E731
+    nach = lambda i: li is not None and i > li  # noqa: E731
+    ende = lambda i, x: None if nach(i) and x <= .05 else r1(x)  # noqa: E731   Reihe endet mit dem letzten Vertrag
+    band = [zs.get(m.monat) for m in sm]
+    lo = [r1(b.lo80) if b is not None and nach(i) else None for i, b in enumerate(band)]
+    br = [r1(b.hi80 - b.lo80) if b is not None and nach(i) else None for i, b in enumerate(band)]
+    end = lambda name, farbe: {"show": True, "formatter": name, "color": farbe, "fontSize": 12, "fontWeight": 600}  # noqa: E731
+    reihen = [
+        {"name": "_u80", "type": "line", "stack": "b80", "data": lo, "symbol": "none", "silent": True, "lineStyle": {"opacity": 0},
+         "tooltip": {"show": False}},
+        {"name": "80-%-Spanne", "type": "line", "stack": "b80", "data": br, "symbol": "none", "silent": True,
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": akz, "opacity": .14}},
+        {"name": "nur Teilnehmende", "type": "line", "stack": "g", "data": [r1(m.uebrige) for m in sm], "showSymbol": False,
+         "smooth": False, "color": grau, "lineStyle": {"color": grau, "width": 1.5}, "endLabel": end("nur Teilnehmende", grau),
+         "labelLayout": {"moveOverlap": "shiftY"}},
+        {"name": "UWTler + Mieter", "type": "line", "stack": "g", "data": [r1(x) for x in gr], "showSymbol": False, "smooth": False,
+         "color": fu, "lineStyle": {"opacity": 0}, "areaStyle": {"color": fu, "opacity": .18}, "silent": True},
+        {"name": "Alle Bewohner (Ist)", "type": "line", "data": [r1(m.gesamt) if li is not None and i <= li else None
+                                                               for i, m in enumerate(sm)],
+         "showSymbol": False, "smooth": False, "color": akz, "lineStyle": {"color": akz, "width": 3}, "z": 5},
+        {"name": "Alle Bewohner", "type": "line", "data": [r1(m.gesamt) if li is not None and i >= li else None
+                                                         for i, m in enumerate(sm)],
+         "showSymbol": False, "smooth": False, "color": akz, "lineStyle": {"color": akz, "width": 2.5, "type": "dashed"}, "z": 5,
+         "endLabel": end("Alle Bewohner", akz), "labelLayout": {"moveOverlap": "shiftY"}},
+    ]
+    if kap:
+        reihen.append({"name": "Kapazität", "type": "line", "data": [kap] * n, "showSymbol": False, "color": warn,
+                       "lineStyle": {"color": warn, "width": 1.5}, "endLabel": end(f"Kapazität {_z(kap)}", warn), "z": 4})
+    # unten: Gruppen gegen Kontingente (Monate darüber in Warnfarbe)
+    unten = {"xAxisIndex": 1, "yAxisIndex": 1}
+    reihen += [
+        {**unten, "name": "UWTler", "type": "bar", "stack": "gb", "barMaxWidth": 16, "color": fu,
+         "data": [{"value": ende(i, m.uwt), "itemStyle": {"color": warn if k_uwt and m.uwt > k_uwt + .5 else fu}}
+                  for i, m in enumerate(sm)]},
+        {**unten, "name": "Mieter", "type": "bar", "stack": "gb", "barMaxWidth": 16, "color": fm,
+         "data": [{"value": ende(i, m.mieter), "itemStyle": {"color": warn if k_beide and m.uwt + m.mieter > k_beide + .5 else fm,
+                                                             "borderRadius": [3, 3, 0, 0]}} for i, m in enumerate(sm)]},
+    ]
+    for name, wert, farbe in (("Kontingent UWT", k_uwt, fu), ("Kontingent UWT + Mieter", k_beide, fm)):
+        if wert:
+            reihen.append({**unten, "name": name, "type": "line", "data": [round(wert, 1)] * n, "showSymbol": False, "silent": True,
+                           "color": farbe, "lineStyle": {"color": farbe, "width": 1.2, "type": [6, 4]},
+                           "endLabel": end(f"{name} {_z(wert)}", farbe), "labelLayout": {"moveOverlap": "shiftY"}})
+    # Datenstand, Prognosebereich und schraffiert „noch keine Verträge“ – auf unsichtbaren Hilfsreihen (oben und unten)
+    # Schraffur als Kachelmuster (Canvas im Browser) – „noch keine Verträge“
+    schraffur = {":color": "(() => { const c = document.createElement('canvas'); c.width = c.height = 8;"
+                           " const x = c.getContext('2d'); x.strokeStyle = 'rgba(128,128,128,.45)'; x.lineWidth = 1;"
+                           " x.beginPath(); x.moveTo(0, 8); x.lineTo(8, 0); x.stroke(); return { image: c, repeat: 'repeat' }; })()"}
+    flaechen = []
+    if li is not None and li + 1 < n:
+        flaechen.append([{"xAxis": labels[li + 1], "itemStyle": {"color": _rgba(akz, .05)}}, {"xAxis": labels[-1]}])
+    if grenze is not None:
+        flaechen.append([{"xAxis": labels[grenze], "itemStyle": schraffur, "name": "noch keine Verträge"},
+                         {"xAxis": labels[-1]}])
+    fokus = {"id": ds.FOKUS_ID, "name": "", "type": "line", "data": [], "symbol": "none", "silent": True, "smooth": False,
+             "tooltip": {"show": False}, "z": 9}
+    if li is not None:
+        fokus["markLine"] = {"silent": True, "symbol": "none", "lineStyle": {"color": t["text2"], "type": [3, 3], "width": 1.2},
+                             "label": {"formatter": f"Datenstand {c['stichtag']:%d.%m.%Y}", "position": "end", "fontSize": 12,
+                                       "color": t["text2"]}, "data": [{"xAxis": labels[li]}]}
+    if flaechen:
+        fokus["markArea"] = {"silent": True, "label": {"show": True, "position": "insideTopLeft", "fontSize": 12, "color": grau},
+                             "data": flaechen}
+    unten_hilfe = {**unten, "name": "", "type": "line", "data": [], "symbol": "none", "silent": True, "tooltip": {"show": False}}
+    if grenze is not None:
+        unten_hilfe["markArea"] = {"silent": True, "data": [[{"xAxis": labels[grenze], "itemStyle": schraffur}, {"xAxis": labels[-1]}]]}
+    reihen += [fokus, unten_hilfe]
+    oben_max = max([m.gesamt for m in sm] + [kap or 0])
+    unten_max = max(gr + [k_beide or 0, k_uwt or 0, 1])
+    achse = {"axisLine": {"lineStyle": {"color": t["rand2"]}}, "splitLine": {"lineStyle": {"color": t["rand"], "type": [3, 3]}},
+             "axisLabel": {"color": grau, "fontSize": 12, ":formatter": ds.ZAHL_JS}}
+    o.pop("title", None)
+    o["legend"] = {"show": False}
+    o["grid"] = [{"left": 52, "right": 190, "top": 16, "height": "52%"}, {"left": 52, "right": 190, "top": "66%", "bottom": 52}]
+    o["xAxis"] = [{"type": "category", "gridIndex": 0, "data": labels, "boundaryGap": True, "axisLabel": {"show": False},
+                   "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": t["rand2"]}}},
+                  {"type": "category", "gridIndex": 1, "data": labels, "boundaryGap": True,
+                   "axisLabel": {"color": grau, "fontSize": 12}, "axisLine": {"lineStyle": {"color": t["rand2"]}}}]
+    o["yAxis"] = [{"type": "value", "gridIndex": 0, "min": 0, "max": int(round(oben_max * 1.1 / 50 + .5) * 50), **achse,
+                   "name": "alle Bewohner", "nameTextStyle": {"color": grau, "fontSize": 12, "align": "left"}},
+                  {"type": "value", "gridIndex": 1, "min": 0, "max": int(round(unten_max * 1.2 / 10 + .5) * 10), **achse,
+                   "name": "UWTler · Mieter", "nameTextStyle": {"color": grau, "fontSize": 12, "align": "left"}}]
+    o["axisPointer"] = {"link": [{"xAxisIndex": "all"}]}
+    o["dataZoom"] = zoom(labels, li)
+    o["series"] = reihen
+    d = [{"m": ak.monat_text(m.monat), "a": m.art, "u": m.uwt, "mi": m.mieter, "r": m.uebrige, "g": m.gesamt,
+          "ku": k_uwt, "kb": k_beide, "off": grenze is not None and i >= grenze} for i, m in enumerate(sm)]
+    fc = {"u": fu, "mi": fm, "r": grau, "g": akz, "w": warn}
+    o["tooltip"] = {"trigger": "axis", "confine": True, "axisPointer": {"type": "line"}, ":formatter": (
+        "(ps) => { const D = " + json.dumps(d) + "; const C = " + json.dumps(fc) + "; const K = " + str(kap or 0) + ";"
+        " const d = D[ps[0].dataIndex]; if (!d) return '';"
+        " const f = v => v == null ? '–' : Number(v).toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 1});"
+        " const z = (c, t, v) => `<div style=\"display:flex;gap:18px;justify-content:space-between;line-height:1.7\">"
+        "<span><span style=\"display:inline-block;width:10px;height:10px;border-radius:2px;background:${c};margin-right:7px;vertical-align:-1px\"></span>${t}</span>"
+        "<b style=\"font-variant-numeric:tabular-nums\">${v}</b></div>`;"
+        " const art = d.a == 'ist' ? 'Ist' : (d.a == 'laufend' ? 'laufender Monat' : 'Prognose');"
+        " let h = `<div style=\"font-weight:600;margin-bottom:6px\">${d.m} <span style=\"opacity:.65;font-weight:400\">· ${art}</span></div>`;"
+        " h += z(C.g, 'Alle Bewohner', f(d.g)) + z(C.r, 'davon Teilnehmende' + (d.a == 'ist' ? '' : ' (Prognose)'), f(d.r))"
+        " + z(d.ku && d.u > d.ku + .5 ? C.w : C.u, 'UWTler' + (d.a == 'ist' ? '' : ' (gebucht)'), f(d.u) + (d.ku ? ' / ' + Math.round(d.ku) : ''))"
+        " + z(d.kb && d.u + d.mi > d.kb + .5 ? C.w : C.mi, 'Mieter' + (d.a == 'ist' ? '' : ' (Verträge)'), f(d.mi));"
+        " if (d.kb) h += z('transparent', 'UWT + Mieter / Kontingent', f(d.u + d.mi) + ' / ' + Math.round(d.kb));"
+        " if (K) h += z('transparent', 'Auslastung', Math.round(100 * d.g / K) + ' %');"
+        " if (d.off) h += '<div style=\"opacity:.75;margin-top:4px\">Verträge UWT/Mieter hier noch nicht bekannt – nur Teilnehmende prognostiziert</div>';"
+        " return h; }")}
     return o
 
 
@@ -895,13 +1064,23 @@ def zeichnen(a) -> None:
                 with ui.element("div").classes("m-xg-kopf"):
                     _js_segmente(CHARTS, a.aw_chart, "tab")
                     with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
-                        attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · übrige) "
-                                                        "oder – bei „Gesamt“ – die drei Standorte parallel")
-                        ansichten = {"kurve": "Belegung", "status": "Nach Status"}
-                        if a.aw_standort == konfig.GESAMT:
-                            ansichten["standorte"] = "Standorte parallel"
-                        _js_segmente(ansichten, jetzt, "ansicht")
-                    _status_badge(a, pg, True)
+                        if praes:
+                            attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · "
+                                                            "übrige) oder – bei „Gesamt“ – die drei Standorte parallel")
+                            ansichten = {"kurve": "Belegung", "status": "Nach Status"}
+                            if a.aw_standort == konfig.GESAMT:
+                                ansichten["standorte"] = "Standorte parallel"
+                            _js_segmente(ansichten, jetzt, "ansicht")
+                        else:                        # 0.87: EIN Schalter statt „Belegung / Nach Status“ + Hinweis-Chip
+                            if a.daten.get("gruppen_da"):
+                                _js_schalter("status", "inkl. UWTler und Mieter", "group_add", jetzt == "status",
+                                             "Einschalten: Die Gesamtlinie zeigt alle Bewohner – die graue Linie bleibt bei "
+                                             "den Teilnehmenden, die farbige Fläche dazwischen sind UWTler und Mieter; "
+                                             "darunter beide Gruppen gegen ihre Kontingente")
+                            if a.aw_standort == konfig.GESAMT:
+                                _js_schalter("standorte", "Standorte einzeln", "stacked_line_chart", jetzt == "standorte",
+                                             "Die drei Standorte nebeneinander statt der Summe")
+                    _status_badge(a, pg, True, praes)
                     if praes and trend and not a.aw_status and not parallel:
                         with ui.element("div").classes("m-xg-schritte"):
                             knopf("", lambda: praes_schritt(a, -1), "leise", "chevron_left", "Schritt zurück (←)")
@@ -920,10 +1099,15 @@ def zeichnen(a) -> None:
                     pg_, kap_ = c()["pg"], zustand["kap"]
                     blick, alt = blick_daten(pg_, c().get("pg_lang"), kap_, a.daten["stichtag"])
                     ort = konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)
-                    gr = a.daten["gruppen"].text() if a.daten.get("gruppen") else ""
-                    unter = (f"{ort} · {'Brutto' if a.aw_brutto else 'Netto'}" + (f" · {gr}" if gr else "")
-                             + f" · Datenstand {a.daten['stichtag']:%d.%m.%Y}")
-                    karte = diagramm_karte.Karte(a, CHARTS.get(a.aw_chart, ""), unter, blick, titel_je=CHARTS,
+                    v_ = variante(True)
+                    if jetzt == "status" and v_.get("sm"):           # „inkl. UWTler und Mieter“: eigene Sätze
+                        blick, alt = blick_gruppen(v_["sm"], pg_, kap_, a.daten["stichtag"], v_.get("kontingent"))
+                    unter = f"{NETTO_TEXT[bool(a.aw_brutto)]} · Datenstand {a.daten['stichtag']:%d.%m.%Y}"
+                    titel_je = {"trend": f"Belegung {ort}" + (" · nur Teilnehmende" if a.daten.get("gruppen_da") else ""),
+                                "trend-status": f"Belegung {ort} · inkl. UWTler und Mieter",
+                                "trend-standorte": "Belegung je Standort", "reserve": CHARTS["reserve"],
+                                "jahr": CHARTS["jahr"]}
+                    karte = diagramm_karte.Karte(a, CHARTS.get(a.aw_chart, ""), unter, blick, titel_je=titel_je,
                                                  monate_alt=alt)
                     chart = karte.chart(option(c(animiert_, "start" if story else "voll")), "m-xg-chart")
                     vj_monate = an.vorjahr(c().get("pg_lang") or pg_).monate
@@ -1236,9 +1420,20 @@ window.mGraph = {   // Prognosegraph: Reiter und Ansichten im Browser umschalten
 </script>"""
 
 
-def _status_badge(a, pg, backtest_moeglich: bool) -> None:
+def _js_schalter(wert: str, text: str, symbol: str, an: bool, tip: str) -> None:
+    """0.87: Ein-/Aus-Schalter für eine Ansicht des Trends – schaltet im Browser um (mGraph), aus = Belegung."""
+    b = ui.element("button").classes("m-xg-schalter" + (" an" if an else ""))
+    attr(b, type="button", data_ansicht=wert, aria_pressed=str(an).lower(), title=tip)
+    with b:
+        ui.icon(symbol)
+        ui.label(text)
+    b.on("click", js_handler="(e) => mGraph.wechsel(e, null, e.currentTarget.classList.contains('an') ? 'kurve' : "
+                             f"'{wert}')")
+
+
+def _status_badge(a, pg, backtest_moeglich: bool, praes: bool = True) -> None:
     """Kompakter Status statt Checkboxen: welche Gruppen in der Kurve stecken, ob der Backtest läuft."""
-    if a.daten.get("gruppen_da"):
+    if a.daten.get("gruppen_da") and praes:
         mit = bool(a.aw_status)
         b = ui.label(_ansicht_text(mit, mit)).classes("m-xg-gruppen-hinweis m-xg-ansicht " + ("leuchtet" if mit else "rein"))
         attr(b, data_mit=_ansicht_text(True, True), data_ohne=_ansicht_text(False, False),

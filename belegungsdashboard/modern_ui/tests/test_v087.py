@@ -146,3 +146,31 @@ def test_karte_und_ansichten():
     assert "<span>Größe ziehen" not in js                                             # Hinweistext entfällt
     assert "_tagesverlauf_karte" in q("seite_auswertung.py") and "diagramm_karte.Karte" in q("seite_massnahmen.py")
     assert "diagramm_karte.Karte" in q("seite_prognose.py") and "m-xg-fuss\" + (\"\" if praes else \" m-weg\")" in q("seite_prognose.py")
+
+
+# ---- inkl. UWTler und Mieter -------------------------------------------------------------------------------------
+
+def test_vertragsgrenze_und_gruppensaetze():
+    gr = [30, 32, 31, 33, 30, 12, 4, 0]
+    assert bk.vertrags_grenze(gr, 2) == 5 and bk.vertrags_grenze(gr, None) is None and bk.vertrags_grenze([0, 0], 0) is None
+    ms = [date(2026, m, 1) for m in range(5, 13)]
+    ist = [True] * 3 + [False] * 5
+    uwt = [20, 22, 26, 27, 28, 8, 3, 0]
+    mie = [9, 9, 9, 9, 9, 4, 1, 0]
+    ges = [100 + u + m for u, m in zip(uwt, mie)]
+    b = bk.gruppen(ms, ist, ges, uwt, mie, date(2026, 7, 20), 140, 26, 36, bk.vertrags_grenze([u + m for u, m in zip(uwt, mie)], 2))
+    t = [s.text for s in b.saetze]
+    assert t[0] == "Heute 135 belegt von 140 Plätzen (96 %), davon 26 UWTler und 9 Mieter."
+    assert t[1].startswith("Kontingent UWT 26: heute 26 (100 %), in 2 der nächsten 5 Monate darüber (zuerst Aug 26)")
+    assert "Kontingent UWT + Mieter 36" in t[2] and "Bekannte Verträge reichen großteils bis Sep 26" in t[3]
+
+
+def test_status_karte_zwei_flaechen():
+    from modern import seite_prognose as sp
+
+    q = (MOD / "seite_prognose.py").read_text(encoding="utf-8")
+    assert "def _status_karte" in q and '"axisPointer"' in q and '"link": [{"xAxisIndex": "all"}]' in q
+    assert "inkl. UWTler und Mieter" in q and "_js_schalter(" in q and "noch keine Verträge" in q
+    z = sp.zoom([f"M{i}" for i in range(48)], 24)
+    assert z[0]["startValue"] == "M12" and z[0]["endValue"] == "M36" and z[0]["xAxisIndex"] == "all"
+    assert "Netto (Internatsplätze ohne FRAI" in sp.NETTO_TEXT[False]

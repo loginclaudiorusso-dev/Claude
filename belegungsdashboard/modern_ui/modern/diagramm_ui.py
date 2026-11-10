@@ -175,8 +175,18 @@ body.lay-office .m-ex.b-dashboard .m-xk-karte { cursor: help; }
 .m-dk-titel { font-size: 15px; font-weight: 600; color: var(--text); line-height: 20px; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
 .m-dk-titel [data-titel] { display: none; }
-.m-xg[data-tab="trend"] .m-dk-titel [data-titel="trend"], .m-xg[data-tab="reserve"] .m-dk-titel [data-titel="reserve"],
-.m-xg[data-tab="jahr"] .m-dk-titel [data-titel="jahr"] { display: inline; }
+.m-xg[data-tab="trend"][data-ansicht="kurve"] .m-dk-titel [data-titel="trend"],
+.m-xg[data-tab="trend"][data-ansicht="status"] .m-dk-titel [data-titel="trend-status"],
+.m-xg[data-tab="trend"][data-ansicht="standorte"] .m-dk-titel [data-titel="trend-standorte"],
+.m-xg[data-tab="reserve"] .m-dk-titel [data-titel="reserve"], .m-xg[data-tab="jahr"] .m-dk-titel [data-titel="jahr"] { display: inline; }
+/* 0.87: Schalter „inkl. UWTler und Mieter“ / „Standorte einzeln“ statt Segment + Hinweis-Chip */
+.m-xg-schalter { height: 32px; padding: 0 12px; border: 1px solid var(--rand); border-radius: 16px; background: var(--fl);
+  color: var(--text2); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.m-xg-schalter .q-icon { font-size: 17px; }
+.m-xg-schalter:hover { border-color: var(--akzent); color: var(--akzent); }
+.m-xg-schalter.an { background: color-mix(in srgb, var(--akzent) 14%, var(--fl)); border-color: var(--akzent); color: var(--akzent);
+  font-weight: 600; }
+.m-xg-schalter.an::before { content: "✓"; font-weight: 700; }
 .m-dk-unter { font-size: 12px; color: var(--text3); line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: block; }
 .m-dk-knoepfe { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }

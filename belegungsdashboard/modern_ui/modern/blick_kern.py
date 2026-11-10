@@ -206,6 +206,52 @@ def wellen(namen: list[str], werte: list[float | None], ist: list[bool], stand: 
     return _begrenzen(b)
 
 
+# ---- Belegung inkl. UWTler und Mieter (0.87) ----------------------------------------------------------------------
+
+def vertrags_grenze(gruppen: list[float], letzter_ist: int | None, anteil: float = .5) -> int | None:
+    """Erster Prognosemonat, in dem weniger als die Hälfte der heutigen UWT-/Mieter-Plätze noch gebucht ist – ab hier
+    sind die Verträge großteils noch nicht bekannt (kein echter Rückgang, sondern das Ende der bekannten Verträge)."""
+    if letzter_ist is None or not 0 <= letzter_ist < len(gruppen) or gruppen[letzter_ist] <= 0:
+        return None
+    heute = gruppen[letzter_ist]
+    return next((i for i in range(letzter_ist + 1, len(gruppen)) if gruppen[i] < anteil * heute), None)
+
+
+def gruppen(monate_: list[date], ist: list[bool], gesamt: list[float], uwt: list[float], mieter: list[float],
+            stand: date, kapazitaet: float | None = None, kont_uwt: float | None = None,
+            kont_beide: float | None = None, grenze: int | None = None, reihe: str = "Alle Bewohner") -> Blick:
+    """Sätze zur Belegung inkl. UWTler und Mieter: Gesamt gegen Kapazität, je Kontingent, Ende der bekannten Verträge."""
+    b = Blick()
+    n = len(monate_)
+    li = max((i for i in range(n) if ist[i]), default=None)
+    prog = [i for i in range(n) if not ist[i]]
+    b.stand = _stand(stand, monate_[prog[0]] if prog else None)
+    if li is None:
+        return b
+    g, u, mi = gesamt[li], uwt[li], mieter[li]
+    t = f"Heute {zahl(g)} belegt"
+    if kapazitaet:
+        t += f" von {zahl(kapazitaet)} Plätzen ({round(100 * g / kapazitaet)} %)"
+    b.saetze.append(Satz(t + f", davon {zahl(u)} UWTler und {zahl(mi)} Mieter.", li, g, reihe))
+    zwoelf = prog[:12]
+    for name, kont, werte in (("UWT", kont_uwt, uwt), ("UWT + Mieter", kont_beide, [x + y for x, y in zip(uwt, mieter)])):
+        if not kont:
+            continue
+        drueber = [i for i in zwoelf if werte[i] > kont + .5]
+        t = f"Kontingent {name} {zahl(kont)}: heute {zahl(werte[li])} ({round(100 * werte[li] / kont)} %)"
+        if drueber:
+            t += (f", in {len(drueber)} der nächsten {len(zwoelf)} Monate darüber (zuerst "
+                  f"{kurz(monate_[drueber[0]])})")
+            b.saetze.append(Satz(t + ".", drueber[0], werte[drueber[0]], "UWTler" if name == "UWT" else "Mieter"))
+        else:
+            b.saetze.append(Satz(t + f", in den nächsten {len(zwoelf)} Monaten nicht darüber.", li, werte[li],
+                                 "UWTler" if name == "UWT" else "Mieter"))
+    if grenze is not None:
+        b.saetze.append(Satz(f"Bekannte Verträge reichen großteils bis {kurz(monate_[grenze - 1])} – danach sind nur "
+                             "Teilnehmende prognostiziert, der Abfall ist kein echter Rückgang.", grenze, gesamt[grenze], reihe))
+    return _begrenzen(b)
+
+
 def _begrenzen(b: Blick) -> Blick:
     b.saetze = b.saetze[:5]
     return b
