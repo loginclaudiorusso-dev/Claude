@@ -444,7 +444,7 @@ def tagessicherung(jetzt: datetime | None = None) -> list[str]:
 # ---------------------------------------------------------------------------------------
 
 # Programmteile – werden nicht mitkopiert (alles andere sind Daten: JSON, Listen, Gebäudeplan, Vorlagen, Sicherungen …)
-PROGRAMM_ORDNER = {"belegung", "modern_ui", "modern", "tests", ".venv", "venv", ".git", "__pycache__", ".pytest_cache",
+PROGRAMM_ORDNER = {"belegung", "modern_ui", "modern_gui", "modern", "tests", ".venv", "venv", ".git", "__pycache__", ".pytest_cache",
                    "build", "dist", "_internal", ".nicegui", "Programm", "assets"}
 PROGRAMM_DATEIEN = {"README.md", "ROLLBACK.md", "OFFENE_PUNKTE.md", "UX_KONZEPT.md", "FEATURES.md", "requirements.txt",
                     ".gitignore", SPERRE}

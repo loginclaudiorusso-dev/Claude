@@ -28,3 +28,11 @@ def test_app_schalter():
     q = APP.read_text(encoding="utf-8")
     assert 'not os.environ.get("INNTERNAT_BROWSER")' in q and 'KONSOLE = "--konsole" in sys.argv' in q
     assert "traceback.print_exception" in q
+
+
+def test_alte_programmordner_werden_nicht_uebernommen():
+    from modern import netz_kern
+
+    assert netz_kern.ist_programmteil(Path("modern_gui") / ".venv" / "pyvenv.cfg")
+    assert netz_kern.ist_programmteil(Path("modern_gui") / "app.json")
+    assert not netz_kern.ist_programmteil(Path("importe") / "x.json")
