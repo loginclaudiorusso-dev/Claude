@@ -325,14 +325,38 @@ def postfach_an(a) -> bool:
 
 
 def _umschalter(a) -> None:
-    """0.64: kein Umschalter mehr – im Postfach nur der Weg zurück, in der Tageszentrale der Sprung ins Postfach."""
+    """0.91: Übersicht → Chips des Tages rechts im Kopf; gewählte Aufgabe → „Zurück zur Übersicht“."""
     with a.werkzeuge:
-        if postfach_an(a):          # m-kopf-doppelt: im Menüband stehen „Tagesübersicht“ und „Aufgaben“ schon oben
-            knopf("Tageszentrale", lambda: a.setzen(heute_ansicht="zentrale", laden=False), "leise", "arrow_back",
-                  "Zurück zur Tageszentrale").classes("m-kopf-doppelt")
-        elif a.karten:
-            knopf(f"Alle Aufgaben ({len(a.karten)})", lambda: a.setzen(heute_ansicht="postfach", laden=False), "leise",
-                  "inbox", "Alle Aufgaben mit ihren Fällen im Postfach bearbeiten").classes("m-kopf-doppelt")
+        if postfach_an(a):
+            knopf("Zurück zur Übersicht", lambda: a.setzen(heute_ansicht="zentrale", laden=False), "", "",
+                  "Zurück zur Tagesübersicht")
+        elif isinstance(getattr(a, "daten", None), Tag):
+            _chips(a, a.daten)
+
+
+def _chips(a, t: "Tag") -> None:
+    """Kleine graue Chips statt großer Kacheln: Zahlen des Tages ohne Alarmfarbe; farbig nur, wenn etwas zu tun ist."""
+    heute_w = next((w for w in t.woche if w["tag"] == a.heute), None)
+    an, ab = (heute_w["an"], heute_w["ab"]) if heute_w else (0, 0)
+    ohne = (heute_w["an"] - heute_w["mit"]) if heute_w else 0
+    eilig, offen = t.reinigung
+    werte = [(f"{an} Anreise{'n' if an != 1 else ''}", "krit" if ohne else "",
+              f"{ohne} noch ohne Zimmer" if ohne else "Anreisen heute",
+              lambda: a.oeffnen("anreisen", ansicht="zuteilen", kennung=a.heute.isoformat())),
+             (f"{ab} Abreise{'n' if ab != 1 else ''}", "", "Abreisen heute", lambda: a.oeffnen("anreisen", ansicht="abreisen")),
+             (f"{eilig + offen} Reinigung{'en' if eilig + offen != 1 else ''}", "warn" if eilig else "",
+              f"{eilig} vor einem Einzug noch offen" if eilig else "Reinigungen heute",
+              lambda: a.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer="")),
+             (f"{t.nicht_nutzbar} Zimmer nicht nutzbar", "krit" if t.unbewohnbar else "",
+              f"davon {t.unbewohnbar} wegen eines Mangels" if t.unbewohnbar else "gesperrt laut Gebäudeplan – nichts zu tun",
+              lambda: a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=frozenset({"nicht_nutzbar"})))]
+    with ui.element("div").classes("m-hz-chips"):
+        for text, stufe, tipp, klick in werte:
+            c = ui.element("button").classes("m-hz-chip" + (f" {stufe}" if stufe else ""))
+            attr(c, title=tipp)
+            with c:
+                ui.label(text)
+            c.on("click", klick)
 
 
 def auswahl(a) -> str:
@@ -373,20 +397,13 @@ def _postfach(a, t: Tag) -> None:
         liste.clear()
         detail.clear()
         with liste:
-            z = ui.element("button").classes("m-pf-zeile ueberblick" + (" an" if a.pf_auswahl == UEBERBLICK else ""))
-            with z:
-                ui.icon("today").classes("m-pf-symbol")
-                with ui.element("div").classes("m-pf-text"):
-                    ui.label("Überblick heute").classes("m-pf-titel")
-                    ui.label(f"{len(t.anreisen)} Anreisetage · {len(t.abreisen)} Abreisen · Reinigung").classes("m-pf-unter")
-            z.on("click", lambda: zeigen(UEBERBLICK))
             if not a.karten:
                 ui.label("Keine Aufgaben – alles erledigt.").classes("m-pf-leer")
             for stufe, titel in STUFEN_PF:
                 ks = [k for k in a.karten if k.stufe == stufe]
                 if not ks:
                     continue
-                ui.label(f"{titel} ({len(ks)})").classes("m-pf-gruppe")
+                ui.label(f"{titel} · {len(ks)}").classes("m-pf-gruppe " + stufe)
                 for k in ks:
                     z = ui.element("button").classes(f"m-pf-zeile {k.stufe}" + (" an" if a.pf_auswahl == k.id else ""))
                     attr(z, title=k.titel)
@@ -417,6 +434,10 @@ def _postfach(a, t: Tag) -> None:
                         tasten)
             ui.label("Tasten: ↑ ↓ Aufgabe wählen" + (" · L lösen" if k.aktion else "") + " · S später").classes(
                 "m-tasten-hinweis")
+            if getattr(k, "fall", None) is not None:          # 0.91: ein Fall → Vergleich geplant ↔ Vorschlag
+                _fall_vergleich(a, k)
+                _danach(a, k)
+                return
             if not a.pf_hat_liste(k):                   # keine Fall-Liste: Text und die Knöpfe der Aufgabe
                 ui.label(k.detail).classes("m-ptext")
                 with ui.element("div").classes("m-paktionen"):
@@ -428,8 +449,39 @@ def _postfach(a, t: Tag) -> None:
                         ui.label(k.hinweis).classes("m-zweite")
             koerper = ui.element("div").classes("m-pf-faelle")
             ui.timer(0.01, lambda k=k: a.pf_detail(k, koerper), once=True)
+            _danach(a, k)
 
     fuellen()
+
+
+def _fall_vergleich(a, k) -> None:
+    """0.91: Geplant (durchgestrichen) → Vorschlag; „6-301 zuweisen“, „Anderes Zimmer wählen“, „Später“."""
+    from . import kern
+
+    f = k.fall
+    ui.label(f"{f.name} braucht ein anderes Zimmer").classes("m-hz-dtitel")
+    ui.label(f"Anreise {f.von:%d.%m.%Y} · geplant bis {f.bis:%d.%m.%Y}").classes("m-zweite")
+    with ui.element("div").classes("m-hz-vergleich"):
+        with ui.element("div").classes("m-hz-vk alt"):
+            ui.label("Geplant").classes("m-zweite")
+            ui.label(kern.kurz(f.zimmer)).classes("m-hz-vzimmer")
+            ui.label(f.grund).classes("m-zweite")
+        ui.icon("arrow_forward").classes("m-hz-vpfeil")
+        with ui.element("div").classes("m-hz-vk neu"):
+            ui.label("Vorschlag").classes("m-zweite")
+            ui.label(kern.kurz(f.vorschlag)).classes("m-hz-vzimmer")
+            ui.label("frei im ganzen Zeitraum").classes("m-zweite")
+    with ui.element("div").classes("m-paktionen"):
+        knopf(k.aktion.text, lambda: a._karte_loesen(k), "primaer")
+        knopf("Anderes Zimmer wählen", lambda: a._faelle_panel(False), "")
+        knopf("Später", lambda: a._spaeter(k), "leise")
+
+
+def _danach(a, k) -> None:
+    ids = [x.id for x in a.karten]
+    if k.id in ids and ids.index(k.id) + 1 < len(ids):
+        n = a.karten[ids.index(k.id) + 1]
+        ui.label(f"Danach geht es weiter mit: {n.titel}").classes("m-hz-danach")
 
 
 def _symbol(kid: str) -> str:
@@ -464,46 +516,120 @@ def untertitel(dringend: int, weitere: int) -> str:
 
 
 def _zentrale(a, t: Tag) -> None:
+    """0.91: EINE Seite – links die Aufgaben (nur die dringendste gefüllt), rechts die nächsten 7 Tage und die freien
+    Zimmer. Ein Klick auf eine Aufgabe öffnet rechts ihr Detail (Ansicht „Aufgabe gewählt“)."""
     jetzt = [k for k in a.karten if k.stufe == "dringend"]
-    naechste = [k for k in a.karten if k.stufe in ("dringend", "bald")]
-    info = [k for k in a.karten if k.stufe == "info"]
-    heute_an = next((w for w in t.woche if w["tag"] == a.heute), None)
-    with ui.element("div").classes("m-tz"):
-        with ui.element("header").classes("m-tz-kopf"):
-            ui.label(f"{WOCHENTAGE[a.heute.weekday()]} · {a.heute.day}. {MONATE_LANG[a.heute.month - 1]} {a.heute.year}").classes(
-                "m-tz-datum")
-            ui.label("Tagesübersicht").classes("m-tz-titel")
-            ui.label(untertitel(len(jetzt), len(naechste) - len(jetzt))).classes("m-tz-sub")
-        _zahlen(a, t, len(jetzt), heute_an)
-        with ui.element("div").classes("m-tz-raster"):
-            with ui.element("section").classes("m-tz-links"):
-                with ui.element("div").classes("m-tz-ab"):
-                    ui.label("Offene Aufgaben")
-                    ui.label(f"nach Dringlichkeit sortiert · {len(naechste)} offen").classes("m-tz-meta")
-                if not naechste:
-                    with ui.element("div").classes("m-tz-leer"):
-                        ui.icon("check_circle")
-                        ui.label("Keine dringenden oder anstehenden Aufgaben.")
-                for i, k in enumerate(naechste[:7], 1):
-                    _punkt(a, i, k)
-                rest = len(naechste) - 7
-                with ui.element("div").classes("m-paktionen"):
-                    if rest > 0:
-                        knopf(f"Alle {len(naechste)} im Postfach", lambda: a.setzen(heute_ansicht="postfach", laden=False),
-                              "leise", "inbox")
+    bald = [k for k in a.karten if k.stufe == "bald"]
+    with ui.element("div").classes("m-hz"):
+        with ui.element("section").classes("m-hz-karte m-hz-aufgaben"):
+            with ui.element("div").classes("m-hz-kopf"):
+                ui.label(str(len(jetzt))).classes("m-hz-gross" + (" krit" if jetzt else " ok"))
+                with ui.element("div"):
+                    ui.label(("Aufgabe ist dringend" if len(jetzt) == 1 else "Aufgaben sind dringend") if jetzt
+                             else "Nichts ist dringend").classes("m-hz-ktitel")
+                    ui.label(f"{len(bald)} weitere können warten" if bald else "keine weiteren offen").classes("m-zweite")
+            erster = True
+            for k in jetzt:
+                _zeile(a, k, primaer=erster)
+                erster = False
+            if bald:
+                ui.label("Als Nächstes").classes("m-hz-abschnitt")
+            for k in bald[:6]:
+                _zeile(a, k, primaer=erster and not jetzt)
+                erster = False
+            if a.karten:
+                with ui.element("div").classes("m-hz-fuss"):
+                    l_ = ui.label(f"Alle {len(jetzt) + len(bald)} Aufgaben zeigen").classes("m-link")
+                    l_.on("click", lambda: a.setzen(heute_ansicht="postfach", laden=False))
+                    info = [k for k in a.karten if k.stufe == "info"]
                     if info:
-                        knopf(f"{len(info)} Hinweis{'e' if len(info) != 1 else ''} zur Info",
-                              lambda: a.setzen(heute_ansicht="postfach", pf_auswahl=info[0].id, laden=False), "leise", "info")
-            with ui.element("aside").classes("m-tz-rechts"):
-                if a.design.get("layout") == "office":     # 0.74: freie Zimmer kompakt rechts oben – über dem Falz
-                    _frei_block(a, t)
-                    _woche_block(a, t)
-                    outlook_block(a)
-                else:
-                    outlook_block(a)
-                    _woche_block(a, t)
-        if a.design.get("layout") != "office":
-            _frei_block(a, t)
+                        i_ = ui.label(f"{len(info)} Hinweis{'e' if len(info) != 1 else ''} zur Info").classes("m-link m-zweite")
+                        i_.on("click", lambda: a.setzen(heute_ansicht="postfach", pf_auswahl=info[0].id, laden=False))
+        with ui.element("aside").classes("m-hz-rechts"):
+            _woche_tabelle(a, t)
+            _frei_saeulen(a, t)
+            outlook_block(a)
+
+
+def _zeile(a, k, primaer: bool) -> None:
+    """Eine Aufgabe: Text (Klick → Detail) und GENAU EIN Knopf – gefüllt nur bei der dringendsten."""
+    with ui.element("div").classes(f"m-hz-zeile {k.stufe}"):
+        if k.stufe == "dringend":
+            ui.icon("error_outline").classes("m-hz-sym")
+        t_ = ui.element("button").classes("m-hz-text")
+        attr(t_, title="Aufgabe öffnen")
+        with t_:
+            ui.label(k.titel).classes("m-hz-ztitel")
+            if k.detail:
+                attr(ui.label(k.detail).classes("m-hz-zdetail"), title=k.detail)
+        t_.on("click", lambda k=k: a.setzen(heute_ansicht="postfach", pf_auswahl=k.id, laden=False))
+        stil = "primaer" if primaer else ""
+        if k.aktion:
+            knopf(k.aktion.text, lambda k=k: a._karte_loesen(k), stil)
+        elif k.zweite:
+            knopf(k.zweite.text, lambda k=k: a._zeigen(k.zweite.zeigen), stil)
+        else:
+            knopf("Ansehen", lambda k=k: a.setzen(heute_ansicht="postfach", pf_auswahl=k.id, laden=False), stil)
+
+
+def _woche_tabelle(a, t: Tag) -> None:
+    with ui.element("section").classes("m-hz-karte"):
+        with ui.element("div").classes("m-hz-ab"):
+            ui.label("Die nächsten 7 Tage").classes("m-hz-ktitel")
+            l_ = ui.label("Alle Anreisen").classes("m-link")
+            l_.on("click", lambda: a.oeffnen("anreisen"))
+        if not t.woche:
+            ui.label("Keine An- oder Abreisen in den nächsten 7 Tagen.").classes("m-ptext")
+            return
+        with ui.element("div").classes("m-hz-tabelle"):
+            for kopf in ("Tag", "Anreisen", "Abreisen"):
+                ui.label(kopf).classes("m-hz-th")
+            for w in t.woche:
+                tag = w["tag"]
+                ui.label("Heute" if tag == a.heute else f"{WT[tag.weekday()]} {tag:%d.%m.}").classes(
+                    "m-hz-td" + (" fett" if tag == a.heute else ""))
+                z = ui.element("button").classes("m-hz-td m-hz-tdk")
+                with z:
+                    if w["an"]:
+                        ohne = w["an"] - w["mit"]
+                        ui.label(f"{w['an']}" + (f" · {w['gruppen']}" if w["gruppen"] and not ohne and len(w["gruppen"]) < 18
+                                                 else "")).classes("")
+                        if ohne:
+                            ui.label("·")
+                            ui.label(f"{ohne} ohne Zimmer").classes("m-hz-ohne")
+                    else:
+                        ui.label("–")
+                z.on("click", lambda tag=tag, w=w: a.oeffnen("anreisen", ansicht="zuteilen", kennung=tag.isoformat())
+                     if w["an"] else None)
+                ui.label(str(w["ab"]) if w["ab"] else "–").classes("m-hz-td")
+
+
+def _frei_saeulen(a, t: Tag) -> None:
+    np_ = t.np
+    if not np_ or not np_.wochen:
+        return
+    wochen = np_.wochen[:5]
+    tief = min(wochen, key=lambda w: w[2])
+    engpass = next((w for w in wochen if w[6].get("emr") != "ok" or w[6].get("doppel") != "ok"), None)
+    hoch = max([w[2] for w in wochen] + [1])
+    with ui.element("section").classes("m-hz-karte"):
+        with ui.element("div").classes("m-hz-ab"):
+            ui.label("Freie Zimmer nach Planung").classes("m-hz-ktitel")
+            l_ = ui.label("12 Wochen").classes("m-link")
+            l_.on("click", lambda: a.oeffnen("auswertung", ansicht="zimmer"))
+        with ui.element("div").classes("m-hz-kopf"):
+            ui.label(str(tief[2])).classes("m-hz-gross " + STUFE.get(tief[5], "ok"))
+            ui.label(f"am Tiefstand in {tief[0].split(' · ')[0]} · "
+                     + (f"Engpass zuerst in {engpass[0].split(' · ')[0]}" if engpass else "kein Engpass")).classes("m-zweite")
+        with ui.element("div").classes("m-hz-saeulen"):
+            for w in wochen:
+                st = STUFE.get(w[5], "ok")
+                with ui.element("div").classes("m-hz-saeule"):
+                    with ui.element("div").classes("m-hz-sbox"):
+                        ui.element("i").classes(st + (" tief" if w is tief else "")).style(
+                            f"height:{max(4, round(100 * w[2] / hoch))}%")
+                    ui.label(str(w[2])).classes("m-hz-swert")
+                    ui.label(w[0].split(" · ")[0]).classes("m-zweite")
 
 
 def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
@@ -631,3 +757,73 @@ def outlook_block(a) -> None:
     from . import outlook_kern
 
     outlook_kern.block(a)
+
+
+# 0.91: Heute als eine Seite (Entwurf „Heute neu gedacht“) – ruhige Karten, ein Blickfang, graue Chips
+CSS = r"""
+.m-hz { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr); gap: 18px; align-items: start;
+  margin: 4px 20px 24px; }
+@media (max-width: 1100px) { .m-hz { grid-template-columns: minmax(0, 1fr); } }
+.m-hz-karte { background: var(--ob-fl, var(--fl)); border: 1px solid var(--ob-rand, var(--rand)); border-radius: 8px;
+  padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; }
+.m-hz-rechts { display: flex; flex-direction: column; gap: 18px; }
+.m-hz-aufgaben { padding: 0; gap: 0; overflow: hidden; }
+.m-hz-kopf { display: flex; align-items: center; gap: 14px; padding: 4px 0 10px; }
+.m-hz-aufgaben > .m-hz-kopf { padding: 16px 20px 14px; border-bottom: 1px solid var(--ob-rand, var(--rand)); }
+.m-hz-gross { font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+.m-hz-gross.krit { color: var(--rot); } .m-hz-gross.ok { color: var(--gruen); } .m-hz-gross.warn { color: var(--orange); }
+.m-hz-ktitel { font-size: 16px; font-weight: 600; color: var(--text); }
+.m-hz-zeile { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--ob-rand, var(--rand)); }
+.m-hz-zeile.dringend { background: color-mix(in srgb, var(--rot) 7%, transparent); }
+.m-hz-zeile.dringend + .m-hz-zeile.dringend { background: transparent; }
+.m-hz-sym { color: var(--rot); font-size: 20px; }
+.m-hz-text { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; font: inherit; cursor: pointer;
+  padding: 0; color: inherit; display: flex; flex-direction: column; gap: 2px; }
+.m-hz-text:hover .m-hz-ztitel { text-decoration: underline; }
+.m-hz-ztitel { font-size: 14.5px; font-weight: 500; color: var(--text); }
+.m-hz-zeile.dringend .m-hz-ztitel { font-weight: 600; }
+.m-hz-zdetail { font-size: 13px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-hz-abschnitt { font-size: 14px; font-weight: 600; color: var(--text); padding: 14px 20px 8px; border-bottom: 1px solid var(--ob-rand, var(--rand)); }
+.m-hz-fuss { display: flex; gap: 18px; padding: 14px 20px; }
+.m-hz-ab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.m-hz .m-link, .m-hz-fuss .m-link { color: var(--ob-akzent, var(--akzent)); text-decoration: underline; cursor: pointer; font-size: 13.5px; }
+.m-hz-tabelle { display: grid; grid-template-columns: 90px minmax(0, 1.4fr) minmax(0, 1fr); }
+.m-hz-th { font-size: 13px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--ob-rand, var(--rand)); }
+.m-hz-td { font-size: 13.5px; color: var(--text); padding: 7px 4px; border-bottom: 1px solid var(--ob-rand, var(--rand));
+  text-align: left; background: transparent; border-left: 0; border-right: 0; border-top: 0; font-family: inherit; display: flex; gap: 4px; flex-wrap: wrap; }
+.m-hz-td.fett { font-weight: 600; } .m-hz-tdk { cursor: pointer; } .m-hz-tdk:hover { background: var(--ob-hover, var(--fl2)); }
+.m-hz-ohne { color: var(--orange); font-weight: 500; }
+.m-hz-saeulen { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.m-hz-saeule { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.m-hz-sbox { height: 110px; width: 100%; display: flex; align-items: flex-end; }
+.m-hz-sbox i { display: block; width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--gruen) 45%, transparent); }
+.m-hz-sbox i.tief { background: var(--gruen); }
+.m-hz-sbox i.warn { background: color-mix(in srgb, var(--orange) 55%, transparent); }
+.m-hz-sbox i.krit { background: var(--rot); }
+.m-hz-swert { font-weight: 600; font-variant-numeric: tabular-nums; }
+.m-werkzeuge:has(.m-hz-chips) { margin-left: auto; }
+.m-hz-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.m-hz-chip { border: 1px solid var(--ob-rand, var(--rand)); background: var(--ob-fl, var(--fl)); color: var(--text2);
+  border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13.5px; cursor: pointer; }
+.m-hz-chip:hover { background: var(--ob-hover, var(--fl2)); }
+.m-hz-chip.warn { color: var(--orange); border-color: var(--orange); }
+.m-hz-chip.krit { color: var(--rot); border-color: var(--rot); }
+.m-pf-gruppe.dringend { color: var(--rot); font-weight: 600; }
+.m-hz-dtitel { font-size: 22px; font-weight: 600; color: var(--text); margin-top: 6px; }
+.m-hz-vergleich { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin: 18px 0; }
+.m-hz-vk { border-radius: 8px; padding: 14px 16px; border: 1px solid var(--ob-rand, var(--rand)); display: flex; flex-direction: column; gap: 2px; }
+.m-hz-vk.alt { background: var(--fl2); } .m-hz-vk.alt .m-hz-vzimmer { text-decoration: line-through; color: var(--text2); }
+.m-hz-vk.neu { background: color-mix(in srgb, var(--gruen) 10%, transparent); border-color: color-mix(in srgb, var(--gruen) 45%, transparent); }
+.m-hz-vk.neu .m-hz-vzimmer { color: var(--gruen); }
+.m-hz-vzimmer { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.m-hz-vpfeil { color: var(--text2); }
+.m-ol-mail { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 8px; margin-bottom: 8px;
+  background: color-mix(in srgb, var(--ob-akzent, var(--akzent)) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ob-akzent, var(--akzent)) 40%, transparent); }
+.m-ol-sym { font-size: 26px; color: var(--ob-akzent, var(--akzent)); }
+.m-ol-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-ol-klein { font-size: 12.5px; color: var(--ob-akzent, var(--akzent)); }
+.m-ol-betreff { font-size: 16px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-ol-leer { padding: 6px 0 8px; white-space: normal !important; }
+.m-hz-danach { color: var(--text2); font-size: 13.5px; border-top: 1px solid var(--ob-rand, var(--rand)); padding-top: 12px; margin-top: 16px; }
+"""

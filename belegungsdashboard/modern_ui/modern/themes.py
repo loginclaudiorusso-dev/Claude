@@ -236,6 +236,8 @@ def klassen(d: dict) -> list[str]:
         k.append("dock-auto")
     if d["layout"] == "office" and d["band_gross"]:
         k.append("band-gross")
+    if d["layout"] == "office" and d.get("navigation", "leiste") == "leiste":
+        k.append("nav-leiste")                  # 0.91: Seitenleiste statt Registerkarten (Titel- und Statusleiste bleiben)
     if d["layout"] == "office" and d.get("band_zu"):
         k.append("band-zu")                     # 0.74: Menüband eingeklappt (Strg+F1)
     if d["layout"] == "office":                 # 0.75: Knopf-/Symbolstil, hoher Kontrast

@@ -1,10 +1,11 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.90.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.91.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
 Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft offline, die KI ist optional.
 
 ## Darstellung Menüband (wie Office)
+- Navigation wählbar (0.91): Seitenleiste im Windows-Look (alle Ziele sichtbar, Zähler am Eintrag) oder Menüband; Titel- und Statusleiste bleiben
 - Titelleiste mit Schnellzugriff (Rückgängig, Aktualisieren), Suchfeld und Standort
 - Registerkarten je Arbeitsbereich (Start, Anreisen, Zimmer & Haus, Auswertung, Verwalten) mit sichtbaren Ansichten, jeder Befehl genau einmal; Kontext-Registerkarte „Diagramm“ mit Gruppenpfeil ↘; Punkt am Reiter der offenen Seite
 - Statusleiste mit Kompakt, Vollbild, Hell/Dunkel und Zoom; Standort als Auswahl neben dem Programmnamen; Datei: Drucken, Importieren, Informationen & Sicherung, Optionen (inkl. Programm-Einstellungen, Oberfläche, „Leitung anzeigen“)
@@ -23,6 +24,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Diagrammtyp Linie/Fläche/Säulen für alle Verläufe, Glätten, Datenpunkte, Beschriftungen, Gitter, Legende, Animation – mit Vorschau
 
 ## Heute
+- Heute als eine Seite (0.91): Aufgaben links (nur die dringendste gefüllt), nächste 7 Tage und freie Zimmer rechts, graue Chips; Aufgabe wählen → Detail mit „Zurück zur Übersicht“; ein Konfliktfall = ein Klick („6-301 zuweisen“)
 - Tagesübersicht als einzige Ansicht (0.64, sachliche Überschriften 0.65): Kennzahlen, „Als Nächstes“ nummeriert mit direkter Aktion, nächste 7 Tage (bezugsfertig), freie Zimmer 5 Wochen mit EMR/DZ, Outlook-Vorschau (nur lesen)
 - Postfach wie Outlook als Vertiefung („Fälle ansehen“, „Alle Aufgaben“, zurück zur Tageszentrale): links Aufgaben, rechts alle Fälle mit Einzel- und Sammelaktion; Erledigtes verschwindet, Pfeiltasten
 - Schloss/Schlüssel defekt: FM-Auftrag mit Frist (nächster Einzug) statt Umplanen, solange die Anreise ≥ 3 Tage entfernt ist
@@ -79,6 +81,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Eigene Termine mit Erinnerung, automatische Termine aus Anreisen, Abreisen und UWT
 
 ## Assistenz
+- „Diese Mail übernehmen“ (0.91): geöffnete bzw. markierte Outlook-Mail mit einem Klick übernehmen und erkennen
 - Aufträge in normalen Sätzen (verstehen → prüfen → ausführen, mit Rückgängig)
 - Mails einfügen oder aus Outlook holen, Person zuordnen, umsetzen
 - Fragen zu den Zahlen; optional KI (Claude oder lokales Modell)
@@ -95,6 +98,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Prognose als Executive-Dashboard: 12/24/36 Monate, 80/95-%-Bänder, Backtest
 - Szenarien mit Schattenkurve (z. B. ±10 %, Kapazitätskürzung), Kontingente für UWT/Mieter
 - Standorte parallel, Netto/Brutto, Präsentationsmodus, Export
+- Leitungsansicht „Einfach“ (0.91): Aussage als Überschrift, Diagramm ab 0 mit „voll“ und Warnzone, vier Zahlen inkl. Prognosegüte, Hinweis zur Teilnehmer-Sicht
 - Darstellung der Diagramme wählbar: Karte (mit „Auf einen Blick“) · Klassisch (wie bis 0.86) · Einfach (Aussage als Überschrift, drei Zahlen, Füllstand gegen „voll“, Unsicherheit als Satz – für die Geschäftsführung) (0.89)
 - Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel); Klick zeigt je Woche freie Zimmer je Tag, welche Zimmer frei/belegt und von wem
 

@@ -155,9 +155,10 @@ def _mails(a) -> None:
     with a.inhalt:
         with ui.element("div").classes("m-zwei"):
             with ui.element("section").classes("m-block"):
-                ui.label("Mail einfügen").classes("m-btitel")
-                ui.label("Betreff und Text aus Outlook kopieren (oder unten „Aus Outlook“). Erkannt werden Anmeldung, "
-                         "Gästehaus, Storno, Abbruch – mit Person, Zeitraum und Vorschlag.").classes("m-ptext")
+                ol_kasten = ui.element("div").classes("m-ol-kasten")      # 0.91: „Diese Mail übernehmen“
+                ui.label("Reihenfolge: zuerst die Mail im eigenen Fenster, sonst die in Outlook markierte Mail. Ohne "
+                         "Outlook: Betreff und Text hineinkopieren. Erkannt werden Anmeldung, Gästehaus, Storno, Abbruch – "
+                         "mit Person, Zeitraum und Vorschlag.").classes("m-ptext")
                 betreff = ui.input("Betreff").classes("m-feld").props("dense outlined dark")
                 absender = ui.input("Absender (optional)").classes("m-feld").props("dense outlined dark")
                 text = ui.textarea("Text").classes("m-feld").props("outlined dark autogrow")
@@ -172,20 +173,62 @@ def _mails(a) -> None:
                     _mail_ergebnis(a, erg, e, treffer, betreff, absender, text)
 
                 async def outlook():
+                    from . import outlook_kern as _ok           # 0.91: ohne Starten von Outlook, mit COM-Anmeldung
+
                     try:
-                        auswahl = await run.io_bound(mails.outlook_auswahl)
-                    except Exception:                  # noqa: BLE001 – kein Outlook (z. B. „neues Outlook“)
-                        a.toast("Outlook ist nicht erreichbar – bitte Betreff und Text hineinkopieren.", fehler=True)
+                        m = await run.io_bound(_ok.offene_mail)
+                    except ValueError as exc:
+                        a.toast(str(exc), fehler=True)
                         return
-                    if not auswahl:
-                        a.toast("In Outlook ist keine Mail markiert.", fehler=True)
+                    if not m:
+                        a.toast("In Outlook ist keine Mail geöffnet oder markiert.", fehler=True)
                         return
-                    betreff.value, absender.value, text.value = auswahl[0]
+                    betreff.value, absender.value, text.value = m["betreff"], m["absender"], m["text"]
                     await erkennen()
 
+                from . import outlook_kern
+
+                gefunden: dict = {}
+
+                async def pruefen():
+                    try:
+                        m = await run.io_bound(outlook_kern.offene_mail)
+                        fehler = ""
+                    except ValueError as exc:
+                        m, fehler = None, str(exc)
+                    if ol_kasten.is_deleted:
+                        return
+                    schluessel = (m or {}).get("betreff"), (m or {}).get("zeit"), fehler
+                    if gefunden.get("s") == schluessel:
+                        return                                    # nichts Neues – Kasten nicht neu bauen
+                    gefunden.update(s=schluessel, m=m)
+                    ol_kasten.clear()
+                    with ol_kasten:
+                        if m:
+                            with ui.element("div").classes("m-ol-mail"):
+                                ui.icon("mail_outline").classes("m-ol-sym")
+                                with ui.element("div").classes("m-ol-text"):
+                                    ui.label("In Outlook gerade geöffnet").classes("m-ol-klein")
+                                    attr(ui.label(m["betreff"] or "(ohne Betreff)").classes("m-ol-betreff"), title=m["betreff"])
+                                    ui.label(f"{m['absender']} · {m['zeit']:%d.%m. %H:%M}").classes("m-zweite")
+                                knopf("Diese Mail übernehmen", uebernehmen, "primaer")
+                        else:
+                            ui.label(fehler or "In Outlook ist gerade keine Mail geöffnet oder markiert.").classes(
+                                "m-zweite m-ol-leer")
+
+                async def uebernehmen():
+                    m = gefunden.get("m")
+                    if not m:
+                        return
+                    betreff.value, absender.value, text.value = m["betreff"], m["absender"], m["text"]
+                    await erkennen()                              # nach dem Übernehmen startet das Erkennen von selbst
+
                 with ui.element("div").classes("m-paktionen"):
-                    knopf("Erkennen", erkennen, "primaer", "auto_awesome")
-                    knopf("Aus Outlook", outlook, "", "mail")
+                    knopf("Erkennen", erkennen, "", "auto_awesome")
+                    knopf("Markierte aus Outlook", outlook, "leise", "mail")
+                    ui.label("Nach dem Übernehmen startet das Erkennen von selbst.").classes("m-zweite")
+                ui.timer(0.1, pruefen, once=True)
+                ui.timer(5.0, pruefen)                            # Outlook-Auswahl wechselt → Kasten folgt
             with ui.element("section").classes("m-block"):
                 ui.label("Posteingang").classes("m-btitel")
                 offen = [x for x in a.daten["eingaenge"] if x.status in ("offen", "zu prüfen")]

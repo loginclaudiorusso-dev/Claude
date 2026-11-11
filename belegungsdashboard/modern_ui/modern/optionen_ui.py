@@ -120,6 +120,10 @@ def _farben(a, d: dict, setzen) -> None:
             ui.label("Farben und Schrift gibt es in den weiteren Darstellungen. Am vertrautesten ist das Menüband.")
             knopf("Menüband einschalten", lambda: setzen(layout="office"), "primaer", "view_agenda")
     if office:
+        _titel("Navigation", "Seitenleiste: alle Bereiche links immer sichtbar. Menüband: Registerkarten oben wie in "
+               "Word und Excel. Titel- und Statusleiste bleiben in beiden gleich (je PC gemerkt).")
+        _wahl({k: t for k, (t, _b) in dk.NAVIGATION.items()}, d.get("navigation", "leiste"),
+              lambda x: setzen(navigation=x))
         _titel("Vorlagen", "Ein Klick setzt Farbe, Helligkeit, Färbung und Titelleiste passend zusammen – danach lässt "
                "sich alles einzeln weiter anpassen. Die Statusfarben (frei, belegt, geplant …) bleiben immer gleich.")
         aktiv = dk.vorlage_von(d)

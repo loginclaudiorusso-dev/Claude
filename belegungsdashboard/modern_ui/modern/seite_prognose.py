@@ -108,43 +108,114 @@ def _karten_stil(o: dict, c: dict) -> dict:
 
 
 def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
-    """0.89: „Einfach“ für die Geschäftsführung – die Aussage ist die Überschrift, Füllstand gegen „voll“, höchstens drei
-    Zahlen, die Unsicherheit als Satz. „Details anzeigen“ blendet die Diagramm-Karte ein."""
+    """0.91 (Entwurf Seite 4): „Einfach“ für die Geschäftsführung – die Aussage als Überschrift, ein Satz darunter, das
+    Diagramm ab 0 mit „voll“ und Warnzone, wenige Beschriftungen, vier Zahlen, ein Hinweis zur Sicht. „Details anzeigen“
+    öffnet darunter die Diagramm-Karte."""
     from . import blick_kern as bk
 
     zs = ak.szenario(pg, kap, 0)
-    lg = bk.leitung(ort, [z.monat for z in zs], [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs],
-                    [z.art == "ist" for z in zs], a.daten["stichtag"], kap or None, [z.lo80 for z in zs], [z.hi80 for z in zs],
-                    oben95=[z.hi95 for z in zs])
-    with ui.element("section").classes("m-einfach"):
-        ui.label(lg.titel).classes("m-einfach-titel")
-        with ui.element("div").classes("m-einfach-zahlen"):
-            for bez, wert, zusatz in lg.zahlen:
-                with ui.element("div").classes("m-einfach-zahl"):
-                    ui.label(wert).classes("m-einfach-gross")
-                    ui.label(bez).classes("m-name")
-                    ui.label(zusatz).classes("m-zweite")
-        skala = max([kap or 0] + [w for _m, w, _a, _i in lg.balken]) * 1.08 or 1
-        with ui.element("div").classes("m-einfach-liste"):
-            for monat, wert, anteil, ist in lg.balken:
-                with ui.element("div").classes("m-einfach-zeile" + (" ist" if ist else "")):
-                    ui.label(monat).classes("m-einfach-name")
-                    with ui.element("div").classes("m-einfach-spur"):
-                        ui.element("div").classes("m-einfach-balken" + (" eng" if anteil and anteil >= .85 else "")
-                                                  ).style(f"width:{100 * wert / skala:.1f}%")
-                        if kap:
-                            attr(ui.element("div").classes("m-einfach-voll").style(f"left:{100 * kap / skala:.1f}%"),
-                                 title=f"voll: {bk.zahl(kap)} Plätze")
-                    ui.label(bk.zahl(wert) + (f" · {round(100 * anteil)} %" if anteil is not None else "")).classes("m-einfach-wert")
-        if kap:
-            ui.label(f"Strich = voll ({bk.zahl(kap)} Plätze)").classes("m-zweite")
-        if lg.unsicher:
-            ui.label(lg.unsicher).classes("m-einfach-satz")
-        with ui.element("div").classes("m-zeile-flex"):
-            ui.label(lg.stand).classes("m-zweite")
-            knopf("Details ausblenden" if a.dg_details else "Details anzeigen",
-                  lambda: (setattr(a, "dg_details", not a.dg_details), neu_zeichnen(False)), "leise",
-                  "expand_less" if a.dg_details else "expand_more").style("margin-left:auto")
+    monate_ = [z.monat for z in zs]
+    ist = [z.art == "ist" for z in zs]
+    werte = [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs]
+    lo, hi = [z.lo80 for z in zs], [z.hi80 for z in zs]
+    g = bk.gf(monate_, werte, ist, a.daten["stichtag"], kap or None, lo, hi, None, pg.mae_1m)
+    with ui.element("section").classes("m-gf"):
+        ui.label(g.titel).classes("m-gf-titel")
+        if g.untertitel:
+            ui.label(g.untertitel).classes("m-gf-unter")
+        ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"])).classes("m-gf-chart")
+        ui.label("Durchschnittlich belegte Plätze je Monat · der laufende Monat ist noch nicht abgeschlossen · "
+                 "Achse beginnt bei 0, damit der Füllstand stimmt").classes("m-gf-fuss")
+    with ui.element("div").classes("m-gf-zahlen"):
+        for z in g.zahlen:
+            with ui.element("div").classes("m-gf-zahl"):
+                ui.label(z.titel).classes("m-zweite")
+                with ui.element("div").classes("m-gf-wertzeile"):
+                    ui.label(z.wert).classes("m-gf-wert")
+                    ui.label(z.einheit).classes("m-gf-einheit")
+                ui.label(z.zusatz).classes("m-zweite")
+    if not a.aw_brutto and not a.aw_status:
+        with ui.element("div").classes("m-gf-hinweis"):
+            ui.icon("info_outline")
+            ui.label("Diese Sicht zählt nur Teilnehmende. Umschüler und Mieter belegen zusätzlich Zimmer, „frei“ heißt "
+                     "hier also nicht automatisch „verfügbar“.")
+            knopf("Alle Bewohner zeigen", lambda: a.setzen(aw_status=True, dg_details=True, nur_seite=True), "")
+    with ui.element("div").classes("m-zeile-flex").style("margin-top:6px"):
+        knopf("Details ausblenden" if a.dg_details else "Details anzeigen (Diagramm-Karte, Rechenweg)",
+              lambda: (setattr(a, "dg_details", not a.dg_details), neu_zeichnen(False)), "leise",
+              "expand_less" if a.dg_details else "expand_more")
+
+
+def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
+    """ECharts für die Leitungsansicht: Ist schwarz, Prognose gestrichelt, 80-%-Band hell, „voll“ und Warnzone."""
+    from . import blick_kern as bk
+    from . import themes
+
+    f = themes.farben(themes.AKTIV)
+    labels = [f"{bk.MONATE_KURZ[z.monat.month - 1]} {z.monat.year}" for z in zs]
+    li = max((i for i, x in enumerate(ist) if x), default=None)
+    pa = g.prognose_ab
+    ende = (pa + 12) if pa is not None else len(zs)
+    zs, werte, ist, labels = zs[:ende], werte[:ende], ist[:ende], labels[:ende]
+    ist_r = [round(w, 1) if ist[i] and w is not None else None for i, w in enumerate(werte)]
+    prog_r = [round(w, 1) if (not ist[i] or i == li) and w is not None else None for i, w in enumerate(werte)]
+    lo = [round(z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
+    br = [round(z.hi80 - z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
+    vj = [round(werte[i - 12], 1) if pa is not None and i >= pa and i >= 12 and werte[i - 12] is not None else None
+          for i in range(len(werte))]
+    oben = max([kap or 0] + [z.hi80 for z in zs if z.hi80 is not None] + [w for w in werte if w is not None])
+    linien = []
+    if kap:
+        linien.append({"yAxis": kap, "lineStyle": {"color": f["text"], "type": "solid", "width": 1.5},
+                       "label": {"formatter": f"voll: {bk.zahl(kap)} Plätze", "position": "end", "color": f["text"],
+                                 "fontWeight": 600}})
+    if g.warn is not None:
+        linien.append({"yAxis": round(g.warn), "lineStyle": {"color": f["orange"], "type": "dashed"},
+                       "label": {"formatter": f"ab {bk.zahl(g.warn)} wird es eng", "position": "insideStartTop",
+                                 "color": f["orange"]}})
+    if pa is not None:
+        linien.append({"xAxis": labels[pa], "lineStyle": {"color": f["text2"], "type": "dotted"},
+                       "label": {"formatter": f"Prognose ab {stichtag:%d.%m.%Y}", "position": "end", "color": f["akzent"],
+                                 "fontWeight": 600}})
+    flaechen = []
+    if g.warn is not None and kap:
+        flaechen.append([{"yAxis": round(g.warn), "itemStyle": {"color": "rgba(245,158,11,0.13)"}}, {"yAxis": kap}])
+    if pa is not None:
+        flaechen.append([{"xAxis": labels[pa], "itemStyle": {"color": "rgba(0,127,127,0.05)"}}, {"xAxis": labels[-1]}])
+    lage = {0: "top", 1: "bottom", 2: "right"}         # nächster Monat oben, Tiefpunkt unten, letzter Monat rechts
+    marken = [{"coord": [labels[m.index], round(m.wert, 1)], "value": m.text + (f"\n{m.unter}" if m.unter else ""),
+               "symbol": "circle", "symbolSize": 7,
+               "label": {"show": True, "position": lage.get(j, "top"), "formatter": "{c}", "fontWeight": 600,
+                         "color": f["text"], "lineHeight": 16, "distance": 10},
+               "itemStyle": {"color": f["akzent"]}} for j, m in enumerate(g.marken) if m.index < len(labels)]
+    if li is not None:
+        marken.append({"coord": [labels[li], round(werte[li], 1)], "symbol": "circle", "symbolSize": 9, "value": "",
+                       "label": {"show": False}, "itemStyle": {"color": "#fff", "borderColor": f["text"], "borderWidth": 2}})
+    reihen = [
+        {"name": "Ist", "type": "line", "data": ist_r, "symbol": "none", "lineStyle": {"color": f["text"], "width": 2},
+         "itemStyle": {"color": f["text"]},
+         "markLine": {"silent": True, "symbol": "none", "data": linien}, "markArea": {"silent": True, "data": flaechen}},
+        {"name": "_u", "type": "line", "data": lo, "stack": "band", "symbol": "none", "lineStyle": {"opacity": 0},
+         "silent": True, "tooltip": {"show": False}},
+        {"name": "hier liegt der Wert in 8 von 10 Fällen", "type": "line", "data": br, "stack": "band", "symbol": "none",
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": "rgba(0,127,127,0.18)"}, "silent": True,
+         "itemStyle": {"color": "rgba(0,127,127,0.35)"}},
+        {"name": "Prognose", "type": "line", "data": prog_r, "symbol": "none",
+         "lineStyle": {"color": f["akzent"], "width": 2.5, "type": "dashed"}, "itemStyle": {"color": f["akzent"]},
+         "markPoint": {"silent": True, "data": marken}},
+        {"name": "gleicher Monat im Vorjahr", "type": "line", "data": vj, "symbol": "none",
+         "lineStyle": {"color": f["text2"], "width": 1, "opacity": .6}, "itemStyle": {"color": f["text2"]}},
+    ]
+    return {"animation": False, "grid": {"left": 48, "right": 150, "top": 46, "bottom": 34},
+            "legend": {"top": 0, "left": 0, "data": ["Ist", "Prognose", "hier liegt der Wert in 8 von 10 Fällen",
+                                                     "gleicher Monat im Vorjahr"],
+                       "textStyle": {"color": f["text2"]}, "itemWidth": 22},
+            "tooltip": {"trigger": "axis"},
+            "xAxis": {"type": "category", "data": labels, "boundaryGap": False,
+                      "axisLabel": {"color": f["text2"], "interval": 5}, "axisLine": {"lineStyle": {"color": f["rand"]}}},
+            "yAxis": {"type": "value", "min": 0, "max": round(oben * 1.02), "splitNumber": 4,
+                      "axisLabel": {"color": f["text2"]}, "splitLine": {"lineStyle": {"color": f["rand"], "opacity": .5}}},
+            "series": reihen}
 
 
 def blick_gruppen(sm, pg, kap: int, stichtag, kont: dict | None):

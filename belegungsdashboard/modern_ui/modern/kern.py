@@ -635,6 +635,7 @@ def faelle(stand: zp.Planstand, heute: date, nur_unbewohnbar: bool = False) -> l
     return erg
 
 
+@unter_sperre
 def ausweich_uebernehmen(personen: list[str], heute: date | None = None) -> str:
     """Nur die ausgewählten Planungen bekommen ihr Ausweichzimmer – ein Schritt, ein Rückgängig."""
     heute = heute or date.today()
@@ -729,6 +730,7 @@ class Karte:
     aktion: Aktion | None = None
     zweite: Aktion | None = None
     hinweis: str = ""     # wenn es hier keine 1-Klick-Lösung gibt
+    fall: object = None   # 0.91: genau ein Konfliktfall mit Ausweichzimmer → Knopf „6-301 zuweisen“, Detail als Vergleich
 
 
 HAUPTPROGRAMM = "Im Hauptprogramm erledigen"
@@ -756,6 +758,14 @@ def _karte(v, stand: zp.Planstand | None) -> Karte:
         k.zweite = Aktion(f"zeigen:{kennung}", "Anzeigen", kennung)
     elif art == "konflikte":
         k.aktion = Aktion("konflikte", "Prüfen und zuweisen")
+        if stand is not None:                 # 0.91: ein einzelner Fall → ein Klick statt „anhaken, auswählen, übernehmen“
+            try:
+                fs = faelle(stand, date.today())
+            except Exception:                  # noqa: BLE001 – dann bleibt die Prüfliste
+                fs = []
+            if len(fs) == 1 and fs[0].vorschlag and not fs[0].wohnt:
+                k.fall = fs[0]
+                k.aktion = Aktion(f"ausweich:{fs[0].schluessel}", f"{kurz(fs[0].vorschlag)} zuweisen")
     elif v.id == "reinigung_dringend":
         k.aktion = Aktion("reinigung:dringend", "Alle als gereinigt markieren")
     elif v.id == "reinigung":

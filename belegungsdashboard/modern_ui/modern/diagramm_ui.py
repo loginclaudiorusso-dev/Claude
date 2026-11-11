@@ -260,6 +260,25 @@ body.m-dk-vollbild { overflow: hidden; }
 .m-einfach-wert { font-variant-numeric: tabular-nums; text-align: right; color: var(--text); }
 .m-einfach-satz { color: var(--text2); }
 .m-einfach-details:not(.offen) { display: none; }
+/* 0.91: Leitungsansicht nach Entwurf – Aussage, Diagramm ab 0, vier Zahlen, Hinweis */
+.m-gf { border: 1px solid var(--ob-rand, var(--rand)); border-radius: 8px; background: var(--ob-fl, var(--fl));
+  padding: 22px 26px 14px; display: flex; flex-direction: column; gap: 6px; }
+.m-gf-titel { font-size: 24px; font-weight: 600; line-height: 1.25; color: var(--text); }
+.m-gf-unter { font-size: 15px; color: var(--text2); }
+.m-gf-chart { height: 420px !important; width: 100%; margin-top: 8px; }
+.m-gf-fuss { font-size: 12.5px; color: var(--text2); }
+.m-gf-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+@media (max-width: 1000px) { .m-gf-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m-gf-zahl { border: 1px solid var(--ob-rand, var(--rand)); border-radius: 8px; background: var(--ob-fl, var(--fl));
+  padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
+.m-gf-wertzeile { display: flex; align-items: baseline; gap: 6px; }
+.m-gf-wert { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
+.m-gf-einheit { font-size: 15px; color: var(--text2); }
+.m-gf-hinweis { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 16px; border-radius: 8px;
+  background: color-mix(in srgb, var(--blau) 9%, transparent); color: var(--text); }
+.m-gf-hinweis > .q-icon { color: var(--blau); font-size: 20px; }
+.m-gf-hinweis > :nth-child(2) { flex: 1; }
+.m-xg-kopf.m-weg { display: none !important; }
 @media print { .m-einfach-details:not(.offen) { display: none; } .m-einfach { break-inside: avoid; } }
 """
 

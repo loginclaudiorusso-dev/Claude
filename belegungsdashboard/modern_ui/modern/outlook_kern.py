@@ -129,6 +129,45 @@ def vorschau(neu: bool = False) -> tuple[list[Mail], str]:
 
 # ---- Oberfläche (Block auf „Heute“) ------------------------------------------------------
 
+def offene_mail() -> dict | None:
+    """0.91: Die Mail, an der gerade gearbeitet wird – zuerst die im eigenen Fenster geöffnete, sonst die in Outlook
+    markierte. Nur ein laufendes klassisches Outlook (nie starten), nur lesen. None = keine Mail offen/markiert.
+    ValueError mit verständlichem Text, wenn Outlook nicht erreichbar ist (z. B. „neues Outlook“)."""
+    try:
+        import pythoncom
+        import win32com.client
+    except ImportError as exc:
+        raise ValueError("Outlook ist nur unter Windows mit dem klassischen Outlook erreichbar – bitte den Text "
+                         "einfügen.") from exc
+    pythoncom.CoInitialize()                       # eigener Thread (run.io_bound) → COM hier anmelden
+    try:
+        try:
+            ol = win32com.client.GetActiveObject("Outlook.Application")
+        except Exception as exc:                   # noqa: BLE001
+            raise ValueError("Outlook ist nicht geöffnet (oder es ist das „neue Outlook“) – bitte den Text "
+                             "einfügen.") from exc
+        m = None
+        try:
+            insp = ol.ActiveInspector()
+            m = insp.CurrentItem if insp else None            # 1. Mail im eigenen Fenster
+        except Exception:                          # noqa: BLE001
+            m = None
+        if m is None:
+            try:
+                ex = ol.ActiveExplorer()
+                sel = ex.Selection if ex else None
+                m = sel.Item(1) if sel is not None and sel.Count else None     # 2. markierte Mail
+            except Exception:                      # noqa: BLE001
+                m = None
+        if m is None or getattr(m, "Class", 0) != 43:         # 43 = Mail
+            return None
+        rt = m.ReceivedTime
+        return {"betreff": str(m.Subject or ""), "absender": str(m.SenderName or ""), "text": str(m.Body or ""),
+                "zeit": datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute)}
+    finally:
+        pythoncom.CoUninitialize()
+
+
 def block(a) -> None:
     from nicegui import run, ui
 

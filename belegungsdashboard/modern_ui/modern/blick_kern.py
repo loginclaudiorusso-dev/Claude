@@ -325,3 +325,104 @@ def leitung(ort: str, monate_: list[date], erwartet: list[float | None], ist: li
 def _begrenzen(b: Blick) -> Blick:
     b.saetze = b.saetze[:5]
     return b
+
+
+# ---- 0.91: Leitungsansicht der Belegungsprognose (Entwurf „Heute neu gedacht“, Seite 4) ---------------------------
+
+@dataclass
+class GfZahl:
+    titel: str
+    wert: str
+    einheit: str
+    zusatz: str
+
+
+@dataclass
+class GfMarke:
+    index: int
+    wert: float
+    text: str
+    unter: str = ""
+
+
+@dataclass
+class Gf:
+    titel: str = ""
+    untertitel: str = ""
+    zahlen: list = field(default_factory=list)      # GfZahl – genau vier
+    marken: list = field(default_factory=list)      # GfMarke – Beschriftungen im Diagramm
+    warn: float | None = None                       # Warnschwelle in Plätzen
+    luft: float | None = None                       # Abstand Höchstwert → Warnschwelle (gerundet)
+    luft_index: int | None = None
+    prognose_ab: int | None = None                  # erster Prognosemonat (Index)
+
+
+def _rund(x: float, auf: int = 10) -> int:
+    return int(round(x / auf) * auf)
+
+
+def gf(monate_: list[date], werte: list[float | None], ist: list[bool], stand: date, kapazitaet: float | None = None,
+       unten80: list | None = None, oben80: list | None = None, vorjahr: list | None = None, mae_1m: float | None = None,
+       kritisch: float = .85, monate_vor: int = 12) -> Gf:
+    """Eine Aussage, ein Untertitel, vier Zahlen und wenige Beschriftungen – alles aus den Rechenkernen, nur in Worten."""
+    n = len(monate_)
+    g = Gf()
+    li = max((i for i in range(n) if ist[i] and werte[i] is not None), default=None)
+    prog = [i for i in range(n) if not ist[i] and werte[i] is not None][:monate_vor]
+    g.prognose_ab = prog[0] if prog else None
+    o = lambda i: (oben80[i] if oben80 and oben80[i] is not None else werte[i])  # noqa: E731
+    u = lambda i: (unten80[i] if unten80 and unten80[i] is not None else werte[i])  # noqa: E731
+    if not prog:
+        g.titel = f"Heute {zahl(werte[li])} Plätze belegt." if li is not None else "Noch keine Zahlen."
+        return g
+    hoch = max(prog, key=lambda i: werte[i])
+    tief = min(prog, key=lambda i: werte[i])
+    k = kapazitaet
+    g.warn = kritisch * k if k else None
+    eng = next((i for i in prog if g.warn is not None and o(i) >= g.warn), None)
+    if k and eng is None:
+        wort = "reichlich" if max(o(i) for i in prog) < .7 * k else "genug"
+        g.titel = f"Es bleibt voraussichtlich {wort} Platz: rund {zahl(_rund(werte[hoch]))} von {zahl(k)} Plätzen belegt"
+    elif k:
+        g.titel = (f"Es wird ab {lang(monate_[eng], stand)} eng: voraussichtlich bis zu {zahl(max(o(i) for i in prog))} "
+                   f"von {zahl(k)} Plätzen belegt")
+    else:
+        g.titel = f"Voraussichtlich rund {zahl(_rund(werte[hoch]))} Plätze belegt"
+    satz = (f"In den nächsten {len(prog)} Monaten schwankt die Belegung zwischen {zahl(werte[tief])} im "
+            f"{lang(monate_[tief], stand)} und {zahl(werte[hoch])} im {lang(monate_[hoch], stand)}.")
+    if g.warn is not None:
+        satz += (f" Die Warnschwelle von {round(100 * kritisch)} % wird nicht erreicht." if eng is None else
+                 f" Die Warnschwelle von {round(100 * kritisch)} % ({zahl(g.warn)} Plätze) kann ab "
+                 f"{lang(monate_[eng], stand)} erreicht werden.")
+    g.untertitel = satz
+    # vier Zahlen
+    if li is not None:
+        vj = werte[li - 12] if li >= 12 and werte[li - 12] is not None else (vorjahr[li] if vorjahr and vorjahr[li] is not None else None)
+        d = None if vj is None else werte[li] - vj
+        g.zahlen.append(GfZahl("Heute belegt", zahl(werte[li]), f"· {round(100 * werte[li] / k)} %" if k else "Plätze",
+                               "" if d is None else (f"{zahl(abs(d))} {'mehr' if d > 0 else 'weniger'} als vor einem Jahr"
+                                                     if round(d) else "so viele wie vor einem Jahr")))
+    i0 = prog[0]
+    g.zahlen.append(GfZahl("Nächster Monat erwartet", zahl(werte[i0]), f"· {round(100 * werte[i0] / k)} %" if k else "Plätze",
+                           f"wahrscheinlich zwischen {zahl(u(i0))} und {zahl(o(i0))}"))
+    if k:
+        g.zahlen.append(GfZahl("Knappster Monat", zahl(max(k - werte[hoch], 0)), "frei",
+                               f"{lang(monate_[hoch], stand)} · sonst immer mehr"))
+    g.zahlen.append(GfZahl("So gut lag die Prognose bisher", f"± {zahl(mae_1m)}" if mae_1m is not None else "–", "Plätze",
+                           "im Mittel, einen Monat voraus" if mae_1m is not None else "noch kein Rückblick möglich"))
+    # Beschriftungen: nächster Monat, Tiefpunkt der Prognose (Sommertief?), letzter Monat
+    g.marken.append(GfMarke(i0, werte[i0], f"{MONATE_LANG[monate_[i0].month - 1]} {monate_[i0].year}: {zahl(werte[i0])}"))
+    if tief != i0:
+        fenster = [werte[j] for j in range(max(0, tief - 18), tief - 6) if werte[j] is not None]
+        sommer = (monate_[tief].month in (6, 7, 8) and tief >= 12 and werte[tief - 12] is not None and bool(fenster)
+                  and werte[tief - 12] <= min(fenster))         # voriges Jahr lag der Tiefpunkt im selben Monat
+        g.marken.append(GfMarke(tief, werte[tief], f"{MONATE_LANG[monate_[tief].month - 1]} {monate_[tief].year}: "
+                                f"{zahl(werte[tief])}", "Sommertief wie jedes Jahr" if sommer else ""))
+    letzt = prog[-1]
+    if letzt not in (i0, tief):
+        g.marken.append(GfMarke(letzt, werte[letzt], f"{MONATE_KURZ[monate_[letzt].month - 1]} {monate_[letzt].year}: "
+                                f"rund {zahl(_rund(werte[letzt]))}"))
+    if g.warn is not None and eng is None:
+        g.luft = _rund(g.warn - werte[hoch])
+        g.luft_index = i0 + (len(prog) - 1) // 3 if len(prog) > 3 else i0
+    return g

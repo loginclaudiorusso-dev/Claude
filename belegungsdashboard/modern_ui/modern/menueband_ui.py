@@ -99,6 +99,8 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
 
         a.toast(f"INNternat – neue Oberfläche {__version__} · Daten und Regeln: Belegung {haupt} · "
                 f"Standort {standort_kern.aktiv().name}", rueck=False)
+    elif name.startswith("navigation:"):                    # 0.91: Seitenleiste ↔ Menüband
+        await a.design_setzen(navigation=name.split(":", 1)[1])
     elif name.startswith("layout:"):
         await a.design_setzen(layout=name.split(":", 1)[1])
     elif name.startswith("farbe:"):
@@ -260,7 +262,11 @@ def fuellen(a, erzwingen: bool = False) -> None:
         tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
         aktuell = next((r for r in alle if r.key == tab), alle[0])
     a.band_tab, a._ob_seite = tab, a.seite
+    from belegung import aenderungen as _ae
+
+    letzt = _ae.letzter()
     sig = (tab, a.seite, repr(sorted(a.ansicht.items())), _heute(a), repr(sorted(a.design.items())), len(a.karten),
+           letzt.titel if letzt else "", len(_ae._verlauf),
            sum(1 for k in a.karten if k.stufe == "dringend"), a.ungelesen, getattr(a.stand_anzeige, "text", ""))
     if sig == getattr(a, "_ob_sig", None) and not erzwingen:
         return
@@ -293,14 +299,28 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")
+            if a.design.get("navigation", "leiste") == "leiste":     # 0.91: was Rückgängig zurücknimmt, steht dran
+                from belegung import aenderungen
+
+                s_ = aenderungen.letzter()
+                if s_ is not None:
+                    rk = ui.element("button").classes("m-ob-rueck")
+                    attr(rk, title="Letzten eigenen Schritt zurücknehmen (Strg+Z)")
+                    with rk:
+                        ui.label(f"Rückgängig: {s_.titel}")
+                    rk.on("click", lambda: ausfuehren(a, mb.A("rueckgaengig")))
             # 0.68: Glocke (Neuigkeiten) und Hilfe in der Titelleiste – wie in Office
-            glocke = ui.element("button").classes("m-ob-tk m-ob-glocke")
-            attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen" if a.ungelesen else "Neuigkeiten",
-                 aria_label="Neuigkeiten")
+            leiste = a.design.get("navigation", "leiste") == "leiste"
+            glocke = ui.element("button").classes("m-ob-tk m-ob-glocke" + (" m-ob-neu" if leiste else ""))
+            attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen (Meldungen, keine Aufgaben)" if a.ungelesen
+                 else "Neuigkeiten", aria_label="Neuigkeiten")
             with glocke:
-                ui.icon("notifications" if a.ungelesen else "notifications_none")
-                if a.ungelesen:
-                    ui.label(str(a.ungelesen)).classes("m-ob-zahl rot" if a.ungelesen else "m-ob-zahl")
+                if leiste:                       # 0.91: als Wort – die Zahl ist keine Aufgabenzahl
+                    ui.label(f"Neuigkeiten · {a.ungelesen}" if a.ungelesen else "Neuigkeiten")
+                else:
+                    ui.icon("notifications" if a.ungelesen else "notifications_none")
+                    if a.ungelesen:
+                        ui.label(str(a.ungelesen)).classes("m-ob-zahl rot" if a.ungelesen else "m-ob-zahl")
             glocke.on("click", lambda: ausfuehren(a, mb.A("neuigkeiten")))
             hilfe = ui.element("button").classes("m-ob-tk")
             attr(hilfe, title="Hilfe zu dieser Seite (F1)", aria_label="Hilfe")
@@ -440,6 +460,31 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-tab.kontext::before { content: ""; position: absolute; left: 6px; right: 6px; top: 0; height: 3px; border-radius: 0 0 2px 2px;
   background: var(--ob-akzent); opacity: .55; }
 body.lay-office .m-seg-ansicht { display: none !important; }
+/* 0.91: Seitenleiste im Windows-Look – Titel- und Statusleiste bleiben, die Registerkarten entfallen */
+body.lay-office.nav-leiste .m-ob-reiter, body.lay-office.nav-leiste .m-ob-band { display: none !important; }
+body.lay-office.nav-leiste .m-seg-ansicht { display: inline-flex !important; }
+body.lay-office.nav-leiste .m-nav { display: flex !important; width: 232px; background: var(--ob-fl);
+  border-right: 1px solid var(--ob-rand); padding: 8px 8px 10px; gap: 1px; overflow-y: auto; backdrop-filter: none;
+  position: fixed; left: 0; top: var(--ob-titel-h, 38px); bottom: 24px; z-index: 5; }
+body.lay-office.nav-leiste .m-nav .m-marke, body.lay-office.nav-leiste .m-nav .m-navfuss { display: none !important; }
+body.lay-office.nav-leiste .m-navliste { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+body.lay-office.nav-leiste .m-haupt { margin-left: 232px; min-width: 0; }
+body.lay-office.nav-leiste .m-haupt > .m-topnav { margin-left: -232px; }
+.m-lz { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent;
+  font: inherit; font-size: 14.5px; color: var(--ob-text); padding: 5px 12px; border-radius: 6px; cursor: pointer; min-height: 31px; }
+.m-lz:hover { background: var(--ob-hover); }
+.m-lz.an { background: var(--ob-an); color: var(--ob-titel); font-weight: 600; }
+body.mod-dunkel .m-lz.an { color: var(--ob-akzent); }
+.m-lz:focus-visible { outline: 2px solid var(--ob-akzent); outline-offset: -2px; }
+.m-lz .m-zahl { margin-left: auto; }
+.m-lz-gruppe { font-size: 12.5px; color: var(--ob-text2); padding: 11px 12px 3px; }
+.m-lz-klein { font-size: 12.5px; color: var(--ob-text2); min-height: 28px; }
+.m-ob-rueck { border: 0; background: transparent; color: var(--ob-titel-text); font: inherit; font-size: 13.5px;
+  padding: 4px 10px; border-radius: 4px; cursor: pointer; max-width: 340px; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; opacity: .92; }
+.m-ob-rueck:hover { background: rgba(255,255,255,.14); opacity: 1; }
+.m-ob-tk.m-ob-neu { width: auto; padding: 0 12px; border: 1px solid rgba(255,255,255,.45); border-radius: 4px;
+  font-size: 13.5px; color: var(--ob-titel-text); }
 /* 0.69 Arbeitsfläche: Kennzahlen als EINE Zeile flacher Chips, Null-Werte grau; Heute ohne große Überschrift */
 body.lay-office .m-leiste { padding: 6px 18px; gap: 8px; row-gap: 6px; }
 body.lay-office .m-stats { gap: 6px; }

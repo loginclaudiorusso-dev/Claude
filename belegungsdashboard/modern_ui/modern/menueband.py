@@ -167,6 +167,7 @@ DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten
     Punkt("Exportieren …", "ios_share", A("exportieren"), False),
     Punkt("Importieren", "upload_file", S("daten"), False),
     Punkt("Informationen & Sicherung", "backup", S("einstellungen", "sicherung"), False),
+    Punkt("Seitenleiste statt Menüband", "view_sidebar", A("navigation:leiste"), False),   # 0.91
     Punkt("Optionen", "settings", A("optionen"), False),
 ]
 # Titelleiste rechts (wie in Office): Glocke, Hilfe – der Standort steht als Auswahl neben dem Programmnamen
@@ -201,6 +202,39 @@ def _zoom():
 
 def sichtbar(r: Reiter, seite: str) -> bool:
     return not r.kontext or seite in r.kontext
+
+
+def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]]]:
+    """0.91: Seitenleiste – (Gruppe, Einträge). Jedes häufige Ziel steht direkt da (kein Suchen hinter Registerkarten);
+    seltenere Unteransichten (Karten, Änderungen, Vorschau, Facility-Checks …) bleiben als Umschalter auf der Seite."""
+    def v(seite, k, text=None, icon=None):
+        t = text or (ansichten.get(seite) or {}).get(k, k)
+        return Punkt(t.replace("\u00ad", ""), icon or ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), False)
+
+    erg = [("", [Punkt("Heute", "today", S("heute", heute_ansicht="zentrale"), False),
+                 Punkt("Termine", "event", S("termine"), False),
+                 Punkt("Assistenz", "auto_awesome", S("assistenz"), False)]),
+           ("Anreisen", [v("anreisen", "zuteilen"), v("anreisen", "personen"), v("anreisen", "abreisen"),
+                         v("anreisen", "eintragen", "Firmenprogramm"), Punkt("Mieter", "key", S("mieter"), False)]),
+           ("Zimmer und Haus", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
+                                Punkt("Reinigung", "cleaning_services", S("reinigung", "liste"), False),
+                                v("zimmer", "maengel", "Mängel und Prüfungen")]),
+           ("Auswertung", [v("auswertung", "prognose", "Belegung und Prognose"), v("auswertung", "massnahmen"),
+                           v("auswertung", "zimmer", "Engpässe")]
+            + ([Punkt("Steuerung", "query_stats", S("steuerung"), False)] if leitung else [])),
+           ("Verwalten", [Punkt("Inventar", "inventory_2", S("inventar"), False),
+                          Punkt("Daten und Import", "upload_file", S("daten"), False),
+                          Punkt("Einstellungen", "settings", S("einstellungen"), False)])]
+    return erg
+
+
+def leiste_aktiv(eintraege: list[tuple[str, list[Punkt]]], seite: str, ansicht_von, heute_ansicht: str) -> Punkt | None:
+    """Welcher Eintrag ist markiert? Genau einer: zuerst die genaue Ansicht, sonst der erste Eintrag der Seite."""
+    alle = [p for _g, ps in eintraege for p in ps]
+    genau = next((p for p in alle if aktiv(p, seite, ansicht_von, heute_ansicht) and p.ziel[2] is not None), None)
+    if seite == "heute":
+        return alle[0]
+    return genau or next((p for p in alle if p.ziel and p.ziel[1] == seite), None)
 
 
 def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") -> bool:

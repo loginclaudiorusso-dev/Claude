@@ -324,6 +324,9 @@ class Ansicht:
         from . import diagramm_ui
 
         ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
+        from . import seite_heute as _heute_css
+
+        ui.add_css(_heute_css.CSS)             # 0.91: Heute als eine Seite
         ui.add_body_html(diagramm_ui.JS)
         from . import bestand_ui
 
@@ -456,6 +459,10 @@ class Ansicht:
             return
         self._nav_sig, self._nav_zahlen = sig, []
         self.nav.clear()
+        if self.design["layout"] == "office" and self.design.get("navigation", "leiste") == "leiste":
+            self._leiste_fuellen()                                     # 0.91: Seitenleiste im Windows-Look
+            self._nav_zahlen_setzen()
+            return
         with self.nav:
             gruppe = None
             for k, text, icon, g in register.NAV:
@@ -494,6 +501,35 @@ class Ansicht:
                 k.on("click", lambda: self.design_setzen(schmal=not schmal))
         self._topnav_fuellen(dringend)
         self._nav_zahlen_setzen()
+
+    def _leiste_fuellen(self) -> None:
+        """0.91: Seitenleiste mit allen häufigen Zielen; Zähler am ersten Eintrag einer Seite (nur Dringendes an Heute)."""
+        from . import menueband as mb
+        from . import menueband_ui as mbu
+
+        eintraege = mb.leiste(mbu._ansichten(), self.design.get("leitung", True))
+        an = mb.leiste_aktiv(eintraege, self.seite, mbu._av(self), mbu._heute(self))
+        gezaehlt = set()
+        with self.nav:
+            for gruppe, punkte in eintraege:
+                if gruppe:
+                    ui.label(gruppe).classes("m-lz-gruppe")
+                for p in punkte:
+                    b = ui.element("button").classes("m-lz" + (" an" if p is an else ""))
+                    attr(b, title=p.text)
+                    with b:
+                        ui.label(p.text)
+                        seite = p.ziel[1]
+                        if seite not in gezaehlt:
+                            gezaehlt.add(seite)
+                            self._nav_zahlen.append((seite, ui.label("").classes("m-zahl")))
+                    b.on("click", lambda p=p: mbu.ausfuehren(self, p.ziel))
+            ui.element("div").style("flex:1")
+            k = ui.element("button").classes("m-lz m-lz-klein")
+            attr(k, title="Registerkarten oben wie in Word und Excel – jederzeit über Datei zurück")
+            with k:
+                ui.label("Menüband zeigen")
+            k.on("click", lambda: self.design_setzen(navigation="band"))
 
     def _nav_zahlen_setzen(self) -> None:
         """Zahlen an den Menüpunkten (Seitenleiste und Dock) – ohne die Knöpfe neu zu bauen."""
@@ -1605,6 +1641,9 @@ class Ansicht:
         self.panel("Planung widerspricht dem Gebäudeplan", bauen, breit=True)
 
     async def _karte_loesen(self, k: kern.Karte) -> None:
+        if k.aktion.schluessel.startswith("ausweich:"):          # 0.91: ein Fall, ein Klick
+            await self.aendern(kern.ausweich_uebernehmen, [k.aktion.schluessel.split(":", 1)[1]], self.heute)
+            return
         if k.aktion.schluessel == "strittig":
             await self._strittig_panel()
             return
