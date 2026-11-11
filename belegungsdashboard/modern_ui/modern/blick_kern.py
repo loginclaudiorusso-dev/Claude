@@ -426,3 +426,41 @@ def gf(monate_: list[date], werte: list[float | None], ist: list[bool], stand: d
         g.luft = _rund(g.warn - werte[hoch])
         g.luft_index = i0 + (len(prog) - 1) // 3 if len(prog) > 3 else i0
     return g
+
+
+# ---- 0.93: Belegung im Zeitraum – Leitungsansicht --------------------------------------------------------------------
+
+@dataclass
+class BelegungSatz:
+    titel: str
+    untertitel: str
+    gruppen: list = field(default_factory=list)      # (Name, Ø Plätze je Tag, Anteil) – größte zuerst
+
+
+def belegung_zeitraum(von: date, bis: date, kategorien: dict[str, list[float]], kapazitaet: float | None,
+                      nur_ist: bool = True) -> BelegungSatz:
+    """„Vom 01.10. bis 31.10.2026 waren im Schnitt 212 von 250 Plätzen belegt (85 %).“ + Anteile je Gruppe."""
+    tage = max((len(v) for v in kategorien.values()), default=0)
+    if not tage:
+        return BelegungSatz("Für diesen Zeitraum gibt es keine Zahlen.", "")
+    je_tag = [sum(v[i] for v in kategorien.values() if i < len(v)) for i in range(tage)]
+    mittel = sum(je_tag) / tage
+    hoch, tief = max(je_tag), min(je_tag)
+    zeit = f"am {von:%d.%m.%Y}" if von == bis else f"vom {von:%d.%m.} bis {bis:%d.%m.%Y}"
+    verb = ("waren" if nur_ist else "sind") if von != bis else ("waren" if nur_ist else "sind voraussichtlich")
+    if von == bis:
+        titel = f"{zeit[0].upper()}{zeit[1:]} {verb} {zahl(mittel)}" + (f" von {zahl(kapazitaet)} Plätzen belegt "
+                                                                          f"({round(100 * mittel / kapazitaet)} %)."
+                                                                          if kapazitaet else " Plätze belegt.")
+        unter = ""
+    else:
+        titel = (f"{zeit[0].upper()}{zeit[1:]} {verb} im Schnitt {zahl(mittel)}"
+                 + (f" von {zahl(kapazitaet)} Plätzen belegt ({round(100 * mittel / kapazitaet)} %)." if kapazitaet
+                    else " Plätze belegt."))
+        unter = f"Höchststand {zahl(hoch)}, Tiefststand {zahl(tief)}" + (
+            f" · frei blieben mindestens {zahl(max(kapazitaet - hoch, 0))} Plätze." if kapazitaet else ".")
+    gruppen = sorted(((k, sum(v) / tage) for k, v in kategorien.items() if sum(v)), key=lambda x: -x[1])
+    erg = BelegungSatz(titel, unter, [(k, m, m / mittel if mittel else 0.0) for k, m in gruppen])
+    if gruppen and not unter:
+        erg.untertitel = ", ".join(f"{k} {zahl(m)}" for k, m in gruppen) + "."
+    return erg

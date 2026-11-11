@@ -118,10 +118,33 @@ class Zeitraum:
         return sum(self.personentage.values())
 
 
-def zeitraum(ds, standort: str, von: date, bis: date, brutto: bool) -> Zeitraum:
+def _mieter_dazu(kat, standort: str, mieter_zr):
+    """0.93: Mieter aus Verträgen ergänzen – je Tag das Maximum aus Listen-Einträgen „Mieter“ und Verträgen.
+    Gibt (Kategorien, zusätzliche Plätze je Tag) zurück."""
+    import numpy as np
+    import pandas as pd
+
+    mehr = np.zeros(len(kat.index))
+    if not mieter_zr or standort not in ("BFW GS", konfig.GESAMT):        # Mieter stehen nur in Goslar
+        return kat, mehr
+    tage = kat.index
+    vertrag = np.zeros(len(tage))
+    for a_, b_ in mieter_zr:
+        lo, hi = tage.searchsorted(pd.Timestamp(a_)), tage.searchsorted(pd.Timestamp(b_), side="right")
+        if lo < hi:
+            vertrag[lo:hi] += 1
+    liste = kat["Mieter"].to_numpy(dtype=float) if "Mieter" in kat else np.zeros(len(tage))
+    mehr = np.maximum(vertrag - liste, 0.0)
+    if mehr.any():
+        kat = kat.copy()
+        kat["Mieter"] = liste + mehr
+    return kat, mehr
+
+
+def zeitraum(ds, standort: str, von: date, bis: date, brutto: bool, mieter_zr=None) -> Zeitraum:
     if bis < von:
         von, bis = bis, von
-    k = ds.kategorien(standort, von, bis, brutto)
+    k, _mehr = _mieter_dazu(ds.kategorien(standort, von, bis, brutto), standort, mieter_zr)
     summe = k.sum(axis=1)
     pt = {c: round(float(k[c].sum()), 1) for c in k.columns if float(k[c].sum())}
     return Zeitraum(von, bis, len(k), dict(sorted(pt.items(), key=lambda x: -x[1])), float(summe.mean()) if len(k) else 0.0,
@@ -286,17 +309,22 @@ class BDetails:
     muster: list[list[float | None]]  # 7 Wochentage × 12 Monate: Ø Ist-Belegung (letzte 4 Jahre)
 
 
-def belegung_details(ds, standort: str, von: date, bis: date, brutto: bool) -> BDetails:
+def belegung_details(ds, standort: str, von: date, bis: date, brutto: bool,
+                     mieter_zr: list[tuple[date, date]] | None = None) -> BDetails:
+    """``mieter_zr`` (0.93): Mieter aus Mietverträgen bzw. Zimmerplan, je Person (von, bis) – wie in der Prognose. Was die
+    Verträge über die Listen-Einträge „Mieter“ hinaus zeigen, kommt als Mieter hinzu (nichts doppelt)."""
     import pandas as pd
 
     if bis < von:
         von, bis = bis, von
     von = max(von, ds.erster_tag)
-    df = ds.verlauf(standort, von, bis, brutto)
-    w = df["wert"]
+    df = ds.verlauf(standort, von, bis, brutto).copy()
     kap = ds.kapazitaet(standort, brutto)
     ist = df["ist"].to_numpy()
-    kat = ds.kategorien(standort, von, bis, brutto)
+    kat, mehr = _mieter_dazu(ds.kategorien(standort, von, bis, brutto), standort, mieter_zr)
+    if mehr.any():
+        df["wert"] = df["wert"].to_numpy() + mehr
+    w = df["wert"]
     if (~ist).any():                     # Zukunft: Reha durch die Prognose ersetzen (wie im Hauptprogramm)
         kat = kat.copy()
         andere = kat.drop(columns=["Reha"] + (["Anreise"] if "Anreise" in kat else [])).sum(axis=1)

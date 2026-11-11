@@ -46,8 +46,10 @@ def daten(a) -> None:
     if ansicht == "lage":
         a.daten = {"lage": ak.lage(ds, a.aw_standort, a.aw_brutto)}
     elif ansicht == "belegung":
-        a.daten = {"zr": ak.zeitraum(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto), "stichtag": ds.stichtag,
-                   "det": ak.belegung_details(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto)}
+        mzr = _mieter_zr(a)
+        a.daten = {"zr": ak.zeitraum(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto, mzr), "stichtag": ds.stichtag,
+                   "det": ak.belegung_details(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto,
+                                              mzr)}
     else:
         seite_prognose.daten(a, ds)
 
@@ -219,6 +221,16 @@ def _lage(a) -> None:
 
 # ---- Belegung im Zeitraum ----------------------------------------------------------------
 
+def _mieter_zr(a) -> list:
+    """0.93: Mieter aus den Mietverträgen (und laut Zimmerplan) – dieselbe Quelle wie die Prognose."""
+    from . import analytik_kern as an
+
+    try:
+        return an.mieter_zeitraeume(getattr(a, "stand", None))
+    except Exception:                          # noqa: BLE001 – ohne Verträge bleibt die bisherige Sicht
+        return []
+
+
 def _belegung(a) -> None:
     zr: ak.Zeitraum = a.daten["zr"]
     with a.leiste:
@@ -232,10 +244,14 @@ def _belegung(a) -> None:
                 a.toast("Bitte gültige Tage wählen.", fehler=True)
 
         knopf("Anzeigen", anwenden, "primaer")
-        st = a.daten["stichtag"]
-        for text, v, b in (("Letzter Monat", (st.replace(day=1) - timedelta(days=1)).replace(day=1), st.replace(day=1) - timedelta(days=1)),
-                           ("Dieses Jahr", date(st.year, 1, 1), st), ("Nächste 3 Monate", st, st + timedelta(days=91))):
-            knopf(text, lambda v=v, b=b: a.setzen(aw_von=v, aw_bis=b), "leise")
+        # 0.93: vom heutigen Tag aus (nicht vom Datenstand) – im November ist „Letzter Monat“ der Oktober
+        h = a.heute
+        ende_vormonat = h.replace(day=1) - timedelta(days=1)
+        for text, v, b in (("Heute", h, h), ("Dieser Monat", h.replace(day=1), h),
+                           ("Letzter Monat", ende_vormonat.replace(day=1), ende_vormonat),
+                           ("Dieses Jahr", date(h.year, 1, 1), h), ("Nächste 3 Monate", h, h + timedelta(days=91))):
+            knopf(text, lambda v=v, b=b: a.setzen(aw_von=v, aw_bis=b),
+                  "" if (a.aw_von, a.aw_bis) == (v, b) else "leise")
         from . import diagramm_karte
 
         diagramm_karte.modus_wahl(a)                    # 0.89: Klassisch | Karte | Einfach
@@ -267,6 +283,45 @@ def _belegung(a) -> None:
                          "Prognose plus Verträge – vorher Ist-Werte.").classes("m-ptext")
 
 
+def _belegung_einfach(a, det: ak.BDetails, zr, farben) -> None:
+    """0.93 „Einfach“: die Aussage als Überschrift, die Gesamtbelegung als eine Fläche ab 0 gegen „voll“, darunter je
+    Gruppe ein Balken mit ihrem Anteil – keine gestapelten Linien."""
+    from . import blick_kern as bk
+
+    s = bk.belegung_zeitraum(zr.von, zr.bis, {k: v for k, v in det.kategorien.items() if k != "Anreise"},
+                              zr.kapazitaet or None, all(det.ist))
+    with ui.element("section").classes("m-gf"):
+        ui.label(s.titel).classes("m-gf-titel")
+        ui.label(s.untertitel).classes("m-gf-unter")
+        summe = [round(sum(v[i] for k, v in det.kategorien.items() if k != "Anreise"), 1) for i in range(len(det.tage))]
+        t = _T()
+        opt = {"animation": False, "grid": {"left": 44, "right": 120, "top": 24, "bottom": 28},
+               "tooltip": {"trigger": "axis"},
+               "xAxis": {"type": "category", "data": det.tage, "boundaryGap": False,
+                         "axisLabel": {"color": t["text2"]}, "axisLine": {"lineStyle": {"color": t["rand"]}}},
+               "yAxis": {"type": "value", "min": 0, "max": round(max([zr.kapazitaet or 0] + summe) * 1.03),
+                         "axisLabel": {"color": t["text2"]}, "splitLine": {"lineStyle": {"color": t["rand"], "opacity": .5}}},
+               "series": [{"name": "belegt", "type": "line", "data": summe, "symbol": "none",
+                           "lineStyle": {"color": t["akzent"], "width": 2}, "areaStyle": {"color": t["akzent"], "opacity": .14},
+                           "markLine": {"silent": True, "symbol": "none", "data": ([{
+                               "yAxis": zr.kapazitaet, "lineStyle": {"color": t["text"], "type": "solid"},
+                               "label": {"formatter": f"voll: {bk.zahl(zr.kapazitaet)} Plätze", "position": "end",
+                                         "color": t["text"], "fontWeight": 600}}] if zr.kapazitaet else [])}}]}
+        ui.echart(opt).classes("m-gf-chart").style("height:300px !important")
+        ui.label("Belegte Plätze je Tag" + ("" if all(det.ist) else " · ab dem Datenstand Prognose")
+                 + " · Achse beginnt bei 0").classes("m-gf-fuss")
+    with ui.element("section").classes("m-einfach").style("margin-top:14px"):
+        ui.label("Wer belegt die Plätze? (Ø je Tag im Zeitraum)").classes("m-btitel")
+        hoch = max([g[1] for g in s.gruppen] + [1])
+        with ui.element("div").classes("m-einfach-liste"):
+            for name, mittel, anteil in s.gruppen:
+                with ui.element("div").classes("m-einfach-zeile"):
+                    ui.label(name).classes("m-einfach-name")
+                    with ui.element("div").classes("m-einfach-spur"):
+                        ui.element("div").classes("m-einfach-balken").style(f"width:{100 * mittel / hoch:.1f}%")
+                    ui.label(f"{bk.zahl(mittel)} · {round(100 * anteil)} %").classes("m-einfach-wert")
+
+
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
     farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
     from . import diagramm_karte
@@ -292,6 +347,9 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                                                     "lineStyle": {"color": _T()["text3"], "type": "dashed"},
                                                     "data": [{"xAxis": stich}]}
                 _chart(opt, a)
+        elif diagramm_karte.modus() == "einfach":         # 0.93: eigene Leitungsansicht statt der Karte
+            with ui.element("div").classes("m-breit"):
+                _belegung_einfach(a, det, zr, farben)
         else:
             with ui.element("div").classes("m-breit"):
                 _tagesverlauf_karte(a, det, zr, farben)

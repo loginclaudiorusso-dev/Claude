@@ -132,6 +132,11 @@ def zeichnen(a) -> None:
                         _raster_klassisch(d["reihen"], d["skala"] == "gleich")
                     elif m_ == "einfach":
                         _raster_einfach(d["reihen"])
+                        an = bool(getattr(a, "mn_diagramme", False))     # 0.93: Diagramme je Maßnahme auf Wunsch
+                        knopf("Diagramme je Maßnahme ausblenden" if an else "Diagramme je Maßnahme zeigen",
+                              lambda: a.setzen(mn_diagramme=not an, laden=False), "", "expand_less" if an else "expand_more")
+                        if an:
+                            _raster(a, d["reihen"], d["skala"] == "gleich", pv)
                     else:
                         _raster(a, d["reihen"], d["skala"] == "gleich", pv)
                 tr = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
@@ -363,10 +368,9 @@ def _raster_einfach(reihen: dict) -> None:
                         ui.element("div").classes("m-einfach-balken").style(f"width:{100 * n / hoch:.1f}%")
                         attr(ui.element("div").classes("m-einfach-marke").style(f"left:{100 * v / hoch:.1f}%"),
                              title=f"letzte 12 Monate: {bk.zahl(v)}")
-                    ui.label(f"≈ {bk.zahl(n)}").classes("m-einfach-wert")
-                    ui.label(f"zuletzt {bk.zahl(v)}").classes("m-zweite")
-        ui.label("Balken = erwartet im nächsten Jahr · Strich = letzte 12 Monate. Schwankung je Maßnahme: siehe "
-                 "Darstellung „Karte“ oder „Klassisch“.").classes("m-zweite")
+                    ui.label(f"≈ {bk.zahl(n)} · zuletzt {bk.zahl(v)}").classes("m-einfach-wert")
+        ui.label("Balken = erwartet im nächsten Jahr · Strich = letzte 12 Monate. Verlauf je Maßnahme: „Diagramme je "
+                 "Maßnahme zeigen“ oder Darstellung „Karte“ bzw. „Klassisch“.").classes("m-zweite")
 
 
 def _kpis(d: dict) -> None:
