@@ -167,7 +167,7 @@ DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten
     Punkt("Exportieren …", "ios_share", A("exportieren"), False),
     Punkt("Importieren", "upload_file", S("daten"), False),
     Punkt("Informationen & Sicherung", "backup", S("einstellungen", "sicherung"), False),
-    Punkt("Seitenleiste statt Menüband", "view_sidebar", A("navigation:leiste"), False),   # 0.91
+    Punkt("Seitenleiste statt Menüband", "view_sidebar", A("nav:leiste"), False),          # 0.91 – Option
     Punkt("Optionen", "settings", A("optionen"), False),
 ]
 # Titelleiste rechts (wie in Office): Glocke, Hilfe – der Standort steht als Auswahl neben dem Programmnamen

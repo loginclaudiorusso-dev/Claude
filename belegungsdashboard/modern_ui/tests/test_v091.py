@@ -15,12 +15,15 @@ MOD = Path(__file__).resolve().parent.parent / "modern"
 
 
 def test_navigation_einstellung_und_klasse():
-    assert dk.STANDARD["navigation"] == "leiste" and set(dk.NAVIGATION) == {"leiste", "band"}
-    assert dk.bereinigen({"navigation": "band"})["navigation"] == "band"
-    assert dk.bereinigen({"navigation": "quatsch"})["navigation"] == "leiste"
-    assert "nav-leiste" in themes.klassen({"layout": "office", "theme": "innternat", "navigation": "leiste"})
-    assert "nav-leiste" not in themes.klassen({"layout": "office", "theme": "innternat", "navigation": "band"})
-    assert ("aktion", "navigation:leiste") in [p.ziel for p in mb.DATEI]
+    # 0.92: Menüband wie in Office ist Standard und bleibt es; die Seitenleiste nur, wenn ausdrücklich gewählt
+    assert dk.STANDARD["nav"] == "band" and set(dk.NAVIGATION) == {"leiste", "band"}
+    assert dk.bereinigen({})["nav"] == "band"
+    assert dk.bereinigen({"navigation": "leiste"})["nav"] == "band"        # Einstellung aus 0.91 gilt nicht mehr
+    assert dk.bereinigen({"nav": "leiste"})["nav"] == "leiste"
+    assert dk.bereinigen({"nav": "quatsch"})["nav"] == "band"
+    assert "nav-leiste" in themes.klassen({"layout": "office", "theme": "innternat", "nav": "leiste"})
+    assert "nav-leiste" not in themes.klassen({"layout": "office", "theme": "innternat"})
+    assert ("aktion", "nav:leiste") in [p.ziel for p in mb.DATEI]
 
 
 def test_seitenleiste_alle_ziele_sichtbar():

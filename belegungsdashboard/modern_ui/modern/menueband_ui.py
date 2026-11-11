@@ -99,8 +99,8 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
 
         a.toast(f"INNternat – neue Oberfläche {__version__} · Daten und Regeln: Belegung {haupt} · "
                 f"Standort {standort_kern.aktiv().name}", rueck=False)
-    elif name.startswith("navigation:"):                    # 0.91: Seitenleiste ↔ Menüband
-        await a.design_setzen(navigation=name.split(":", 1)[1])
+    elif name.startswith("nav:"):                           # 0.91: Seitenleiste ↔ Menüband
+        await a.design_setzen(nav=name.split(":", 1)[1])
     elif name.startswith("layout:"):
         await a.design_setzen(layout=name.split(":", 1)[1])
     elif name.startswith("farbe:"):
@@ -299,7 +299,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")
-            if a.design.get("navigation", "leiste") == "leiste":     # 0.91: was Rückgängig zurücknimmt, steht dran
+            if a.design.get("nav", "band") == "leiste":              # 0.91: was Rückgängig zurücknimmt, steht dran
                 from belegung import aenderungen
 
                 s_ = aenderungen.letzter()
@@ -310,7 +310,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
                         ui.label(f"Rückgängig: {s_.titel}")
                     rk.on("click", lambda: ausfuehren(a, mb.A("rueckgaengig")))
             # 0.68: Glocke (Neuigkeiten) und Hilfe in der Titelleiste – wie in Office
-            leiste = a.design.get("navigation", "leiste") == "leiste"
+            leiste = a.design.get("nav", "band") == "leiste"
             glocke = ui.element("button").classes("m-ob-tk m-ob-glocke" + (" m-ob-neu" if leiste else ""))
             attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen (Meldungen, keine Aufgaben)" if a.ungelesen
                  else "Neuigkeiten", aria_label="Neuigkeiten")

@@ -55,10 +55,11 @@ STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig"
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
-            "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "navigation": "leiste"}
-# 0.91: Navigation im Windows-Look – Seitenleiste (alle Ziele immer sichtbar, Zähler am Eintrag) oder Menüband
-NAVIGATION = {"leiste": ("Seitenleiste", "Alle Bereiche links immer sichtbar, Zähler direkt am Eintrag (empfohlen)"),
-              "band": ("Menüband", "Registerkarten oben mit großen Symbolen – wie Word und Excel")}
+            "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band"}
+# 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
+# Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
+NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
+              "leiste": ("Seitenleiste", "Alle Bereiche links immer sichtbar, Zähler direkt am Eintrag")}
 # 0.89: Darstellung der Auswertungs-Diagramme – je nach Publikum wählbar (gilt je PC)
 DG_MODI = {"karte": ("Karte", "Diagramm-Karte mit Knöpfen, „Auf einen Blick“ und einheitlichem Stil"),
            "klassisch": ("Klassisch", "Wie bis Version 0.86: Diagramm mit Legende unten und Leiste darunter"),
@@ -121,7 +122,7 @@ def bereinigen(d: dict) -> dict:
     e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
-    e["navigation"] = d.get("navigation") if d.get("navigation") in NAVIGATION else "leiste"
+    e["nav"] = d.get("nav") if d.get("nav") in NAVIGATION else "band"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
     e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
     for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):

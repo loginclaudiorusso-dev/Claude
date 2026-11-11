@@ -459,7 +459,7 @@ class Ansicht:
             return
         self._nav_sig, self._nav_zahlen = sig, []
         self.nav.clear()
-        if self.design["layout"] == "office" and self.design.get("navigation", "leiste") == "leiste":
+        if self.design["layout"] == "office" and self.design.get("nav", "band") == "leiste":
             self._leiste_fuellen()                                     # 0.91: Seitenleiste im Windows-Look
             self._nav_zahlen_setzen()
             return
@@ -529,7 +529,7 @@ class Ansicht:
             attr(k, title="Registerkarten oben wie in Word und Excel – jederzeit über Datei zurück")
             with k:
                 ui.label("Menüband zeigen")
-            k.on("click", lambda: self.design_setzen(navigation="band"))
+            k.on("click", lambda: self.design_setzen(nav="band"))
 
     def _nav_zahlen_setzen(self) -> None:
         """Zahlen an den Menüpunkten (Seitenleiste und Dock) – ohne die Knöpfe neu zu bauen."""
