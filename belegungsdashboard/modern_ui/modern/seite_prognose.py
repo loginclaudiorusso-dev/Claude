@@ -114,7 +114,8 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
 
     zs = ak.szenario(pg, kap, 0)
     lg = bk.leitung(ort, [z.monat for z in zs], [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs],
-                    [z.art == "ist" for z in zs], a.daten["stichtag"], kap or None, [z.lo80 for z in zs], [z.hi80 for z in zs])
+                    [z.art == "ist" for z in zs], a.daten["stichtag"], kap or None, [z.lo80 for z in zs], [z.hi80 for z in zs],
+                    oben95=[z.hi95 for z in zs])
     with ui.element("section").classes("m-einfach"):
         ui.label(lg.titel).classes("m-einfach-titel")
         with ui.element("div").classes("m-einfach-zahlen"):

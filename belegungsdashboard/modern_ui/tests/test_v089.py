@@ -22,9 +22,9 @@ def _reihe():
 def test_leitung_eng_ab_monat():
     ms, erw, ist, lo, hi = _reihe()
     lg = bk.leitung("Haus A", ms, erw, ist, date(2026, 11, 10), 180, lo, hi)
-    assert lg.titel.startswith("In Haus A wird es ab ") and "von 180 Plätzen möglich" in lg.titel
+    assert lg.titel.startswith("In Haus A wird es ab ") and "voraussichtlich bis zu" in lg.titel and "von 180 Plätzen belegt" in lg.titel
     namen = [z[0] for z in lg.zahlen]
-    assert namen == ["Heute belegt", "Höchstwert erwartet", "Freie Plätze mindestens"]
+    assert namen == ["Heute belegt", "Höchstwert erwartet", "Freie Plätze, ungünstiger Fall"]
     assert lg.zahlen[0][1] == "110"
     assert lg.balken[0][0] == "heute" and lg.balken[0][3] is True and len(lg.balken) == 7
     assert lg.unsicher.startswith("In 8 von 10 Fällen liegt die Belegung im ")

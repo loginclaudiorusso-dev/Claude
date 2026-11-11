@@ -219,12 +219,19 @@ def _prognose(ds, standort: str, brutto: bool, zurueck: int, vor: int) -> Progno
             # 0.39: Die untere Bandgrenze fällt nie unter den bereits gebuchten Bestand (der steht fest) – das Modell
             # im Hauptprogramm schneidet sie nur bei 0 ab.
             boden = mp["gesichert"] if (mp["gesichert"] is not None and mp["art"] != "ist") else None
-            lo80 = max(mp["lo80"], boden) if boden is not None else mp["lo80"]
-            lo95 = max(mp["lo95"], boden) if boden is not None else mp["lo95"]
-            # 0.87: nie über der oberen Grenze (im laufenden Monat lag der gebuchte Bestand teils darüber → Band verdreht)
-            lo80, lo95 = min(lo80, mp["hi80"]), min(lo95, mp["hi95"])
-            zeilen.append(PZeile(m, mp["art"], _f(mp["erwartet"]), _f(lo80), _f(mp["hi80"]), _f(lo95),
-                                 _f(mp["hi95"]), _f(mp["gesichert"]) if mp["gesichert"] is not None else None,
+            erw, lo80, lo95, hi80, hi95 = mp["erwartet"], mp["lo80"], mp["lo95"], mp["hi80"], mp["hi95"]
+            if boden is not None:
+                # 0.90: Liegt schon das Gebuchte über der Erwartung bzw. der oberen Grenze, rechnet das Modell dort zu
+                # niedrig – dann Erwartung und Grenzen auf das Gebuchte anheben (vorher wurde das Band auf null
+                # gedrückt, unter dem Gebuchten: Scheinsicherheit). Reihenfolge: lo95 ≤ lo80 ≤ erwartet ≤ hi80 ≤ hi95.
+                erw = max(erw, boden)
+                lo80, lo95 = max(lo80, boden), max(lo95, boden)
+            hi80 = max(hi80, erw)
+            hi95 = max(hi95, hi80)
+            lo80 = min(lo80, erw)
+            lo95 = min(lo95, lo80)
+            zeilen.append(PZeile(m, mp["art"], _f(erw), _f(lo80), _f(hi80), _f(lo95),
+                                 _f(hi95), _f(mp["gesichert"]) if mp["gesichert"] is not None else None,
                                  _f(mp["ist"]) if mp["ist"] is not None else None, _f(mp["vertraege"])))
     m = ds.prognose.modelle.get(standort)
     if m is None:

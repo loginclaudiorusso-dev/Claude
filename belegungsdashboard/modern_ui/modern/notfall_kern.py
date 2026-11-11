@@ -81,6 +81,8 @@ def druck_html(zs: list[NZeile], jetzt: datetime, standort: str = "", haus: str 
              ".klein{font-size:9pt;color:#333} .stand{font-size:12pt;font-weight:700;margin:4px 0 8px}"
              "table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:3px 6px;text-align:left;vertical-align:top}"
              "th{background:#eee} td.ok{width:16mm} tr.geplant td{color:#555;font-style:italic} td.et{white-space:nowrap}"
+             "h3{font-size:11pt;margin:10px 0 3px} h3.warn{border:2px solid #111;padding:3px 6px;display:inline-block}"
+             "thead{display:table-header-group} .fuss{margin-top:6px}"
              ".haus{break-before:page} .haus:first-of-type{break-before:auto} @page{margin:12mm}</style>",
              "<h1>Notfallliste – wer ist im Haus?</h1>",
              f"<div class='stand'>{escape(ort)}Stand {jetzt:%d.%m.%Y, %H:%M} Uhr · {sicher} Person{'en' if sicher != 1 else ''} "
@@ -90,25 +92,33 @@ def druck_html(zs: list[NZeile], jetzt: datetime, standort: str = "", haus: str 
              "(personenbezogene Daten).</div>"]
     if not zs:
         teile.append("<p><b>Laut Plan ist niemand im Haus.</b></p>")
-    aktuell = None
-    for z in zs:
-        if z.haus != aktuell:
-            if aktuell is not None:
-                teile.append("</table></section>")
-            aktuell = z.haus
-            h = n[z.haus]
-            plus = f" (+{h['geplant']} geplant)" if h["geplant"] else ""
-            teile.append(f"<section class='haus'><h2>Haus {escape(z.haus)} – {h['personen']} Person"
-                         f"{'en' if h['personen'] != 1 else ''} in {h['zimmer']} Zimmer{'n' if h['zimmer'] != 1 else ''}"
-                         f"{plus}</h2>"
-                         "<table><tr><th>✓</th><th>Etage</th><th>Zimmer</th><th>Name</th><th>Gruppe</th><th>bis</th>"
-                         "<th>Hinweis</th></tr>")
+    kopf = ("<thead><tr><th>✓</th><th>Etage</th><th>Zimmer</th><th>Name</th><th>Gruppe</th><th>bis</th>"
+            "<th>Hinweis</th></tr></thead>")
+    seitenfuss = (f"<div class='klein fuss'>Planstand {jetzt:%d.%m.%Y, %H:%M} Uhr – ohne Gäste, Besucher, Personal. "
+                  "Nicht bestätigte Personen können fehlen oder schon abgereist sein.</div>")
+
+    def zeile(z: NZeile) -> str:
         hinweis = " · ".join(t for t in (ART_TEXT.get(z.art, ""), z.hinweis) if t)
-        teile.append(f"<tr class='{z.art}'><td class='ok'></td><td class='et'>{escape(z.etage)}</td><td>{escape(z.zimmer)}</td>"
-                     f"<td>{escape(z.name)}</td><td>{escape(z.gruppe)}</td><td>{f'{z.bis:%d.%m.}' if z.bis else ''}</td>"
-                     f"<td>{escape(hinweis)}</td></tr>")
-    if aktuell is not None:
-        teile.append("</table></section>")
+        return (f"<tr class='{z.art}'><td class='ok'></td><td class='et'>{escape(z.etage)}</td><td>{escape(z.zimmer)}</td>"
+                f"<td>{escape(z.name)}</td><td>{escape(z.gruppe)}</td><td>{f'{z.bis:%d.%m.}' if z.bis else ''}</td>"
+                f"<td>{escape(hinweis)}</td></tr>")
+
+    for haus in dict.fromkeys(z.haus for z in zs):          # Reihenfolge wie sortiert
+        h = n[haus]
+        sicher_ = [z for z in zs if z.haus == haus and z.art != "geplant"]
+        offen = [z for z in zs if z.haus == haus and z.art == "geplant"]
+        plus = f" (+{h['geplant']} geplant)" if h["geplant"] else ""
+        teile.append(f"<section class='haus'><h2>Haus {escape(haus)} – {h['personen']} Person"
+                     f"{'en' if h['personen'] != 1 else ''} in {h['zimmer']} Zimmer{'n' if h['zimmer'] != 1 else ''}"
+                     f"{plus}</h2>")
+        if sicher_:
+            teile.append("<h3>Im Haus laut Belegung</h3><table>" + kopf + "".join(zeile(z) for z in sicher_) + "</table>")
+        if offen:
+            # 0.90: hart getrennt – nur laut Planung erwartet, Anreise nicht bestätigt (nicht nach ihnen suchen lassen,
+            # ohne vorher zu klären)
+            teile.append("<h3 class='warn'>⚠ Nur geplant – Anreise NICHT bestätigt</h3><table>" + kopf
+                         + "".join(zeile(z) for z in offen) + "</table>")
+        teile.append(seitenfuss + "</section>")
     return "".join(teile)
 
 

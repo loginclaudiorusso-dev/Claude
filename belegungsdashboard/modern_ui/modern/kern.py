@@ -395,6 +395,22 @@ def _zuteilung(stand: zp.Planstand, schluessel: str, zimmer: str) -> zp.Zuteilun
     return zp.Zuteilung(b, stand.lage.zimmer[zimmer])
 
 
+def unter_sperre(fn):
+    """0.90: Lesen, Prüfen UND Speichern unter derselben Schreibsperre. Sonst prüft PC A auf einem Stand, den PC B
+    gerade ändert (A wartet bis zu 15 s auf die Sperre und schreibt dann auf altem Stand → Doppelbelegung)."""
+    import functools
+
+    @functools.wraps(fn)
+    def mit(*args, **kwargs):
+        from . import netz_kern
+
+        with netz_kern.sperre():
+            return fn(*args, **kwargs)
+    mit.unter_sperre = True
+    return mit
+
+
+@unter_sperre
 def zuweisen(schluessel: str, zimmer: str) -> str:
     """Ein Zimmer für eine Person speichern – nur Zimmer, die die Auswahl auch anbietet (frei bzw. Ausnahme)."""
     stand = zp.laden()
@@ -403,6 +419,7 @@ def zuweisen(schluessel: str, zimmer: str) -> str:
     return f"{zt.bedarf.name} → {kurz(zimmer)}"
 
 
+@unter_sperre
 def vorschlaege_uebernehmen(kennung: str, nur: str = "ohne") -> str:
     """Alle grünen Vorschläge einer Anreise speichern. ``nur``: ohne | handeln | alle (ohne + Konflikte)."""
     stand = zp.laden()
@@ -1126,3 +1143,7 @@ _regeln.mieter_ausnahme_installieren()      # 0.59: Mieterinnen dürfen in Zimme
 from . import sperre_kern as _sperre  # noqa: E402
 
 _sperre.installieren()                       # 0.61: Sperre laut Gebäudeplan früher beenden (fertig renoviert)
+
+from . import nichtanreise_kern as _nichtanreise  # noqa: E402
+
+_nichtanreise.nichtanreise_installieren()          # 0.90: Nichtanreise übersteht einen neuen Import der Anreiseliste

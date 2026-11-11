@@ -206,11 +206,16 @@ class Besetzt(ValueError):
 
 
 _rlock = threading.RLock()
+_TOKEN = f"{socket.gethostname()}-{os.getpid()}-{os.urandom(4).hex()}"   # 0.90: wem die Sperre gehört
 _tiefe = {"n": 0}
 
 
 def _sperre_pfad() -> Path:
     return basis() / SPERRE
+
+
+def eigene_sperre() -> bool:
+    return (sperre_info() or {}).get("token") == _TOKEN
 
 
 def sperre_info() -> dict | None:
@@ -220,21 +225,67 @@ def sperre_info() -> dict | None:
         return None
 
 
+def _server_jetzt(ordner: Path) -> float:
+    """0.90: „Jetzt“ in der Uhr des Dateiservers – eine frisch angelegte Datei im selben Ordner. So hängt das Alter
+    einer Sperre nicht an der Uhr dieses PCs (geht sie 1 Minute vor, wäre sonst jede Sperre „verwaist“)."""
+    fd, name = tempfile.mkstemp(prefix=".innternat_uhr_", dir=ordner)
+    try:
+        os.close(fd)
+        return os.stat(name).st_mtime
+    finally:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+
+
+def _alter(p: Path) -> float:
+    return _server_jetzt(p.parent) - p.stat().st_mtime
+
+
+def _uebernehmen(p: Path, alt: float) -> bool:
+    """0.90: Verwaiste Sperre atomar übernehmen. Erst auf einen eigenen Namen umbenennen – das gelingt genau einem
+    PC –, dann prüfen, ob die umbenannte Sperre wirklich alt war. War sie frisch (ein anderer PC hat sie gerade neu
+    angelegt), wird sie zurückgelegt. Nie einfach löschen: zwei PCs könnten sonst gleichzeitig „übernehmen“."""
+    weg = p.with_name(f"{p.name}.{_TOKEN}.alt")
+    try:
+        os.replace(p, weg)
+    except OSError:
+        return False                                   # schon von einem anderen PC übernommen
+    try:
+        if _alter(weg) <= alt:                         # versehentlich eine lebende Sperre gegriffen → zurück
+            try:
+                os.rename(weg, p)
+            except OSError:
+                log.warning("Sperre konnte nicht zurückgelegt werden (anderer PC war schneller)")
+            return False
+        log.warning("Verwaiste Schreibsperre übernommen: %s", weg.read_text(encoding="utf-8", errors="replace")[:200])
+    finally:
+        try:
+            weg.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return True
+
+
 def _sperren(warten: float, alt: float) -> None:
     p = _sperre_pfad()
     p.parent.mkdir(parents=True, exist_ok=True)
     ende = time.monotonic() + warten
+    geprueft = 0.0                                   # Alter höchstens einmal je Sekunde prüfen (Netzlaufwerk schonen)
     while True:
         try:
             fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            try:
-                if time.time() - p.stat().st_mtime > alt:          # verwaist (PC abgestürzt)
-                    log.warning("Verwaiste Schreibsperre übernommen: %s", sperre_info())
-                    p.unlink(missing_ok=True)
-                    continue
-            except OSError:
-                continue
+            if time.monotonic() - geprueft >= 1.0:
+                geprueft = time.monotonic()
+                try:
+                    if _alter(p) > alt and _uebernehmen(p, alt):    # verwaist (PC abgestürzt)
+                        continue
+                except FileNotFoundError:
+                    continue                             # gerade freigegeben → sofort neu versuchen
+                except OSError:
+                    pass
             if time.monotonic() > ende:
                 info = sperre_info() or {}
                 von = info.get("wer") or "ein anderer PC"
@@ -247,7 +298,8 @@ def _sperren(warten: float, alt: float) -> None:
                 continue
             raise
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump({"wer": wer(), "pid": os.getpid(), "seit": datetime.now().isoformat(timespec="seconds")}, f)
+            json.dump({"wer": wer(), "pid": os.getpid(), "token": _TOKEN,
+                       "seit": datetime.now().isoformat(timespec="seconds")}, f)
         _puls_starten(p)
         return
 
@@ -262,6 +314,9 @@ def _puls_starten(p: Path) -> None:
 
     def schlagen() -> None:
         while not stop.wait(SPERRE_PULS):
+            if not eigene_sperre():              # 0.90: nur die eigene Sperre auffrischen
+                log.warning("Schreibsperre gehört nicht mehr diesem PC: %s", sperre_info())
+                return
             try:
                 os.utime(p, None)
             except OSError:
@@ -276,6 +331,10 @@ def _freigeben() -> None:
         _puls["stop"] = None
     for i in range(VERSUCHE):
         try:
+            if not eigene_sperre():              # 0.90: nie die Sperre eines anderen PCs löschen
+                if _sperre_pfad().exists():
+                    log.warning("Fremde Schreibsperre nicht entfernt: %s", sperre_info())
+                return
             _sperre_pfad().unlink(missing_ok=True)
             return
         except OSError as exc:

@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.89.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.90.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -60,9 +60,9 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Flur-Raster: je Flur und Woche die Zahl paralleler Abreisewellen (Ampel), Klick zeigt Wellen und Zimmer
 - Zimmerkarte: Bewohner, Zimmer ändern, fest/geplant, Umzug planen, Mängel melden/beheben/unbewohnbar, Notizen mit Wiedervorlage
 - Abbruch / vorzeitiger Auszug in der Zimmerkarte – Abreise überall gekürzt, Zimmer wird frei
-- Nichtanreise in der Zimmerkarte: „Nicht angereist“ – Zimmer wird frei, Grund in der Bemerkung, Rückgängig möglich (0.89)
+- Nichtanreise in der Zimmerkarte: „Nicht angereist“ – Zimmer wird frei, Grund in der Bemerkung, Rückgängig möglich (0.89); bleibt auch nach neuem Import, unter Anreisen → Mehr zurücknehmbar (0.90)
 - Übergabeprotokoll Einzug/Auszug je Bewohner: Inventar zum Abhaken, Zustand, bekannte Mängel, Schlüssel, Unterschriften (0.89)
-- Notfallliste: wer ist laut Plan jetzt im Haus – je Haus eine Seite, nach Etage/Zimmer, Abhak-Spalte, Stand mit Uhrzeit (0.89)
+- Notfallliste: wer ist laut Plan jetzt im Haus – je Haus eine Seite, nach Etage/Zimmer, Abhak-Spalte, Stand mit Uhrzeit (0.89); bestätigt und „nur geplant“ hart getrennt (0.90)
 - Offene Reinigung zählt 60 Tage zurück; danach bezogene Zimmer gelten als gereinigt (0.89)
 - Defekte Zimmer nach Dringlichkeit, FM-Bericht (Druck/Excel), Erledigte aus FM-Liste übernehmen
 - Drucken und Excel je Auswahl mit „belegt bis / frei ab / frei bis / freie Tage“
@@ -184,6 +184,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird
 
 ## Netzwerkordner (mehrere PCs)
+- Prüfen und Speichern unter derselben Schreibsperre; Sperre mit Besitzer-Kennung, Alter nach Server-Uhr, atomare Übernahme verwaister Sperren (0.90)
 - Ein Paket zum Entpacken: `INNternat starten.bat`, `Programm\`, `Daten\` – Updates ersetzen nur `Programm`
 - Jeder PC startet selbst; Python-Umgebung, Protokoll und persönliche Einstellungen lokal je PC, Desktop-Verknüpfung
 - Daten aus dem bisherigen Ordner übernehmen (prüfen, kopieren, alter Ordner bleibt unverändert)

@@ -33,6 +33,33 @@ def werkzeuge(a) -> None:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("anreisen", ansicht=v), ansicht=True)
 
 
+def nichtanreisen_panel(a) -> None:
+    """0.90: Als „nicht angereist“ gebuchte Personen – bleiben auch nach einem neuen Import so; hier zurücknehmen."""
+    from . import zimmer_kern as zk
+
+    def bauen():
+        na = zk.nichtanreisen()
+        if not na:
+            ui.label("Keine Nichtanreisen gebucht.").classes("m-ptext")
+            return
+        ui.label("Bleiben auch nach einem neuen Einlesen der Anreiseliste „nicht angereist“.").classes("m-ptext")
+        for k, v in sorted(na.items(), key=lambda kv: kv[1].get("anreise", ""), reverse=True):
+            with ui.element("div").classes("m-plan-u"):
+                ui.label(v.get("name", "")).classes("m-name")
+                try:
+                    an = date.fromisoformat(v.get("anreise", ""))
+                    ui.label(f"Anreise {an:%d.%m.%Y} · gebucht {date.fromisoformat(v.get('gebucht', '')):%d.%m.%Y}"
+                             ).classes("m-zweite")
+                except ValueError:
+                    pass
+
+                async def zurueck(k=k):
+                    if await a.aendern(zk.nichtanreise_zuruecknehmen, k):
+                        nichtanreisen_panel(a)
+                knopf("Doch angereist", zurueck, "leise", "undo")
+    a.panel("Nichtanreisen", bauen)
+
+
 def mehr_menue(a) -> None:
     """„Mehr“ im Kopf der Ansicht Zuteilen – seltene Aktionen gebündelt statt vieler Knöpfe."""
     with a.werkzeuge:
@@ -48,6 +75,7 @@ def mehr_menue(a) -> None:
                 ui.menu_item("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a))
                 ui.separator()
                 ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
+                ui.menu_item("Nichtanreisen ansehen / zurücknehmen …", lambda: nichtanreisen_panel(a))
                 ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
                 ui.separator()
                 ui.menu_item("Belegung optimieren …", lambda: optimieren_panel(a))

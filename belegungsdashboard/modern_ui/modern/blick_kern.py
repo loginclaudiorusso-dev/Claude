@@ -265,7 +265,8 @@ class Leitung:
 
 def leitung(ort: str, monate_: list[date], erwartet: list[float | None], ist: list[bool], stand: date,
             kapazitaet: float | None = None, unten80: list[float | None] | None = None,
-            oben80: list[float | None] | None = None, kritisch: float = .85, monate_vor: int = 6) -> Leitung:
+            oben80: list[float | None] | None = None, kritisch: float = .85, monate_vor: int = 6,
+            oben95: list[float | None] | None = None) -> Leitung:
     """Eine Aussage für die Leitung: reicht der Platz? Grundlage sind die geprüften Monate (bis 12 voraus); gezeigt
     werden heute und die nächsten ``monate_vor`` Monate als Füllstand gegen „voll“."""
     n = len(monate_)
@@ -285,13 +286,14 @@ def leitung(ort: str, monate_: list[date], erwartet: list[float | None], ist: li
         spitze = max(o(i) for i in zwoelf) if zwoelf else None
         if eng is None:
             bis = monate_[zwoelf[-1]] if zwoelf else stand
-            lg.titel = (f"Insgesamt gibt es bis {lang(bis, stand)} genug freie Plätze." if gesamt
-                        else f"{ort} hat bis {lang(bis, stand)} genug freie Plätze.")
+            lg.titel = (f"Insgesamt gibt es bis {lang(bis, stand)} voraussichtlich genug freie Plätze." if gesamt
+                        else f"{ort} hat bis {lang(bis, stand)} voraussichtlich genug freie Plätze.")
         elif eng == zwoelf[0]:
-            lg.titel = f"{wo} ist es schon jetzt eng – bis zu {zahl(spitze)} von {zahl(kapazitaet)} Plätzen möglich."
+            lg.titel = (f"{wo} ist es schon jetzt eng – voraussichtlich bis zu {zahl(spitze)} von {zahl(kapazitaet)} "
+                        "Plätzen belegt.")
         else:
-            lg.titel = (f"{wo} wird es ab {lang(monate_[eng], stand)} eng – bis zu {zahl(spitze)} von "
-                        f"{zahl(kapazitaet)} Plätzen möglich.")
+            lg.titel = (f"{wo} wird es ab {lang(monate_[eng], stand)} eng – voraussichtlich bis zu {zahl(spitze)} von "
+                        f"{zahl(kapazitaet)} Plätzen belegt.")
     elif zwoelf:
         lg.titel = (f"{ort}: in den nächsten {len(zwoelf[:monate_vor])} Monaten {zahl(min(erwartet[i] for i in zwoelf[:monate_vor]))} "
                     f"bis {zahl(max(erwartet[i] for i in zwoelf[:monate_vor]))} belegt erwartet.")
@@ -303,9 +305,13 @@ def leitung(ort: str, monate_: list[date], erwartet: list[float | None], ist: li
         hoch = max(zwoelf, key=lambda i: erwartet[i])
         lg.zahlen.append(("Höchstwert erwartet", zahl(erwartet[hoch]), lang(monate_[hoch], stand)))
         if kapazitaet:
-            frei = kapazitaet - max(o(i) for i in zwoelf)
-            lg.zahlen.append(("Freie Plätze mindestens", zahl(max(frei, 0)), "auch im ungünstigen Fall" if frei >= 0
-                              else f"{zahl(-frei)} zu wenig möglich"))
+            # 0.90: „mindestens“ nur mit der 95-%-Grenze (in 19 von 20 Monaten nicht überschritten); hi80 wäre in jedem
+            # 10. Monat zu optimistisch – über 12 Monate noch öfter.
+            o95 = lambda i: (oben95[i] if oben95 and oben95[i] is not None else o(i))  # noqa: E731
+            frei = kapazitaet - max(o95(i) for i in zwoelf)
+            sicher = "in 19 von 20 Fällen" if oben95 else "in 9 von 10 Fällen"
+            lg.zahlen.append(("Freie Plätze, ungünstiger Fall", zahl(max(frei, 0)), f"{sicher} mindestens so viele"
+                              if frei >= 0 else f"{zahl(-frei)} zu wenig möglich"))
     zeig = ([li] if li is not None else []) + prog[:monate_vor]
     lg.balken = [(kurz(monate_[i]) if i != li else "heute", erwartet[i], erwartet[i] / kapazitaet if kapazitaet else None,
                   i == li) for i in zeig]

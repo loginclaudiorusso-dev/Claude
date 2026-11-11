@@ -13,6 +13,7 @@ from belegung import zimmerliste as zl
 from belegung import zimmerplan as zp
 
 from .kern import _schritt, kurz
+from .kern import unter_sperre as _unter_sperre
 
 STATUS = {"": "Alle", "frei": "Frei", "geplant": "Geplant", "belegt": "Belegt", "nicht_nutzbar": "Nicht nutzbar"}
 
@@ -343,6 +344,7 @@ GRUPPEN_NEU = {"Reha": "Hauptmaßnahme", "RVT": "Vorbereitende Maßnahme", "ASS"
                "Mieter": "Mieter"}
 
 
+@_unter_sperre
 def person_ins_zimmer(zid: str, name: str, massnahme: str, gruppe: str, anreise: date, abreise: date,
                       geschlecht: str = "", tier: bool = False, bemerkung: str = "", tn_id: str = "") -> str:
     """Neue Person anlegen und gleich in dieses Zimmer setzen – ein Schritt (Rückgängig nimmt beides zurück)."""
@@ -506,6 +508,7 @@ def notiz_loeschen(nid: str) -> str:
     return "Notiz gelöscht"
 
 
+@_unter_sperre
 def zimmer_setzen(person: str, zimmer: str) -> str:
     stand = zp.laden()
     _schritt("Zimmer geändert", lambda: zp.zuweisung_setzen(stand, person, zimmer, "Zimmerkarte"))
@@ -533,6 +536,7 @@ class Wechsel:
 AUSZUG_GRUENDE = ["Abbruch", "Vorzeitiger Auszug", "Sonstiges"]
 
 
+@_unter_sperre
 def auszug(zid: str, schluessel: str, datum: date, grund: str = "Abbruch") -> str:
     """Abbruch / vorzeitiger Auszug: der letzte Tag im Zimmer ist ``datum``. Kürzt in einem Schritt (ein Rückgängig)
     die Abreise in der Anreiseliste (Grund in die Bemerkung), die eigene Zuweisung und – bis zum nächsten
@@ -590,19 +594,47 @@ def auszug(zid: str, schluessel: str, datum: date, grund: str = "Abbruch") -> st
             "Bitte auch im Belegungssystem buchen.")
 
 
+from .nichtanreise_kern import NICHTANREISE_DATEI, nichtanreisen  # noqa: E402,F401 – 0.90
+
+
+@_unter_sperre
+def nichtanreise_zuruecknehmen(schluessel: str) -> str:
+    """Doch angereist: Internat wieder ja, Eintrag aus der Schicht entfernen (Zimmer dann neu zuteilen)."""
+    from dataclasses import replace
+
+    from belegung import anreiseliste, speicher
+
+    na = nichtanreisen()
+    if schluessel not in na:
+        raise ValueError("Diese Nichtanreise gibt es nicht (mehr).")
+    personen, _ = anreiseliste.laden()
+    p = next((x for x in personen if x.schluessel == schluessel), None)
+
+    def aktion():
+        rest = {k: v for k, v in na.items() if k != schluessel}
+        speicher.schreiben(NICHTANREISE_DATEI, rest)
+        if p is not None:
+            anreiseliste.person_speichern(replace(p, internat=True), p.schluessel)
+    _schritt(f"{na[schluessel].get('name', '')}: doch angereist", aktion, [anreiseliste.DATEI, NICHTANREISE_DATEI])
+    return f"{na[schluessel].get('name', '')}: wieder als Anreise geführt – bitte ein Zimmer zuteilen"
+
+
+@_unter_sperre
 def nichtanreise(schluessel: str, tag: date | None = None) -> str:
     """0.89: angemeldet, aber nicht erschienen – die Person braucht kein Zimmer mehr (Internat = nein), die
     Zimmerzuweisung entfällt, der Grund steht in der Bemerkung. Ein Schritt, ein Rückgängig.
     Liefert eine neu eingelesene Anreiseliste die Person wieder mit Internat, braucht sie wieder ein Zimmer."""
     from dataclasses import replace
 
-    from belegung import anreiseliste, protokoll
+    from belegung import anreiseliste, protokoll, speicher
 
     tag = tag or date.today()
     personen, _ = anreiseliste.laden()
     p = next((x for x in personen if x.schluessel == schluessel), None)
     if p is None:
         raise ValueError("Nur Personen aus der Anreiseliste lassen sich als „nicht angereist“ buchen.")
+    if p.internat is False and schluessel in nichtanreisen():
+        raise ValueError(f"{p.name} ist schon als „nicht angereist“ gebucht.")
     if p.anreise > tag:
         raise ValueError(f"Die Anreise ist erst am {p.anreise:%d.%m.%Y} – erst ab dann als „nicht angereist“ buchen.")
     stand = zp.laden()
@@ -612,11 +644,14 @@ def nichtanreise(schluessel: str, tag: date | None = None) -> str:
         text = f"Nichtanreise (gebucht {tag:%d.%m.%Y})"
         neu = replace(p, internat=False, bemerkung=f"{p.bemerkung} · {text}" if p.bemerkung else text)
         anreiseliste.person_speichern(neu, p.schluessel)
+        alle = speicher.lesen(NICHTANREISE_DATEI, {}) or {}
+        alle[schluessel] = {"name": p.name, "anreise": p.anreise.isoformat(), "gebucht": tag.isoformat()}
+        speicher.schreiben(NICHTANREISE_DATEI, alle)
         if zuw:
             zp.zuweisungen_entfernen({schluessel}, "Nichtanreise")
         protokoll.eintragen([{"aktion": "Nichtanreise", "name": p.name, "person": schluessel,
                               "alt": zuw["zimmer"] if zuw else "", "neu": "", "von": tag.isoformat(), "quelle": "Zimmerkarte"}])
-    _schritt(f"{p.name}: Nichtanreise", aktion, [anreiseliste.DATEI, zp.ZUWEISUNGEN])
+    _schritt(f"{p.name}: Nichtanreise", aktion, [anreiseliste.DATEI, zp.ZUWEISUNGEN, NICHTANREISE_DATEI])
     frei = f" – {kurz(zuw['zimmer'])} ist wieder frei" if zuw else ""
     return f"{p.name}: nicht angereist{frei}. Bitte auch im Belegungssystem stornieren."
 
@@ -642,6 +677,7 @@ def wechsel_pruefen(person: str, nach: str) -> Wechsel:
     return w
 
 
+@_unter_sperre
 def wechseln(person: str, nach: str, mit_partner: bool = False) -> str:
     """Prüft gegen den frischen Stand (inzwischen woanders geändert? dann nichts überschreiben) und speichert."""
     from belegung import aenderungen
@@ -666,6 +702,7 @@ def wechseln(person: str, nach: str, mit_partner: bool = False) -> str:
     return f"{namen}: {alt} → {z.kurz} – danach im Belegungssystem umbuchen"
 
 
+@_unter_sperre
 def fest_setzen(person: str, fest: bool) -> str:
     _schritt("Planung fest" if fest else "Wieder geplant", lambda: zp.status_setzen(person, fest))
     return "Steht fest (gilt als belegt)" if fest else "Wieder als geplant geführt"
@@ -682,6 +719,7 @@ def umzug_ziele(zid: str, person: str, name: str, ab: date) -> dict[str, str]:
     return erg
 
 
+@_unter_sperre
 def umzug_speichern(zid: str, person: str, name: str, nach: str, ab: date, grund: str = "") -> str:
     stand = zp.laden()
     b = um.belegung_zu(stand, zid, person, name)
@@ -699,6 +737,7 @@ def umzug_entfernen(uid: str) -> str:
     return "Umzug zurückgenommen"
 
 
+@_unter_sperre
 def umzug_fest(uid: str, fest: bool) -> str:
     _schritt("Umzug fest" if fest else "Umzug geplant", lambda: um.status_setzen(uid, fest, "Neue Oberfläche"))
     return "Umzug steht fest" if fest else "Umzug wieder geplant"
