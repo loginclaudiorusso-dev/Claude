@@ -104,6 +104,177 @@ def _karten_stil(o: dict, c: dict) -> dict:
         for se in o["series"]:
             if se.get("type") == "line" and len(se.get("data") or []) > 24:
                 se["showSymbol"] = False
+        o = _lesbar(o, c)
+    return o
+
+
+BAND80, BAND95 = "sehr wahrscheinlich (8 von 10)", "fast sicher (19 von 20)"
+
+
+def _fragen(pg, kap: int) -> None:
+    from . import blick_kern as bk
+
+    zs = ak.szenario(pg, kap, 0)
+    fr = bk.prognose_fragen([z.monat for z in zs], [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs],
+                            [z.art == "ist" for z in zs], kap or None, [z.hi80 for z in zs], pg.mae_1m, pg.abdeckung80)
+    if not fr:
+        return
+    with ui.element("div").classes("m-bp-kacheln").style("margin-bottom:12px"):
+        for f in fr:
+            with ui.element("div").classes("m-bp-kachel"):
+                ui.label(f.frage).classes("m-zweite")
+                with ui.element("div").classes("m-bp-antwort"):
+                    ui.icon(f.symbol)
+                    ui.label(f.antwort)
+                ui.label(f.zeile).classes("m-zweite")
+
+
+def _lesehilfe() -> None:
+    with ui.element("div").classes("m-bp-lesehilfe").style("margin:8px 2px 4px"):
+        for text in ("Gestrichelte Linie: so wird es voraussichtlich – links davon durchgezogen: so war es.",
+                     "Dunkles Band: sehr wahrscheinlich – in 8 von 10 Fällen liegt der Wert darin.",
+                     "Helles Band: fast sicher – in 19 von 20 Fällen.",
+                     "Das Band wird breiter: je weiter in der Zukunft, desto unsicerer."):
+            ui.label(text).classes("m-zweite")
+
+
+def _probe_karte(a, pg, kap: int) -> None:
+    """0.95: Backtest als eigene Karte – ein Punkt je Monat: Abweichung echter Wert minus Vorhersage um die Nulllinie
+    „Treffer“, das 80-%-Band dahinter; im Band grüne Kreise, außerhalb orange Rauten mit Beschriftung."""
+    from . import blick_kern as bk
+    from . import diagramm_karte
+
+    rueck = list(pg.rueckblick or [])
+    if not rueck:
+        return
+    zs = ak.szenario(pg, kap, 0)
+    erst = next((z for z in zs if z.art == "prognose"), None)
+    halb = max((erst.hi80 - erst.lo80) / 2 if erst else (pg.mae_1m or 0), 1.0)   # mindestens ± 1 Platz
+    pr = bk.probe(rueck, halb)
+    t = _t()
+    labels = [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}" for m, _d, _i in pr.punkte]
+    aussen = sorted([(abs(d), i) for i, (_m, d, drin) in enumerate(pr.punkte) if not drin], reverse=True)[:4]
+    beschr = {i for _a, i in aussen}
+    daten = [{"value": [labels[i], round(d, 1)], "symbol": "circle" if drin else "diamond", "symbolSize": 10 if drin else 13,
+              "itemStyle": {"color": t["gruen"] if drin else t["orange"]},
+              "label": {"show": i in beschr, "formatter": bk.probe_text(m, d), "position": "top", "fontSize": 13,
+                        "color": t["text"]}} for i, (m, d, drin) in enumerate(pr.punkte)]
+    oben = max([abs(d) for _m, d, _i in pr.punkte] + [halb, 1]) * 1.3
+    opt = {"animation": False, "grid": {"left": 48, "right": 24, "top": 30, "bottom": 30},
+           "tooltip": {"trigger": "item", "confine": True,
+                       ":formatter": "(p) => p.value[0] + ': ' + (p.value[1] >= 0 ? '+' : '') + "
+                                     "p.value[1].toLocaleString('de-DE') + ' gegenüber der Vorhersage'"},
+           "xAxis": {"type": "category", "data": labels, "axisLabel": {"color": t["text2"], "fontSize": 13}},
+           "yAxis": {"type": "value", "min": -round(oben), "max": round(oben), "name": "echter Wert − Vorhersage",
+                     "nameTextStyle": {"color": t["text2"], "fontSize": 13},
+                     "axisLabel": {"color": t["text2"], "fontSize": 13},
+                     "splitLine": {"lineStyle": {"color": t["rand"], "opacity": .5}}},
+           "series": [{"type": "scatter", "data": daten,
+                       "markArea": {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .14)},
+                                    "data": [[{"yAxis": -round(halb, 1)}, {"yAxis": round(halb, 1)}]]},
+                       "markLine": {"silent": True, "symbol": "none", "lineStyle": {"color": t["text"], "width": 1.5},
+                                    "label": {"formatter": "Treffer", "position": "insideEndTop", "color": t["text"],
+                                              "fontSize": 13}, "data": [{"yAxis": 0}]}}]}
+    with diagramm_karte.Karte(a, pr.titel, pr.satz, None) as k:
+        k.chart(opt).style("height:260px")
+        k.wurzel.classes(add="blick-zu")              # kein „Auf einen Blick“ – der Titel ist die Aussage
+
+
+def _lesbar(o: dict, c: dict) -> dict:
+    """0.95 (Auftrag „Diagramme für Laien“): Achse ab 0 bis „Voll“, gelbe Warnzone ab 85 %, zwei klar unterscheidbare
+    Bänder, Ist dunkel durchgezogen, Prognose gestrichelt in Akzentfarbe, Vorjahr dünn grau, höchstens vier
+    Beschriftungen, „rund N Plätze Luft“, Zahlen des letzten Monats am rechten Rand, ab Monat 13 nur grau gepunktet."""
+    from . import blick_kern as bk
+
+    t = _t()
+    pg = c["pg"]
+    kap = pg.kapazitaet or 0
+    zs = ak.szenario(pg, kap, 0)
+    labels = list(o["xAxis"]["data"])
+    if len(labels) != len(zs):
+        return o
+    o["series"] = [se for se in o["series"] if se.get("name") != "Backtest (1 Monat vorher)"]
+    nach = {se.get("name"): se for se in o["series"]}
+    li = max((i for i, z in enumerate(zs) if z.art == "ist"), default=None)
+    prog = [i for i, z in enumerate(zs) if z.art != "ist"]
+    ende = min(prog[-1], (li if li is not None else -1) + 12) if prog else None     # letzter geprüfter Monat
+    for alt, neu, deck in (("80 %-Band", BAND80, .40), ("95 %-Band", BAND95, .15)):
+        se = nach.get(alt)
+        if se is not None:
+            se["name"] = neu
+            se["areaStyle"] = {"color": _rgba(t["akzent"], deck)}
+            se["itemStyle"] = {"color": _rgba(t["akzent"], max(deck, .3))}
+    ist_se, prog_se = nach.get("Ist"), nach.get("Prognose (erwartet)")
+    if ist_se is not None:
+        ist_se.update({"color": t["text"], "symbol": "none", "showSymbol": False,
+                       "lineStyle": {"color": t["text"], "width": 3, "type": "solid"}, "itemStyle": {"color": t["text"]},
+                       "label": {"show": False}, "endLabel": {"show": False}})
+    if prog_se is not None and ende is not None:
+        daten = list(prog_se["data"])
+        fort = [w if i >= ende else None for i, w in enumerate(daten)]
+        prog_se["data"] = [w if i <= ende else None for i, w in enumerate(daten)]
+        prog_se.update({"symbol": "none", "showSymbol": False, "label": {"show": False},
+                        "lineStyle": {"color": t["akzent"], "width": 3, "type": "dashed"}})
+        z = zs[ende]
+        prog_se["endLabel"] = {"show": True, "fontSize": 13, "color": t["text"], "lineHeight": 18, "distance": 10,
+                               "formatter": f"{labels[ende]}\nerwartet {bk.zahl(z.erwartet)}\nsehr wahrscheinlich "
+                                            f"{bk.zahl(z.lo80)}–{bk.zahl(z.hi80)}\nfast sicher {bk.zahl(z.lo95)}–{bk.zahl(z.hi95)}"}
+        if any(w is not None for w in fort[ende + 1:]):
+            o["series"].append({"name": "Fortschreibung, nicht geprüft", "type": "line", "data": fort, "symbol": "none",
+                                "lineStyle": {"color": t["text3"], "width": 2, "type": "dotted"}, "color": t["text3"]})
+        # höchstens vier Beschriftungen: heute, höchster und tiefster erwarteter Monat (ohne laufenden Monat)
+        kommend = [i for i in prog if zs[i].art == "prognose" and i <= ende]
+        marken = []
+        if li is not None and zs[li].ist is not None:
+            marken.append((li, zs[li].ist, f"heute {bk.zahl(zs[li].ist)}", "top"))
+        if kommend:
+            hoch = max(kommend, key=lambda i: zs[i].erwartet)
+            tief = min(kommend, key=lambda i: zs[i].erwartet)
+            marken.append((hoch, zs[hoch].erwartet, f"höchstens erwartet {bk.zahl(zs[hoch].erwartet)}", "top"))
+            if tief != hoch:
+                marken.append((tief, zs[tief].erwartet, f"Tiefpunkt {labels[tief]}: {bk.zahl(zs[tief].erwartet)}", "bottom"))
+        prog_se["markPoint"] = {"silent": True, "symbol": "circle", "symbolSize": 8, "data": [
+            {"coord": [labels[i], round(w, 1)], "itemStyle": {"color": t["akzent"]},
+             "label": {"show": True, "formatter": text, "position": pos, "fontSize": 13, "fontWeight": 600,
+                       "color": t["text"], "distance": 10}} for i, w, text, pos in marken]}
+        # „rund N Plätze Luft“ bis zur Warnschwelle
+        if kap and kommend:
+            warn = .85 * kap
+            hoch_o = max(kommend, key=lambda i: zs[i].hi80)
+            luft = warn - zs[hoch_o].hi80
+            if luft > 0:
+                x = labels[hoch_o]
+                prog_se["markLine"] = {"silent": True, "symbol": ["none", "arrow"], "symbolSize": 9,
+                                       "lineStyle": {"color": t["gruen"], "width": 1.6, "type": "solid"},
+                                       "label": {"show": True, "formatter": f"rund {bk.zahl(round(luft / 10) * 10 or luft)} "
+                                                                            "Plätze Luft bis zur Warnschwelle",
+                                                 "position": "end", "fontSize": 13, "color": t["text"], "distance": 6},
+                                       "data": [[{"coord": [x, round(zs[hoch_o].hi80, 1)]}, {"coord": [x, round(warn, 1)]}]]}
+    # gleicher Monat im Vorjahr (dünn, grau) – macht das Sommertief als Muster sichtbar
+    vj = [round(zs[i - 12].ist, 1) if i in prog and i >= 12 and zs[i - 12].ist is not None and (ende is None or i <= ende)
+          else None for i in range(len(zs))]
+    if any(v is not None for v in vj):
+        o["series"].append({"name": "gleicher Monat im Vorjahr", "type": "line", "data": vj, "symbol": "none",
+                            "lineStyle": {"color": t["text3"], "width": 1.4}, "color": t["text3"], "z": 3})
+    # Kapazität = „Voll“, Warnzone ab 85 %
+    kse = nach.get("Kapazität")
+    if kse is not None and kap:
+        kse.update({"lineStyle": {"color": t["text"], "width": 2.5, "type": "solid"}, "color": t["text"],
+                    "endLabel": {"show": True, "formatter": f"Voll: {bk.zahl(kap)} Plätze", "fontSize": 13,
+                                 "fontWeight": 600, "color": t["text"], "distance": 8}})
+        kse["markArea"] = {"silent": True, "itemStyle": {"color": "rgba(245,180,0,0.16)"},
+                           "label": {"show": True, "position": "insideTopLeft", "color": t["text"], "fontSize": 13,
+                                     "formatter": f"ab {bk.zahl(.85 * kap)} wird es eng"},
+                           "data": [[{"yAxis": round(.85 * kap, 1)}, {"yAxis": kap}]]}
+    o["yAxis"]["min"] = 0
+    werte = [kap] + [z.hi95 for z in zs if z.art != "ist"] + [z.ist for z in zs if z.ist is not None]
+    o["yAxis"]["max"] = int(max(werte) * 1.06) + 1
+    o["grid"]["right"] = max(o["grid"].get("right", 0) if isinstance(o["grid"].get("right"), (int, float)) else 0, 190)
+    o["legend"]["data"] = [n for n in ("Ist", "Prognose (erwartet)", BAND80, BAND95, "gleicher Monat im Vorjahr",
+                                       "Fortschreibung, nicht geprüft") if any(se.get("name") == n for se in o["series"])]
+    o["tooltip"]["confine"] = True
+    o["tooltip"][":position"] = ("(p, params, dom, rect, size) => [Math.min(p[0] + 24, size.viewSize[0] - "
+                                 "size.contentSize[0] - 8), 8]")
     return o
 
 
@@ -318,7 +489,8 @@ def _geist(t, zs_sz, zs0, li, kap_echt: int, kap: int, zeigen: bool) -> list[dic
 
 def _spotlights(t, zs, labels, kap: int) -> dict:
     """Dezente Badges an den entscheidenden Punkten der nächsten 12 Monate: Höchststand, erster Engpass bzw. Tiefpunkt."""
-    kommend = [(i, z) for i, z in enumerate(zs) if z.art != "ist"][:12]
+    kommend = [(i, z) for i, z in [(i, z) for i, z in enumerate(zs) if z.art != "ist"][:12]
+               if z.art == "prognose"]                 # 0.95: der laufende Monat ist unvollständig – nie „Höchststand“
     if not kommend:
         return {}
     quote = lambda z: f" · {round(100 * z.erwartet / kap)} %" if kap else ""  # noqa: E731
@@ -985,7 +1157,8 @@ def zeichnen(a) -> None:
     par = lambda: a.aw_parallel and a.aw_standort == konfig.GESAMT  # noqa: E731
     def c(anim=False, phase="voll", **ueber):
         return {"pg": pg, "phase": phase, "parallel": par(), "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,
-                            "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95, "backtest": a.aw_backtest,
+                            "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95 or not klassisch,
+                            "backtest": a.aw_backtest and klassisch,    # 0.95: in der Karte zwei Bänder, Backtest als „Probe“
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
@@ -1227,6 +1400,8 @@ def zeichnen(a) -> None:
                         _einfach(a, pg_, kap_, konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort), graph_zeichnen)
                         halter = ui.element("div").classes("m-einfach-details" + (" offen" if a.dg_details else ""))
                         halter.__enter__()
+                    if km == "karte":                # 0.95: drei Fragen, Antwort in Worten
+                        _fragen(pg_, kap_)
                     blick, alt = blick_daten(pg_, c().get("pg_lang"), kap_, a.daten["stichtag"])
                     ort = konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)
                     v_ = variante(True)
@@ -1253,6 +1428,9 @@ def zeichnen(a) -> None:
                     naechster = next((i for i, z in enumerate(zs_) if z.art == "prognose"), None)
                     if naechster is not None:
                         karte.fx(_berechnung_monat(a, pg_, kap_, naechster))
+                    if km == "karte":                # 0.95: Lesehilfe und Backtest als eigene „Probe“
+                        _lesehilfe()
+                        _probe_karte(a, pg_, kap_)
                     if halter is not None:
                         halter.__exit__(None, None, None)
                 box["chart"] = chart

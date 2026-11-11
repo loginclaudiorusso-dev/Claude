@@ -464,3 +464,91 @@ def belegung_zeitraum(von: date, bis: date, kategorien: dict[str, list[float]], 
     if gruppen and not unter:
         erg.untertitel = ", ".join(f"{k} {zahl(m)}" for k, m in gruppen) + "."
     return erg
+
+
+# ---- 0.95: Belegungsprognose – drei Fragen, Probe (Backtest) ---------------------------------------------------------
+
+@dataclass
+class Frage:
+    frage: str
+    symbol: str
+    antwort: str
+    zeile: str
+
+
+def prognose_fragen(monate_: list[date], werte: list[float | None], ist: list[bool], kapazitaet: float | None,
+                    oben80: list | None = None, mae: float | None = None, abdeckung: float | None = None,
+                    kritisch: float = .85, monate_vor: int = 12) -> list[Frage]:
+    """„Wird es voller oder leerer?“, „Wird es eng?“, „Wie verlässlich ist das?“ – je Antwort in zwei bis vier Wörtern
+    und eine Zeile mit Zahl. Alles aus den übergebenen Rechenwerten."""
+    n = len(monate_)
+    li = max((i for i in range(n) if ist[i] and werte[i] is not None), default=None)
+    prog = [i for i in range(n) if not ist[i] and werte[i] is not None][:monate_vor]
+    if li is None or not prog:
+        return []
+    heute = werte[li]
+    mittel = sum(werte[i] for i in prog) / len(prog)
+    d = mittel - heute
+    s = max(2.0, .03 * heute)
+    if d >= s:
+        a1 = Frage("Wird es voller oder leerer?", "trending_up", "Etwas voller", "")
+    elif d <= -s:
+        a1 = Frage("Wird es voller oder leerer?", "trending_down", "Eher leerer", "")
+    else:
+        a1 = Frage("Wird es voller oder leerer?", "trending_flat", "Bleibt etwa gleich", "")
+    a1.zeile = f"heute {zahl(heute)}, in den nächsten {len(prog)} Monaten im Schnitt {zahl(mittel)}"
+    o = lambda i: (oben80[i] if oben80 and oben80[i] is not None else werte[i])  # noqa: E731
+    if kapazitaet:
+        warn = kritisch * kapazitaet
+        eng = next((i for i in prog if o(i) >= warn), None)
+        hoch = max(o(i) for i in prog)
+        a2 = (Frage("Wird es eng?", "warning", f"Ja, ab {MONATE_LANG[monate_[eng].month - 1]}",
+                    f"bis zu {zahl(hoch)} von {zahl(kapazitaet)} Plätzen möglich (8 von 10 Fällen)") if eng is not None else
+              Frage("Wird es eng?", "check_circle", "Nein",
+                    f"höchstens {zahl(hoch)} von {zahl(kapazitaet)} Plätzen – eng wird es ab {zahl(warn)}"))
+    else:
+        a2 = Frage("Wird es eng?", "help_outline", "Offen", "Kapazität fehlt")
+    if mae is None:
+        a3 = Frage("Wie verlässlich ist das?", "help_outline", "Noch offen", "noch kein Rückblick möglich")
+    else:
+        rel = mae / heute if heute else 1.0
+        wort = "Sehr verlässlich" if rel < .03 else "Verlässlich" if rel < .07 else "Mit Vorsicht"
+        a3 = Frage("Wie verlässlich ist das?", "verified" if rel < .07 else "info_outline", wort,
+                   (f"im Schnitt {zahl(mae)} Plätze daneben, einen Monat voraus" if mae >= .5 else
+                    "im Schnitt weniger als 1 Platz daneben, einen Monat voraus")
+                   + (f" · {round(100 * abdeckung)} % im Band" if abdeckung is not None else ""))
+    return [a1, a2, a3]
+
+
+@dataclass
+class Probe:
+    titel: str
+    satz: str
+    punkte: list = field(default_factory=list)     # (Monat, Abweichung ist − vorhergesagt, im Band?)
+    halb: float = 0.0
+
+
+def probe(rueck: list[tuple[date, float, float]], halb: float) -> Probe:
+    """Backtest als „Probe“: Jeden Monat vorhergesagt, danach mit dem echten Wert verglichen. Treffer = Abweichung
+    innerhalb der halben 80-%-Spanne (± ``halb``)."""
+    punkte = [(m, ist - p, abs(ist - p) <= halb) for m, ist, p in rueck]
+    n = sum(1 for _m, _d, drin in punkte if drin)
+    titel = f"In {n} von {len(punkte)} Monaten lagen wir richtig" if punkte else "Noch keine Probe möglich"
+    return Probe(titel, "Jeden Monat haben wir vorhergesagt, wie der nächste wird, und danach mit dem echten Wert "
+                        f"verglichen. „Richtig“ heißt: höchstens ± {zahl(halb)} Pl{'atz' if round(halb) == 1 else 'ätze'} "
+                        "daneben (die Spanne, in der der "
+                        "Wert in 8 von 10 Fällen liegt).", punkte, halb)
+
+
+def probe_text(m: date, abw: float) -> str:
+    w = f"{abs(abw):.1f}".replace(".", ",") if abs(abw) < 10 else zahl(abs(abw))
+    return f"{MONATE_LANG[m.month - 1]}: {w} {'mehr' if abw > 0 else 'weniger'}"
+
+
+# ---- 0.95: Belegung je Tag – Wochentag, Kennzahlen ----------------------------------------------------------------
+
+WOCHENTAGE_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def tag_beschriftung(d: date) -> str:
+    return f"{WOCHENTAGE_KURZ[d.weekday()]} {d:%d.%m.}"

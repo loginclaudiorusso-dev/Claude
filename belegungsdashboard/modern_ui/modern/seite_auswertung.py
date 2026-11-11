@@ -3,6 +3,8 @@ Standort und Netto/Brutto gelten für die ersten drei Ansichten."""
 
 from __future__ import annotations
 
+import json
+
 from datetime import date, timedelta
 
 from nicegui import ui
@@ -123,16 +125,76 @@ def _tagesverlauf_karte(a, det: ak.BDetails, zr, farben: list[str]) -> None:
         opt["series"].append({"name": "Kapazität", "rolle": "kapazitaet", "type": "line", "data": [zr.kapazitaet] * n})
     k_ist = sum(det.ist)
     teil = 0 < k_ist < n
-    opt = diagramm_stil.einheitlich(opt, _T(), det.tage[k_ist - 1] if teil else None, det.tage[k_ist] if teil else None,
-                                    tageswerte=True)
     summen = [round(sum(v[i] or 0 for v in det.kategorien.values()), 1) for i in range(n)]
     tage = [zr.von + timedelta(days=i) for i in range(n)]
+    if n <= 62:                                       # 0.95: Säulen je Tag (bis zwei Monate) – sonst Flächen wie bisher
+        opt = _tage_saeulen(det, zr, tage, summen, farben, k_ist)
+    else:
+        opt = diagramm_stil.einheitlich(opt, _T(), det.tage[k_ist - 1] if teil else None,
+                                        det.tage[k_ist] if teil else None, tageswerte=True)
     blick = bk.tage(tage, summen, list(det.ist), stand, zr.kapazitaet or None)
     ort = ak.STANDORTE.get(a.aw_standort, "")
     with diagramm_karte.Karte(a, "Tagesverlauf nach Belegungsart",
                               f"{ort} · {'Brutto' if a.aw_brutto else 'Netto'} · {zr.von:%d.%m.%Y} – {zr.bis:%d.%m.%Y} · "
                               f"Datenstand {stand:%d.%m.%Y}", blick) as k:
         k.anbinden(k.chart(opt))
+
+
+def _tage_saeulen(det: ak.BDetails, zr, tage: list, summen: list, farben: list[str], k_ist: int) -> dict:
+    """0.95 (Auftrag „Diagramme für Laien“, Diagramm 3): gestapelte Säulen mit 2 px Abstand, feste Gruppenfarben, über
+    jeder Säule nur die Summe, Einzelwerte im Tooltip und einmal rechts neben der letzten Säule, Wochenenden grau
+    hinterlegt, ab dem Datenstand heller und „Prognose“, x-Achse mit Wochentag."""
+    from . import blick_kern as bk
+    from . import diagramm_stil
+
+    t = _T()
+    n = len(tage)
+    x = [bk.tag_beschriftung(d) for d in tage]
+    kat = [(k, v) for k, v in det.kategorien.items() if k != "Anreise" and any(v)]
+    reihen = []
+    for i, (k, v) in enumerate(kat):
+        f = diagramm_stil.gruppen_farbe(k, i, farben)
+        reihen.append({"name": k, "type": "bar", "stack": "art", "barCategoryGap": "28%",
+                       "itemStyle": {"color": f, "borderColor": t.get("fl", "#fff"), "borderWidth": 2},
+                       "data": [{"value": round(w or 0, 1), "itemStyle": {"opacity": 1 if j < k_ist else .45}}
+                                for j, w in enumerate(v)]})
+    if reihen:                                        # Summe über der Säule (nur dort), Einzelwerte rechts der letzten
+        reihen[-1]["label"] = {"show": n <= 31, "position": "top", "fontSize": 13, "color": t["text"], "fontWeight": 600,
+                               ":formatter": "(p) => " + json.dumps([round(s_) for s_ in summen]) + "[p.dataIndex]"}
+        for se, (k, v) in zip(reihen, kat):
+            letzt = se["data"][-1]
+            letzt["label"] = {"show": True, "position": "right", "fontSize": 13, "color": t["text"],
+                              "formatter": f"{k} {bk.zahl(v[-1] or 0)}", "distance": 8}
+    wochenende = [[{"xAxis": x[j], "itemStyle": {"color": "rgba(128,128,128,0.12)"}}, {"xAxis": x[j]}]
+                  for j, d in enumerate(tage) if d.weekday() >= 5]
+    if wochenende:
+        wochenende[0][0]["label"] = {"show": True, "formatter": "Wochenende", "position": "insideTop",
+                                     "color": t["text2"], "fontSize": 12}
+    marken = list(wochenende)
+    if 0 < k_ist < n:
+        marken.append([{"xAxis": x[k_ist], "itemStyle": {"color": "rgba(0,127,127,0.06)"},
+                        "label": {"show": True, "formatter": "Prognose", "position": "insideTopRight", "color": t["text2"],
+                                  "fontSize": 13}}, {"xAxis": x[-1]}])
+    linien = []
+    if zr.kapazitaet:
+        linien.append({"yAxis": zr.kapazitaet, "lineStyle": {"color": t["text"], "width": 2, "type": "solid"},
+                       "label": {"formatter": f"Voll: {bk.zahl(zr.kapazitaet)} Plätze", "position": "insideEndTop",
+                                 "fontSize": 13, "color": t["text"]}})
+    if reihen:
+        reihen[0]["markArea"] = {"silent": True, "data": marken}
+        reihen[0]["markLine"] = {"silent": True, "symbol": "none", "data": linien}
+    oben = max(summen + [zr.kapazitaet or 0, 1])
+    return {"animation": False, "grid": {"left": 48, "right": 120, "top": 40, "bottom": 34},
+            "legend": {"top": 0, "left": 0, "data": [k for k, _v in kat], "textStyle": {"color": t["text"], "fontSize": 13}},
+            "tooltip": {"trigger": "axis", "confine": True, "axisPointer": {"type": "shadow"}, "textStyle": {"fontSize": 13},
+                        ":position": "(p, params, dom, rect, size) => [Math.min(p[0] + 24, size.viewSize[0] - "
+                                     "size.contentSize[0] - 8), 8]"},
+            "xAxis": {"type": "category", "data": x, "axisLabel": {"color": t["text2"], "fontSize": 13,
+                                                                 "interval": 0 if n <= 14 else "auto"}},
+            "yAxis": {"type": "value", "min": 0, "max": int(oben * 1.08) + 1,
+                      "axisLabel": {"color": t["text2"], "fontSize": 13},
+                      "splitLine": {"lineStyle": {"color": t["rand"], "opacity": .5}}},
+            "series": reihen}
 
 
 def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "") -> None:
@@ -257,6 +319,24 @@ def _belegung(a) -> None:
 
         diagramm_karte.modus_wahl(a)                    # 0.89: Klassisch | Karte | Einfach
     det: ak.BDetails = a.daten["det"]
+    from . import diagramm_karte as _dk
+
+    if _dk.modus() != "klassisch":                   # 0.95: drei Kennzahlen statt sechs
+        with a.inhalt:
+            with ui.element("div").classes("m-kpis"):
+                with ui.element("div").classes("m-kpikarte"):
+                    ui.label("Im Schnitt belegt").classes("m-zweite")
+                    ui.label(_zahl(zr.mittel) + (f" von {_zahl(zr.kapazitaet)}" if zr.kapazitaet else "")).classes("m-kpiwert")
+                    if zr.kapazitaet:
+                        with ui.element("div").classes("m-spur").style("margin:4px 0"):
+                            ui.element("div").classes("m-bar akzent").style(
+                                f"width:{max(1, min(100, round(100 * zr.mittel / zr.kapazitaet)))}%")
+                        ui.label(f"{round(100 * zr.mittel / zr.kapazitaet)} % der Plätze · {zr.tage} Tage").classes("m-zweite")
+                _kpi("Vollster Tag", _zahl(zr.hoechst), f"am {zr.hoechst_tag:%d.%m.%Y}" if zr.hoechst_tag else "")
+                _kpi("Leerster Tag", _zahl(det.tiefst), f"am {det.tiefst_tag:%d.%m.%Y}" if det.tiefst_tag else "")
+            _belegung_charts(a, det, zr)
+            _belegung_unten(a, zr)
+        return
     with a.inhalt:
         with ui.element("div").classes("m-kpis"):
             _kpi("Zeitraum", f"{zr.tage} Tage", f"{zr.von:%d.%m.%Y} – {zr.bis:%d.%m.%Y}")
@@ -267,21 +347,25 @@ def _belegung(a) -> None:
             _kpi("Höchststand", _zahl(zr.hoechst), f"am {zr.hoechst_tag:%d.%m.%Y}" if zr.hoechst_tag else "")
             _kpi("Tiefststand", _zahl(det.tiefst), f"am {det.tiefst_tag:%d.%m.%Y}" if det.tiefst_tag else "")
         _belegung_charts(a, det, zr)
-        with ui.element("div").classes("m-zwei"):
-            with ui.element("section").classes("m-block"):
-                ui.label("Personentage nach Kategorie").classes("m-btitel")
-                ges = max(zr.gesamt, 1)
-                for k, v in zr.personentage.items():
-                    with ui.element("div").classes("m-aw-haus"):
-                        ui.label(k).classes("m-name")
-                        with ui.element("div").classes("m-aw-balken"):
-                            with ui.element("div").classes("m-spur"):
-                                ui.element("div").classes("m-bar akzent").style(f"width:{max(1, round(100 * v / ges))}%")
-                            ui.label(_zahl(v)).classes("m-mono")
-            with ui.element("section").classes("m-block"):
-                ui.label("Gut zu wissen").classes("m-btitel")
-                ui.label(f"{zr.anreisen} Anreise-Einträge im Zeitraum (Listen). Nach dem Pivot-Stichtag sind die Werte "
-                         "Prognose plus Verträge – vorher Ist-Werte.").classes("m-ptext")
+        _belegung_unten(a, zr)
+
+
+def _belegung_unten(a, zr) -> None:
+    with ui.element("div").classes("m-zwei"):
+        with ui.element("section").classes("m-block"):
+            ui.label("Personentage nach Kategorie").classes("m-btitel")
+            ges = max(zr.gesamt, 1)
+            for k, v in zr.personentage.items():
+                with ui.element("div").classes("m-aw-haus"):
+                    ui.label(k).classes("m-name")
+                    with ui.element("div").classes("m-aw-balken"):
+                        with ui.element("div").classes("m-spur"):
+                            ui.element("div").classes("m-bar akzent").style(f"width:{max(1, round(100 * v / ges))}%")
+                        ui.label(_zahl(v)).classes("m-mono")
+        with ui.element("section").classes("m-block"):
+            ui.label("Gut zu wissen").classes("m-btitel")
+            ui.label(f"{zr.anreisen} Anreise-Einträge im Zeitraum (Listen). Nach dem Pivot-Stichtag sind die Werte "
+                     "Prognose plus Verträge – vorher Ist-Werte.").classes("m-ptext")
 
 
 def _belegung_einfach(a, det: ak.BDetails, zr, farben) -> None:
@@ -339,9 +423,12 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                 opt = _chart_basis()
                 opt["xAxis"]["data"] = det.tage
                 opt["yAxis"]["scale"] = False
+                from . import diagramm_stil as _ds        # 0.95: feste Gruppenfarben auch hier (Reha ≠ Mieter)
+
                 opt["series"] = [{"name": k, "type": "line", "stack": "art", "data": v, "symbol": "none",
-                                  "lineStyle": {"color": farben[i % len(farben)], "width": 1},
-                                  "areaStyle": {"color": farben[i % len(farben)], "opacity": .35}}
+                                  "color": _ds.gruppen_farbe(k, i, farben),
+                                  "lineStyle": {"color": _ds.gruppen_farbe(k, i, farben), "width": 1},
+                                  "areaStyle": {"color": _ds.gruppen_farbe(k, i, farben), "opacity": .35}}
                                  for i, (k, v) in enumerate(det.kategorien.items())]
                 if zr.kapazitaet:
                     opt["series"].append({"name": "Kapazität", "type": "line", "data": [zr.kapazitaet] * len(det.tage),

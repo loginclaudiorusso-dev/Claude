@@ -166,13 +166,13 @@ def rolle(se: dict) -> str:
 
 
 def _label(farbe_hg: str) -> dict:
-    return {"show": True, "position": "top", "distance": 6, "fontSize": 12, "fontWeight": "bold", "color": "#fff",
+    return {"show": True, "position": "top", "distance": 6, "fontSize": 13, "fontWeight": "bold", "color": "#fff",
             "backgroundColor": farbe_hg, "padding": [2, 5], "borderRadius": 3, "textBorderWidth": 0,
             ":formatter": WERT_JS}
 
 
 def _endlabel(text_js: str, farbe: str) -> dict:
-    return {"show": True, "fontSize": 12, "fontWeight": 600, "color": farbe, "distance": 6, ":formatter": text_js}
+    return {"show": True, "fontSize": 13, "fontWeight": 600, "color": farbe, "distance": 6, ":formatter": text_js}
 
 
 def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str | None = None,
@@ -183,10 +183,11 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
     o.pop("title", None)
     akzent, rot, grau, grau2 = t["akzent"], t.get("rot", "#d64545"), t.get("text3", "#8a8f98"), t.get("text2", "#5f6670")
     label_hg = "rgba(24,28,34,.82)"
-    o["textStyle"] = {"color": t.get("text2", "#555"), "fontFamily": SCHRIFT, "fontSize": 12}
+    # 0.95: Schrift mindestens 13 px, Achsen in der kräftigeren zweiten Textfarbe (Kontrast ≥ 4,5:1)
+    o["textStyle"] = {"color": t.get("text2", "#555"), "fontFamily": SCHRIFT, "fontSize": 13}
     for ax in _liste(o.get("xAxis")) + _liste(o.get("yAxis")):
         al = dict(ax.get("axisLabel") or {})
-        al.update({"fontSize": 12, "color": grau})
+        al.update({"fontSize": 13, "color": grau2})
         if ax.get("type") == "value":
             al[":formatter"] = ZAHL_JS
             al.pop("formatter", None)

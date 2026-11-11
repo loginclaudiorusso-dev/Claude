@@ -108,7 +108,7 @@ def test_einheitlicher_stil_farben_linien_beschriftung():
     assert s["Kapazität"]["lineStyle"]["color"] == T["rot"] and "Kapazität 330" in s["Kapazität"]["endLabel"][":formatter"]
     # nur Ist und Prognose beschriftet, mit hideOverlap und dunklem Hintergrund statt Kontur
     assert ist["label"]["show"] and prog["label"]["show"] and not s["Vorjahr (Ist)"]["label"]["show"]
-    assert ist["label"]["textBorderWidth"] == 0 and ist["label"]["backgroundColor"] and ist["label"]["fontSize"] == 12
+    assert ist["label"]["textBorderWidth"] == 0 and ist["label"]["backgroundColor"] and ist["label"]["fontSize"] == 13
     assert ist["labelLayout"]["hideOverlap"] and ist["label"]["fontWeight"] == "bold"
     # EINE Legende oben, ohne Bänder und leere Reihen; Namen am Linienende
     assert o["legend"]["top"] == 2 and "bottom" not in o["legend"]
@@ -116,7 +116,7 @@ def test_einheitlicher_stil_farben_linien_beschriftung():
     assert "Prognose" in prog["endLabel"][":formatter"]
     # Tooltip: Achse, deutsche Zahlen mit einer Nachkommastelle, Differenz zum Vorjahr
     assert o["tooltip"]["trigger"] == "axis" and "de-DE" in o["tooltip"][":formatter"] and "Differenz zum" in o["tooltip"][":formatter"]
-    assert o["yAxis"]["axisLabel"]["fontSize"] == 12 and "de-DE" in o["yAxis"]["axisLabel"][":formatter"]
+    assert o["yAxis"]["axisLabel"]["fontSize"] == 13 and "de-DE" in o["yAxis"]["axisLabel"][":formatter"]
     f = next(se for se in o["series"] if se.get("id") == ds.FOKUS_ID)
     assert f["markLine"]["data"] == [{"xAxis": "Okt 26"}] and f["markLine"]["label"]["formatter"] == "Datenstand"
     assert f["markArea"]["data"] == [[{"xAxis": "Nov 26"}, {"xAxis": "Dez 26"}]]

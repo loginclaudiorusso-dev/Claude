@@ -97,7 +97,7 @@ class Karte:
 
     def chart(self, opt: dict, klassen: str = ""):
         with self.flaeche:
-            c = ui.echart(opt).classes("m-chart m-dk-chart" + (f" {klassen}" if klassen else ""))
+            c = ui.echart(opt, renderer="svg").classes("m-chart m-dk-chart" + (f" {klassen}" if klassen else ""))   # 0.95: scharf
         return c
 
     def anbinden(self, chart, details=None) -> None:
