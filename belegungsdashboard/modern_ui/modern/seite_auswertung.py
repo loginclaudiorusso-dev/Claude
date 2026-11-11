@@ -114,9 +114,10 @@ def _tagesverlauf_karte(a, det: ak.BDetails, zr, farben: list[str]) -> None:
     opt = _chart_basis()
     opt["xAxis"]["data"] = det.tage
     opt["yAxis"]["scale"] = False
+    fb = lambda i, k: diagramm_stil.gruppen_farbe(k, i, farben)  # noqa: E731 – 0.94: feste Gruppenfarben
     opt["series"] = [{"name": k, "rolle": "stapel", "type": "line", "stack": "art", "data": v, "symbol": "none",
-                      "color": farben[i % len(farben)], "lineStyle": {"color": farben[i % len(farben)], "width": 1},
-                      "areaStyle": {"color": farben[i % len(farben)], "opacity": .35}}
+                      "color": fb(i, k), "lineStyle": {"color": fb(i, k), "width": 1},
+                      "areaStyle": {"color": fb(i, k), "opacity": .35}}
                      for i, (k, v) in enumerate(det.kategorien.items())]
     if zr.kapazitaet:
         opt["series"].append({"name": "Kapazität", "rolle": "kapazitaet", "type": "line", "data": [zr.kapazitaet] * n})
@@ -318,7 +319,11 @@ def _belegung_einfach(a, det: ak.BDetails, zr, farben) -> None:
                 with ui.element("div").classes("m-einfach-zeile"):
                     ui.label(name).classes("m-einfach-name")
                     with ui.element("div").classes("m-einfach-spur"):
-                        ui.element("div").classes("m-einfach-balken").style(f"width:{100 * mittel / hoch:.1f}%")
+                        from . import diagramm_stil
+
+                        f_ = diagramm_stil.GRUPPEN_FARBEN.get(name)
+                        ui.element("div").classes("m-einfach-balken").style(
+                            f"width:{100 * mittel / hoch:.1f}%" + (f";background:{f_}" if f_ else ""))
                     ui.label(f"{bk.zahl(mittel)} · {round(100 * anteil)} %").classes("m-einfach-wert")
 
 

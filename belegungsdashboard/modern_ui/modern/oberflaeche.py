@@ -130,7 +130,7 @@ class Ansicht:
         self.zu_filter = self.dz_filter = self.mt_filter = None
         from belegung import konfig
 
-        self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 24
+        self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 12   # 0.94: 12 Monate Standard
         self.aw_95, self.aw_backtest = False, False          # 0.86: 95 %-Band nur auf Wunsch (aus 18 Fehlern kaum schätzbar)
         self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
         self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)

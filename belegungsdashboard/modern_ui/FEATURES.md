@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.93.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.94.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -125,6 +125,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Tagesbriefing einmal am Tag als Outlook-Termin oder E-Mail an mich – ohne Personennamen
 
 ## Maßnahmen-Prognose (Auswertung → Maßnahmen)
+- Teilnehmer-Prognose (0.94): keine Maßnahme fällt still heraus (KBM, „Sonstige“ mit Hinweis), Treffsicherheit je Maßnahme mit Bezug, Lücke statt 0, „Heute“ ohne Sprung, Plausibilitätshinweis, Datenprüfung; Leitungsansicht mit Aussage, drei Frage-Kacheln, zwei Bändern bzw. Säulen bei kleinen Maßnahmen
 - Bestandsprognose (0.79): Planung („Plane mit X, davon Y sicher“) und Leitung (80 %-Spanne, drei Szenarien mit Auslöser, Frühindikator, Herkunft, Abgangsquoten, Rückblick-Test), Wenn-dann per Klick auf einen Monat; Kaplan-Meier, Übergänge, 1000 Simulationen, VW-Kappe 24
 - Halb belegte Doppelzimmer als halb gefüllte Kachel (statt gestrichelt wie „geplant“); Reinigungsliste „Offen – auch ältere“ (14 Tage zurück, wie der Besen) mit Spalte „Heute“ (belegt/frei) (0.80)
 - Reinigungsliste drucken in der am Bildschirm gewählten Sortierung (z. B. nach Zimmer), Untertitel „sortiert nach …“ (0.81)

@@ -127,6 +127,14 @@ def _liste(x) -> list[dict]:
 #   balken_ist / balken_prognose    Zählwerte als Balken (Prognose heller, gestrichelter Rand)
 
 FOKUS_ID = "m-fokus"
+# 0.94: feste Gruppenfarben – eine Gruppe sieht überall gleich aus (Karte und Einfach). Klassisch bleibt wie bisher.
+GRUPPEN_FARBEN = {"Reha": "#00929A", "UWT": "#5B5BD6", "Umschüler": "#5B5BD6", "UWTler": "#5B5BD6",
+                  "Mieter": "#B8650A"}
+
+
+def gruppen_farbe(name: str, i: int, sonst: list[str]) -> str:
+    """Feste Farbe für Reha, Umschüler und Mieter – alle übrigen Kategorien aus der Liste ``sonst``."""
+    return GRUPPEN_FARBEN.get(name) or sonst[i % len(sonst)]
 SCHRIFT = "Segoe UI, Inter, sans-serif"
 ZAHL_JS = "(v) => (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE')"
 WERT_JS = ("(p) => { const v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value; "

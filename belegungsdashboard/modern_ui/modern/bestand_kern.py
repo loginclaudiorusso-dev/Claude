@@ -43,6 +43,7 @@ ZUORDNUNG_STANDARD = [
     {"muster": "CNC", "art": "Hauptmaßnahme CNC", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
     {"muster": "M-GA", "art": "Hauptmaßnahme M-GA", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
     {"muster": "BFS", "art": "Hauptmaßnahme BFS", "gruppe": "Hauptmaßnahme", "soll_tage": 730},
+    {"muster": "KBM", "art": "Hauptmaßnahme KBM", "gruppe": "Hauptmaßnahme", "soll_tage": 730},   # 0.94
     {"muster": "JobTrain", "art": "JobTrain", "gruppe": "Ignoriert", "soll_tage": None},      # für uns ohne Belang
     {"muster": "Bauhelfer", "art": "Bauhelfer", "gruppe": "Ignoriert", "soll_tage": None},
 ]
@@ -437,7 +438,15 @@ def tabelle(roh: dict | None = None) -> list[dict]:
     from . import massnahmen_kern as mk
 
     eigen = (roh if roh is not None else mk._roh()).get("zuordnung_arten")
-    return tabelle_bereinigen(eigen if eigen is not None else ZUORDNUNG_STANDARD)
+    t = tabelle_bereinigen(eigen if eigen is not None else ZUORDNUNG_STANDARD)
+    if eigen is not None:              # 0.94: neue Startzeilen (KBM) auch in einer gespeicherten Tabelle ergänzen
+        da = {e["muster"].upper() for e in t}
+        t += [e for e in tabelle_bereinigen([x for x in ZUORDNUNG_STANDARD if x["muster"] in NEU_SEIT_094])
+              if e["muster"].upper() not in da]
+    return t
+
+
+NEU_SEIT_094 = ("KBM",)
 
 
 def tabelle_schritt(neu: list[dict] | None) -> str:

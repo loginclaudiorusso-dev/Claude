@@ -72,6 +72,7 @@ class Fall:
     laufend: bool
     soll: int | None
     geplant: date | None = None     # 0.86: geplantes Ende laut Pivot (nur wenn es nach dem Stichtag liegt)
+    zugeordnet: bool = True         # 0.94: False = kein Eintrag in der Zuordnungstabelle (eigene Art unter „Sonstige“)
 
     @property
     def dauer(self) -> int:
@@ -97,14 +98,34 @@ def faelle(aufenthalte: list[bk.Aufenthalt], tabelle: list[dict], gemessen: dict
     erg = []
     for x in aufenthalte:
         e = bk.zuordnen(x.kurs, tabelle)
-        if e is None or e["gruppe"] == "Ignoriert" or x.halbjahr:
+        if e is not None and e["gruppe"] == "Ignoriert" or x.halbjahr:
             continue
+        zugeordnet = e is not None
+        if e is None:                 # 0.94: nicht mehr still weglassen – eigene Art je Kursfamilie unter „Sonstige“
+            e = {"art": kursfamilie(x.kurs), "gruppe": "Sonstige", "soll_tage": None, "soll_quelle": "anmeldung"}
         soll, _q = bk.soll_tage(x.kurs, e, gemessen)
         abgeschnitten = pivot_ende is not None and x.aus >= pivot_ende - timedelta(days=bk.LAUFEND_TAGE)
         erg.append(Fall(x.person, x.kurs, e["art"], e["gruppe"], x.ein, x.aus,
                         x.aus >= letzter - timedelta(days=bk.LAUFEND_TAGE), soll,
-                        x.aus if x.aus > letzter and not abgeschnitten else None))
+                        x.aus if x.aus > letzter and not abgeschnitten else None, zugeordnet))
     return erg
+
+
+def kursfamilie(kurs: str) -> str:
+    """„GS KBM 2506“ → „KBM“ – wie die Neuanmeldungen (Teile mit Ziffern fallen weg), ohne Standort-Kürzel."""
+    teile = [x for x in kurs.split() if not any(c.isdigit() for c in x)]
+    if len(teile) > 1 and teile[0].upper() in ("GS", "BP", "WE"):
+        teile = teile[1:]
+    return " ".join(teile) or kurs
+
+
+def ohne_zuordnung(aufenthalte: list[bk.Aufenthalt], tabelle: list[dict]) -> list[tuple[str, int]]:
+    """0.94: Kursfamilien ohne Eintrag in der Zuordnungstabelle mit Anzahl Aufenthalte – größte zuerst."""
+    n: dict[str, int] = {}
+    for x in aufenthalte:
+        if not x.halbjahr and bk.zuordnen(x.kurs, tabelle) is None:
+            n[kursfamilie(x.kurs)] = n.get(kursfamilie(x.kurs), 0) + 1
+    return sorted(n.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 # ---- Kaplan-Meier --------------------------------------------------------------------------------------------
@@ -268,6 +289,8 @@ class Ergebnis:
     zerlegung: np.ndarray              # (Quellen, Arten + 1, T) – Mittel
     ueber_kapazitaet: dict             # Art → Ø abgewiesene Zugänge im Horizont
     roh: np.ndarray | None = None      # (Arten + 1, R, T) – für Wenn-dann
+    p025: np.ndarray | None = None     # 0.94: „fast sicher“ (19 von 20) – aus denselben Verläufen
+    p975: np.ndarray | None = None
 
     def zeile(self, art: str | None) -> int:
         return len(self.arten) if art in (None, "", "Alle") else self.arten.index(art)
@@ -401,7 +424,8 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
     bestand[:, A] = bestand[:, :A].sum(axis=1)
     gesamt = bestand.sum(axis=0)                                     # (A+1, R, T)
     return Ergebnis(tage, md.arten, np.median(gesamt, axis=1), np.percentile(gesamt, 10, axis=1),
-                    np.percentile(gesamt, 90, axis=1), bestand.mean(axis=2), ueber, gesamt if roh else None)
+                    np.percentile(gesamt, 90, axis=1), bestand.mean(axis=2), ueber, gesamt if roh else None,
+                    np.percentile(gesamt, 2.5, axis=1), np.percentile(gesamt, 97.5, axis=1))
 
 
 # ---- Kennzahlen, Ist-Verlauf, Frühindikator ------------------------------------------------------------------------
@@ -415,18 +439,69 @@ def abgangsquote(md: Modell, art: str) -> float | None:
     return float(1 - kv.verbleib(max(1, s - 30)))
 
 
-def ist_verlauf(fs: list[Fall], letzter: date, art: str | None = None, monate: int = 12) -> list[tuple[date, int]]:
+def _passt(f: Fall, art: str | None) -> bool:
+    return art in (None, "", "Alle") or f.art == art
+
+
+def ist_verlauf(fs: list[Fall], letzter: date, art: str | None = None, monate: int = 12) -> list[tuple[date, int | None]]:
+    """Bestand am 15. der letzten Monate (vor dem Stichtag). 0.94: Vor dem Datenbeginn (frühester Eintritt im gesamten
+    Bestand) steht None – eine Lücke, keine 0. Der Stichtag selbst ist ``bestand_heute``."""
     erg = []
     j, m = letzter.year, letzter.month
     tage = []
     for _ in range(monate):
-        tage.append(date(j, m, 15) if date(j, m, 15) <= letzter else None)
+        tage.append(date(j, m, 15) if date(j, m, 15) < letzter else None)
         m -= 1
         if m == 0:
             j, m = j - 1, 12
+    beginn = min((f.ein for f in fs), default=None)
     for d in reversed([x for x in tage if x]):
-        erg.append((d, sum(1 for f in fs if (art in (None, "", "Alle") or f.art == art) and f.ein <= d <= f.aus)))
+        erg.append((d, None if beginn is None or d < beginn else
+                    sum(1 for f in fs if _passt(f, art) and f.ein <= d <= f.aus)))
     return erg
+
+
+def bestand_heute(fs: list[Fall], letzter: date, art: str | None = None) -> int:
+    """0.94: Bestand am Stichtag genau so, wie die Simulation ihn als Startwert nimmt (Laufende, schon eingetreten) –
+    damit Ist und Planwert am Punkt „Heute“ übereinstimmen."""
+    return sum(1 for f in fs if _passt(f, art) and f.laufend and f.ein <= letzter)
+
+
+@dataclass
+class Diagnose:
+    """0.94: Warum steht eine Maßnahme vor dem Stichtag auf 0? Zahlen zum Nachsehen (keine Namen)."""
+    art: str
+    faelle: int                  # alle Aufenthalte dieser Art
+    vor_stichtag: int            # davon eingetreten vor dem Stichtag
+    erster: date | None          # frühester Eintritt
+    dauer_median: int | None     # Kalendertage
+    am_15_verfehlt: int          # beendete Aufenthalte, die keinen 15. eines Monats enthalten (zählt „Ist“ nicht)
+    halbjahr: int = 0            # Aufenthalte ohne Tageswerte (fallen heraus)
+
+
+def diagnose(fs: list[Fall], letzter: date, art: str, halbjahr: int = 0) -> Diagnose:
+    eigene = [f for f in fs if f.art == art]
+    vor = [f for f in eigene if f.ein < letzter]
+
+    def trifft_15(f: Fall) -> bool:
+        d = f.ein if f.ein.day <= 15 else (f.ein.replace(day=1) + timedelta(days=32)).replace(day=1)
+        return d.replace(day=15) <= f.aus
+    dauern = sorted(f.dauer for f in eigene)
+    return Diagnose(art, len(eigene), len(vor), min((f.ein for f in eigene), default=None),
+                    dauern[len(dauern) // 2] if dauern else None,
+                    sum(1 for f in vor if f.aus < letzter and not trifft_15(f)), halbjahr)
+
+
+def plausibel(ist: list[tuple[date, int | None]], plan: list[float], schwelle: float = .5) -> str | None:
+    """0.94 (nur Hinweis, nichts korrigieren): Ø Planwert der nächsten 12 Monate gegen Ø Ist der letzten 12 Monate."""
+    werte = [n for _d, n in ist if n is not None]
+    if len(werte) < 6 or not plan:
+        return None
+    vorher, nachher = sum(werte) / len(werte), sum(plan[:12]) / len(plan[:12])
+    if vorher < 1 or abs(nachher - vorher) <= schwelle * vorher:
+        return None
+    return (f"Prognose liegt deutlich {'unter' if nachher < vorher else 'über'} dem bisherigen Niveau "
+            f"(Ø {round(nachher)} statt {round(vorher)}) – bitte prüfen.")
 
 
 def fruehindikator(fs: list[Fall], letzter: date, tage: int = 90) -> tuple[str, float | None, int, int]:
@@ -495,6 +570,7 @@ class Rueckblick:
     mae_vorjahr: float | None     # Vergleich: „wie vor 12 Monaten“
     mae_bleibt: float | None = None   # 0.86: Vergleich „Bestand bleibt wie heute“
     treffer: int = 0                  # 0.86: Anzahl Stichtage mit Ist in der 80 %-Spanne
+    bestand_mittel: float | None = None   # 0.94: Ø Ist in den Vergleichen (Bezug für die Treffsicherheit)
 
 
 def _abgeschnitten(fs: list[Fall], s: date) -> list[Fall]:
@@ -509,9 +585,18 @@ def _abgeschnitten(fs: list[Fall], s: date) -> list[Fall]:
 
 def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int = 18, schritt: int = 1,
                durchlaeufe: int = 200) -> list[Rueckblick]:
-    def anwesend(d: date) -> int:
-        return sum(1 for f in fs if f.ein <= d <= f.aus)
-    fehler: dict[int, list] = {h: [] for h in (1, 3, 6, 12)}
+    """Rückblick für alle Maßnahmen zusammen (wie bisher)."""
+    return rueckblick_je(fs, letzter, tabelle, monate, schritt, durchlaeufe)["Alle"]
+
+
+def rueckblick_je(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int = 18, schritt: int = 1,
+                  durchlaeufe: int = 200) -> dict[str, list[Rueckblick]]:
+    """0.94: Rückblick je Maßnahme UND gesamt – aus denselben Simulationen (je Stichtag eine), jede Zeile gegen das Ist
+    genau dieser Art. Keine zusätzlichen Läufe. Schlüssel „Alle“ = Gesamtzeile (wie bisher)."""
+    def anwesend(d: date, art: str | None) -> int:
+        return sum(1 for f in fs if _passt(f, art) and f.ein <= d <= f.aus)
+    arten = sorted({f.art for f in fs})
+    fehler: dict[tuple[str, int], list] = {(a, h): [] for a in arten + ["Alle"] for h in (1, 3, 6, 12)}
     for k in range(schritt, monate + 1, schritt):
         j, m = letzter.year, letzter.month - k
         while m <= 0:
@@ -521,27 +606,60 @@ def rueckblick(fs: list[Fall], letzter: date, tabelle: list[dict], monate: int =
         if len(teil) < 20:
             continue
         e = simulieren(modell(teil, s, tabelle), 0, durchlaeufe, horizont=12)
-        for h in fehler:
-            if h >= len(e.monate) or e.monate[h] > letzter:
+        for art in arten + ["Alle"]:
+            if art != "Alle" and art not in e.arten:
+                continue                       # damals gab es diese Art noch nicht → kein Vergleich
+            z = e.zeile(None if art == "Alle" else art)
+            a_ = None if art == "Alle" else art
+            for h in (1, 3, 6, 12):
+                if h >= len(e.monate) or e.monate[h] > letzter:
+                    continue
+                ist = anwesend(e.monate[h], a_)
+                vj = e.monate[h].replace(year=e.monate[h].year - 1)
+                fehler[(art, h)].append((ist, float(e.median[z, h]), float(e.p10[z, h]), float(e.p90[z, h]),
+                                         anwesend(vj, a_), anwesend(s, a_)))
+    erg: dict[str, list[Rueckblick]] = {}
+    for art in arten + ["Alle"]:
+        zeilen = []
+        for h in (1, 3, 6, 12):
+            xs = fehler[(art, h)]
+            if not xs:
+                zeilen.append(Rueckblick(h, 0, None, None, None, None))
                 continue
-            ist = anwesend(e.monate[h])
-            vj = e.monate[h].replace(year=e.monate[h].year - 1)
-            fehler[h].append((ist, float(e.median[-1, h]), float(e.p10[-1, h]), float(e.p90[-1, h]), anwesend(vj),
-                              anwesend(s)))
-    erg = []
-    for h, xs in fehler.items():
-        if not xs:
-            erg.append(Rueckblick(h, 0, None, None, None, None))
-            continue
-        ist = np.array([x[0] for x in xs], dtype=float)
-        p = np.array([x[1] for x in xs])
-        summe = ist.sum()
-        drin = [x[2] <= x[0] <= x[3] for x in xs]
-        erg.append(Rueckblick(h, len(xs), float(np.mean(np.abs(ist - p))),
-                              float(np.sum(np.abs(ist - p)) / summe) if summe else None,
-                              float(np.mean(drin)), float(np.mean([abs(x[0] - x[4]) for x in xs])),
-                              float(np.mean([abs(x[0] - x[5]) for x in xs])), int(sum(drin))))
+            ist = np.array([x[0] for x in xs], dtype=float)
+            p = np.array([x[1] for x in xs])
+            summe = ist.sum()
+            drin = [x[2] <= x[0] <= x[3] for x in xs]
+            zeilen.append(Rueckblick(h, len(xs), float(np.mean(np.abs(ist - p))),
+                                     float(np.sum(np.abs(ist - p)) / summe) if summe else None,
+                                     float(np.mean(drin)), float(np.mean([abs(x[0] - x[4]) for x in xs])),
+                                     float(np.mean([abs(x[0] - x[5]) for x in xs])), int(sum(drin)), float(np.mean(ist))))
+        erg[art] = zeilen
     return erg
+
+
+@dataclass
+class Treffsicherheit:
+    verlaesslich: bool
+    mae: float | None
+    mittel: float | None
+    n: int
+    satz: str
+
+
+def treffsicherheit(rb: list[Rueckblick], horizont: int = 6, min_monate: int = 6) -> Treffsicherheit:
+    """0.94: Zahl nur, wenn sie etwas aussagt – sonst „zu wenige Fälle“. Immer mit Bezug zum Bestand."""
+    r = next((x for x in rb if x.horizont == horizont), None)
+    if r is None or r.mae is None or r.n < min_monate or not r.bestand_mittel or r.mae > .5 * r.bestand_mittel:
+        return Treffsicherheit(False, r.mae if r else None, r.bestand_mittel if r else None, r.n if r else 0,
+                               "zu wenige Fälle für eine verlässliche Aussage")
+    return Treffsicherheit(True, r.mae, r.bestand_mittel, r.n,
+                           f"im Schnitt {_ganz(r.mae)} daneben, bei durchschnittlich {_ganz(r.bestand_mittel)} Teilnehmenden "
+                           f"({horizont} Monate voraus, {r.n} Vergleiche)")
+
+
+def _ganz(x: float) -> str:
+    return f"{round(x):,}".replace(",", ".")
 
 
 # ---- Ein Aufruf für die Oberfläche (mit Zwischenspeicher) ------------------------------------------------------------
@@ -561,7 +679,15 @@ def alles(aufenthalte, meta: dict, tabelle: list[dict], gemessen: dict, szenarie
     erg = {"modell": md, "faelle": fs, "letzter": letzter,
            "szenarien": {k: simulieren(md, float(szenarien.get(k, SZENARIEN_STANDARD[k]).get("faktor", 0)),
                                         DURCHLAEUFE if k == "basis" else 400) for k in ("basis", "schwach", "stark")},
-           "rueckblick": rueckblick(fs, letzter, tabelle), "frueh": fruehindikator(fs, letzter)}
+           "frueh": fruehindikator(fs, letzter)}
+    rb = rueckblick_je(fs, letzter, tabelle)
+    erg["rueckblick"], erg["rueckblick_je"] = rb["Alle"], rb
+    erg["ohne_zuordnung"] = ohne_zuordnung(aufenthalte, tabelle)                    # 0.94
+    halb: dict[str, int] = {}
+    for x in aufenthalte:
+        if x.halbjahr and (e_ := bk.zuordnen(x.kurs, tabelle)) is not None:
+            halb[e_["art"]] = halb.get(e_["art"], 0) + 1
+    erg["diagnose"] = {a: diagnose(fs, letzter, a, halb.get(a, 0)) for a in md.arten}
     _CACHE.clear()
     _CACHE[schluessel] = erg
     return erg
@@ -590,3 +716,78 @@ def szenarien_schritt(werte: dict) -> str:
         mk._schreiben(roh)
     _schritt("Szenarien der Maßnahmen-Prognose geändert", tun, [mk.DATEI])
     return "Szenarien gespeichert"
+
+
+# ---- 0.94: Leitungsansicht in Worten (Teil B) -------------------------------------------------------------------------
+
+@dataclass
+class Kachel:
+    frage: str
+    symbol: str
+    antwort: str
+    zeile: str
+
+
+@dataclass
+class LeitungsSicht:
+    titel: str
+    kacheln: list                    # drei Frage-Kacheln
+    weitere: list                    # (Titel, Wert, Bezug) – je nach Gruppe
+    hinweise: list                   # Sätze (ohne Zuordnung, Plausibilität)
+    klein: bool                      # höchster Wert aus Ist und oberer Spanne < 10 → Säulen
+    monate: int = 12
+
+
+def leitungssicht(erg: dict, art: str, monate: int = 12, voraus: int = 6) -> LeitungsSicht:
+    """Alles, was die Leitungsansicht in Worten zeigt – aus den Rechenkernen, ohne UI."""
+    md: Modell = erg["modell"]
+    e: Ergebnis = erg["szenarien"]["basis"]
+    a_ = None if art in (None, "", "Alle") else art
+    name = "Alle Maßnahmen" if a_ is None else art
+    z = e.zeile(a_)
+    heute = bestand_heute(erg["faelle"], erg["letzter"], a_)
+    v = min(voraus, len(e.monate) - 1)
+    mitte, lo, hi = float(e.median[z, v]), float(e.p10[z, v]), float(e.p90[z, v])
+    titel = (f"{name}: heute {_ganz(heute)} Teilnehmende, in {v} Monaten voraussichtlich "
+             + (f"{_ganz(lo)} bis {_ganz(hi)}" if round(lo) != round(hi) else _ganz(mitte)))
+    d = mitte - heute
+    schwelle = max(1.0, .1 * max(heute, 1))
+    richtung = ("mehr", "trending_up") if d >= schwelle else ("weniger", "trending_down") if d <= -schwelle \
+        else ("etwa gleich", "trending_flat")
+    rb = (erg.get("rueckblick_je") or {}).get("Alle" if a_ is None else art) or []
+    ts = treffsicherheit(rb)
+    kacheln = [Kachel("Werden es mehr oder weniger?", richtung[1], richtung[0],
+                      f"heute {_ganz(heute)}, in {v} Monaten {_ganz(mitte)}"),
+               Kachel("Wie sicher ist das?", "straighten",
+                      f"zwischen {_ganz(lo)} und {_ganz(hi)}" if round(lo) != round(hi) else f"genau {_ganz(mitte)}",
+                      f"sehr wahrscheinlich (8 von 10 Fällen) in {v} Monaten"),
+               Kachel("Wie gut lag die Prognose bisher?", "fact_check" if ts.verlaesslich else "help_outline",
+                      f"± {_ganz(ts.mae)}" if ts.verlaesslich else "zu wenige Fälle", ts.satz if ts.verlaesslich else
+                      "für eine verlässliche Aussage – die Zahl wäre Zufall")]
+    gruppe = md.gruppe.get(art) if a_ else None
+    weitere = []
+    if gruppe == "Assessment":                  # Abgänge/Pipeline sagen hier nichts (alle gehen, niemand kommt aus Vorstufe)
+        jetzt = sum(1 for f in erg["faelle"] if f.art == art and erg["letzter"] - timedelta(days=90) < f.ein <= erg["letzter"])
+        vj_bis = erg["letzter"] - timedelta(days=365)
+        vorher = sum(1 for f in erg["faelle"] if f.art == art and vj_bis - timedelta(days=90) < f.ein <= vj_bis)
+        weitere.append(("Eintritte der letzten 90 Tage", _ganz(jetzt), f"{name} · Vorjahr gleicher Zeitraum: {_ganz(vorher)}"))
+        u = md.uebergaenge.get("Assessment")
+        weitere.append(("Übergang in die nächste Stufe", f"{round(100 * u.quote)} %" if u and u.quote is not None else "–",
+                        f"alle Assessments · aus {u.basis} Fällen" if u else "noch keine abgeschlossenen Fälle"))
+    else:
+        abg = float(e.zerlegung[0, z, 0] - e.zerlegung[0, z, v])
+        pip = float(e.zerlegung[2, z, v])
+        weitere.append(("Erwartete Abgänge", _ganz(abg), f"{name} · bis {e.monate[v]:%m.%Y} (regulär + vorzeitig)"))
+        weitere.append(("Zugänge aus Vorstufen", _ganz(pip), f"{name} · bis {e.monate[v]:%m.%Y} aus Assessment/Vorbereitung"))
+    hinweise = []
+    oz = erg.get("ohne_zuordnung") or []
+    if oz:
+        hinweise.append(f"{len(oz)} Kursfamilie{'n sind' if len(oz) != 1 else ' ist'} keiner Maßnahme zugeordnet und "
+                        f"zählen vorläufig unter „Sonstige“: " + ", ".join(f"{f} ({n})" for f, n in oz[:6])
+                        + (" …" if len(oz) > 6 else ""))
+    ist = ist_verlauf(erg["faelle"], erg["letzter"], a_)
+    p = plausibel(ist, [float(x) for x in e.median[z, 1:monate + 1]])
+    if p:
+        hinweise.append(f"{name}: {p}")
+    hoch = max([n for _d, n in ist if n is not None] + [heute] + [float(x) for x in e.p90[z, :monate + 1]])
+    return LeitungsSicht(titel, kacheln, weitere, hinweise, hoch < 10, monate)

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+
 from nicegui import run, ui
 
 from . import bestand_kern as bk
@@ -127,41 +129,84 @@ def _planung(a, d, art: str) -> None:
 # ---- Leitung: Spektrum, Szenarien, Wenn-dann ------------------------------------------------------------------------
 
 def _leitung(a, d, art: str) -> None:
+    """0.94: Aussage als Überschrift, drei Frage-Kacheln, gruppengerechte Kennzahlen, Diagramm für Laien."""
     erg = d["erg"]
-    md: bp.Modell = erg["modell"]
     e: bp.Ergebnis = erg["szenarien"]["basis"]
-    z = e.zeile(art)
+    sicht = bp.leitungssicht(erg, art)
     _ampel(erg, d["szen"])
-    with ui.element("div").classes("m-bp-kpis"):
-        heute = e.median[z, 0]
-        abg = e.zerlegung[0, z, 0] - e.zerlegung[0, z, 6]
-        pip = e.zerlegung[2, z, 6]
-        u = md.uebergaenge.get("Assessment")
-        rb6 = next((r for r in erg["rueckblick"] if r.horizont == 6 and r.mae is not None), None)
-        _kpi("Bestand heute", _z(heute), "Teilnehmende")
-        _kpi("Erwartete Abgänge", _z(abg), f"bis {_m(e.monate[6])} (regulär + vorzeitig)")
-        _kpi("Zugänge aus der Pipeline", _z(pip), f"bis {_m(e.monate[6])} aus Assessment/Vorbereitung")
-        _kpi("Übergang Assessment → nächste Stufe", _p(u.quote) if u else "–",
-             f"aus {mehrzahl(u.basis, 'Fall', 'Fällen')}" if u else "")
-        _kpi("Treffsicherheit", f"± {_z(rb6.mae)}" if rb6 else "–",
-             "6 Monate voraus, im Rückblick" if rb6 else "noch zu wenig Historie")
+    for h in sicht.hinweise:
+        with ui.element("div").classes("m-bp-hinweis"):
+            ui.icon("info_outline")
+            ui.label(h)
+            if "keiner Maßnahme zugeordnet" in h:
+                knopf("Zur Zuordnung", lambda: a.setzen(mn_ansicht="bestand", nur_seite=True), "leise")
+    ui.label(sicht.titel).classes("m-bp-titel")
+    with ui.element("div").classes("m-bp-kacheln"):
+        for k in sicht.kacheln:
+            with ui.element("div").classes("m-bp-kachel"):
+                ui.label(k.frage).classes("m-zweite")
+                with ui.element("div").classes("m-bp-antwort"):
+                    ui.icon(k.symbol)
+                    ui.label(k.antwort)
+                ui.label(k.zeile).classes("m-zweite")
+        for titel, wert, bezug in sicht.weitere:
+            _kpi(titel, wert, bezug)
+    szen_an = bool(getattr(a, "bp_szenarien", False))
     with ui.element("section").classes("m-block"):
-        ui.label(f"{'Alle Maßnahmen' if art == 'Alle' else art}: Verlauf, 80 %-Spanne und Szenarien").classes("m-btitel")
-        chart = ui.echart(_verlauf_option(erg, d["szen"], art)).classes("m-chart m-dg")
+        with ui.element("div").classes("m-zeile-flex"):
+            ui.label("Verlauf und Prognose" + (" – Säulen, weil es wenige sind" if sicht.klein else "")).classes("m-btitel")
+            knopf("Szenarien ausblenden" if szen_an else "Szenarien zeigen",
+                  lambda: a.setzen(bp_szenarien=not szen_an, laden=False), "leise", "tune").style("margin-left:auto")
+        opt, szen_text = _verlauf_option(erg, d["szen"], art, sicht, szen_an)
+        chart = ui.echart(opt, renderer="svg").classes("m-chart m-dg m-bp-chart")
         chart.on("m_achse", lambda ev: _wenn_dann_panel(a, erg, art, ev.args), ["index"])
-        ui.label("Klick auf einen künftigen Monat: „Wenn wir dann X Teilnehmende haben – wie geht es weiter?“").classes(
-            "m-zweite")
+        if szen_an and szen_text:
+            ui.label(szen_text).classes("m-zweite")
+        with ui.element("div").classes("m-bp-lesehilfe"):
+            if sicht.klein:
+                ui.label("So lesen: Die Säulen links von „Heute“ zeigen, wie viele da waren (je am 15. des Monats). Die "
+                         "farbigen Säulen rechts sind der erwartete Wert.").classes("m-zweite")
+                ui.label("Der senkrechte Strich heißt „sehr wahrscheinlich“: In 8 von 10 Fällen liegt der Wert zwischen "
+                         "seinem unteren und oberen Ende.").classes("m-zweite")
+                ui.label("Der Strich wird länger: je weiter in der Zukunft, desto unsicerer. Klick auf einen künftigen "
+                         "Monat: „Wenn wir dann X Teilnehmende haben – wie geht es weiter?“").classes("m-zweite")
+            else:
+                ui.label("So lesen: Die durchgezogene Linie ist, was war – bis „Heute“. Die gestrichelte Linie ist der "
+                         "erwartete Wert.").classes("m-zweite")
+                ui.label("Das dunkle Band heißt „sehr wahrscheinlich“ (in 8 von 10 Fällen liegt der Wert darin), das helle "
+                         "„fast sicher“ (19 von 20).").classes("m-zweite")
+                ui.label("Das Band wird breiter: je weiter in der Zukunft, desto unsicherer. Klick auf einen künftigen "
+                         "Monat: „Wenn wir dann X Teilnehmende haben – wie geht es weiter?“").classes("m-zweite")
     with ui.element("section").classes("m-block"):
         ui.label("Woher die Teilnehmenden kommen (Mittel der Verläufe)").classes("m-btitel")
         ui.echart(_zerlegung_option(e, art)).classes("m-chart")
     with ui.element("div").classes("m-bst-raster"):
-        _abgaenge(md)
-        _rueckblick(erg["rueckblick"])
+        _abgaenge(erg["modell"])
+        _rueckblick((erg.get("rueckblick_je") or {}).get(art if art not in (None, "", "Alle") else "Alle")
+                    or erg["rueckblick"])
+    _diagnose(erg, art)
     from . import diagramm_ui
 
     diagramm_ui.fx_kasten([("planwert", {}, []), ("sicher", {}, []), ("abgangsquote", {}, []),
                            ("uebergangsquote", {}, []), ("rueckblick", {}, [])])
     _fx_knopf()
+
+
+def _diagnose(erg, art: str) -> None:
+    """0.94: Datenprüfung je Maßnahme – warum die Ist-Linie leer ist oder springt (Zahlen, keine Namen)."""
+    dg = (erg.get("diagnose") or {}).get(art)
+    if dg is None:
+        return
+    with ui.element("details").classes("m-block m-bp-diagnose"):
+        ui.element("summary").classes("m-btitel").props('innerHTML="Datenprüfung für diese Maßnahme"')
+        for t, w in (("Aufenthalte insgesamt", dg.faelle), ("davon vor dem Stichtag eingetreten", dg.vor_stichtag),
+                     ("frühester Eintritt", f"{dg.erster:%m.%Y}" if dg.erster else "–"),
+                     ("typische Dauer (Tage)", dg.dauer_median if dg.dauer_median is not None else "–"),
+                     ("beendet, ohne einen 15. zu berühren (zählen im Ist nicht)", dg.am_15_verfehlt),
+                     ("ohne Tageswerte (nur Halbjahr, fallen heraus)", dg.halbjahr)):
+            with ui.element("div").classes("m-zeile-flex"):
+                ui.label(t).classes("m-zweite")
+                ui.label(str(w)).classes("m-name").style("margin-left:auto")
 
 
 def _fx_knopf() -> None:
@@ -194,46 +239,146 @@ def _ampel(erg, szen) -> None:
         ui.label(text).classes("m-zweite").style("white-space:normal")
 
 
-def _achse(erg, art: str):
-    ist = bp.ist_verlauf(erg["faelle"], erg["letzter"], art)
+def _achse(erg, art: str, monate: int = 12):
+    """0.94: Ist (15. der Vormonate, Lücke vor Datenbeginn) + „Heute“ (Stichtag, = Startwert der Prognose) + 12 Monate.
+    Index von „Heute“ = n_ist − 1 – so bleibt die Zuordnung für Wenn-dann (k = Index − (n_ist − 1))."""
+    a_ = None if art in (None, "", "Alle") else art
+    ist = bp.ist_verlauf(erg["faelle"], erg["letzter"], a_)
+    ist = ist + [(erg["letzter"], bp.bestand_heute(erg["faelle"], erg["letzter"], a_))]
     e = erg["szenarien"]["basis"]
-    kat = [_m(d) for d, _n in ist] + [_m(d) for d in e.monate[1:]]
+    kat = [_m(d) for d, _n in ist[:-1]] + ["Heute"] + [_m(d) for d in e.monate[1:monate + 1]]
     return ist, kat, len(ist)
 
 
-def _verlauf_option(erg, szen, art: str) -> dict:
+def _gross(x) -> int:
+    return int(round(float(x)))
+
+
+def _verlauf_option(erg, szen, art: str, sicht=None, szen_an: bool = False) -> tuple[dict, str]:
+    """Linie mit zwei Bändern (große Maßnahmen, Alle) bzw. Säulen mit Fehlerbalken (unter 10). Keine Glättung, y ab 0,
+    nur ganze Zahlen, „Heute“ trennt „so war es“ von „so wird es voraussichtlich“."""
     from . import seite_auswertung as sa
 
     t = sa._T()
-    ist, kat, n_ist = _achse(erg, art)
-    leer_ = [None] * (n_ist - 1)
-    reihen = []
+    sicht = sicht or bp.leitungssicht(erg, art)
+    M = sicht.monate
+    ist, kat, n_ist = _achse(erg, art, M)
+    h = n_ist - 1                                      # Index „Heute“
     e = erg["szenarien"]["basis"]
-    z = e.zeile(art)
-    unten = leer_ + [round(float(x)) for x in e.p10[z]]
-    breite = leer_ + [round(float(o - u)) for u, o in zip(e.p10[z], e.p90[z])]
-    reihen.append({"name": "u80", "type": "line", "data": unten, "stack": "b", "symbol": "none", "lineStyle": {"opacity": 0},
-                   "tooltip": {"show": False}, "silent": True})
-    reihen.append({"name": "80 %-Spanne", "type": "line", "data": breite, "stack": "b", "symbol": "none",
-                   "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": .16}, "color": t["akzent"]})
-    reihen.append({"name": "Ist", "type": "line", "data": [n for _d, n in ist] + [None] * (len(kat) - n_ist),
-                   "color": t["text"], "lineStyle": {"color": t["text"], "width": 2.4}, "symbol": "circle", "symbolSize": 4})
-    reihen.append({"name": "Planwert (normal)", "type": "line", "data": leer_ + [round(float(x)) for x in e.median[z]],
-                   "color": t["akzent"], "lineStyle": {"color": t["akzent"], "width": 2.4, "type": [7, 5]}, "symbol": "none"})
-    for k, farbe in (("schwach", t["orange"]), ("stark", t["blau"])):
-        s = erg["szenarien"][k]
-        reihen.append({"name": f"{bp.SZENARIO_NAMEN[k]} ({'+' if szen[k]['faktor'] >= 0 else '−'}{abs(round(szen[k]['faktor']))} %)",
-                       "type": "line", "data": leer_ + [round(float(x)) for x in s.median[s.zeile(art)]], "color": farbe,
-                       "lineStyle": {"color": farbe, "width": 1.6, "type": "dotted"}, "symbol": "none"})
-    reihen[2]["markLine"] = {"silent": True, "symbol": "none", "lineStyle": {"color": t["text2"], "type": [2, 3]},
-                             "label": {"formatter": "Stichtag", "color": t["text2"], "fontSize": 11},
-                             "data": [{"xAxis": kat[n_ist - 1]}]}
-    opt = sa._chart_basis()
-    opt["xAxis"]["data"] = kat
-    opt["legend"]["data"] = [r["name"] for r in reihen if r["name"] != "u80"]
-    opt["series"] = reihen
-    opt["grid"]["top"] = 40
-    return opt
+    a_ = None if art in (None, "", "Alle") else art
+    z = e.zeile(a_)
+    plan = [_gross(x) for x in e.median[z, :M + 1]]
+    lo, hi = [_gross(x) for x in e.p10[z, :M + 1]], [_gross(x) for x in e.p90[z, :M + 1]]
+    lo95 = [_gross(x) for x in (e.p025 if e.p025 is not None else e.p10)[z, :M + 1]]
+    hi95 = [_gross(x) for x in (e.p975 if e.p975 is not None else e.p90)[z, :M + 1]]
+    leer_ = [None] * h
+    ist_w = [n for _d, n in ist] + [None] * M
+    reihen: list[dict] = []
+    schrift = {"fontSize": 13, "color": t["text"]}
+    fx = lambda xs: leer_ + xs                         # noqa: E731 – Prognose ab „Heute“
+    if sicht.klein:
+        reihen.append({"name": "so war es", "type": "bar", "data": [v if i <= h else None for i, v in enumerate(ist_w)],
+                       "itemStyle": {"color": t["text"]}, "barMaxWidth": 22, "barGap": "-100%",
+                       "label": {"show": True, "position": "top", **schrift}})
+        reihen.append({"name": "erwartet", "type": "bar", "data": fx([None] + plan[1:]),
+                       "itemStyle": {"color": t["akzent"], "opacity": .6}, "barMaxWidth": 22,
+                       "label": {"show": True, "position": "insideBottom", "distance": 4, **schrift, "fontWeight": 600}})
+        balken = [[h + i, lo[i], hi[i]] for i in range(1, M + 1)]
+        reihen.append({"name": "sehr wahrscheinlich (8 von 10)", "type": "custom", "data": balken,
+                       "itemStyle": {"color": t["text"]}, "z": 5, "tooltip": {"show": False},
+                       ":renderItem": "(p, api) => { const x = api.value(0), a = api.coord([x, api.value(1)]),"
+                                      " b = api.coord([x, api.value(2)]), w = 7; const st = {stroke: api.visual('color'),"
+                                      " lineWidth: 1.6}; return {type: 'group', children: ["
+                                      "{type: 'line', shape: {x1: a[0], y1: a[1], x2: b[0], y2: b[1]}, style: st},"
+                                      "{type: 'line', shape: {x1: a[0] - w, y1: a[1], x2: a[0] + w, y2: a[1]}, style: st},"
+                                      "{type: 'line', shape: {x1: b[0] - w, y1: b[1], x2: b[0] + w, y2: b[1]}, style: st}]}; }"})
+    else:
+        band = lambda name, u, o, deck: [                                   # noqa: E731
+            {"name": f"_{name}", "type": "line", "data": fx(u), "stack": name, "symbol": "none", "smooth": False,
+             "lineStyle": {"opacity": 0}, "tooltip": {"show": False}, "silent": True},
+            {"name": name, "type": "line", "data": fx([b_ - a_x for a_x, b_ in zip(u, o)]), "stack": name, "symbol": "none",
+             "smooth": False, "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": deck},
+             "itemStyle": {"color": t["akzent"], "opacity": deck}, "silent": True}]
+        reihen += band("fast sicher (19 von 20)", lo95, hi95, .16)
+        reihen += band("sehr wahrscheinlich (8 von 10)", lo, hi, .38)
+        reihen.append({"name": "so war es", "type": "line", "data": [v if i <= h else None for i, v in enumerate(ist_w)],
+                       "smooth": False, "symbol": "none", "lineStyle": {"color": t["text"], "width": 3},
+                       "itemStyle": {"color": t["text"]}, "connectNulls": False})
+        reihen.append({"name": "erwartet", "type": "line", "data": fx(plan), "smooth": False, "symbol": "none",
+                       "lineStyle": {"color": t["akzent"], "width": 3, "type": "dashed"}, "itemStyle": {"color": t["akzent"]}})
+        # höchstens vier Beschriftungen: heute, höchster und tiefster Planwert, letzter Monat
+        idx = {0, max(range(1, M + 1), key=lambda i: plan[i]), min(range(1, M + 1), key=lambda i: plan[i])}
+        marken = [{"coord": [kat[h + i], plan[i]], "value": plan[i], "symbol": "circle", "symbolSize": 7,
+                   "label": {"show": True, "position": "top", "formatter": "{c}", **schrift}}
+                  for i in sorted(idx) if i != M]
+        reihen[-1]["markPoint"] = {"silent": True, "data": marken, "itemStyle": {"color": t["akzent"]}}
+    # Szenarien (zuschaltbar) – nur wenn sie sich überhaupt unterscheiden
+    szen_text = ""
+    if szen_an:
+        unterschied = False
+        for k, farbe, art_ in (("schwach", t["orange"], "dotted"), ("stark", t["blau"], "dashed")):
+            s_ = erg["szenarien"][k]
+            werte = [_gross(x) for x in s_.median[s_.zeile(a_), :M + 1]]
+            if any(abs(w - p) >= 1 for w, p in zip(werte, plan)):
+                unterschied = True
+                reihen.append({"name": f"{bp.SZENARIO_NAMEN[k]} ({'+' if szen[k]['faktor'] >= 0 else '−'}"
+                                       f"{abs(round(szen[k]['faktor']))} %)", "type": "line", "data": fx(werte),
+                               "smooth": False, "symbol": "none", "lineStyle": {"color": farbe, "width": 2, "type": art_},
+                               "itemStyle": {"color": farbe}})
+        if not unterschied:
+            szen_text = "Die Szenarien ändern hier praktisch nichts."
+    # „Heute“, Bereiche „so war es“ / „so wird es voraussichtlich“, „Voll“
+    erste = next((i for i, (_d, n) in enumerate(ist) if n is not None), None)
+    linien = [{"xAxis": "Heute", "lineStyle": {"color": t["text2"], "type": "solid", "width": 1.5},
+               "label": {"formatter": "Heute", "position": "end", **schrift, "fontWeight": 600}}]
+    voll = next((e_.get("max_plaetze") for e_ in bk.tabelle() if e_.get("art") == art), None) if a_ else None
+    if voll:
+        linien.append({"yAxis": voll, "lineStyle": {"color": t["text"], "type": "solid", "width": 2},
+                       "label": {"formatter": f"Voll: {voll} Plätze", "position": "insideEndTop", **schrift}})
+    flaechen = [[{"xAxis": kat[0], "itemStyle": {"color": "rgba(0,0,0,0)"},
+                  "label": {"show": True, "position": "insideTop", "formatter": "so war es", "color": t["text2"],
+                            "fontSize": 13}}, {"xAxis": "Heute"}],
+                [{"xAxis": "Heute", "itemStyle": {"color": "rgba(0,127,127,0.04)"},
+                  "label": {"show": True, "position": "insideTop", "formatter": "so wird es voraussichtlich",
+                            "color": t["text2"], "fontSize": 13}}, {"xAxis": kat[-1]}]]
+    if erste is None or erste > 0:
+        bis = kat[erste] if erste is not None else "Heute"
+        flaechen.append([{"xAxis": kat[0], "itemStyle": {"color": "rgba(128,128,128,0.08)"},
+                          "label": {"show": True, "position": "inside", "color": t["text2"], "fontSize": 13,
+                                    "formatter": f"keine Daten vor {ist[erste][0]:%m.%Y}" if erste is not None
+                                    else "keine Daten"}}, {"xAxis": bis}])
+    ziel = next(r for r in reihen if r["name"] == "so war es")
+    ziel["markLine"] = {"silent": True, "symbol": "none", "data": linien}
+    ziel["markArea"] = {"silent": True, "data": flaechen}
+    # rechter Rand: Zahlen des letzten Monats
+    rand = (f"{kat[-1]}\nerwartet {plan[M]}\nsehr wahrscheinlich {lo[M]}–{hi[M]}"
+            + ("" if sicht.klein else f"\nfast sicher {lo95[M]}–{hi95[M]}"))
+    pfad = fx(plan)
+    reihen.append({"name": "_rand", "type": "line", "data": [None] * (len(pfad) - 1) + [plan[M]], "symbol": "none",
+                   "tooltip": {"show": False}, "silent": True,
+                   "endLabel": {"show": True, "formatter": rand, "fontSize": 13, "color": t["text"], "lineHeight": 18,
+                                "align": "left", "distance": 10}})
+    oben = max([v for v in ist_w if v is not None] + hi95 + [voll or 0, 1])
+    namen = [r["name"] for r in reihen if not r["name"].startswith("_")]
+    tip = json.dumps({"kat": kat, "h": h, "ist": [n for _d, n in ist], "plan": plan, "lo": lo, "hi": hi,
+                      "lo95": lo95, "hi95": hi95})
+    opt = {"animation": False, "grid": {"left": 48, "right": 200, "top": 56, "bottom": 36},
+           "legend": {"top": 0, "left": 0, "data": namen, "textStyle": {"color": t["text"], "fontSize": 13}},
+           "tooltip": {"trigger": "axis", "confine": True, "textStyle": {"fontSize": 13},
+                       ":position": "(p, params, dom, rect, size) => [Math.min(p[0] + 24, size.viewSize[0] - "
+                                    "size.contentSize[0] - 8), 8]",
+                       ":formatter": "(ps) => { const D = " + tip + "; const i = ps[0].dataIndex; const f = v => v == null ?"
+                                     " 'keine Daten' : v; if (i <= D.h) return '<b>' + D.kat[i] + '</b><br>so war es: ' + "
+                                     "f(D.ist[i]); const k = i - D.h; return '<b>' + D.kat[i] + '</b><br>erwartet: ' + "
+                                     "D.plan[k] + '<br>sehr wahrscheinlich: ' + D.lo[k] + ' bis ' + D.hi[k] + "
+                                     "'<br>fast sicher: ' + D.lo95[k] + ' bis ' + D.hi95[k]; }"},
+           "xAxis": {"type": "category", "data": kat, "boundaryGap": bool(sicht.klein),
+                     "axisLabel": {"color": t["text"], "fontSize": 13}, "axisLine": {"lineStyle": {"color": t["text2"]}}},
+           "yAxis": {"type": "value", "min": 0, "max": int(oben * 1.15) + 1, "minInterval": 1,
+                     "axisLabel": {"color": t["text"], "fontSize": 13},
+                     "splitLine": {"lineStyle": {"color": t["rand"], "opacity": .6}}},
+           "series": reihen}
+    return opt, szen_text
 
 
 def _zerlegung_option(e: bp.Ergebnis, art: str) -> dict:
@@ -371,6 +516,21 @@ CSS = r"""
 .m-bp-satz b { font-size: 24px; font-weight: 600; color: var(--akzent); }
 .m-bp-zelle { display: flex; align-items: baseline; gap: 8px; }
 .m-bp-summe { background: color-mix(in srgb, var(--akzent) 6%, transparent); font-weight: 600; }
+.m-bp-titel { font-size: 20px; font-weight: 600; color: var(--text); margin: 6px 0 2px; }
+.m-bp-kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.m-bp-kachel { border: 1px solid var(--rand); border-radius: 8px; background: var(--fl); padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 4px; }
+.m-bp-kachel .m-zweite { white-space: normal; }
+.m-bp-antwort { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600; color: var(--text); }
+.m-bp-antwort .q-icon { color: var(--akzent); font-size: 24px; }
+.m-bp-hinweis { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+  background: color-mix(in srgb, var(--orange) 10%, transparent); color: var(--text); }
+.m-bp-hinweis > :nth-child(2) { flex: 1; white-space: normal; }
+.m-bp-hinweis .q-icon { color: var(--orange); }
+.m-bp-chart { height: 440px !important; }
+.m-bp-lesehilfe { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.m-bp-lesehilfe .m-zweite { white-space: normal; font-size: 13px; }
+.m-bp-diagnose summary { cursor: pointer; }
 .m-bp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .m-bp-kpi { border: 1px solid var(--rand); border-radius: 8px; background: var(--fl); padding: 10px 14px; display: flex;
   flex-direction: column; gap: 2px; }

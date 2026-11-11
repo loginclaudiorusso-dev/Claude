@@ -593,7 +593,7 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
 
 
 # ---- 0.87: Belegung inkl. UWTler und Mieter als Diagramm-Karte ---------------------------------------------------
-GRUPPEN_FARBEN = {"UWT": "#3B6FE0", "Mieter": "#9B5DE5"}      # je Gruppe eine eigene Farbe (Kontingent in derselben)
+from .diagramm_stil import GRUPPEN_FARBEN  # noqa: E402 – 0.94: feste Gruppenfarben (Kontingent in derselben Farbe)
 NETTO_TEXT = {False: "Netto (Internatsplätze ohne FRAI, Jugendhilfe und andere Bereiche)",
               True: "Brutto (alle Plätze inkl. FRAI, Jugendhilfe und andere Bereiche)"}
 
