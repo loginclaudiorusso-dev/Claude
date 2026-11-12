@@ -771,6 +771,15 @@ CSS += """
 .m-xg-fuss i.l.ist { border-top: 2.5px solid var(--text); } .m-xg-fuss i.l.prog { border-top: 2.5px dashed var(--akzent); }
 .m-xg-fuss i.l.kap { border-top: 1.5px dashed var(--rot); } .m-xg-fuss i.l.vj { border-top: 2px solid var(--blau); }
 .m-xg-fuss i.l.vvj { border-top: 1.5px dotted var(--text3); }
+/* 1.02: Legende größer, Zeichen in denselben Farben und Stärken wie die Linien */
+.m-xg-fuss { font-size: 13.5px !important; color: var(--text2) !important; gap: 8px 20px !important; }
+.m-xg-fuss i.l { width: 28px !important; }
+.m-xg-fuss i.l.ist { border-top: 3.5px solid var(--akzent) !important; }
+.m-xg-fuss i.l.prog { border-top: 3px dashed var(--akzent) !important; }
+.m-xg-fuss i.l.vj { border-top: 3px solid #C39BFF !important; } body.hell .m-xg-fuss i.l.vj { border-top-color: #7B3FB5 !important; }
+.m-xg-fuss i.l.vvj { border-top: 3px dotted #F39C4A !important; } body.hell .m-xg-fuss i.l.vvj { border-top-color: #D55E00 !important; }
+.m-xg-fuss i.l.kap { border-top-width: 2.5px !important; }
+.m-xg-fuss i.f { width: 22px !important; height: 13px !important; }
 .m-xg-fuss i.p { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--text); }
 .m-xg-fuss i.f { width: 14px; height: 9px; border-radius: 2px; background: color-mix(in srgb, var(--akzent) 30%, transparent); }
 .m-xg-fuss i.f.ok { background: var(--gruen); } .m-xg-fuss i.f.warn { background: var(--orange); } .m-xg-fuss i.f.krit { background: var(--rot); }

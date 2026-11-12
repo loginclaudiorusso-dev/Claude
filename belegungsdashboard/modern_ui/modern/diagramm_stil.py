@@ -55,8 +55,9 @@ def anwenden(opt: dict, d: dict) -> dict:
         if not datenreihe(se):
             continue
         gestrichelt = (se.get("lineStyle") or {}).get("type") == "dashed"          # Prognose
-        if typ == "flaeche" and "areaStyle" not in se:
-            se["areaStyle"] = {"opacity": 0.10 if gestrichelt else 0.18}
+        if typ == "flaeche" and "areaStyle" not in se and rolle(se) not in ("vorjahr", "vorvorjahr"):
+            # 1.02: nur die eigentlichen Werte als Fläche – Vergleichslinien bleiben Linien (sonst verschwimmt alles)
+            se["areaStyle"] = {"opacity": 0.08 if gestrichelt else 0.14}
         elif typ == "saeule":
             saeule = True
             farbe = (se.get("lineStyle") or {}).get("color") or se.get("color")
@@ -279,6 +280,7 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
     o = copy.deepcopy(opt)
     o.pop("title", None)
     akzent, rot, grau, grau2 = t["akzent"], t.get("rot", "#d64545"), t.get("text3", "#8a8f98"), t.get("text2", "#5f6670")
+    vj, vvj = vergleichsfarben(t)                 # 1.02: Vorjahr/Vorvorjahr in eigenen, kräftigen Farbtönen statt Grau
     label_hg = "rgba(24,28,34,.82)"
     # 0.95: Schrift mindestens 13 px, Achsen in der kräftigeren zweiten Textfarbe (Kontrast ≥ 4,5:1)
     o["textStyle"] = {"color": t.get("text2", "#555"), "fontFamily": SCHRIFT, "fontSize": 13}
@@ -298,27 +300,28 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
             if tageswerte and r in ("ist", "prognose", "stapel", ""):
                 se["step"] = "end"
         if r == "ist":
-            se.update({"color": akzent, "symbol": "circle", "symbolSize": 5, "showSymbol": not tageswerte,
-                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": 3, "type": "solid"},
+            se.update({"color": akzent, "symbol": "circle", "symbolSize": 6, "showSymbol": not tageswerte,
+                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": LINIE["ist"], "type": "solid"},
                        "itemStyle": {"color": akzent}, "label": {**_label(label_hg), "show": not tageswerte},
                        "labelLayout": {"hideOverlap": True}, "z": 5})
         elif r == "prognose":
-            se.update({"color": akzent, "symbol": "emptyCircle", "symbolSize": 5, "showSymbol": not tageswerte,
-                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": 2.5, "type": "dashed"},
+            se.update({"color": akzent, "symbol": "emptyCircle", "symbolSize": 6, "showSymbol": not tageswerte,
+                       "lineStyle": {**(se.get("lineStyle") or {}), "color": akzent, "width": LINIE["prognose"], "type": "dashed"},
                        "itemStyle": {"color": akzent}, "label": {**_label(label_hg), "show": not tageswerte},
                        "labelLayout": {"hideOverlap": True}, "z": 5})
         elif r in ("band", "band95"):
             band_reihe(se, t, r)                     # 0.96: kräftig, mit Kante – 80 % und 95 % klar getrennt
         elif r == "vorjahr":
-            se.update({"color": grau, "symbol": "none", "lineStyle": {"color": grau, "width": 1.5, "type": "solid"},
-                       "label": {"show": False}})
+            se.update({"color": vj, "symbol": "circle", "symbolSize": 5, "itemStyle": {"color": vj},
+                       "lineStyle": {"color": vj, "width": LINIE["vorjahr"], "type": "solid"}, "label": {"show": False}})
         elif r == "vorvorjahr":
-            se.update({"color": grau2, "symbol": "none", "lineStyle": {"color": grau2, "width": 1, "type": "dotted"},
+            se.update({"color": vvj, "symbol": "none", "itemStyle": {"color": vvj},
+                       "lineStyle": {"color": vvj, "width": LINIE["vorvorjahr"], "type": [2, 5], "cap": "round"},
                        "label": {"show": False}})
         elif r == "kapazitaet":
             werte = [v for v in _werte(se) if v is not None]
             k = f"{round(max(werte)):,}".replace(",", ".") if werte else ""
-            se.update({"color": rot, "symbol": "none", "lineStyle": {"color": rot, "width": 1.5, "type": "solid"},
+            se.update({"color": rot, "symbol": "none", "lineStyle": {"color": rot, "width": 2, "type": "solid"},
                        "label": {"show": False}, "z": 4,
                        "endLabel": _endlabel(f"() => {json_str(('Kapazität ' + k).strip())}", rot),
                        "labelLayout": {"moveOverlap": "shiftY"}})
@@ -337,7 +340,7 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
                        "label": {**_label(label_hg), "position": "top"}, "labelLayout": {"hideOverlap": True},
                        "barMaxWidth": 26, "barGap": "-100%"})
         if r in ("ist", "prognose", "vorjahr", "vorvorjahr") and se.get("name") and se.get("type") == "line" and legende:
-            farbe = {"vorjahr": grau, "vorvorjahr": grau2}.get(r, akzent)
+            farbe = {"vorjahr": vj, "vorvorjahr": vvj}.get(r, akzent)
             se["endLabel"] = _endlabel(f"() => {json_str(kurzname(se['name']))}", farbe)
             se["labelLayout"] = {"hideOverlap": r in ("ist", "prognose"), "moveOverlap": "shiftY"}   # Enden nicht übereinander
         if se.get("name") and r not in ("band", "band95") and not str(se["name"]).startswith("_") \
@@ -346,11 +349,11 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
             namen.append(se["name"])
     # EINE Legende, oben, anklickbar
     o["legend"] = {"show": legende and len(namen) > 1, "type": "scroll", "top": 2, "left": 4, "right": 4, "data": namen,
-                   "textStyle": {"color": t.get("text2", "#555"), "fontSize": 12}, "itemWidth": 18, "itemHeight": 8,
+                   **LEGENDE, "textStyle": {"color": t.get("text", "#1F2A2A"), "fontSize": LEGENDE_SCHRIFT},
                    "selectedMode": True}
     g = o.get("grid") if isinstance(o.get("grid"), dict) else {}
     hat_end = any((se.get("endLabel") or {}).get("show") for se in o.get("series") or [])
-    o["grid"] = {**g, "top": 40 if o["legend"]["show"] else 22, "left": g.get("left", 52), "bottom": g.get("bottom", 30),
+    o["grid"] = {**g, "top": 50 if o["legend"]["show"] else 22, "left": g.get("left", 52), "bottom": g.get("bottom", 30),
                  "right": max(g.get("right", 20) if isinstance(g.get("right"), (int, float)) else 20, 120 if hat_end else 24)}
     # Tooltip: alle Werte mit einer Nachkommastelle, Differenz zum Vorjahr – vorhandene eigene Tooltips bleiben
     tt = dict(o.get("tooltip") or {})
@@ -427,6 +430,18 @@ KATEGORIEN = {   # deutlich verschiedene Farbtöne (angelehnt an Okabe-Ito), je 
     False: ["#56B4E9", "#F39C4A", "#C39BFF", "#7BD88F", "#FF7AA8", "#FFD166", "#4DD8D0", "#D7A98C", "#B0BEC5"],
 }
 TEXT_MIN, LINIE_MIN = 4.5, 3.0
+
+
+# 1.02: kräftigere Linien und eine größere Legende (Farbe je Eintrag klar erkennbar)
+LINIE = {"ist": 3.6, "prognose": 3.2, "vorjahr": 2.8, "vorvorjahr": 2.8, "kategorie": 2.8}
+LEGENDE = {"itemWidth": 34, "itemHeight": 14, "itemGap": 22}
+LEGENDE_SCHRIFT = 14
+
+
+def vergleichsfarben(t: dict) -> tuple[str, str]:
+    """(Vorjahr, Vorvorjahr): Violett und Orange – deutlich anders als der Akzent (aktuelles Jahr) und als einander."""
+    k = kategorien(t)
+    return k[2], k[1]
 
 
 def kategorien(t: dict) -> list[str]:
@@ -552,5 +567,22 @@ def lesbar(opt, t: dict):
         if isinstance(se, dict) and isinstance(se.get("color"), str) and not se.get("areaStyle") \
                 and (neu := angleichen(se["color"], hg, LINIE_MIN)) != se["color"]:
             se["color"] = neu
+    legende_gross(opt)
     return opt
+
+
+def legende_gross(opt: dict) -> None:
+    """1.02: Legende überall groß genug – Schrift ≥ 14 px, Farbzeichen 30 × 14 px. Schreibt nur, was kleiner ist
+    (die Optionen melden jede Änderung als Aktualisierung)."""
+    for lg in _liste(opt.get("legend")):
+        if not isinstance(lg, dict) or lg.get("show") is False:
+            continue
+        ts = lg.get("textStyle")
+        if not isinstance(ts, dict):
+            lg["textStyle"] = ts = {}
+        if not isinstance(ts.get("fontSize"), (int, float)) or ts["fontSize"] < LEGENDE_SCHRIFT:
+            ts["fontSize"] = LEGENDE_SCHRIFT
+        for k, mind in (("itemWidth", 30), ("itemHeight", 14), ("itemGap", 18)):
+            if not isinstance(lg.get(k), (int, float)) or lg[k] < mind:
+                lg[k] = mind
 

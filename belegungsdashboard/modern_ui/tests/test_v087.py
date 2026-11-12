@@ -101,10 +101,12 @@ def test_einheitlicher_stil_farben_linien_beschriftung():
     s = {se.get("name"): se for se in o["series"]}
     assert "title" not in o and all(se.get("smooth") is False for se in o["series"] if se.get("type") == "line")
     ist, prog = s["Aktuell (Ist)"], s["Aktuell (Prognose)"]
-    assert ist["lineStyle"]["width"] == 3 and ist["lineStyle"]["type"] == "solid" and ist["lineStyle"]["color"] == T["akzent"]
+    assert ist["lineStyle"]["width"] == ds.LINIE["ist"] and ist["lineStyle"]["type"] == "solid" \
+        and ist["lineStyle"]["color"] == T["akzent"]          # 1.02: kräftiger
     assert prog["lineStyle"]["type"] == "dashed" and prog["lineStyle"]["color"] == T["akzent"]
-    assert s["Vorjahr (Ist)"]["lineStyle"] == {"color": T["text3"], "width": 1.5, "type": "solid"}
-    assert s["Vorvorjahr (Ist)"]["lineStyle"]["type"] == "dotted" and s["Vorvorjahr (Ist)"]["lineStyle"]["width"] == 1
+    vj, vvj = ds.vergleichsfarben(T)                          # 1.02: eigene Farbtöne statt Grau, dicker
+    assert s["Vorjahr (Ist)"]["lineStyle"] == {"color": vj, "width": ds.LINIE["vorjahr"], "type": "solid"}
+    assert s["Vorvorjahr (Ist)"]["lineStyle"]["color"] == vvj and s["Vorvorjahr (Ist)"]["lineStyle"]["width"] == ds.LINIE["vorvorjahr"]
     assert s["Kapazität"]["lineStyle"]["color"] == T["rot"] and "Kapazität 330" in s["Kapazität"]["endLabel"][":formatter"]
     # nur Ist und Prognose beschriftet, mit hideOverlap und dunklem Hintergrund statt Kontur
     assert ist["label"]["show"] and prog["label"]["show"] and not s["Vorjahr (Ist)"]["label"]["show"]
