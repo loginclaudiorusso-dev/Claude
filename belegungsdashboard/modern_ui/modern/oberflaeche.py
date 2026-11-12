@@ -981,6 +981,7 @@ class Ansicht:
         else:
             register.SEITEN[self.seite][1](self)
         self.leiste.set_visibility(bool(self.leiste.default_slot.children))
+        menueband_ui.fuellen(self, nach_zeichnen=True)   # 0.99: jetzt ist bekannt, ob die Seite Werkzeuge hat
         if (info := getattr(self, "_ob_info", None)) is not None:
             info.set_text(self.status_info)
         if self.panel_def is None:

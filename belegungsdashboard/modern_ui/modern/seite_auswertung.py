@@ -406,7 +406,7 @@ def _belegung_einfach(a, det: ak.BDetails, zr, farben) -> None:
                     with ui.element("div").classes("m-einfach-spur"):
                         from . import diagramm_stil
 
-                        f_ = diagramm_stil.GRUPPEN_FARBEN.get(name)
+                        f_ = diagramm_stil.gruppen_farbe(name, 0, [""]) or None
                         ui.element("div").classes("m-einfach-balken").style(
                             f"width:{100 * mittel / hoch:.1f}%" + (f";background:{f_}" if f_ else ""))
                     ui.label(f"{bk.zahl(mittel)} · {round(100 * anteil)} %").classes("m-einfach-wert")

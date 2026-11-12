@@ -45,9 +45,58 @@ def A(name: str) -> tuple:
     return ("aktion", name)
 
 
+# 0.99: Zweifarbige Symbole wie in Microsoft 365 (Fluent): feines Basissymbol (Schiefergrau oder eine Bedeutungsfarbe)
+# + optional ein kleines farbiges Akzentsymbol unten rechts. BASIS = Schiefergrau (im Dunkeln hell, per CSS-Variable).
+BASIS = "basis"
+GRUEN, AMBER, BLAU, ROT, TEAL, VIOLETT = "#10b981", "#f59e0b", "#0284c7", "#e11d48", "#0f766e", "#7c3aed"
+SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Symbol, Farbe, Akzent, Akzentfarbe)
+    ("heute", "zentrale"): ("wb_twilight", AMBER, "", ""),
+    ("heute", "postfach"): ("task_alt", GRUEN, "", ""),
+    ("termine", "liste"): ("calendar_today", BASIS, "schedule", BLAU),
+    ("termine", "monat"): ("calendar_month", BLAU, "", ""),
+    ("assistenz", "auftraege"): ("assignment", BASIS, "", ""),
+    ("assistenz", "mails"): ("mail", BLAU, "", ""),
+    ("assistenz", "fragen"): ("auto_awesome", AMBER, "", ""),
+    ("anreisen", "zuteilen"): ("meeting_room", BASIS, "check_circle", GRUEN),
+    ("anreisen", "personen"): ("groups", BLAU, "", ""),
+    ("anreisen", "abreisen"): ("luggage", BASIS, "arrow_forward", AMBER),
+    ("anreisen", "eintragen"): ("domain", BASIS, "work", BLAU),
+    ("mieter", None): ("description", BASIS, "vpn_key", AMBER),
+    ("zimmer", "uebersicht"): ("grid_view", BLAU, "", ""),
+    ("zimmer", "zeitstrahl"): ("align_horizontal_left", GRUEN, "", ""),
+    ("zimmer", "liste"): ("table_chart", TEAL, "", ""),
+    ("zimmer", "karten"): ("map", BASIS, "place", ROT),
+    ("zimmer", "maengel"): ("warning_amber", AMBER, "build", BASIS),
+    ("zimmer", "aenderungen"): ("history", BASIS, "", ""),
+    ("reinigung", "liste"): ("cleaning_services", BLAU, "auto_awesome", AMBER),
+    ("reinigung", "last"): ("date_range", BASIS, "", ""),
+    ("reinigung", "facility"): ("fact_check", BASIS, "", ""),
+    ("auswertung", "lage"): ("space_dashboard", BLAU, "", ""),
+    ("auswertung", "belegung"): ("stacked_line_chart", GRUEN, "", ""),
+    ("auswertung", "prognose"): ("trending_up", BLAU, "auto_awesome", AMBER),
+    ("auswertung", "massnahmen"): ("school", VIOLETT, "", ""),
+    ("auswertung", "zimmer"): ("bed", BASIS, "priority_high", ROT),
+    ("steuerung", "cockpit"): ("query_stats", BASIS, "", ""),
+    ("inventar", "gegenstaende"): ("inventory_2", BLAU, "", ""),
+    ("einstellungen", "stammdaten"): ("edit_note", BASIS, "", ""),
+}
+
+
+def symbol(p: "Punkt") -> tuple[str, str, str, str]:
+    """(Symbol, Farbe, Akzent, Akzentfarbe) einer Schaltfläche – aus SYMBOLE, sonst das bisherige Symbol in BASIS."""
+    z = p.ziel
+    if z and z[0] == "seite":
+        _s, seite, ansicht, zustand = z
+        if seite == "heute":
+            ansicht = (zustand or {}).get("heute_ansicht", "zentrale")
+        if (seite, ansicht) in SYMBOLE:
+            return SYMBOLE[(seite, ansicht)]
+    return (p.icon, BASIS, "", "")
+
+
 ICONS = {   # Symbole der Unteransichten – leicht erkennbar, wie in Office
-    "anreisen": {"zuteilen": "how_to_reg", "personen": "groups", "abreisen": "flight_takeoff", "eintragen": "keyboard"},
-    "zimmer": {"uebersicht": "grid_view", "karten": "view_module", "zeitstrahl": "view_timeline", "liste": "table_rows",
+    "anreisen": {"zuteilen": "meeting_room", "personen": "groups", "abreisen": "luggage", "eintragen": "domain"},
+    "zimmer": {"uebersicht": "grid_view", "karten": "map", "zeitstrahl": "align_horizontal_left", "liste": "table_chart",
                "maengel": "build", "aenderungen": "history"},
     "reinigung": {"liste": "checklist", "last": "date_range", "facility": "fact_check"},
     "termine": {"liste": "view_list", "monat": "calendar_month"},
@@ -152,23 +201,23 @@ def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte
                                                     standard="cockpit")]))
     return [
         Reiter("start", "Start", [
-            Gruppe("Heute", [Punkt("Tages­übersicht", "today", S("heute", heute_ansicht="zentrale"),
+            Gruppe("Heute", [Punkt("Tages­übersicht", "wb_twilight", S("heute", heute_ansicht="zentrale"),
                                    tipp="Kennzahlen und offene Aufgaben des Tages"),
                              Punkt("Aufgaben", "task_alt", S("heute", heute_ansicht="postfach"),
                                    tipp="Alle Aufgaben mit ihren Fällen bearbeiten (Postfach)")]),
-            Gruppe("Termine", [v("termine", "liste", "Termine", "event", tipp="Termine und Wiedervorlagen als Liste"),
+            Gruppe("Termine", [v("termine", "liste", "Termine", "calendar_today", tipp="Termine und Wiedervorlagen als Liste"),
                                v("termine", "monat", "Kalender", "calendar_month", tipp="Termine im Monatskalender")]),
             Gruppe("Assistenz", _einzeln("assistenz", ansichten, gross=False)),
         ]),
         Reiter("anreisen", "Anreisen", [
             Gruppe("Anreisen", _einzeln("anreisen", ansichten)),
-            Gruppe("Mieter", [Punkt("Mieter", "key", S("mieter"), tipp="Mieter und Mietverträge")]),
+            Gruppe("Mieter", [Punkt("Mieter", "description", S("mieter"), tipp="Mieter und Mietverträge")]),
         ]),
         Reiter("zimmer", "Zimmer & Haus", [
             Gruppe("Zimmer", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
-                              v("zimmer", "karten", gross=False)]),
+                              v("zimmer", "karten")]),                    # 0.99: vier gleich große Ansichten
             Gruppe("Betrieb", [v("reinigung", "liste", "Reinigung", "cleaning_services", tipp="Reinigungsliste"),
-                               v("zimmer", "maengel", icon="build"),
+                               v("zimmer", "maengel", icon="warning_amber"),
                                v("reinigung", "last", gross=False), v("reinigung", "facility", gross=False)]),
         ]),
         Reiter("auswertung", "Auswertung", auswertung),

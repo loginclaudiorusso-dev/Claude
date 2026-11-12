@@ -145,7 +145,7 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
 
 def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
     if p.ziel and p.ziel[0] == "seite" and p.ziel[1] == "heute" and p.ziel[3].get("heute_ansicht") == "postfach":
-        return len(a.karten), any(k.stufe == "dringend" for k in a.karten)
+        return len(a.karten), True                       # 0.99: rotes Zähler-Abzeichen wie in Office
     if p.ziel == ("aktion", "neuigkeiten"):
         return a.ungelesen, False
     return 0, False
@@ -207,7 +207,7 @@ def _knopf(a, p: mb.Punkt) -> None:
     n, rot = _zahl(a, p)
     with b:
         with ui.element("span").classes("m-ob-sym"):
-            ui.icon(p.icon)
+            duotone_symbol(p, _dunkel(a))
             if n:
                 ui.label(str(n)).classes("m-ob-zahl" + (" rot" if rot else ""))
         with ui.element("span").classes("m-ob-text"):
@@ -220,6 +220,29 @@ def _knopf(a, p: mb.Punkt) -> None:
         b.on("click", lambda p=p: ausfuehren(a, p.ziel))
 
 
+def _dunkel(a) -> bool:
+    return (getattr(a, "design", None) or {}).get("helligkeit", "hell") != "hell"
+
+
+def duotone_symbol(p: mb.Punkt, dunkel: bool = False) -> None:
+    """0.99: zweifarbiges Symbol wie in Microsoft 365 – Basissymbol (Schiefergrau oder Bedeutungsfarbe) und optional
+    ein kleines Akzentsymbol unten rechts auf hellem Kreis."""
+    icon, farbe, akzent, akzent_farbe = mb.symbol(p)
+    if dunkel:                                      # im Dunkeln derselbe Farbton heller (≥ 3 : 1 zum Band)
+        from . import diagramm_stil as _ds
+
+        farbe = _ds.angleichen(farbe, "#1E2626", 3) if farbe != mb.BASIS else farbe
+        akzent_farbe = _ds.angleichen(akzent_farbe, "#1E2626", 3) if akzent_farbe not in ("", mb.BASIS) else akzent_farbe
+    with ui.element("span").classes("m-ob-duo" + (" horizont" if icon == "wb_twilight" else "")):
+        i = ui.icon(icon).classes("m-ob-duo-basis")
+        if farbe and farbe != mb.BASIS:
+            i.style(f"color:{farbe} !important")
+        if akzent:
+            k = ui.icon(akzent).classes("m-ob-duo-akzent")
+            if akzent_farbe and akzent_farbe != mb.BASIS:
+                k.style(f"color:{akzent_farbe} !important")
+
+
 def _split(a, p: mb.Punkt) -> None:
     """Split-Button wie in Office: oberer Teil öffnet die Standardansicht, der untere (Text + Pfeil) das Menü."""
     an = mb.aktiv(p, a.seite, _av(a), _heute(a))
@@ -228,7 +251,7 @@ def _split(a, p: mb.Punkt) -> None:
         attr(oben, title=p.tipp or p.text)
         n, rot = _zahl(a, p)
         with oben, ui.element("span").classes("m-ob-sym"):
-            ui.icon(p.icon)
+            duotone_symbol(p, _dunkel(a))
             if n:
                 ui.label(str(n)).classes("m-ob-zahl" + (" rot" if rot else ""))
         oben.on("click", lambda p=p: ausfuehren(a, p.ziel))
@@ -271,28 +294,62 @@ def _gruppe(a, g: mb.Gruppe) -> None:
                 st.on("click", lambda z=g.starter: ausfuehren(a, z))
 
 
-def fuellen(a, erzwingen: bool = False) -> None:
-    """Menüband in ``a.topnav`` bauen – nur neu, wenn sich etwas Sichtbares geändert hat (ein Klick bleibt stehen)."""
+def werkzeuge_oben(a) -> bool:
+    """0.99: Werkzeuge der Seite (Filter, Knöpfe) stehen in einer eigenen Kontext-Registerkarte des Menübands."""
+    return band_sichtbar(a) and bool(a.design.get("werkzeuge_oben", True))
+
+
+def hat_werkzeuge(a) -> bool:
+    return any(getattr(x, "default_slot", None) is not None and x.default_slot.children
+               for x in (getattr(a, "werkzeuge", None), getattr(a, "leiste", None)))
+
+
+def seiten_reiter_titel(a) -> str:
+    from . import register
+
+    t = seitentitel(a, register.TITEL.get(a.seite, a.seite))
+    return t.split(" · ")[-1] if " · " in t and a.seite != "heute" else t.split(" · ")[0]
+
+
+def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
+    """Menüband in ``a.topnav`` bauen – nur neu, wenn sich etwas Sichtbares geändert hat (ein Klick bleibt stehen).
+    ``nach_zeichnen``: Aufruf nach dem Zeichnen der Seite – erst dann ist bekannt, ob sie Werkzeuge hat."""
     if a.design.get("layout") != LAYOUT:
         if getattr(a, "_ob_sig", None) is not None:
             a._ob_sig = None
             a.topnav.clear()
         return
     alle = mb.reiter(_ansichten(), a.design.get("leitung", True), _standorte())
+    oben = werkzeuge_oben(a)
+    if getattr(a, "_ob_seite", None) not in (None, a.seite) and oben:
+        a._ob_sprung = True                         # Seite gewechselt → nach dem Zeichnen ihre Werkzeuge zeigen
     tab = getattr(a, "band_tab", None) or "start"
-    aktuell = next((r for r in alle if r.key == tab), alle[0])
-    if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
-                                              and getattr(a, "_ob_seite", None) != a.seite):
-        tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
+    if tab == "seite" and not (oben and (hat_werkzeuge(a) or not nach_zeichnen)):
+        tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))
+    if tab != "seite":
         aktuell = next((r for r in alle if r.key == tab), alle[0])
+        if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
+                                                  and getattr(a, "_ob_seite", None) != a.seite):
+            tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
+            aktuell = next((r for r in alle if r.key == tab), alle[0])
+    if nach_zeichnen and getattr(a, "_ob_sprung", False) and oben and hat_werkzeuge(a):
+        a._ob_sprung = False                        # (erst wenn die Seite fertig ist – nicht beim „Lädt …“)
+        tab = "seite"                               # wie Office: Ansicht gewählt → ihre Registerkarte öffnet sich
+    if tab == "seite":
+        aktuell = mb.Reiter("seite", seiten_reiter_titel(a), [])
     a.band_tab, a._ob_seite = tab, a.seite
+    if getattr(a, "body", None) is not None:
+        if tab == "seite":
+            a.body.classes(add="ob-seite-an")
+        else:
+            a.body.classes(remove="ob-seite-an")
     from belegung import aenderungen as _ae
 
     letzt = _ae.letzter()
     sig = (tab, a.seite, repr(sorted(a.ansicht.items())), _heute(a), repr(sorted(a.design.items())), len(a.karten),
            letzt.titel if letzt else "", len(_ae._verlauf),
            sum(1 for k in a.karten if k.stufe == "dringend"), a.ungelesen, getattr(a.stand_anzeige, "text", ""),
-           tuple(getattr(a, k, None) for k in AW_KEYS))
+           tuple(getattr(a, k, None) for k in AW_KEYS), oben and hat_werkzeuge(a))
     if sig == getattr(a, "_ob_sig", None) and not erzwingen:
         return
     a._ob_sig = sig
@@ -371,7 +428,13 @@ def fuellen(a, erzwingen: bool = False) -> None:
                 with rb:
                     ui.label(r.titel)
                 rb.on("click", lambda r=r: _tab(a, r.key))
-        with ui.element("div").classes("m-ob-band"):
+            if oben and hat_werkzeuge(a):            # 0.99: Kontext-Registerkarte mit den Werkzeugen der Seite
+                rb = ui.element("button").classes("m-ob-tab kontext seite" + (" an" if tab == "seite" else ""))
+                attr(rb, title="Filter und Knöpfe dieser Seite – wie die Kontext-Registerkarten in Office")
+                with rb:
+                    ui.label(seiten_reiter_titel(a))
+                rb.on("click", lambda: _tab(a, "seite"))
+        with ui.element("div").classes("m-ob-band" + (" m-ob-band-seite" if tab == "seite" else "")):
             ansicht = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
             for g in aktuell.gruppen:
                 if mb.gruppe_sichtbar(g, a.seite, ansicht):
@@ -442,6 +505,7 @@ async def bildschirmfoto(a, ausschnitt: bool = False) -> None:
 
 
 def _tab(a, key: str) -> None:
+    a._ob_sprung = False                            # eigene Wahl des Reiters geht vor
     a.band_tab = key
     a._ob_seite = a.seite
     fuellen(a, erzwingen=True)
@@ -501,13 +565,26 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
   min-width: 58px; max-width: 86px; height: 70px; padding: 6px 6px 4px; border-radius: 4px; text-align: center;
   border: 1px solid transparent !important; }
 .m-ob-gross .m-ob-sym { position: relative; display: inline-flex; }
-.m-ob-gross .m-ob-sym .q-icon { font-size: 28px; color: var(--ob-akzent); }
+.m-ob-gross .m-ob-sym .q-icon { font-size: 28px; color: var(--ob-sym-basis); }
 .m-ob-gross .m-ob-text { display: flex; align-items: center; gap: 0; font-size: 12px; line-height: 1.15;
   hyphens: manual; overflow-wrap: normal; word-break: normal; }
 .m-ob-klein { display: flex; align-items: center; gap: 6px; height: 23px; padding: 0 8px 0 5px; border-radius: 4px;
   white-space: nowrap; font-size: 12px; border: 1px solid transparent !important; }
 .m-ob-klein .m-ob-sym { position: relative; display: inline-flex; }
-.m-ob-klein .m-ob-sym .q-icon { font-size: 17px; color: var(--ob-akzent); }
+.m-ob-klein .m-ob-sym .q-icon { font-size: 17px; color: var(--ob-sym-basis); }
+/* 0.99: zweifarbige Symbole (Microsoft 365 / Fluent): feines Basissymbol + kleiner farbiger Akzent unten rechts */
+body.lay-office { --ob-sym-basis: #334155; --ob-duo-grund: #ffffff; }
+body.lay-office.mod-dunkel, body.lay-office:not(.hell) { --ob-sym-basis: #CBD5E1; --ob-duo-grund: var(--ob-band); }
+.m-ob-duo { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.m-ob-gross .m-ob-duo, .m-ob-split-o .m-ob-duo { width: 32px; height: 32px; }
+.m-ob-duo .q-icon.m-ob-duo-basis { color: var(--ob-sym-basis); }
+.m-ob-gross .m-ob-duo .q-icon.m-ob-duo-basis, .m-ob-split-o .m-ob-duo .q-icon.m-ob-duo-basis { font-size: 28px !important; }
+.m-ob-duo .q-icon.m-ob-duo-akzent { position: absolute; right: -3px; bottom: -2px; font-size: 14px !important;
+  background: var(--ob-duo-grund); border-radius: 50%; padding: 1px; line-height: 1; color: var(--ob-sym-basis); }
+.m-ob-klein .m-ob-duo .q-icon.m-ob-duo-akzent { font-size: 9px !important; right: -4px; bottom: -3px; padding: 0; }
+.m-ob-duo.horizont::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 3px; height: 2px;
+  border-radius: 1px; background: #0284c7; opacity: .55; }                /* Tagesübersicht: dezenter blauer Horizont */
+.m-ob-klein .m-ob-duo.horizont::after { bottom: 0; }
 .m-ob-klein .m-ob-text { display: flex; align-items: center; }
 .m-ob-stapel { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
 .m-ob-gross:hover, .m-ob-klein:hover { background: var(--ob-hover) !important; }
@@ -605,8 +682,21 @@ body.lay-office .m-tz-zahl-k.null .m-tz-zahl { color: var(--text3) !important; }
 .m-ob-starter:hover { background: var(--ob-hover) !important; color: var(--ob-akzent) !important; }
 .m-ob-standort { margin-left: -4px; background: rgba(255,255,255,.08) !important; }
 .m-ob-pfeil-hell { font-size: 16px !important; opacity: .8; }
-.m-ob-tab.hier::before { content: ""; position: absolute; left: 50%; top: 4px; width: 5px; height: 5px; margin-left: -2.5px;
-  border-radius: 50%; background: var(--ob-akzent); }
+/* 0.99: Werkzeuge der Seite im Menüband – die Kontextzeile wird zum Band der Registerkarte „<Seite>“ */
+body.lay-office.ob-oben:not(.ob-seite-an) .m-kz .m-werkzeuge,
+body.lay-office.ob-oben:not(.ob-seite-an) .m-kz > .m-leiste { display: none !important; }
+body.lay-office.ob-oben.ob-seite-an .m-ob-band { display: none !important; }
+body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); min-height: 96px; align-content: center;
+  padding: 8px 14px; border-bottom: 1px solid var(--ob-rand); }
+body.lay-office.ob-oben.ob-seite-an .m-kz .m-kopf > .m-titel { font-size: 13px !important; font-weight: 600 !important;
+  color: var(--ob-text2); padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--ob-rand); align-self: stretch;
+  display: flex; align-items: center; }
+.m-ob-tab.kontext.seite { color: #0284c7 !important; }
+.m-ob-tab.kontext.seite::before { background: #0284c7 !important; }
+.m-ob-tab.hier::before { content: none; }           /* 0.99: Punkt rechts neben dem Wort („Start •“), nicht darüber */
+.m-ob-tab.hier > div { display: inline-flex; align-items: center; gap: 6px; }
+.m-ob-tab.hier > div::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ob-akzent);
+  flex: none; }
 .m-ob-muster { width: 16px; height: 16px; border-radius: 3px; flex: none; display: inline-block; }
 .m-ob-menue { min-width: 220px; padding: 4px 0; border-radius: 6px !important; background: var(--ob-fl, #fff) !important;
   color: var(--ob-text, #1F2A2A) !important; border: 1px solid var(--ob-rand, #D9DEDE);

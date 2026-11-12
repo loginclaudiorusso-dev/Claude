@@ -34,9 +34,9 @@ STANDORT_FARBEN = {
 }
 
 # Status-Aufteilung: UWTler (Deep Blue), Mieter (Slate), übrige Belegung neutral – hell / dunkel
-STATUS_FARBEN = {
-    False: {"UWT": "#4F6FE8", "Mieter": "#A3B1C6", "uebrige": "#6B7280"},
-    True: {"UWT": "#1E3A8A", "Mieter": "#64748B", "uebrige": "#CBD5E1"},
+STATUS_FARBEN = {   # 0.99: dasselbe Schema wie überall (diagramm_stil.GRUPPEN_FARBEN) – dunkel / hell
+    False: {"UWT": "#566B87", "Mieter": "#0d9488", "uebrige": "#94a3b8"},
+    True: {"UWT": "#1e3a5f", "Mieter": "#0d9488", "uebrige": "#94a3b8"},
 }
 STATUS_NAMEN = {"UWT": "UWTler", "Mieter": "Mieter", "uebrige": "Teilnehmende & Sonstige"}
 

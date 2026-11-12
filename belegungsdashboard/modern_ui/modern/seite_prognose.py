@@ -808,13 +808,12 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     return o
 
 
-STATUS_SOCKEL = {"UWT": ("#1e3a5f", .28, 1.5), "Mieter": ("#0d9488", .22, 1.5),     # 0.98: Farbe, Deckung, Linie
-                 "uebrige": ("#94a3b8", .20, 2.0)}
+STATUS_SOCKEL = {"UWT": (_ds.GRUPPEN_FARBEN["UWT"], .28, 1.5), "Mieter": (_ds.GRUPPEN_FARBEN["Mieter"], .22, 1.5),
+                 "uebrige": (_ds.GRUPPEN_FARBEN["uebrige"], .20, 2.0)}       # 0.98/0.99: Farbe, Deckung, Linie
 KONTINGENT_LINIE = "#64748b"
 
 
 # ---- 0.87: Belegung inkl. UWTler und Mieter als Diagramm-Karte ---------------------------------------------------
-from .diagramm_stil import GRUPPEN_FARBEN  # noqa: E402 – 0.94: feste Gruppenfarben (Kontingent in derselben Farbe)
 NETTO_TEXT = {False: "Netto (Internatsplätze ohne FRAI, Jugendhilfe und andere Bereiche)",
               True: "Brutto (alle Plätze inkl. FRAI, Jugendhilfe und andere Bereiche)"}
 
@@ -848,7 +847,8 @@ def _status_karte(o, t, c) -> dict:
     kont = c.get("kontingent")
     k_uwt = kap * kont["UWT"] / 100 if kont and kap else None
     k_beide = kap * (kont["UWT"] + kont["Mieter"]) / 100 if kont and kap else None
-    fu, fm, warn, akz, grau = GRUPPEN_FARBEN["UWT"], GRUPPEN_FARBEN["Mieter"], t["rot"], t["akzent"], t["text3"]
+    fu, fm, warn, akz, grau = (_ds.gruppen_farbe("UWT"), _ds.gruppen_farbe("Mieter"), t["rot"], t["akzent"],
+                               t["text3"])
     r1 = lambda x: None if x is None else round(x, 1)  # noqa: E731
     nach = lambda i: li is not None and i > li  # noqa: E731
     ende = lambda i, x: None if nach(i) and x <= .05 else r1(x)  # noqa: E731   Reihe endet mit dem letzten Vertrag

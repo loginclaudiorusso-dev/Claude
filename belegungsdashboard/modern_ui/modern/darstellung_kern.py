@@ -59,7 +59,7 @@ STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig"
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
-            "dg_anteil": "ring"}
+            "dg_anteil": "ring", "werkzeuge_oben": True}
 # 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
 # Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
 NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
@@ -130,7 +130,8 @@ def bereinigen(d: dict) -> dict:
     e["dg_anteil"] = d.get("dg_anteil") if d.get("dg_anteil") in DG_ANTEILE else "ring"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
     e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
-    for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):
+    for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung",
+              "werkzeuge_oben"):
         if k in d:
             e[k] = bool(d[k])
     return e

@@ -238,6 +238,8 @@ def klassen(d: dict) -> list[str]:
         k.append("band-gross")
     if d["layout"] == "office" and d.get("nav", "band") == "leiste":
         k.append("nav-leiste")                  # 0.91: Seitenleiste statt Registerkarten (Titel- und Statusleiste bleiben)
+    if d["layout"] == "office" and d.get("nav", "band") != "leiste" and d.get("werkzeuge_oben", True):
+        k.append("ob-oben")                     # 0.99: Werkzeuge der Seite in der Kontext-Registerkarte (wie Office)
     if d["layout"] == "office" and d.get("band_zu"):
         k.append("band-zu")                     # 0.74: Menüband eingeklappt (Strg+F1)
     if d["layout"] == "office":                 # 0.75: Knopf-/Symbolstil, hoher Kontrast
@@ -259,7 +261,7 @@ def stil(d: dict) -> str:
 
 
 ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "knopf-weich", "knopf-kontur",
-                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross"] + [f"lay-{x}" for x in LAYOUTS]
+                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross", "ob-oben", "nav-leiste"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------

@@ -227,6 +227,11 @@ def _anzeige(a, d: dict, setzen) -> None:
                 b.on("click", lambda k=k: setzen(symbolstil=k))
         _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
         _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
+        _titel("Werkzeuge der Seite", "„Im Menüband“: Filter und Knöpfe jeder Seite stehen in einer eigenen "
+               "Registerkarte oben (wie die Kontext-Registerkarten in Office) – sie öffnet sich, sobald man eine Ansicht "
+               "wählt. „Unter dem Menüband“: wie bisher in der Zeile über dem Inhalt.")
+        _wahl({True: "Im Menüband", False: "Unter dem Menüband"}, d.get("werkzeuge_oben", True),
+              lambda x: setzen(werkzeuge_oben=x))
 
 
 def _diagramme(a, d: dict, setzen) -> None:

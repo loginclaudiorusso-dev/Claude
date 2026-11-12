@@ -130,14 +130,31 @@ def _liste(x) -> list[dict]:
 #   balken_ist / balken_prognose    Zählwerte als Balken (Prognose heller, gestrichelter Rand)
 
 FOKUS_ID = "m-fokus"
-# 0.94: feste Gruppenfarben – eine Gruppe sieht überall gleich aus (Karte und Einfach). Klassisch bleibt wie bisher.
-GRUPPEN_FARBEN = {"Reha": "#00929A", "UWT": "#5B5BD6", "Umschüler": "#5B5BD6", "UWTler": "#5B5BD6",
-                  "Mieter": "#B8650A"}
+# 0.99: EIN Farbschema für die Gruppen – überall (Klassisch, Karte, Einfach, Anteile, Legenden):
+# Umschüler/UWTler Schieferblau, Mieter Teal, Teilnehmende (Reha) & Sonstige Schiefergrau. Im Dunkeln derselbe Farbton
+# heller (sonst verschwindet Schieferblau auf dunklem Grund).
+GRUPPEN_FARBEN = {"Reha": "#94a3b8", "Teilnehmende": "#94a3b8", "Teilnehmende & Sonstige": "#94a3b8",
+                  "uebrige": "#94a3b8", "UWT": "#1e3a5f", "Umschüler": "#1e3a5f", "UWTler": "#1e3a5f",
+                  "Mieter": "#0d9488"}
+GRUPPEN_FARBEN_DUNKEL = {k: ("#566B87" if v == "#1e3a5f" else v) for k, v in GRUPPEN_FARBEN.items()}
 
 
-def gruppen_farbe(name: str, i: int, sonst: list[str]) -> str:
-    """Feste Farbe für Reha, Umschüler und Mieter – alle übrigen Kategorien aus der Liste ``sonst``."""
-    return GRUPPEN_FARBEN.get(name) or sonst[i % len(sonst)]
+def _aktiv_dunkel() -> bool:
+    try:
+        from . import themes
+
+        return themes.farben(themes.AKTIV).get("hell") is False
+    except Exception:                                   # noqa: BLE001 – ohne Oberfläche (Tests): hell
+        return False
+
+
+def gruppen_farbe(name: str, i: int = 0, sonst: list[str] | None = None, dunkel_: bool | None = None) -> str:
+    """Feste Farbe für Teilnehmende, Umschüler und Mieter – alle übrigen Kategorien aus der Liste ``sonst``."""
+    tab = GRUPPEN_FARBEN_DUNKEL if (_aktiv_dunkel() if dunkel_ is None else dunkel_) else GRUPPEN_FARBEN
+    if name in tab:
+        return tab[name]
+    sonst = sonst or ["#64748b"]
+    return sonst[i % len(sonst)]
 
 
 # 0.96: Unsicherheitsbänder deutlich sichtbar und klar unterscheidbar – in JEDEM Modus (Klassisch, Karte, Einfach)
