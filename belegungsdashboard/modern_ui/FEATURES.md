@@ -1,10 +1,11 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.0.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.01.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
 Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft offline, die KI ist optional.
 
 ## Darstellung Menüband (wie Office)
+- Alle Seiten mit Werkzeugen im eigenen Menüband-Reiter als Office-Gruppen, alle Menüpunkte groß, Abstände geprüft (1.01)
 - Navigation: Menüband wie in Office ist Standard (0.92); als Option die Seitenleiste im Windows-Look (alle Ziele sichtbar, Zähler am Eintrag) – Titel- und Statusleiste bleiben (0.91)
 - Kontext-Registerkarte „Diagrammentwurf“ wie in Excel (0.96): Daten (Standort, Netto/Brutto, Zeitraum), Diagramm, Darstellung, Typ inkl. Anteile, Elemente – die Schalter neben dem Diagramm stehen jetzt oben
 - Bildschirmfoto (0.96): Statusleiste oder Strg+Umschalt+F → Zwischenablage + PNG unter Bilder\INNternat; „Ausschnitt“ öffnet das Windows-Ausschneidewerkzeug
@@ -50,7 +51,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Widerspruch Planung ↔ Gebäudeplan sichtbar, Zimmer bis zur Klärung geschützt, per Klick klären
 - Gruppen: Hauptmaßnahme, vorbereitende Maßnahme, Assessment, EMR, UWT, Gast, Mieter (Details in der Bemerkung)
 - Belegung optimieren (Tauschvorschläge), UWT automatisch zuteilen
-- Abreiselisten, Firmenprogramm (was im Belegungssystem einzutragen ist), Anreise- und Schlüssellisten, Zimmerschilder, Excel
+- Abreiselisten, RIOS-Daten (was im Belegungssystem einzutragen ist), Anreise- und Schlüssellisten, Zimmerschilder, Excel
 - Hinweise aus der Anreiseliste als Marken (Allergiker, Hilfsmittel, Begleitung); Allergiker-Etage (Haus 2, 1. OG) mit
   Vorrang für Allergiker (auch lange Maßnahmen), eigenem Vorschlag, Warnung und Meldung
 - „x von y bezugsfertig“ je Anreisetag mit fehlenden Punkten und Vorbereitungsliste
@@ -222,7 +223,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Gebuchte Kurse × Verbleibskurve früherer Kurse derselben Art (bedingt auf die bisherige Dauer)
 - Teilweise gebuchte Kurse plus erwartete Nachbuchung (Poisson-Gamma, Buchungskurve aus den Anreiselisten gemessen)
 - Kurzkurse als Saisonsockel je Monat; Rückwärtstest nur mit dem Wissen am Stichtag, mit Vergleich ohne Verbleib
-- Abtipp-Modus fürs Firmenprogramm: Feld für Feld kopieren, schmaler Streifen im Vordergrund
+- Abtipp-Modus fürs RIOS-Daten: Feld für Feld kopieren, schmaler Streifen im Vordergrund
 - Suche nach Umzug (0.97): Strg+K, Personenliste, Archiv und Canvas zeigen das Zimmer von heute mit Umzugshinweis, ein Treffer je Person
 - Ein Gruppen-Farbschema überall (0.99): UWTler Schieferblau, Mieter Teal, Teilnehmende Schiefergrau
 - Zeitstrahl-Legende als Filter (1.0): belegt / geplant / gesperrt / Konflikt anklickbar, kombinierbar

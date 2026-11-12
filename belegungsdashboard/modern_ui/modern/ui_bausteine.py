@@ -13,7 +13,42 @@ def attr(el, **werte):
     return el
 
 
+# 1.01: Werkzeuge der Seite im Menüband – die gemeinsamen Bausteine zeichnen sich dort als Office-Knöpfe (groß, mit
+# Fluent-Symbol), sobald sie in der Werkzeugzeile einer Seite stehen. ``BAND["an"]`` setzt die Oberfläche je Zeichnen.
+BAND = {"an": False}
+
+
+def im_band() -> bool:
+    """Wird gerade in die Werkzeugzeile (m-werkzeuge / m-leiste) gebaut – und nicht in eine schon gebaute Band-Gruppe?"""
+    if not BAND["an"]:
+        return False
+    try:
+        el = ui.context.slot.parent
+        for _ in range(12):
+            if el is None:
+                return False
+            k = getattr(el, "_classes", []) or []
+            if "m-bg" in k or "q-menu" in k or el.tag in ("q-menu", "q-dialog"):
+                return False
+            if "m-werkzeuge" in k or "m-leiste" in k:
+                return True
+            el = el.parent_slot.parent if getattr(el, "parent_slot", None) else None
+    except Exception:                                   # noqa: BLE001 – im Zweifel wie bisher zeichnen
+        return False
+    return False
+
+
 def knopf(text: str, on_click=None, art: str = "", icon: str = "", titel: str = ""):
+    if im_band() and "m-seg-ansicht" not in art:
+        from . import band_ui, symbole
+
+        name, farbe = symbole.aus_material(icon) if icon else symbole.aus_text(text)
+        if not text and on_click is None:                # Menü-Knopf ohne Text (z. B. „⋯ Mehr“) → großer Knopf mit Pfeil
+            text = "Mehr" if icon in ("more_horiz", "") else (titel.split(":")[0].split(" – ")[0][:22] or "Menü")
+        if text:
+            return band_ui.gross(text, name, farbe, on_click, tipp=titel, pfeil=on_click is None,
+                                 primaer="primaer" in art)
+        return band_ui.klein("", name, farbe, on_click, tipp=titel, pfeil=False)
     b = ui.element("button").classes(f"m-knopf {art}".strip())
     if titel:
         attr(b, title=titel)
@@ -33,6 +68,15 @@ def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False, ansicht: bo
     ``ansicht``: Umschalter der Unteransichten einer Seite – im Menüband-Layout ausgeblendet (dort stehen sie im Band).
 
     ``sofort``: der Knopf wird schon im Browser umgestellt (ohne auf den Server zu warten) – für Filter, die neu laden."""
+    if not ansicht and im_band():                      # 1.01: im Menüband als gestapelte Auswahlknöpfe
+        from . import band_ui
+
+        werte = list(optionen.items())
+        for i in range(0, len(werte), 3):
+            with band_ui.stapel():
+                for wert, text in werte[i:i + 3]:
+                    band_ui.auswahl(str(text), wert == aktiv, lambda wert=wert: bei_klick(wert))
+        return
     with ui.element("div").classes("m-segm" + (" m-seg-ansicht" if ansicht else "")).props('role="group"'):
         for wert, text in optionen.items():
             b = ui.element("button").classes("an" if wert == aktiv else "")
@@ -93,6 +137,15 @@ def badge_neu(seit) -> None:
 def kennzahlen(werte: list[tuple], aktiv=None, bei_klick=None, titel: dict | None = None) -> None:
     """Klickbare Kennzahl-Kacheln: (Schlüssel, Zahl, Text, Farbe ok|warn|krit|akzent|neutral|blau).
     Die aktive Kachel (oder bei einer Menge: alle darin) ist hervorgehoben; ein Klick ruft ``bei_klick(Schlüssel)`` (Filter oder Sprung)."""
+    if im_band():                                      # 1.01: im Menüband große Knöpfe mit Zahl
+        from . import band_ui, symbole
+
+        for schluessel, zahl, text, farbe in werte:
+            an = aktiv is not None and (schluessel in aktiv if isinstance(aktiv, (set, frozenset)) else schluessel == aktiv)
+            name, fb = symbole.ZUSTAND.get(schluessel) or symbole.TON.get(farbe, ("filter", ""))
+            band_ui.gross(text, name, fb, (lambda s=schluessel: bei_klick(s)) if bei_klick else None, an=an, zahl=zahl,
+                          tipp=(titel or {}).get(schluessel, "Klick: filtern" if bei_klick else ""))
+        return
     with ui.element("div").classes("m-stats").props('role="group"'):
         for schluessel, zahl, text, farbe in werte:
             an = aktiv is not None and (schluessel in aktiv if isinstance(aktiv, (set, frozenset)) else schluessel == aktiv)

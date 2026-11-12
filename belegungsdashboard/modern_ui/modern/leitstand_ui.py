@@ -32,7 +32,7 @@ EINSTELLUNG = "oberflaeche"            # persönlich je PC: "klassisch" | "leits
 BUEHNEN = {"dispo": ("1", "Disposition", "dashboard"), "akten": ("2", "Verwaltung", "folder_open"),
            "radar": ("3", "Auswertung", "insights"), "bau": ("4", "Bau & Budget", "construction")}
 # Arbeitslisten der Bühnen 2–4: (Schlüssel, Titel, Seite, Ansicht)
-AKTEN = [("eintragen", "Firmenprogramm (ins Trägersystem)", "anreisen", "eintragen"),
+AKTEN = [("eintragen", "RIOS-Daten (ins Trägersystem)", "anreisen", "eintragen"),
          ("mieter", "Mieter & Verträge", "mieter", None), ("termine", "Termine & Wiedervorlagen", "termine", None),
          ("assistenz", "Assistenz & Post", "assistenz", None), ("personen", "Personen (alle Anreisen)", "anreisen", "personen"),
          ("abreisen", "Abreisen", "anreisen", "abreisen"), ("inventar", "Inventar", "inventar", None),
@@ -420,7 +420,7 @@ class Leitstand(Ansicht):
                     ui.icon("keyboard")
                     ui.label("Abtipp-Modus")
                 k.on("click", self._abtipp)
-                attr(k, title="Firmenprogramm Eintrag für Eintrag ins Trägersystem übertragen")
+                attr(k, title="RIOS-Daten Eintrag für Eintrag ins Trägersystem übertragen")
                 w = ui.element("button").classes("ls-sknopf")
                 with w:
                     ui.icon("swap_horiz")

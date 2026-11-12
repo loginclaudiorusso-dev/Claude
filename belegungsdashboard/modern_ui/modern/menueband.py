@@ -144,7 +144,7 @@ def _split(seite: str, ansichten: dict, text: str, icon: str, keys: list[str] | 
 
 
 # Trennstellen für lange Wörter auf großen Schaltflächen (weiches Trennzeichen, nur wenn nötig sichtbar)
-TRENNUNG = {"Firmenprogramm": "Firmen\u00adprogramm", "Gegenstände": "Gegen\u00adstände",
+TRENNUNG = {"RIOS-Daten": "RIOS-Daten", "Gegenstände": "Gegen\u00adstände",
             "Reinigungsliste": "Reinigungs\u00adliste", "Neuanmeldungen": "Neu\u00adanmeldungen"}
 
 
@@ -212,6 +212,16 @@ def gruppe_sichtbar(g: Gruppe, seite: str, ansicht: str | None) -> bool:
 
 
 def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte: dict | None = None) -> list[Reiter]:
+    """1.01: alle Schaltflächen groß (Symbol über dem Text) – es ist genug Platz, kleine Knöpfe waren zu klein."""
+    alle = _reiter(ansichten, leitung, standorte)
+    for r in alle:
+        for g in r.gruppen:
+            for p in g.punkte:
+                p.gross = True
+    return alle
+
+
+def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte: dict | None = None) -> list[Reiter]:
     """Registerkarten des Menübands. ``ansichten``: Seite → {Unteransicht: Titel} (aus den Seiten-Modulen).
     ``leitung``: Gruppe „Leitung“ (Steuerung) zeigen – in den Optionen je PC abschaltbar."""
     v = lambda *x, **y: _v(ansichten, *x, **y)          # noqa: E731
@@ -349,7 +359,7 @@ def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]
                  Punkt("Termine", "event", S("termine"), False),
                  Punkt("Assistenz", "auto_awesome", S("assistenz"), False)]),
            ("Anreisen", [v("anreisen", "zuteilen"), v("anreisen", "personen"), v("anreisen", "abreisen"),
-                         v("anreisen", "eintragen", "Firmenprogramm"), Punkt("Mieter", "key", S("mieter"), False)]),
+                         v("anreisen", "eintragen", "RIOS-Daten"), Punkt("Mieter", "key", S("mieter"), False)]),
            ("Zimmer und Haus", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
                                 Punkt("Reinigung", "cleaning_services", S("reinigung", "liste"), False),
                                 v("zimmer", "maengel", "Mängel und Prüfungen")]),

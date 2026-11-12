@@ -121,7 +121,7 @@ class Ansicht:
         self.ps_filter, self.ps_text = "alle", ""
         self.iv_haus, self.iv_text, self.iv_ohne = "", "", False
         self.zu_vergangene = False             # Zuteilen: auch vergangene Anreisen (letztes Jahr) zur Auswahl
-        self.ein_alle = False                  # Firmenprogramm: auch abgehakte zeigen
+        self.ein_alle = False                  # RIOS-Daten: auch abgehakte zeigen
         self.ein_abtipp, self.ein_pos = False, 0   # 0.55: Abtipp-Modus (ein Eintrag nach dem anderen)
         self.ab_zeitraum, self.ein_tage = "heute", 14
         self.tm_tage, self.tm_monat = 30, self.heute.replace(day=1)
@@ -968,6 +968,10 @@ class Ansicht:
         self._glocke_fuellen()
         for c in (self.werkzeuge, self.leiste, self.inhalt):
             c.clear()
+        from . import menueband_ui as _mbu_z
+        from . import ui_bausteine as _ub
+
+        _ub.BAND["an"] = _mbu_z.werkzeuge_oben(self) if self.design.get("layout") == "office" else False   # 1.01
         self.status_info = ""                   # 0.74: Zahlen der Ansicht für die Statusleiste (wie in Excel)
         titel = register.TITEL[self.seite]
         from . import menueband_ui

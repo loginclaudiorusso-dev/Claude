@@ -692,9 +692,15 @@ body.lay-office.ob-oben:not(.ob-seite-an) .m-kz > .m-leiste { display: none !imp
 body.lay-office.ob-oben.ob-seite-an .m-ob-band { display: none !important; }
 /* 1.00: Seiten-Band = gleiche Höhe (96 px), gleiche Farbe, gleiche Kante wie das Menüband – nichts springt, nichts
    wird abgeschnitten (zu breit → waagrecht schieben; Leisten ohne Gruppen dürfen zweizeilig umbrechen). */
-body.lay-office .m-ob-band { height: 96px; min-height: 96px; box-sizing: border-box; }
-body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); height: 96px; min-height: 96px; box-sizing: border-box;
-  align-items: flex-start; align-content: flex-start; padding: 4px 10px 0; border-bottom: 1px solid var(--ob-rand);
+body.lay-office .m-ob-band { height: 110px; min-height: 110px; box-sizing: border-box; padding: 6px 8px 0; }
+/* 1.01: mehr Luft – Gruppentitel nicht am Rand, Texte nicht an Knopfkanten, Gruppen deutlich getrennt */
+.m-ob-gruppe { padding: 0 10px !important; }
+.m-ob-gtitel { padding: 5px 0 9px !important; line-height: 13px; }
+.m-ob-punkte { gap: 6px !important; }
+.m-ob-gross { padding: 4px 8px 3px !important; min-width: 64px !important; max-width: 110px !important; }
+.m-ob-gross .m-ob-text { font-size: 12.5px !important; line-height: 15px !important; }
+body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); height: 110px; min-height: 110px; box-sizing: border-box;
+  align-items: flex-start; align-content: flex-start; padding: 6px 8px 0; border-bottom: 1px solid var(--ob-rand);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .08); overflow-x: auto; overflow-y: hidden; row-gap: 4px; }
 body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg) { flex-wrap: nowrap; gap: 0; }
 body.lay-office.ob-oben.ob-hat-werkzeuge:not(.ob-seite-an) .m-kz { display: none !important; }   /* kein Springen */

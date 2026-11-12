@@ -1,4 +1,4 @@
-"""Daten für „Anreisen“ über das Zuteilen hinaus: Abreisen, Liste fürs Firmenprogramm (Eintragen), Drucklisten,
+"""Daten für „Anreisen“ über das Zuteilen hinaus: Abreisen, Liste fürs RIOS-Daten (Eintragen), Drucklisten,
 Planung zurücknehmen, Optimieren, UWT automatisch, Personenangaben und Personen von Hand – ohne NiceGUI."""
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def abreisen_druck(stand: zp.Planstand, von: date, bis: date) -> str:
     return drucklisten.abreiseliste_html(cockpit.abreiseliste(stand, von, bis), titel)
 
 
-# ---- Eintragen ins Firmenprogramm -------------------------------------------------------
+# ---- Eintragen ins RIOS-Daten -------------------------------------------------------
 
 @dataclass
 class EZeile:

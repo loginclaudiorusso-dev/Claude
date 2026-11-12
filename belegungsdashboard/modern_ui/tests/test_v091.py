@@ -33,7 +33,7 @@ def test_seitenleiste_alle_ziele_sichtbar():
     gruppen = [g for g, _ in e]
     assert gruppen == ["", "Anreisen", "Zimmer und Haus", "Auswertung", "Verwalten"]
     texte = [p.text for _g, ps in e for p in ps]
-    for t in ("Heute", "Zuteilen", "Firmenprogramm", "Reinigung", "Mängel und Prüfungen", "Belegung und Prognose",
+    for t in ("Heute", "Zuteilen", "RIOS-Daten", "Reinigung", "Mängel und Prüfungen", "Belegung und Prognose",
               "Engpässe", "Steuerung", "Daten und Import"):
         assert t in texte, t
     assert "Steuerung" not in [p.text for _g, ps in mb.leiste(mbu._ansichten(), leitung=False) for p in ps]

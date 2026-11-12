@@ -1,4 +1,4 @@
-"""Seite „Anreisen“ – Zusätze zum Zuteilen (das baut ``oberflaeche``): Ansichten Abreisen und Firmenprogramm,
+"""Seite „Anreisen“ – Zusätze zum Zuteilen (das baut ``oberflaeche``): Ansichten Abreisen und RIOS-Daten,
 Menü „Mehr“ (Drucken, Person hinzufügen, Planung zurücknehmen, Optimieren, UWT) und die Personenangaben im Panel."""
 
 from __future__ import annotations
@@ -12,11 +12,11 @@ from . import anreisen_kern as ank
 from . import seiten
 from .ui_bausteine import attr, badge, badge_neu, kennzahlen, knopf, leer, segmente
 
-ANSICHTEN = {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": "Abreisen", "eintragen": "Firmenprogramm"}
+ANSICHTEN = {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": "Abreisen", "eintragen": "RIOS-Daten"}
 
 
 def daten(a) -> None:
-    """Daten der Ansichten Abreisen/Firmenprogramm (Zuteilen lädt ``oberflaeche`` selbst)."""
+    """Daten der Ansichten Abreisen/RIOS-Daten (Zuteilen lädt ``oberflaeche`` selbst)."""
     ansicht = a.ansicht_von("anreisen", "zuteilen")
     if ansicht == "abreisen":
         von, bis = ank.zeitraum(a.ab_zeitraum, a.heute)
@@ -136,7 +136,7 @@ async def _ab_drucken(a) -> None:
     seiten.html_drucken(a, text, f"Abreiseliste_{a.daten['von']:%Y-%m-%d}")
 
 
-# ---- Firmenprogramm (Eintragen) ---------------------------------------------------------
+# ---- RIOS-Daten (Eintragen) ---------------------------------------------------------
 
 def eintragen_zeichnen(a) -> None:
     zs = a.daten["zeilen"]

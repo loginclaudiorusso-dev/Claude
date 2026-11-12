@@ -1256,7 +1256,7 @@ CSS += """
 .m-tz-nr { min-width: 1.2em; text-align: right; }          /* 0.54: Nummern ohne führende Null, trotzdem bündig */
 """
 
-# 0.55: Abtipp-Modus (Firmenprogramm)
+# 0.55: Abtipp-Modus (RIOS-Daten)
 CSS += """
 .m-abtipp { max-width: 520px; margin: 18px auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
   background: var(--fl); border: 1px solid var(--rand); border-radius: var(--r); }

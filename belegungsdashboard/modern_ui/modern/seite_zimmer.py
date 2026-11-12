@@ -174,7 +174,7 @@ async def _gezogen(a, args) -> None:
         if w.partner:
             ui.label(f"DZ-Partner laut Liste: {', '.join(n for _, n in w.partner)}."
                      + ("" if w.partner_passt else " Für beide ist dort kein Platz.")).classes("m-ptext")
-        ui.label("Danach im Belegungssystem umbuchen (steht unter Anreisen → Firmenprogramm).").classes("m-zweite")
+        ui.label("Danach im Belegungssystem umbuchen (steht unter Anreisen → RIOS-Daten).").classes("m-zweite")
 
         async def los(mit: bool):
             if await a.aendern(zk.wechseln, w.person, w.nach, mit):
