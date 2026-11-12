@@ -77,8 +77,10 @@ def anwenden(opt: dict, d: dict) -> dict:
             if se.get("symbol") in (None, "none"):
                 se["symbol"] = "circle"
             se.setdefault("symbolSize", 5)
-        if d.get("dg_werte") and len(_werte(se)) <= WERTE_MAX:
-            se["label"] = {"show": True, "position": "top", "fontSize": 10}
+        if d.get("dg_werte") and len(_werte(se)) <= WERTE_MAX and "Backtest" not in str(se.get("name", "")):
+            se["label"] = {"show": True, "position": "top", "fontSize": 12,      # Farbe: Textfarbe (lesbar)
+                           ":formatter": WERT_KOMMA_JS}                          # 0.97: deutsch, eine Nachkommastelle
+            se["labelLayout"] = {"hideOverlap": True}
     if saeule:
         for achse in _liste(o.get("xAxis")):
             if achse.get("type") == "category":
@@ -187,9 +189,9 @@ def ohne_textrand(opt):
     def gehe(x, unter_label=False):
         if isinstance(x, dict):
             if unter_label:
-                x.setdefault("textBorderWidth", 0)
-                x.setdefault("textBorderColor", "transparent")
-                x.setdefault("textShadowBlur", 0)
+                for k, v in (("textBorderWidth", 0), ("textBorderColor", "transparent"), ("textShadowBlur", 0)):
+                    if k not in x:
+                        x[k] = v
             for k, v in x.items():
                 if k.startswith(":"):
                     continue
@@ -203,11 +205,16 @@ def ohne_textrand(opt):
                 gehe(v, False)
     gehe(opt)
     if isinstance(opt, dict):
-        ts = opt.setdefault("textStyle", {})
-        ts.setdefault("textBorderWidth", 0)
-        ts.setdefault("textBorderColor", "transparent")
+        if "textStyle" not in opt:
+            opt["textStyle"] = {}
+        ts = opt["textStyle"]
+        for k, v in (("textBorderWidth", 0), ("textBorderColor", "transparent")):
+            if isinstance(ts, dict) and k not in ts:
+                ts[k] = v
     return opt
 SCHRIFT = "Segoe UI, Inter, sans-serif"
+WERT_KOMMA_JS = ("(p) => { const v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value; "
+                 "return (v == null || isNaN(v)) ? '' : (Math.round(v * 10) / 10).toLocaleString('de-DE'); }")
 ZAHL_JS = "(v) => (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE')"
 WERT_JS = ("(p) => { const v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value; "
            "return (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE'); }")
@@ -391,3 +398,141 @@ def tooltip_js(rollen: dict, spanne: dict | None = None) -> str:
             " if (akt != null && vj != null) { const d = akt - vj; h += `<div style=\"opacity:.75;margin-top:2px\">Differenz zum"
             " Vorjahr: ${d >= 0 ? '+' : '−'}${f1(Math.abs(d))}</div>`; }"
             " return h; }")
+
+
+# =====================================================================================================================
+# 0.97 Kontrast: Schrift IMMER gut lesbar (≥ 4,5 : 1 zum Hintergrund), Linien klar sichtbar (≥ 3 : 1) – in hell,
+# gedämpft und dunkel. Dazu eine Kategorienpalette mit deutlich verschiedenen Farbtönen statt „Akzent, Grün, Türkis“.
+# =====================================================================================================================
+KATEGORIEN = {   # deutlich verschiedene Farbtöne (angelehnt an Okabe-Ito), je hell/dunkel mit genug Kontrast
+    True: ["#0072B2", "#D55E00", "#7B3FB5", "#2E8B3E", "#C2185B", "#9A7400", "#00838F", "#5D4037", "#455A64"],
+    False: ["#56B4E9", "#F39C4A", "#C39BFF", "#7BD88F", "#FF7AA8", "#FFD166", "#4DD8D0", "#D7A98C", "#B0BEC5"],
+}
+TEXT_MIN, LINIE_MIN = 4.5, 3.0
+
+
+def kategorien(t: dict) -> list[str]:
+    return list(KATEGORIEN[not dunkel(t)])
+
+
+def farbe_lesen(c) -> tuple[float, float, float, float] | None:
+    """'#abc', '#aabbcc', 'rgb(…)', 'rgba(…)' → (r, g, b, alpha); alles andere (Verläufe, Namen) → None."""
+    if not isinstance(c, str):
+        return None
+    c = c.strip()
+    if c.startswith("#"):
+        f = c[1:]
+        if len(f) == 3:
+            f = "".join(x * 2 for x in f)
+        if len(f) in (6, 8):
+            try:
+                a = int(f[6:8], 16) / 255 if len(f) == 8 else 1.0
+                return int(f[0:2], 16), int(f[2:4], 16), int(f[4:6], 16), a
+            except ValueError:
+                return None
+        return None
+    if c.startswith(("rgb(", "rgba(")):
+        try:
+            teile = [float(x) for x in c[c.index("(") + 1:c.rindex(")")].split(",")]
+        except ValueError:
+            return None
+        if len(teile) >= 3:
+            return teile[0], teile[1], teile[2], teile[3] if len(teile) > 3 else 1.0
+    if c.lower() in ("#fff", "white"):
+        return 255, 255, 255, 1.0
+    return None
+
+
+def _lum(r, g, b) -> float:
+    def k(x):
+        x /= 255
+        return x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4
+    return .2126 * k(r) + .7152 * k(g) + .0722 * k(b)
+
+
+def kontrast(a: str, b: str) -> float:
+    fa, fb = farbe_lesen(a), farbe_lesen(b)
+    if fa is None or fb is None:
+        return 21.0
+    la, lb = _lum(*fa[:3]), _lum(*fb[:3])
+    hoch, tief = max(la, lb), min(la, lb)
+    return (hoch + .05) / (tief + .05)
+
+
+def angleichen(farbe: str, hg: str, ziel: float) -> str:
+    """Farbton behalten, aber heller (dunkler Grund) bzw. dunkler (heller Grund), bis der Kontrast reicht."""
+    f, h = farbe_lesen(farbe), farbe_lesen(hg)
+    if f is None or h is None or f[3] < .99 or kontrast(farbe, hg) >= ziel:
+        return farbe
+    hell_grund = _lum(*h[:3]) > .4
+    zu = (0, 0, 0) if hell_grund else (255, 255, 255)
+    for i in range(1, 21):
+        m = i / 20
+        r, g, b = (round(f[j] + (zu[j] - f[j]) * m) for j in range(3))
+        neu = f"#{r:02X}{g:02X}{b:02X}"
+        if kontrast(neu, hg) >= ziel:
+            return neu
+    return "#000000" if hell_grund else "#FFFFFF"
+
+
+_TEXT = {"label", "endLabel", "axisLabel", "textStyle", "nameTextStyle", "subtextStyle", "upperLabel"}
+
+
+def lesbar(opt, t: dict):
+    """In place: Schrift ≥ 4,5:1 und ohne Kontur, Linien/Punkte ≥ 3:1 zum Diagrammhintergrund. Beschriftungen ohne
+    eigene Farbe bekommen die Textfarbe (ECharts nähme sonst die – oft blasse – Linienfarbe). Halbtransparente
+    Flächen (Bänder), Beschriftungen mit eigenem Hintergrund und Beschriftungen IN Balken bleiben, wie sie sind."""
+    ohne_textrand(opt)
+    if not isinstance(opt, dict):
+        return opt
+    hg = t.get("fls") or t.get("bg") or ("#ffffff" if not dunkel(t) else "#15171c")
+    text = t.get("text", "#222222")
+
+    def text_fix(d: dict, key: str) -> None:
+        if not isinstance(d, dict):
+            return
+        bg = d.get("backgroundColor")
+        if bg not in (None, "", "transparent", "none"):
+            return
+        if str(d.get("position", "")).startswith("inside") or d.get("position") == "inside":
+            return
+        c = d.get("color")
+        if c is None:
+            if key in ("label", "endLabel", "upperLabel") and d.get("show"):
+                d["color"] = text
+            return
+        if isinstance(c, str) and (neu := angleichen(c, hg, TEXT_MIN)) != c:
+            d["color"] = neu
+
+    def linie_fix(d: dict) -> None:
+        if d.get("borderColor") or d.get("borderWidth"):      # gefüllter Punkt mit Rand (z. B. weißer Ring) bleibt
+            return
+        if isinstance(d, dict) and isinstance(d.get("color"), str) \
+                and (neu := angleichen(d["color"], hg, LINIE_MIN)) != d["color"]:
+            d["color"] = neu
+
+    def gehe(x, key=""):
+        if isinstance(x, dict):
+            for k, v in list(x.items()):
+                if k.startswith(":"):
+                    continue
+                if k in _TEXT and isinstance(v, dict):
+                    text_fix(v, k)
+                if k in ("lineStyle", "itemStyle") and isinstance(v, dict) and not x.get("areaStyle"):
+                    linie_fix(v)
+                if k == "rich" and isinstance(v, dict):
+                    for stil in v.values():
+                        text_fix(stil, "rich")
+                    continue
+                gehe(v, k)
+        elif isinstance(x, list):
+            for v in x:
+                gehe(v, key)
+    gehe(opt)
+    reihen = opt.get("series")
+    for se in reihen if isinstance(reihen, list) else []:
+        if isinstance(se, dict) and isinstance(se.get("color"), str) and not se.get("areaStyle") \
+                and (neu := angleichen(se["color"], hg, LINIE_MIN)) != se["color"]:
+            se["color"] = neu
+    return opt
+

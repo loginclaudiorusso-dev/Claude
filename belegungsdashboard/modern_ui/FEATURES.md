@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.96.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.97.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -103,6 +103,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Standorte parallel, Netto/Brutto, Präsentationsmodus, Export
 - Diagramme für Laien in „Karte“ (0.95): drei Frage-Kacheln, Achse ab 0 mit „Voll“ und Warnzone, zwei Bänder, „Luft“-Pfeil, Backtest als eigene „Probe“, Tagesverlauf als gestapelte Säulen mit Wochenenden, SVG, 13 px
 - Bänder deutlich (0.96): 80 % satt mit Kante, 95 % hell gestrichelt, im Dunkeln kräftiger – in Klassisch, Karte und Einfach; Diagrammschrift ohne Kontur
+- Kontrast (0.97): Diagrammschrift ≥ 4,5 : 1 (im Dunkeln weiß), Linien ≥ 3 : 1, Kategorienpalette mit klar verschiedenen Farbtönen; Backtest auch in „Einfach“ und „Karte“
 - Anteils-Diagramme wie in Excel (0.96): Ring, Kreis, 100-%-Säulen, 100-%-Fläche – Maßnahmen-Anteile je Startwelle, Gruppen-Anteile in der Belegung, mit Aussage-Satz
 - Leitungsansicht „Einfach“ (0.91): Aussage als Überschrift, Diagramm ab 0 mit „voll“ und Warnzone, vier Zahlen inkl. Prognosegüte, Hinweis zur Teilnehmer-Sicht
 - Darstellung der Diagramme wählbar: Karte (mit „Auf einen Blick“) · Klassisch (wie bis 0.86) · Einfach (Aussage als Überschrift, drei Zahlen, Füllstand gegen „voll“, Unsicherheit als Satz – für die Geschäftsführung) (0.89)
@@ -218,3 +219,4 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Teilweise gebuchte Kurse plus erwartete Nachbuchung (Poisson-Gamma, Buchungskurve aus den Anreiselisten gemessen)
 - Kurzkurse als Saisonsockel je Monat; Rückwärtstest nur mit dem Wissen am Stichtag, mit Vergleich ohne Verbleib
 - Abtipp-Modus fürs Firmenprogramm: Feld für Feld kopieren, schmaler Streifen im Vordergrund
+- Suche nach Umzug (0.97): Strg+K, Personenliste, Archiv und Canvas zeigen das Zimmer von heute mit Umzugshinweis, ein Treffer je Person

@@ -180,8 +180,7 @@ def _farben() -> list[str]:
     from . import seite_auswertung as sa
 
     t = sa._T()
-    return [t["akzent"], t.get("blau", "#5b8def"), t.get("orange", "#d68910"), t.get("gruen", "#3aa76d"),
-            t.get("rot", "#d64545")] + FARBEN_EXTRA
+    return _ds.kategorien(t) + FARBEN_EXTRA          # 0.97: deutlich verschiedene Farbtöne (nicht Grün neben Türkis)
 
 
 def _achsen(r) -> tuple[list[str], int]:

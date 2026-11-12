@@ -263,7 +263,10 @@ def antwort(stand: zp.Planstand, text: str, heute: date, neu: dict | None = None
             from belegung import suche
 
             bekannt = {k.name for k in karten}
-            for t in suche.suchen(v.rest, stand, heute=heute)[:40]:
+            from . import suche_kern
+
+            for t, _u in suche_kern.korrigieren(suche.suchen(v.rest, stand, heute=heute)[:40],
+                                                (getattr(stand.lage, "umzuege", None) or {}).values(), heute):
                 if t.name in bekannt:
                     continue
                 zeit = f"{t.von:%d.%m.}–{t.bis:%d.%m.%y}" if t.bis else f"ab {t.von:%d.%m.%y}"

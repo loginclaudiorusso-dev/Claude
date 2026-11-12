@@ -24,9 +24,13 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
     if stand is not None and len(q) >= 2:
         from . import kern as k_
 
+        from . import suche_kern
+
         strittig = {x.person: x for x in k_.strittige(stand)}
-        for t in suche.suchen(text, stand, heute=heute)[:40]:
-            zusatz = " · ".join(x for x in (t.zimmer_text, t.massnahme, f"{t.von:%d.%m.%y}–{t.bis:%d.%m.%y}"
+        # 0.97: Zimmer HEUTE (nach Umzug) – vorher stand nach einem Umzug noch das alte Zimmer da
+        for t, umzug in suche_kern.korrigieren(suche.suchen(text, stand, heute=heute)[:40],
+                                               (getattr(stand.lage, "umzuege", None) or {}).values(), heute):
+            zusatz = " · ".join(x for x in (t.zimmer_text, umzug, t.massnahme, f"{t.von:%d.%m.%y}–{t.bis:%d.%m.%y}"
                                              if t.bis else f"ab {t.von:%d.%m.%y}", t.status(heute)) if x)
             if (x := strittig.get(t.person)) is not None and t.zimmer_id == x.geplant:
                 zusatz = f"⚠ strittig – Gebäudeplan: {kurz(x.gebucht)} · " + zusatz

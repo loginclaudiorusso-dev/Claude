@@ -21,6 +21,9 @@ from .ui_bausteine import attr, knopf, leer, segmente
 
 GOSLAR = "BFW GS"
 OFFSET_MAX = 25                       # Auslastungs-Annahme im Szenario: ± Prozent
+BACKTEST_FARBE = {True: "#B35C00", False: "#FFB347"}        # 0.97: Bernstein – hell / dunkel, je ≥ 3:1
+VORJAHR_FARBE = {True: "#7B3FB5", False: "#C39BFF"}
+BACKTEST_EINFACH = "so lag die Vorhersage 1 Monat vorher"
 CHARTS = {"trend": "Trend & Prognose", "reserve": "Kapazitätsreserve", "jahr": "Vorjahresvergleich"}
 SCHRITTE = {1: "Ist-Verlauf", 2: "+ Prognose", 3: "+ Unsicherheit (80/95 %)", 4: "+ Kapazität"}
 TAG = {"Fakt": "fakt", "Prognose": "prognose", "Einschätzung": "einsch", "Hinweis": "hinweis"}
@@ -194,7 +197,8 @@ def _lesbar(o: dict, c: dict) -> dict:
     labels = list(o["xAxis"]["data"])
     if len(labels) != len(zs):
         return o
-    o["series"] = [se for se in o["series"] if se.get("name") != "Backtest (1 Monat vorher)"]
+    if not c.get("backtest"):                         # 0.97: eingeschaltet bleibt der Backtest auch in der Karte
+        o["series"] = [se for se in o["series"] if se.get("name") != "Backtest (1 Monat vorher)"]
     nach = {se.get("name"): se for se in o["series"]}
     li = max((i for i, z in enumerate(zs) if z.art == "ist"), default=None)
     prog = [i for i, z in enumerate(zs) if z.art != "ist"]
@@ -294,7 +298,11 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
         ui.label(g.titel).classes("m-gf-titel")
         if g.untertitel:
             ui.label(g.untertitel).classes("m-gf-unter")
-        ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"])).classes("m-gf-chart")
+        blind = None
+        if getattr(a, "aw_backtest", False) and pg.rueckblick:      # 0.97: Backtest auch in „Einfach“
+            zusatz = {z.monat: z.vertraege for z in pg.zeilen}
+            blind = {mon: p_ + zusatz.get(mon, 0.0) for mon, _i, p_ in pg.rueckblick}
+        ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"], blind)).classes("m-gf-chart")
         ui.label("Durchschnittlich belegte Plätze je Monat · der laufende Monat ist noch nicht abgeschlossen · "
                  "Achse beginnt bei 0, damit der Füllstand stimmt").classes("m-gf-fuss")
     with ui.element("div").classes("m-gf-zahlen"):
@@ -317,7 +325,7 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
               "expand_less" if a.dg_details else "expand_more")
 
 
-def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
+def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None) -> dict:
     """ECharts für die Leitungsansicht: Ist schwarz, Prognose gestrichelt, 80-%-Band hell, „voll“ und Warnzone."""
     from . import blick_kern as bk
     from . import themes
@@ -383,9 +391,15 @@ def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
         {"name": "gleicher Monat im Vorjahr", "type": "line", "data": vj, "symbol": "none",
          "lineStyle": {"color": f["text2"], "width": 1, "opacity": .6}, "itemStyle": {"color": f["text2"]}},
     ]
+    if blind:                                          # 0.97: so lag die Vorhersage einen Monat vorher
+        bt = BACKTEST_FARBE[not _ds.dunkel(f)]
+        reihen.append({"name": BACKTEST_EINFACH, "type": "line", "symbol": "diamond", "symbolSize": 8,
+                       "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in zs],
+                       "color": bt, "itemStyle": {"color": bt}, "lineStyle": {"color": bt, "width": 2, "type": [3, 3]}})
     return {"animation": False, "grid": {"left": 48, "right": 150, "top": 46, "bottom": 34},
             "legend": {"top": 0, "left": 0, "data": ["Ist", "Prognose", "hier liegt der Wert in 8 von 10 Fällen",
-                                                     "in 19 von 20 Fällen", "gleicher Monat im Vorjahr"],
+                                                     "in 19 von 20 Fällen", "gleicher Monat im Vorjahr"]
+                    + ([BACKTEST_EINFACH] if blind else []),
                        "textStyle": {"color": f["text2"]}, "itemWidth": 22},
             "tooltip": {"trigger": "axis"},
             "xAxis": {"type": "category", "data": labels, "boundaryGap": False,
@@ -684,9 +698,10 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     # und wiederholte nur das Abzeichen „Engpass ab …“. Das Diagramm ist so wieder ruhig.
     zusatz = {z.monat: z.vertraege for z in c["pg"].zeilen}
     blind = {mon: p + zusatz.get(mon, 0.0) for mon, _i, p in c["pg"].rueckblick} if c["backtest"] else {}
-    reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 6, "color": t["orange"],
+    bt = BACKTEST_FARBE[not _ds.dunkel(t)]           # 0.97: eigener, klar abgesetzter Farbton (nicht Akzent/Orange)
+    reihen.append({"name": "Backtest (1 Monat vorher)", "type": "line", "symbol": "diamond", "symbolSize": 8, "color": bt,
                    "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in zs] if blind else leer_,
-                   "lineStyle": {"color": t["orange"], "width": 1.4, "type": "dotted"}, **d(1600, 500)})
+                   "itemStyle": {"color": bt}, "lineStyle": {"color": bt, "width": 2, "type": [3, 3]}, **d(1600, 500)})
     reihen += _geist(t, zs_sz, zs, li, kap, kap_sz, aktiv and zeig(2))
     o["series"] = reihen
     if c.get("phase") == "voll" and c["animation"]:      # Story-Aufbau, 2. Teil: Bänder fächern sich auf, Badges erscheinen
@@ -971,8 +986,9 @@ def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
          "lineStyle": {"opacity": 0}, "areaStyle": {"color": _ds.band_flaeche(t)}},
         {"name": "Vorvorjahr (Ist)", "type": "line", "data": rnd(vj.vorvorjahr), "symbol": "none", "color": t["text3"],
          "lineStyle": {"color": t["text3"], "width": 1.2, "type": "dotted"}, "animationDuration": 700},
-        {"name": "Vorjahr (Ist)", "type": "line", "data": rnd(vj.vorjahr), "symbol": "circle", "symbolSize": 4, "color": t["blau"],
-         "lineStyle": {"color": t["blau"], "width": 2}, "animationDuration": 800},
+        {"name": "Vorjahr (Ist)", "type": "line", "data": rnd(vj.vorjahr), "symbol": "circle", "symbolSize": 4,
+         "color": VORJAHR_FARBE[not _ds.dunkel(t)],                          # 0.97: Violett statt Blau neben Türkis
+         "lineStyle": {"color": VORJAHR_FARBE[not _ds.dunkel(t)], "width": 2}, "animationDuration": 800},
         {"name": "Aktuell (Ist)", "type": "line", "data": akt_ist, "symbol": "circle", "symbolSize": 5, "color": t["text"],
          "lineStyle": {"color": t["text"], "width": 2.6}, "animationDelay": 300, "animationDuration": 800},
         {"name": "Aktuell (Prognose)", "type": "line", "data": akt_prog, "symbol": "none", "color": t["akzent"],
@@ -1166,7 +1182,7 @@ def zeichnen(a) -> None:
     def c(anim=False, phase="voll", **ueber):
         return {"pg": pg, "phase": phase, "parallel": par(), "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,
                             "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95 or not klassisch,
-                            "backtest": a.aw_backtest and klassisch,    # 0.95: in der Karte zwei Bänder, Backtest als „Probe“
+                            "backtest": a.aw_backtest,    # 0.97: in jeder Darstellung, wenn eingeschaltet (Karte: dazu „Probe“)
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,

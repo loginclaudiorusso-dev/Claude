@@ -433,7 +433,7 @@ def _anteile(a, det: ak.BDetails, farben: list[str]) -> None:
 
 
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
-    farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
+    farben = _ds.kategorien(_T())                       # 0.97: deutlich verschiedene Farbtöne
     from . import diagramm_karte
 
     with ui.element("div").classes("m-zwei"):

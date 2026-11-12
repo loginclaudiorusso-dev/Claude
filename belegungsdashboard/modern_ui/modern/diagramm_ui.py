@@ -24,14 +24,29 @@ from . import kennzahlen_katalog as kk
 if not getattr(EChart, "_m_ohne_rand", False):
     _init_alt, _update_alt = EChart.__init__, EChart.update
 
+    def _t() -> dict:
+        from . import themes
+
+        return themes.farben(themes.AKTIV)
+
     def _init_neu(self, options, *args, **kwargs):
-        _init_alt(self, _ds.ohne_textrand(options), *args, **kwargs)
+        try:                                                 # 0.97: Kontrast – Schrift hell im Dunkeln, Linien klar
+            _ds.lesbar(options, _t())
+        except Exception:                                    # nie wegen der Kosmetik ein Diagramm verlieren
+            _ds.ohne_textrand(options)
+        _init_alt(self, options, *args, **kwargs)
 
     def _update_neu(self, *args, **kwargs):
-        try:
-            _ds.ohne_textrand(self._props.get("options"))
-        except Exception:                                    # nie wegen der Kosmetik ein Diagramm verlieren
-            pass
+        # 0.97: Die Optionen sind „beobachtete“ Wörterbücher – jede Änderung ruft update() erneut auf. Darum hier eine
+        # Sperre gegen Wiedereintritt (sonst Endlosschleife) und Änderungen nur, wo sich wirklich etwas ändert.
+        if not getattr(self, "_m_lesbar_laeuft", False):
+            self._m_lesbar_laeuft = True
+            try:
+                _ds.lesbar(self._props.get("options"), _t())
+            except Exception:                                # nie wegen der Kosmetik ein Diagramm verlieren
+                pass
+            finally:
+                self._m_lesbar_laeuft = False
         return _update_alt(self, *args, **kwargs)
 
     EChart.__init__, EChart.update, EChart._m_ohne_rand = _init_neu, _update_neu, True

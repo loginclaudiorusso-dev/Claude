@@ -45,7 +45,7 @@ def test_quelltext_regeln():
     mod = Path(__file__).resolve().parent.parent / "modern"
     p = (mod / "seite_prognose.py").read_text(encoding="utf-8")
     for teil in ('"min"] = 0', "Voll: {bk.zahl(kap)} Plätze", "wird es eng", "Fortschreibung, nicht geprüft",
-                 "Plätze Luft bis zur Warnschwelle", "def _probe_karte", "def _fragen", '"backtest": a.aw_backtest and klassisch',
+                 "Plätze Luft bis zur Warnschwelle", "def _probe_karte", "def _fragen", '"backtest": a.aw_backtest,',
                  'z.art == "prognose"]'):
         assert teil in p, teil
     assert 'renderer="svg"' in (mod / "diagramm_karte.py").read_text(encoding="utf-8")

@@ -11,6 +11,7 @@ from belegung import termine as tm
 from belegung import umzug as um
 from belegung import zimmerplan as zp
 
+from . import suche_kern
 from .kern import GRUPPE_KURZ, WT, _schritt, kurz
 
 ZEITRAEUME = {"heute": "Heute", "morgen": "Morgen", "woche": "Diese Woche", "naechste": "Nächste Woche"}
@@ -284,8 +285,9 @@ def personen_liste(stand: zp.Planstand, heute: date, neu: dict) -> list[PZeile]:
     erg = []
     for an in anreisen(stand, heute):
         for z in zeilen(stand, an.kennung, heute):
+            zid = suche_kern.zimmer_heute(stand.lage, z.schluessel, z.name, z.gespeichert, None, None, heute)  # 0.97
             erg.append(PZeile(z.schluessel, z.name, z.gruppe, z.zeitraum, an.kennung, an.tag,
-                              kurz(z.gespeichert) if z.gespeichert else "", neu.get(z.schluessel), z.status))
+                              kurz(zid) if zid else "", neu.get(z.schluessel), z.status))
     return erg
 
 
@@ -440,7 +442,8 @@ def archiv(stand: zp.Planstand, von: date, bis: date, text: str = "") -> list[Ar
             continue
         zimmer, quelle = "", ""
         if z := stand.zugewiesen(b.schluessel):
-            zimmer, quelle = kurz(z["zimmer"]), "Planung"
+            zimmer = suche_kern.zimmer_heute(stand.lage, b.schluessel, b.name, z["zimmer"], b.von, b.bis, bis)   # 0.97
+            zimmer, quelle = kurz(zimmer), "Planung"
         elif treffer := [zid for zid, x in nach_name.get(b.name.strip().lower(), []) if _ueberlappt(x.von, x.bis, b.von, b.bis)]:
             zimmer, quelle = kurz(treffer[0]), "Gebäudeplan"
         elif treffer := [h for h in hist if h.name.strip().lower() == b.name.strip().lower()

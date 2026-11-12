@@ -195,7 +195,8 @@ def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte
                                        _haken("Datenbeschriftungen", "dg_werte"), _haken("Gitternetzlinien", "dg_gitter"),
                                        _haken("Animation", "dg_anim"),
                                        Punkt("95 %-Band (Prognose, Klassisch)", "haken", A("awt:aw_95"), False),
-                                       Punkt("Backtest (Prognose, Klassisch)", "haken", A("awt:aw_backtest"), False)]),
+                                       Punkt("Backtest – frühere Vorhersagen (Prognose)", "haken", A("awt:aw_backtest"),
+                                             False)]),
                                 Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
                                       [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
                                        for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])],
