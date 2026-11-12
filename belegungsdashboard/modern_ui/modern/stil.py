@@ -808,7 +808,8 @@ CSS += """
 .m-xg-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
 .m-xg-status.aus .m-segm { pointer-events: none; }
 .m-xg-fuss i.l.sz { border-top: 3px dotted var(--orange); opacity: .8; } .m-xg-fuss i.l.kont { border-top: 1.5px dashed var(--text2); }
-.m-xg-fuss i.f.uwt { background: #3B5BDB; } .m-xg-fuss i.f.mieter { background: #64748B; } .m-xg-fuss i.f.rest { background: #94A3B8; opacity: .55; }
+.m-xg-fuss i.f.uwt { background: #1e3a5f; } .m-xg-fuss i.f.mieter { background: #0d9488; } .m-xg-fuss i.f.rest { background: #94a3b8; opacity: .55; }
+body:not(.hell) .m-xg-fuss i.f.uwt { background: #566B87; }        /* 0.98: dieselben Farben wie im Diagramm (im Dunkeln heller) */
 .m-xs-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 4px; }
 .m-xs-pill { font: inherit; font-size: 13px; color: var(--text); display: inline-flex; align-items: center; gap: 7px; height: 34px;
   padding: 0 14px 0 11px; border-radius: 17px; border: 1px solid var(--rand2); background: var(--fl); cursor: pointer;

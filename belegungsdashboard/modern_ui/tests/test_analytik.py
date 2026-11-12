@@ -226,7 +226,14 @@ def test_szenario_als_schatten_und_status_stapel():
     st = sp.option({**basis, "offset": 0.0, "kap": 150, "status": True, "sm": sm, "kontingent": {"UWT": 10, "Mieter": 5}})
     gestapelt = [s for s in st["series"] if s.get("stack") == "status"]
     assert [s["name"] for s in gestapelt] == ["UWTler", "Mieter", "Teilnehmende & Sonstige"]
-    assert {s["name"] for s in st["series"]} >= {"Kontingent UWT", "Kontingent UWT + Mieter", "Kapazität"}
+    # 0.98: Kapazität und Kontingente als Bezugslinien (markLine) an der obersten Kurve – keine eigenen Reihen mehr
+    bezug = [x["label"]["formatter"] for x in gestapelt[-1]["markLine"]["data"]]
+    assert bezug == ["Kapazität 150", "Kontingent UWT + Mieter 22", "Kontingent UWT 15"]
+    assert gestapelt[-1]["markLine"]["symbol"] == ["none", "none"] and gestapelt[-1]["markLine"]["silent"]
+    assert not gestapelt[0]["label"]["show"] and not gestapelt[1]["label"]["show"]       # Sockel ohne Zahlen
+    assert gestapelt[0]["symbol"] == gestapelt[1]["symbol"] == "none" and all(x["smooth"] for x in gestapelt)
+    assert gestapelt[-1]["label"]["show"] and "toLocaleString" in gestapelt[-1]["label"][":formatter"]  # ganze Zahl
+    assert st["legend"]["show"] is False and st["tooltip"]["trigger"] == "axis" and st["grid"]["right"] >= 165
 
 
 def test_gruppen_schalter_rechnen_uwt_und_mieter_heraus_bzw_vertraege_hinzu():

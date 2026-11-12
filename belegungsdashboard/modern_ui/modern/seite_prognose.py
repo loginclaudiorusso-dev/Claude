@@ -728,46 +728,67 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
     kap = c["pg"].kapazitaet or 0
     kap_sz = c["kap"]
     aktiv = _szenario_aktiv(c)
-    fb = an.STATUS_FARBEN[bool(t.get("hell"))]
     labels = [ak.monat_text(m.monat) for m in sm]
     li = max((i for i, m in enumerate(sm) if m.art == "ist"), default=None)
     o["xAxis"]["data"] = labels
     o["yAxis"]["scale"] = False
     _titel(o, t, f"Belegung {ort} nach Status · {zaehl}" + (" · mit SZENARIO als Schattenkurve" if aktiv else ""),
            f"Ø Plätze je Monat · {_zeitraum(sm)} · UWT und Mieter: Ist bzw. gebucht · Rest: Ist bzw. Prognose")
+    # 0.98: ruhiger Sockel (UWTler, Mieter) ohne Punkte und Zahlen, oben EINE Kurve mit der Gesamtzahl als ganze Zahl
+    hell = bool(t.get("hell"))
+    hg = t.get("fls") or t.get("bg") or ("#ffffff" if hell else "#15171c")
+    gesamt = [round(m.gesamt) for m in sm]
     reihen = []
     for schl in ("UWT", "Mieter", "uebrige"):
-        farbe = fb[schl]
-        reihen.append({"name": an.STATUS_NAMEN[schl], "type": "line", "stack": "status", "symbol": "none", "color": farbe,
-                       "data": [round(getattr(m, schl.lower()), 1) for m in sm], "lineStyle": {"width": 1, "color": farbe},
-                       "areaStyle": {"color": _rgba(farbe, .85 if schl != "uebrige" else .28)},
-                       "animationDuration": 900})
+        farbe, deckung, breite = STATUS_SOCKEL[schl]
+        if not hell:                                   # im Dunkeln denselben Farbton heller – sonst unsichtbar
+            farbe = _ds.angleichen(farbe, hg, _ds.LINIE_MIN)
+        oben = schl == "uebrige"
+        se = {"name": an.STATUS_NAMEN[schl], "type": "line", "stack": "status", "smooth": True, "color": farbe,
+              "symbol": "circle" if oben else "none", "symbolSize": 5, "showSymbol": oben,
+              "data": [round(getattr(m, schl.lower()), 1) for m in sm],
+              "lineStyle": {"width": breite, "color": farbe}, "itemStyle": {"color": farbe},
+              "areaStyle": {"color": farbe, "opacity": deckung}, "animationDuration": 900,
+              "label": {"show": False}}
+        if oben:                                       # Beschriftung = Gesamtzahl (Höhe des Stapels), ganze Plätze
+            se["label"] = {"show": True, "position": "top", "distance": 6, "fontSize": 11, "fontWeight": 500,
+                           "color": t["text"], ":formatter": "(p) => { const G = " + json.dumps(gesamt) + "; "
+                           "const v = G[p.dataIndex]; return v == null ? '' : v.toLocaleString('de-DE'); }"}
+            se["labelLayout"] = {"hideOverlap": True}
+        reihen.append(se)
     if li is not None and li + 1 < len(sm):
         reihen[-1]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
-                                  "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "fontSize": 11,
-                                            "formatter": "Prognose →"},
+                                  "label": {"show": True, "position": "insideTopLeft", "color": t["text2"], "fontSize": 11,
+                                            "offset": [10, 8], "formatter": "Prognose →"},
                                   "data": [[{"xAxis": labels[li]}, {"xAxis": labels[-1]}]]}
+    # Kapazität und Kontingente als Bezugslinien (markLine) – kein Punkt und keine Zahl je Monat mehr
+    bezug = []
     if kap:
-        reihen.append({"name": "Kapazität", "type": "line", "symbol": "none", "color": t["rot"], "z": 6,
-                       "data": [kap] * len(sm), "lineStyle": {"color": t["rot"], "width": 1.4, "type": [5, 4]},
-                       "endLabel": {"show": True, "formatter": "Kapazität {c}", "color": t["rot"], "fontSize": 11}})
+        bezug.append({"yAxis": kap, "lineStyle": {"color": t["rot"], "type": "dashed", "width": 1.2},
+                      "label": {"position": "end", "formatter": f"Kapazität {_z(kap)}", "color": t["rot"], "fontSize": 11}})
     kont = c.get("kontingent")
     if kont and kap:                                    # Kontingentgrenzen: UWT unten, darüber UWT + Mieter
-        for name, wert, farbe in (("Kontingent UWT", kap * kont["UWT"] / 100, fb["UWT"]),
-                                  ("Kontingent UWT + Mieter", kap * (kont["UWT"] + kont["Mieter"]) / 100, fb["Mieter"])):
-            reihen.append({"name": name, "type": "line", "symbol": "none", "z": 6, "color": farbe, "data": [round(wert, 1)] * len(sm),
-                           "lineStyle": {"color": t["text"], "width": 1.1, "type": [6, 3], "opacity": .7},
-                           "endLabel": {"show": True, "formatter": f"{name} {round(wert)}", "color": t["text2"], "fontSize": 10}})
+        for name, wert in (("Kontingent UWT + Mieter", kap * (kont["UWT"] + kont["Mieter"]) / 100),
+                           ("Kontingent UWT", kap * kont["UWT"] / 100)):
+            bezug.append({"yAxis": round(wert, 1),
+                          "lineStyle": {"color": KONTINGENT_LINIE if hell else t["text2"], "type": "dashed", "width": 1},
+                          "label": {"position": "end", "formatter": f"{name} {round(wert)}", "color": t["text2"],
+                                    "fontSize": 11}})
+    if bezug:
+        reihen[-1]["markLine"] = {"symbol": ["none", "none"], "silent": True, "data": bezug}
     zs0 = ak.szenario(c["pg"], kap, 0)
     if aktiv:
         reihen += _geist(t, zs_sz, zs0, li, kap, kap_sz, True)
     o["series"] = reihen
-    o["grid"]["right"] = 150 if kont else 96
-    o["legend"]["data"] = [an.STATUS_NAMEN[k] for k in ("UWT", "Mieter", "uebrige")] + (["Kapazität"] if kap else []) + \
-        (["Szenario (Simulation)"] + (["Kapazität Szenario"] if kap_sz != kap else []) if aktiv else [])
+    o["grid"]["right"] = 165 if kont else 110          # Beschriftungen rechts nie abgeschnitten
+    if kap:                                            # Bezugslinien zählen nicht für die Achse → Kapazität sichtbar halten
+        o["yAxis"]["max"] = int(-(-max(kap * 1.08, max(gesamt or [0]) * 1.08) // 20) * 20)
+    o["legend"]["show"] = False                        # Legende steht als HTML unter dem Diagramm
+    o["tooltip"]["trigger"] = "axis"
+    o["tooltip"]["axisPointer"] = {"type": "line", "lineStyle": {"color": t["text3"], "type": "dashed"}}
     d = [{"m": ak.monat_text(m.monat), "a": m.art, "u": m.uwt, "mi": m.mieter, "r": m.uebrige, "g": m.gesamt,
           "se": zs_sz[i].erwartet if aktiv and m.art != "ist" else None} for i, m in enumerate(sm)]
-    fc = {"u": fb["UWT"], "mi": fb["Mieter"], "r": fb["uebrige"], "sz": t["orange"], "b": t["text3"]}
+    fc = {"u": reihen[0]["color"], "mi": reihen[1]["color"], "r": reihen[2]["color"], "sz": t["orange"], "b": t["text3"]}
     o["tooltip"][":formatter"] = (
         "(ps) => { const D = " + json.dumps(d) + "; const C = " + json.dumps(fc) + "; const K = " + str(kap or 0) + ";"
         " const d = D[ps[0].dataIndex]; if (!d) return '';"
@@ -785,6 +806,11 @@ def _status(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
         " if (d.se != null) h += z(C.sz, 'Szenario (Simulation)', f(d.se));"
         " return h; }")
     return o
+
+
+STATUS_SOCKEL = {"UWT": ("#1e3a5f", .28, 1.5), "Mieter": ("#0d9488", .22, 1.5),     # 0.98: Farbe, Deckung, Linie
+                 "uebrige": ("#94a3b8", .20, 2.0)}
+KONTINGENT_LINIE = "#64748b"
 
 
 # ---- 0.87: Belegung inkl. UWTler und Mieter als Diagramm-Karte ---------------------------------------------------
@@ -1780,12 +1806,8 @@ def _js_schalter(wert: str, text: str, symbol: str, an: bool, tip: str) -> None:
 
 def _status_badge(a, pg, backtest_moeglich: bool, praes: bool = True) -> None:
     """Kompakter Status statt Checkboxen: welche Gruppen in der Kurve stecken, ob der Backtest läuft."""
-    if a.daten.get("gruppen_da") and praes:
-        mit = bool(a.aw_status)
-        b = ui.label(_ansicht_text(mit, mit)).classes("m-xg-gruppen-hinweis m-xg-ansicht " + ("leuchtet" if mit else "rein"))
-        attr(b, data_mit=_ansicht_text(True, True), data_ohne=_ansicht_text(False, False),
-             title="„Nach Status“ rechnet UWTler und Mieter ein (gestapelt), „Belegung“ zeigt nur die Teilnehmenden – "
-                   "Kennzahlen und Tabellen folgen der Ansicht")
+    # 0.98: Das Abzeichen „Ansicht: Inklusive UWTler und Mieter“ / „Reine Teilnehmer-Sicht“ entfällt – die Ansicht
+    # steht in der Filterzeile („… · inkl. UWTler und Mieter“) bzw. im Umschalter und in der Legende unter dem Diagramm.
     if a.aw_backtest and backtest_moeglich and pg.rueckblick:
         b = ui.label("Backtest an").classes("m-xg-gruppen-hinweis bt")
         attr(b, data_nur="kurve")

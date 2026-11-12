@@ -77,7 +77,8 @@ def anwenden(opt: dict, d: dict) -> dict:
             if se.get("symbol") in (None, "none"):
                 se["symbol"] = "circle"
             se.setdefault("symbolSize", 5)
-        if d.get("dg_werte") and len(_werte(se)) <= WERTE_MAX and "Backtest" not in str(se.get("name", "")):
+        if d.get("dg_werte") and len(_werte(se)) <= WERTE_MAX and "Backtest" not in str(se.get("name", "")) \
+                and "show" not in (se.get("label") or {}):   # 0.98: eigene Beschriftung (oder ausdrücklich keine) bleibt
             se["label"] = {"show": True, "position": "top", "fontSize": 12,      # Farbe: Textfarbe (lesbar)
                            ":formatter": WERT_KOMMA_JS}                          # 0.97: deutsch, eine Nachkommastelle
             se["labelLayout"] = {"hideOverlap": True}
