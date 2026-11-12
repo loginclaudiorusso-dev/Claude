@@ -107,6 +107,23 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         await a.design_setzen(farbe=name.split(":", 1)[1])
     elif name.startswith("dg_typ:"):
         await a.design_setzen(dg_typ=name.split(":", 1)[1])
+    elif name.startswith("dg_modus:"):                      # 0.96: Darstellung im Menüband
+        await a.design_setzen(dg_modus=name.split(":", 1)[1])
+    elif name.startswith("dg_anteil:"):
+        await a.design_setzen(dg_anteil=name.split(":", 1)[1])
+    elif name.startswith("aw:"):                            # 0.96: Filter der Prognose im Menüband
+        key, wert = mb.aw_wert(name[3:])
+        if key == "aw_chart" and wert != "trend":           # Ansichten gibt es nur bei „Trend & Prognose“
+            a.aw_status = a.aw_parallel = False
+        await a.setzen(nur_seite=True, **{key: wert})
+    elif name.startswith("awt:"):
+        key = name[4:]
+        neu = {key: not getattr(a, key, False)}
+        if key in ("aw_status", "aw_parallel") and neu[key]:          # eine der beiden Ansichten, nur bei „Trend“
+            neu.update({"aw_status": False, "aw_parallel": False, key: True, "aw_chart": "trend"})
+        await a.setzen(nur_seite=True, **neu)
+    elif name.startswith("foto"):                           # 0.96: Bildschirmfoto
+        await bildschirmfoto(a, ausschnitt=name == "foto:ausschnitt")
     elif name.startswith("dg_legende:"):
         await a.design_setzen(dg_legende=name.split(":", 1)[1])
     elif name.startswith("dg:"):
@@ -157,7 +174,13 @@ def _menue_an(a, q: mb.Punkt) -> bool:
             return bool(a.design.get(z[1][3:]))
         if z[1].startswith("zoom:") and z[1][5:].isdigit():
             return int(z[1][5:]) == a.design.get("zoom")
-        for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ"), ("dg_legende:", "dg_legende")):
+        if z[1].startswith("aw:"):
+            key, wert = mb.aw_wert(z[1][3:])
+            return getattr(a, key, None) == wert
+        if z[1].startswith("awt:"):
+            return bool(getattr(a, z[1][4:], False))
+        for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ"), ("dg_legende:", "dg_legende"),
+                         ("dg_modus:", "dg_modus"), ("dg_anteil:", "dg_anteil")):
             if z[1].startswith(vor):
                 return z[1][len(vor):] == a.design.get(key)
         return False
@@ -176,7 +199,8 @@ def _knopf(a, p: mb.Punkt) -> None:
     if p.menue and p.ziel:
         return _split(a, p)
     an = (mb.aktiv(p, a.seite, _av(a), _heute(a)) and not (p.ziel and p.ziel[0] == "aktion")) or \
-        (p.ziel is not None and p.ziel[0] == "aktion" and p.ziel[1].startswith("dg_typ:") and _menue_an(a, p))
+        (p.ziel is not None and p.ziel[0] == "aktion"
+         and p.ziel[1].startswith(("dg_typ:", "dg_modus:", "dg_anteil:", "aw:", "awt:")) and _menue_an(a, p))
     b = ui.element("button").classes(("m-ob-gross" if p.gross else "m-ob-klein") + (" an" if an else "")
                                      + (" mit-menue" if p.menue else ""))
     attr(b, title=p.tipp or p.text)
@@ -254,7 +278,7 @@ def fuellen(a, erzwingen: bool = False) -> None:
             a._ob_sig = None
             a.topnav.clear()
         return
-    alle = mb.reiter(_ansichten(), a.design.get("leitung", True))
+    alle = mb.reiter(_ansichten(), a.design.get("leitung", True), _standorte())
     tab = getattr(a, "band_tab", None) or "start"
     aktuell = next((r for r in alle if r.key == tab), alle[0])
     if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
@@ -267,7 +291,8 @@ def fuellen(a, erzwingen: bool = False) -> None:
     letzt = _ae.letzter()
     sig = (tab, a.seite, repr(sorted(a.ansicht.items())), _heute(a), repr(sorted(a.design.items())), len(a.karten),
            letzt.titel if letzt else "", len(_ae._verlauf),
-           sum(1 for k in a.karten if k.stufe == "dringend"), a.ungelesen, getattr(a.stand_anzeige, "text", ""))
+           sum(1 for k in a.karten if k.stufe == "dringend"), a.ungelesen, getattr(a.stand_anzeige, "text", ""),
+           tuple(getattr(a, k, None) for k in AW_KEYS))
     if sig == getattr(a, "_ob_sig", None) and not erzwingen:
         return
     a._ob_sig = sig
@@ -347,8 +372,10 @@ def fuellen(a, erzwingen: bool = False) -> None:
                     ui.label(r.titel)
                 rb.on("click", lambda r=r: _tab(a, r.key))
         with ui.element("div").classes("m-ob-band"):
+            ansicht = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
             for g in aktuell.gruppen:
-                _gruppe(a, g)
+                if mb.gruppe_sichtbar(g, a.seite, ansicht):
+                    _gruppe(a, g)
         with ui.element("footer").classes("m-ob-status"):
             ui.label("Bereit")
             ui.label(getattr(a.stand_anzeige, "text", "")).classes("m-ob-status-m")   # Datenstand – ohne Doppel-Zähler
@@ -369,6 +396,49 @@ def fuellen(a, erzwingen: bool = False) -> None:
                     if p.ziel == mb.A("zoom:-"):
                         ui.element("span").classes("m-ob-strich")
                     z.on("click", lambda p=p: ausfuehren(a, p.ziel))
+
+
+AW_KEYS = ("aw_standort", "aw_brutto", "aw_horizont", "aw_chart", "aw_status", "aw_parallel", "aw_95", "aw_backtest")
+
+
+def _standorte() -> dict:
+    try:
+        from . import auswertung_kern as ak
+
+        return dict(ak.STANDORTE)
+    except Exception:                                       # noqa: BLE001
+        return {}
+
+
+def band_sichtbar(a) -> bool:
+    """0.96: Menüband sichtbar (Office-Layout ohne Seitenleiste) – dann stehen die Diagramm-Filter oben im Band."""
+    d = getattr(a, "design", None) or {}
+    return d.get("layout") == LAYOUT and d.get("nav", "band") != "leiste"
+
+
+async def bildschirmfoto(a, ausschnitt: bool = False) -> None:
+    """0.96: Fenster als Bild → Zwischenablage + PNG (Bilder\\INNternat). Kurz warten, damit Menüs und Tooltips weg sind."""
+    import asyncio
+
+    from nicegui import run
+
+    from . import bildschirmfoto_kern as bf
+
+    if ausschnitt:
+        erg = bf.ausschnitt()
+        if not erg["ok"]:
+            ui.notify(erg["fehler"], type="warning")
+        return
+    await asyncio.sleep(.35)
+    titel = f"{a.seite}_{a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ''))}" if getattr(a, "seite", "") else ""
+    erg = await run.io_bound(bf.aufnehmen, titel)
+    if not erg["ok"]:
+        ui.notify(erg["fehler"], type="warning", timeout=6000)
+        return
+    teile = ["In der Zwischenablage – mit Strg+V einfügen"] if erg.get("ablage") else []
+    if erg.get("pfad"):
+        teile.append(f"gespeichert: {erg['pfad']}")
+    ui.notify("📷 Bildschirmfoto · " + " · ".join(teile), type="positive", timeout=5000, multi_line=True)
 
 
 def _tab(a, key: str) -> None:

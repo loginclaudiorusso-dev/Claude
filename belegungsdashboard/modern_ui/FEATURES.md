@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 0.95.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 0.96.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -6,6 +6,8 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 
 ## Darstellung Menüband (wie Office)
 - Navigation: Menüband wie in Office ist Standard (0.92); als Option die Seitenleiste im Windows-Look (alle Ziele sichtbar, Zähler am Eintrag) – Titel- und Statusleiste bleiben (0.91)
+- Kontext-Registerkarte „Diagrammentwurf“ wie in Excel (0.96): Daten (Standort, Netto/Brutto, Zeitraum), Diagramm, Darstellung, Typ inkl. Anteile, Elemente – die Schalter neben dem Diagramm stehen jetzt oben
+- Bildschirmfoto (0.96): Statusleiste oder Strg+Umschalt+F → Zwischenablage + PNG unter Bilder\INNternat; „Ausschnitt“ öffnet das Windows-Ausschneidewerkzeug
 - Titelleiste mit Schnellzugriff (Rückgängig, Aktualisieren), Suchfeld und Standort
 - Registerkarten je Arbeitsbereich (Start, Anreisen, Zimmer & Haus, Auswertung, Verwalten) mit sichtbaren Ansichten, jeder Befehl genau einmal; Kontext-Registerkarte „Diagramm“ mit Gruppenpfeil ↘; Punkt am Reiter der offenen Seite
 - Statusleiste mit Kompakt, Vollbild, Hell/Dunkel und Zoom; Standort als Auswahl neben dem Programmnamen; Datei: Drucken, Importieren, Informationen & Sicherung, Optionen (inkl. Programm-Einstellungen, Oberfläche, „Leitung anzeigen“)
@@ -100,6 +102,8 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Szenarien mit Schattenkurve (z. B. ±10 %, Kapazitätskürzung), Kontingente für UWT/Mieter
 - Standorte parallel, Netto/Brutto, Präsentationsmodus, Export
 - Diagramme für Laien in „Karte“ (0.95): drei Frage-Kacheln, Achse ab 0 mit „Voll“ und Warnzone, zwei Bänder, „Luft“-Pfeil, Backtest als eigene „Probe“, Tagesverlauf als gestapelte Säulen mit Wochenenden, SVG, 13 px
+- Bänder deutlich (0.96): 80 % satt mit Kante, 95 % hell gestrichelt, im Dunkeln kräftiger – in Klassisch, Karte und Einfach; Diagrammschrift ohne Kontur
+- Anteils-Diagramme wie in Excel (0.96): Ring, Kreis, 100-%-Säulen, 100-%-Fläche – Maßnahmen-Anteile je Startwelle, Gruppen-Anteile in der Belegung, mit Aussage-Satz
 - Leitungsansicht „Einfach“ (0.91): Aussage als Überschrift, Diagramm ab 0 mit „voll“ und Warnzone, vier Zahlen inkl. Prognosegüte, Hinweis zur Teilnehmer-Sicht
 - Darstellung der Diagramme wählbar: Karte (mit „Auf einen Blick“) · Klassisch (wie bis 0.86) · Einfach (Aussage als Überschrift, drei Zahlen, Füllstand gegen „voll“, Unsicherheit als Satz – für die Geschäftsführung) (0.89)
 - Zimmer & Engpässe (frei jetzt und nach Planung, EMR/Doppel mit Ampel); Klick zeigt je Woche freie Zimmer je Tag, welche Zimmer frei/belegt und von wem

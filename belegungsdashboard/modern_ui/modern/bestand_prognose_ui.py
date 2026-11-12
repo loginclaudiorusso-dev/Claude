@@ -293,14 +293,14 @@ def _verlauf_option(erg, szen, art: str, sicht=None, szen_an: bool = False) -> t
                                       "{type: 'line', shape: {x1: a[0] - w, y1: a[1], x2: a[0] + w, y2: a[1]}, style: st},"
                                       "{type: 'line', shape: {x1: b[0] - w, y1: b[1], x2: b[0] + w, y2: b[1]}, style: st}]}; }"})
     else:
-        band = lambda name, u, o, deck: [                                   # noqa: E731
-            {"name": f"_{name}", "type": "line", "data": fx(u), "stack": name, "symbol": "none", "smooth": False,
-             "lineStyle": {"opacity": 0}, "tooltip": {"show": False}, "silent": True},
-            {"name": name, "type": "line", "data": fx([b_ - a_x for a_x, b_ in zip(u, o)]), "stack": name, "symbol": "none",
-             "smooth": False, "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": deck},
-             "itemStyle": {"color": t["akzent"], "opacity": deck}, "silent": True}]
-        reihen += band("fast sicher (19 von 20)", lo95, hi95, .16)
-        reihen += band("sehr wahrscheinlich (8 von 10)", lo, hi, .38)
+        from . import diagramm_stil as _ds
+        band = lambda name, u, o, r_: [                                     # noqa: E731   0.96: zentral, mit Kante
+            _ds.band_reihe({"name": f"_{name}", "type": "line", "data": fx(u), "stack": name, "smooth": False,
+                            "tooltip": {"show": False}, "silent": True}, t, r_),
+            _ds.band_reihe({"name": name, "type": "line", "data": fx([b_ - a_x for a_x, b_ in zip(u, o)]), "stack": name,
+                            "smooth": False, "areaStyle": {}, "silent": True}, t, r_)]
+        reihen += band("fast sicher (19 von 20)", lo95, hi95, "band95")
+        reihen += band("sehr wahrscheinlich (8 von 10)", lo, hi, "band")
         reihen.append({"name": "so war es", "type": "line", "data": [v if i <= h else None for i, v in enumerate(ist_w)],
                        "smooth": False, "symbol": "none", "lineStyle": {"color": t["text"], "width": 3},
                        "itemStyle": {"color": t["text"]}, "connectNulls": False})

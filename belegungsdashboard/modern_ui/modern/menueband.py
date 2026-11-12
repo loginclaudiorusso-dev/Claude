@@ -26,6 +26,7 @@ class Gruppe:
     titel: str
     punkte: list[Punkt]
     starter: tuple | None = None                             # ↘ in der Gruppenzeile öffnet den passenden Dialog (Office)
+    nur: tuple = ()                                          # 0.96: nur auf diesen (Seite, Ansicht) – leer: immer
 
 
 @dataclass
@@ -109,7 +110,38 @@ def _v(ansichten: dict, seite: str, k: str, text: str | None = None, icon: str |
     return Punkt(t, icon or ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), gross, tipp or t)
 
 
-def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True) -> list[Reiter]:
+PROGNOSE = (("auswertung", "prognose"),)
+PROGNOSE_DIAGRAMME = {"trend": ("Trend & Prognose", "trending_up"), "reserve": ("Reserve", "align_vertical_bottom"),
+                      "jahr": ("Vorjahr", "compare_arrows")}
+ZEITRAEUME = {12: "12 Monate", 24: "24 Monate"}
+
+
+def _daten_punkte(standorte: dict | None) -> list[Punkt]:
+    """Gruppe „Daten“ (wie „Daten auswählen“ in Excel): Standort, Personenkreis, Zeitraum."""
+    st = standorte or {}
+    return [Punkt("Standort", "location_city", None, True, "Welcher Standort im Diagramm",
+                  [Punkt(t, "radio_button_unchecked", A(f"aw:aw_standort={k}"), False) for k, t in st.items()]),
+            Punkt("Netto", "person", A("aw:aw_brutto=false"), False, "Nur belegte Plätze (ohne Puffer)"),
+            Punkt("Brutto", "groups", A("aw:aw_brutto=true"), False, "Mit Puffer/Sperren"),
+            Punkt("Zeitraum", "date_range", None, False, "Wie weit die Prognose reicht",
+                  [Punkt(t, "radio_button_unchecked", A(f"aw:aw_horizont={k}"), False) for k, t in ZEITRAEUME.items()])]
+
+
+def aw_wert(text: str):
+    """„aw:aw_horizont=24“ → ("aw_horizont", 24). Werte: true/false, ganze Zahlen, sonst Text."""
+    key, _, roh = text.partition("=")
+    if roh in ("true", "false"):
+        return key, roh == "true"
+    if roh.lstrip("-").isdigit():
+        return key, int(roh)
+    return key, roh
+
+
+def gruppe_sichtbar(g: Gruppe, seite: str, ansicht: str | None) -> bool:
+    return not g.nur or (seite, ansicht) in g.nur
+
+
+def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte: dict | None = None) -> list[Reiter]:
     """Registerkarten des Menübands. ``ansichten``: Seite → {Unteransicht: Titel} (aus den Seiten-Modulen).
     ``leitung``: Gruppe „Leitung“ (Steuerung) zeigen – in den Optionen je PC abschaltbar."""
     v = lambda *x, **y: _v(ansichten, *x, **y)          # noqa: E731
@@ -145,12 +177,25 @@ def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True) -> list[R
                                v("einstellungen", "stammdaten", icon="edit_note", tipp="Zimmer anlegen und pflegen")]),
             Gruppe("Verlauf", [v("zimmer", "aenderungen", icon="history", tipp="Alle Änderungen, auch als Excel")]),
         ]),
-        Reiter("diagramm", "Diagramm", [
-            Gruppe("Diagrammtyp", [Punkt(t, i, A(f"dg_typ:{k}"), tipp=f"Verläufe als {t}") for k, (t, i) in _dg_typen()]),
+        Reiter("diagramm", "Diagrammentwurf", [                 # 0.96: wie die Kontext-Registerkarte in Excel
+            Gruppe("Daten", _daten_punkte(standorte), nur=PROGNOSE),
+            Gruppe("Diagramm", [Punkt(t, i, A(f"aw:aw_chart={k}"), tipp=t) for k, (t, i) in PROGNOSE_DIAGRAMME.items()]
+                   + [Punkt("inkl. UWTler und Mieter", "group_add", A("awt:aw_status"), False,
+                            "Gesamtlinie mit UWTlern und Mietern (Trend & Prognose)"),
+                      Punkt("Standorte einzeln", "stacked_line_chart", A("awt:aw_parallel"), False,
+                            "Bei „Gesamt“: die drei Standorte nebeneinander")], nur=PROGNOSE),
+            Gruppe("Darstellung", [Punkt(t, i, A(f"dg_modus:{k}"), tipp=b_) for k, t, i, b_ in _dg_modi()]),
+            Gruppe("Typ", [Punkt(t, i, A(f"dg_typ:{k}"), tipp=f"Verläufe als {t} (Darstellung „Klassisch“)")
+                           for k, (t, i) in _dg_typen()]
+                   + [Punkt("Anteile", "donut_large", None, True,
+                            "Anteils-Diagramme (Belegung, Maßnahmen): Ring, Kreis, 100 %-Säulen oder 100 %-Fläche",
+                            [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()])]),
             Gruppe("Elemente", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
                                       [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
                                        _haken("Datenbeschriftungen", "dg_werte"), _haken("Gitternetzlinien", "dg_gitter"),
-                                       _haken("Animation", "dg_anim")]),
+                                       _haken("Animation", "dg_anim"),
+                                       Punkt("95 %-Band (Prognose, Klassisch)", "haken", A("awt:aw_95"), False),
+                                       Punkt("Backtest (Prognose, Klassisch)", "haken", A("awt:aw_backtest"), False)]),
                                 Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
                                       [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
                                        for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])],
@@ -175,7 +220,12 @@ TITELLEISTE = [Punkt("Neuigkeiten", "notifications", A("neuigkeiten"), False),
                Punkt("Hilfe (F1)", "help_outline", A("hilfe"), False),
                Punkt("Standort", "location_city", A("standort"), False)]
 # Statusleiste rechts (wie in Word/Excel): Darstellung des Arbeitsbereichs
-STATUSLEISTE = [Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
+# 0.96: Bildschirmfoto ganz links – auf jeder Seite sichtbar (dazu Strg+Umschalt+F)
+STATUSLEISTE = [Punkt("Bildschirmfoto", "photo_camera", A("foto"), False,
+                      "Bildschirmfoto: Fenster in die Zwischenablage (Strg+V) und nach Bilder\\INNternat (Strg+Umschalt+F)"),
+                Punkt("Ausschnitt", "screenshot_region", A("foto:ausschnitt"), False,
+                      "Bildschirmfoto eines Ausschnitts – Bereich mit der Maus wählen (Windows-Ausschneidewerkzeug)"),
+                Punkt("Kompakt", "density_small", A("dichte"), False, "Mehr Zeilen auf einen Blick"),
                 Punkt("Vollbild", "fullscreen", A("vollbild"), False, "Vollbild ein/aus"),
                 Punkt("Helligkeit", "contrast", A("modus"), False, "Helligkeit: Hell → Gedämpft → Dunkel"),
                 Punkt("Verkleinern", "remove", A("zoom:-"), False), Punkt("100 %", "", A("zoom:100"), False),
@@ -192,6 +242,19 @@ def _dg_typen():
     from .darstellung_kern import DG_TYPEN
 
     return list(DG_TYPEN.items())
+
+
+def _dg_modi():
+    from .darstellung_kern import DG_MODI
+
+    icons = {"karte": "dashboard", "klassisch": "show_chart", "einfach": "speed"}
+    return [(k, t, icons.get(k, "insert_chart"), b_) for k, (t, b_) in DG_MODI.items()]
+
+
+def _dg_anteile():
+    from .darstellung_kern import DG_ANTEILE
+
+    return list(DG_ANTEILE.items())
 
 
 def _zoom():

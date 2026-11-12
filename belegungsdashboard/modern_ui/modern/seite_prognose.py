@@ -15,6 +15,7 @@ from belegung import konfig
 
 from . import analytik_kern as an
 from . import auswertung_kern as ak
+from . import diagramm_stil as _ds
 from . import kern, seiten, themes
 from .ui_bausteine import attr, knopf, leer, segmente
 
@@ -198,12 +199,11 @@ def _lesbar(o: dict, c: dict) -> dict:
     li = max((i for i, z in enumerate(zs) if z.art == "ist"), default=None)
     prog = [i for i, z in enumerate(zs) if z.art != "ist"]
     ende = min(prog[-1], (li if li is not None else -1) + 12) if prog else None     # letzter geprüfter Monat
-    for alt, neu, deck in (("80 %-Band", BAND80, .40), ("95 %-Band", BAND95, .15)):
+    for alt, neu, r_ in (("80 %-Band", BAND80, "band"), ("95 %-Band", BAND95, "band95")):
         se = nach.get(alt)
         if se is not None:
             se["name"] = neu
-            se["areaStyle"] = {"color": _rgba(t["akzent"], deck)}
-            se["itemStyle"] = {"color": _rgba(t["akzent"], max(deck, .3))}
+            _ds.band_reihe(se, t, r_)
     ist_se, prog_se = nach.get("Ist"), nach.get("Prognose (erwartet)")
     if ist_se is not None:
         ist_se.update({"color": t["text"], "symbol": "none", "showSymbol": False,
@@ -332,9 +332,12 @@ def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
     prog_r = [round(w, 1) if (not ist[i] or i == li) and w is not None else None for i, w in enumerate(werte)]
     lo = [round(z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
     br = [round(z.hi80 - z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
+    lo95 = [round(z.lo95, 1) if not ist[i] and z.lo95 is not None else None for i, z in enumerate(zs)]       # 0.96
+    br95 = [round(z.hi95 - z.lo95, 1) if not ist[i] and z.lo95 is not None and z.hi95 is not None else None
+            for i, z in enumerate(zs)]
     vj = [round(werte[i - 12], 1) if pa is not None and i >= pa and i >= 12 and werte[i - 12] is not None else None
           for i in range(len(werte))]
-    oben = max([kap or 0] + [z.hi80 for z in zs if z.hi80 is not None] + [w for w in werte if w is not None])
+    oben = max([kap or 0] + [z.hi95 or z.hi80 for z in zs if z.hi80 is not None] + [w for w in werte if w is not None])
     linien = []
     if kap:
         linien.append({"yAxis": kap, "lineStyle": {"color": f["text"], "type": "solid", "width": 1.5},
@@ -366,11 +369,14 @@ def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
         {"name": "Ist", "type": "line", "data": ist_r, "symbol": "none", "lineStyle": {"color": f["text"], "width": 2},
          "itemStyle": {"color": f["text"]},
          "markLine": {"silent": True, "symbol": "none", "data": linien}, "markArea": {"silent": True, "data": flaechen}},
-        {"name": "_u", "type": "line", "data": lo, "stack": "band", "symbol": "none", "lineStyle": {"opacity": 0},
-         "silent": True, "tooltip": {"show": False}},
-        {"name": "hier liegt der Wert in 8 von 10 Fällen", "type": "line", "data": br, "stack": "band", "symbol": "none",
-         "lineStyle": {"opacity": 0}, "areaStyle": {"color": "rgba(0,127,127,0.18)"}, "silent": True,
-         "itemStyle": {"color": "rgba(0,127,127,0.35)"}},
+        _ds.band_reihe({"name": "_u95", "type": "line", "data": lo95, "stack": "b95", "silent": True,
+                        "tooltip": {"show": False}}, f, "band95"),
+        _ds.band_reihe({"name": "in 19 von 20 Fällen", "type": "line", "data": br95, "stack": "b95", "silent": True,
+                        "areaStyle": {}}, f, "band95"),
+        _ds.band_reihe({"name": "_u", "type": "line", "data": lo, "stack": "band", "silent": True,
+                        "tooltip": {"show": False}}, f, "band"),
+        _ds.band_reihe({"name": "hier liegt der Wert in 8 von 10 Fällen", "type": "line", "data": br, "stack": "band",
+                        "silent": True, "areaStyle": {}}, f, "band"),
         {"name": "Prognose", "type": "line", "data": prog_r, "symbol": "none",
          "lineStyle": {"color": f["akzent"], "width": 2.5, "type": "dashed"}, "itemStyle": {"color": f["akzent"]},
          "markPoint": {"silent": True, "data": marken}},
@@ -379,7 +385,7 @@ def _gf_option(zs, werte, ist, g, kap, stichtag) -> dict:
     ]
     return {"animation": False, "grid": {"left": 48, "right": 150, "top": 46, "bottom": 34},
             "legend": {"top": 0, "left": 0, "data": ["Ist", "Prognose", "hier liegt der Wert in 8 von 10 Fällen",
-                                                     "gleicher Monat im Vorjahr"],
+                                                     "in 19 von 20 Fällen", "gleicher Monat im Vorjahr"],
                        "textStyle": {"color": f["text2"]}, "itemWidth": 22},
             "tooltip": {"trigger": "axis"},
             "xAxis": {"type": "category", "data": labels, "boundaryGap": False,
@@ -653,6 +659,8 @@ def _trend(o, t, c, zs_sz, ort, zaehl, szen) -> dict:
          "data": [kap] * len(zs) if kap and zeig(4) else leer_, "lineStyle": {"color": t["rot"], "width": 1.4, "type": [5, 4]},
          "endLabel": {"show": bool(kap and zeig(4)), "formatter": "Kapazität {c}", "color": t["rot"], "fontSize": 11}, **d(0, 700)},
     ]
+    for i_, r_ in ((0, "band95"), (1, "band95"), (2, "band"), (3, "band")):      # 0.96: deutlich, mit Kante
+        _ds.band_reihe(reihen[i_], t, r_)
     if li is not None and li + 1 < len(zs) and zeig(2):
         reihen[6]["markArea"] = {"silent": True, "itemStyle": {"color": _rgba(t["akzent"], .045)},
                                  "label": {"show": True, "position": "insideTopLeft", "color": t["text3"], "fontSize": 11,
@@ -811,7 +819,7 @@ def _status_karte(o, t, c) -> dict:
         {"name": "_u80", "type": "line", "stack": "b80", "data": lo, "symbol": "none", "silent": True, "lineStyle": {"opacity": 0},
          "tooltip": {"show": False}},
         {"name": "80-%-Spanne", "type": "line", "stack": "b80", "data": br, "symbol": "none", "silent": True,
-         "lineStyle": {"opacity": 0}, "areaStyle": {"color": akz, "opacity": .14}},
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": _ds.band_flaeche(_t())}},
         {"name": "nur Teilnehmende", "type": "line", "stack": "g", "data": [r1(m.uebrige) for m in sm], "showSymbol": False,
          "smooth": False, "color": grau, "lineStyle": {"color": grau, "width": 1.5}, "endLabel": end("nur Teilnehmende", grau),
          "labelLayout": {"moveOverlap": "shiftY"}},
@@ -960,7 +968,7 @@ def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
         {"name": "_u80", "rolle": "band", "type": "line", "stack": "vjb", "data": lo, "symbol": "none", "silent": True,
          "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
         {"name": "80-%-Spanne", "rolle": "band", "type": "line", "stack": "vjb", "data": br, "symbol": "none", "silent": True,
-         "lineStyle": {"opacity": 0}, "areaStyle": {"color": t["akzent"], "opacity": .16}},
+         "lineStyle": {"opacity": 0}, "areaStyle": {"color": _ds.band_flaeche(t)}},
         {"name": "Vorvorjahr (Ist)", "type": "line", "data": rnd(vj.vorvorjahr), "symbol": "none", "color": t["text3"],
          "lineStyle": {"color": t["text3"], "width": 1.2, "type": "dotted"}, "animationDuration": 700},
         {"name": "Vorjahr (Ist)", "type": "line", "data": rnd(vj.vorjahr), "symbol": "circle", "symbolSize": 4, "color": t["blau"],
@@ -1330,9 +1338,14 @@ def zeichnen(a) -> None:
             if not a.weniger_bewegung:
                 knopf("", lambda: graph_zeichnen(True), "leise m-xg-symbol", "play_arrow",
                       "Aufbau abspielen – Graph neu aufbauen (geführte Animation)")
+            if oben and not praes:                   # 0.96: Optionen stehen im Menüband
+                return
             _optionen(a, pg, True, graph_wechsel)
             if not praes:
                 diagramm_karte.modus_wahl(a)
+
+        from . import menueband_ui
+        oben = menueband_ui.band_sichtbar(a)
 
         def graph_zeichnen(animiert_: bool):
             graph_box.clear()
@@ -1342,7 +1355,12 @@ def zeichnen(a) -> None:
             jetzt = "standorte" if parallel else "status" if a.aw_status else "kurve"
             attr(graph_box, data_tab=a.aw_chart, data_ansicht=jetzt, data_anim="1" if a.aw_anim and not a.weniger_bewegung else "0")
             with graph_box:
-                if not praes:                        # eine Filterleiste: Standort links, Netto/Brutto und Zeitraum rechts
+                if not praes and oben:               # 0.96: Filter im Menüband – hier nur, was eingestellt ist
+                    with ui.element("div").classes("m-xg-filter m-xg-stand"):
+                        _stand_zeile(a, jetzt)
+                        with ui.element("div").classes("m-xg-filter-rechts"):
+                            werkzeuge()
+                elif not praes:                      # eine Filterleiste: Standort links, Netto/Brutto und Zeitraum rechts
                     with ui.element("div").classes("m-xg-filter").props('role="toolbar" aria-label="Filter der Prognose"'):
                         segmente(ak.STANDORTE, a.aw_standort, lambda s_: a.setzen(aw_standort=s_, nur_seite=True), sofort=True)
                         with ui.element("div").classes("m-xg-filter-rechts"):
@@ -1353,9 +1371,12 @@ def zeichnen(a) -> None:
                             werkzeuge()
                 with ui.element("div").classes("m-xg-kopf" + (" m-weg" if km == "einfach" and not praes and not a.dg_details
                                                               else "")):
-                    _js_segmente(CHARTS, a.aw_chart, "tab")
-                    with ui.element("div").classes("m-xg-status" + ("" if trend else " aus")):
-                        if klassisch:
+                    if not oben or praes:
+                        _js_segmente(CHARTS, a.aw_chart, "tab")
+                    with ui.element("div").classes("m-xg-status" + ("" if trend and (not oben or praes) else " aus")):
+                        if oben and not praes:
+                            pass                     # 0.96: Ansicht steht im Menüband (Diagrammentwurf → Diagramm)
+                        elif klassisch:
                             attr(ui.label("Ansicht"), title="Belegung als Kurve, gestapelt nach Status (UWTler · Mieter · "
                                                             "übrige) oder – bei „Gesamt“ – die drei Standorte parallel")
                             ansichten = {"kurve": "Belegung", "status": "Nach Status"}
@@ -1754,6 +1775,30 @@ def _status_badge(a, pg, backtest_moeglich: bool, praes: bool = True) -> None:
         attr(b, data_nur="kurve")
         if a.aw_chart != "trend" or a.aw_status or a.aw_parallel:
             b.style("display:none")
+
+
+def _stand_zeile(a, jetzt: str) -> None:
+    """0.96: Was gerade eingestellt ist – als ruhige Zeile; Klick öffnet die Registerkarte „Diagrammentwurf“."""
+    teile = [ak.STANDORTE.get(a.aw_standort, a.aw_standort), "Brutto" if a.aw_brutto else "Netto",
+             f"{a.aw_horizont} Monate", CHARTS.get(a.aw_chart, "")]
+    if a.aw_chart == "trend" and jetzt == "status":
+        teile.append("inkl. UWTler und Mieter")
+    elif a.aw_chart == "trend" and jetzt == "standorte":
+        teile.append("Standorte einzeln")
+    b = ui.element("button").classes("m-xg-standzeile")
+    attr(b, title="Ändern im Menüband: Diagrammentwurf → Daten, Diagramm, Darstellung")
+    with b:
+        ui.icon("tune")
+        ui.label(" · ".join(t for t in teile if t))
+        ui.label("ändern").classes("m-xg-aendern")
+
+    async def oeffnen():
+        from . import menueband_ui
+
+        a.band_tab = "diagramm"
+        a._ob_seite = a.seite
+        menueband_ui.fuellen(a, erzwingen=True)
+    b.on("click", oeffnen)
 
 
 def _optionen(a, pg, backtest_moeglich: bool, graph_wechsel) -> None:

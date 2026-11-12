@@ -11,6 +11,7 @@ from nicegui import ui
 
 from . import auswertung_kern as ak
 from . import seite_prognose, seiten
+from . import diagramm_stil as _ds
 from . import themes
 from .ui_bausteine import attr, knopf, leer, segmente
 
@@ -228,7 +229,7 @@ def _lage(a) -> None:
                      "symbol": "none", "tooltip": {"show": False}},
                     {"name": "80 %-Spanne", "type": "line", "data": [None if h is None else round(h - l, 1) for h, l in
                                                                       zip(v["hi80"], v["lo80"])],
-                     "stack": "band", "lineStyle": {"opacity": 0}, "symbol": "none", "areaStyle": {"color": _T()["akzent"], "opacity": .15}},
+                     "stack": "band", "lineStyle": {"opacity": 0}, "symbol": "none", "areaStyle": {"color": _ds.band_flaeche(_T())}},
                     {"name": "Ist", "type": "line", "data": v["ist"], "symbol": "none", "lineStyle": {"color": _T()["text"], "width": 2}},
                     {"name": "Prognose", "type": "line", "data": v["prognose"], "symbol": "none",
                      "lineStyle": {"color": _T()["akzent"], "width": 2, "type": "dashed"}},
@@ -411,6 +412,26 @@ def _belegung_einfach(a, det: ak.BDetails, zr, farben) -> None:
                     ui.label(f"{bk.zahl(mittel)} · {round(100 * anteil)} %").classes("m-einfach-wert")
 
 
+def _anteile(a, det: ak.BDetails, farben: list[str]) -> None:
+    """0.96: Anteile der Gruppen (Reha, Umschüler, Mieter …) in Personentagen – insgesamt und im Verlauf."""
+    from . import anteile_kern as ank
+    from . import anteile_ui
+
+    if len([k for k, v in det.kategorien.items() if any(v)]) < 2:
+        return
+    if len(det.tage) > 45:
+        achse, werte, prog = ank.monate_buendeln(det.tage, det.kategorien, det.ist)
+        verlauf = "Personentage je Monat (P = Prognose)"
+    else:
+        achse, werte, prog = list(det.tage), det.kategorien, [not i for i in det.ist]
+        verlauf = "je Tag (P = Prognose)"
+    an = ank.berechnen(werte, achse, prog, fenster=list(range(len(achse))),
+                       fenster_text=f"Personentage {a.aw_von:%d.%m.%Y} – {a.aw_bis:%d.%m.%Y}")
+    fb = {k: _ds.gruppen_farbe(k, i, farben) for i, k in enumerate(det.kategorien)}
+    with ui.element("div").classes("m-breit"):
+        anteile_ui.zeigen(a, "Anteile der Gruppen", an, fb, verlauf)
+
+
 def _belegung_charts(a, det: ak.BDetails, zr) -> None:
     farben = [_T()["akzent"], _T()["blau"], _T()["gruen"], _T()["orange"], _T()["rot"], _T()["text2"], _T()["text3"]]
     from . import diagramm_karte
@@ -445,6 +466,7 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
         else:
             with ui.element("div").classes("m-breit"):
                 _tagesverlauf_karte(a, det, zr, farben)
+        _anteile(a, det, farben)                           # 0.96: wer macht wie viel aus – Ring/Kreis und 100 %
         with ui.element("section").classes("m-block"):
             ui.label("Personentage je Monat").classes("m-btitel")
             ui.label("Summe der belegten Plätze über alle Tage – hell = Prognose").classes("m-ptext")

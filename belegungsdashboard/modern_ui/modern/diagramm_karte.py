@@ -180,8 +180,11 @@ def modus() -> str:
 def modus_wahl(a) -> None:
     """Schnellwahl über dem Diagramm – gleiche Einstellung wie Datei → Optionen → Diagramme (je PC gemerkt)."""
     from . import darstellung_kern as dk
+    from . import menueband_ui
     from .ui_bausteine import segmente
 
+    if menueband_ui.band_sichtbar(a):                 # 0.96: steht im Menüband (Diagrammentwurf → Darstellung)
+        return
     with ui.element("div").classes("m-dk-modus"):
         attr(ui.label("Darstellung").classes("m-zweite"), title="Wie die Diagramme der Auswertung aussehen – je PC gemerkt")
         segmente({k: t for k, (t, _b) in dk.DG_MODI.items()}, modus(), lambda v: a.design_setzen(dg_modus=v))

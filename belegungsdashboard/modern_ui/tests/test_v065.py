@@ -25,7 +25,7 @@ def _alle(reiter):
 
 def test_reiter_wie_office():
     r = mb.reiter(ANS)
-    assert [x.titel for x in r] == ["Start", "Anreisen", "Zimmer & Haus", "Auswertung", "Verwalten", "Diagramm"]
+    assert [x.titel for x in r] == ["Start", "Anreisen", "Zimmer & Haus", "Auswertung", "Verwalten", "Diagrammentwurf"]
     zimmer = next(x for x in r if x.key == "zimmer")
     sichtbar = [p.text for g in zimmer.gruppen for p in g.punkte]
     assert {"Übersicht", "Zeitstrahl", "Liste", "Karten"} <= set(sichtbar)            # 0.69: Ansichten sichtbar im Band

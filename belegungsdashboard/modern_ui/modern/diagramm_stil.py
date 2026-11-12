@@ -135,6 +135,78 @@ GRUPPEN_FARBEN = {"Reha": "#00929A", "UWT": "#5B5BD6", "Umschüler": "#5B5BD6", 
 def gruppen_farbe(name: str, i: int, sonst: list[str]) -> str:
     """Feste Farbe für Reha, Umschüler und Mieter – alle übrigen Kategorien aus der Liste ``sonst``."""
     return GRUPPEN_FARBEN.get(name) or sonst[i % len(sonst)]
+
+
+# 0.96: Unsicherheitsbänder deutlich sichtbar und klar unterscheidbar – in JEDEM Modus (Klassisch, Karte, Einfach)
+# und auf dunklem Grund kräftiger. 80 %: satte Fläche mit durchgezogener Kante; 95 %: helle Fläche mit gestrichelter
+# Kante. Überlagert ergibt das innen dunkel, außen hell – wie ein Fächer.
+BAND_DECKUNG = {("band", False): .34, ("band", True): .48, ("band95", False): .13, ("band95", True): .20}
+
+
+def rgba(farbe: str, alpha: float) -> str:
+    f = str(farbe).lstrip("#")
+    if len(f) == 3:
+        f = "".join(c * 2 for c in f)
+    if len(f) != 6:
+        return farbe
+    return f"rgba({int(f[0:2], 16)},{int(f[2:4], 16)},{int(f[4:6], 16)},{alpha})"
+
+
+def dunkel(t: dict) -> bool:
+    return t.get("hell") is False
+
+
+def band_flaeche(t: dict, r: str = "band", farbe: str | None = None) -> str:
+    return rgba(farbe or t["akzent"], BAND_DECKUNG[(r if r == "band95" else "band", dunkel(t))])
+
+
+def band_kante(t: dict, r: str = "band", farbe: str | None = None) -> dict:
+    return {"color": rgba(farbe or t["akzent"], .9 if r != "band95" else .6), "width": 1.2 if r != "band95" else 1,
+            "type": "solid" if r != "band95" else [4, 3], "opacity": 1}
+
+
+def band_reihe(se: dict, t: dict, r: str = "band", farbe: str | None = None) -> dict:
+    """Stil für eine Band-Hilfsreihe (untere unsichtbare Reihe ODER sichtbare Breite) – in place, gibt ``se`` zurück."""
+    se["lineStyle"] = band_kante(t, r, farbe)
+    se["symbol"] = "none"
+    se["showSymbol"] = False
+    if se.get("areaStyle") is not None:
+        se["areaStyle"] = {"color": band_flaeche(t, r, farbe)}
+        se["itemStyle"] = {"color": rgba(farbe or t["akzent"], .55 if r != "band95" else .3)}   # Legenden-Symbol
+        se["color"] = se["itemStyle"]["color"]
+    return se
+
+
+# 0.96: Schrift in Diagrammen ohne Kontur. ECharts zeichnet Beschriftungen sonst mit einer (im Dunkeln weißen)
+# Textkante – das wirkt verschwommen. Gilt für jede Option (rekursiv: Labels, Endlabels, Markierungen).
+_LABEL_SCHLUESSEL = {"label", "endLabel", "upperLabel", "edgeLabel", "nameTextStyle", "textStyle", "subtextStyle"}
+
+
+def ohne_textrand(opt):
+    """Setzt ``textBorderWidth: 0`` und ``textShadowBlur: 0`` in allen Beschriftungen (in place) – gibt ``opt`` zurück."""
+    def gehe(x, unter_label=False):
+        if isinstance(x, dict):
+            if unter_label:
+                x.setdefault("textBorderWidth", 0)
+                x.setdefault("textBorderColor", "transparent")
+                x.setdefault("textShadowBlur", 0)
+            for k, v in x.items():
+                if k.startswith(":"):
+                    continue
+                if k == "rich" and isinstance(v, dict):          # rich: {Name: Stil} – jeden Stil säubern
+                    for stil in v.values():
+                        gehe(stil, True)
+                    continue
+                gehe(v, k in _LABEL_SCHLUESSEL)
+        elif isinstance(x, list):
+            for v in x:
+                gehe(v, False)
+    gehe(opt)
+    if isinstance(opt, dict):
+        ts = opt.setdefault("textStyle", {})
+        ts.setdefault("textBorderWidth", 0)
+        ts.setdefault("textBorderColor", "transparent")
+    return opt
 SCHRIFT = "Segoe UI, Inter, sans-serif"
 ZAHL_JS = "(v) => (v == null || isNaN(v)) ? '' : Math.round(v).toLocaleString('de-DE')"
 WERT_JS = ("(p) => { const v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value; "
@@ -211,11 +283,7 @@ def einheitlich(opt: dict, t: dict, stand: str | None = None, prognose_ab: str |
                        "itemStyle": {"color": akzent}, "label": {**_label(label_hg), "show": not tageswerte},
                        "labelLayout": {"hideOverlap": True}, "z": 5})
         elif r in ("band", "band95"):
-            se["lineStyle"] = {"opacity": 0}
-            se["symbol"] = "none"
-            if se.get("areaStyle") is not None:
-                se["areaStyle"] = {"color": akzent, "opacity": .16 if r == "band" else .07}
-            se["color"] = akzent
+            band_reihe(se, t, r)                     # 0.96: kräftig, mit Kante – 80 % und 95 % klar getrennt
         elif r == "vorjahr":
             se.update({"color": grau, "symbol": "none", "lineStyle": {"color": grau, "width": 1.5, "type": "solid"},
                        "label": {"show": False}})

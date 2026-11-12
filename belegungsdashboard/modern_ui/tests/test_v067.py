@@ -47,7 +47,9 @@ def test_jeder_befehl_nur_einmal():
 def test_aufgeraeumt_hoechstens_acht():
     for r in mb.reiter(ANS):
         n = sum(len(g.punkte) for g in r.gruppen)
-        assert n <= 8, (r.titel, n)
+        # 0.96: Die Kontext-Registerkarte „Diagrammentwurf“ ist wie in Excel dichter (Filter der Diagramme stehen dort);
+        # auf Seiten ohne Prognose zeigt sie nur drei Gruppen.
+        assert n <= (18 if r.kontext else 8), (r.titel, n)
         assert len(r.gruppen) <= 5, r.titel
 
 

@@ -50,12 +50,16 @@ ZOOM_STUFEN = [50, 75, 90, 100, 110, 125, 150, 175, 200]
 ZOOM_MIN, ZOOM_MAX = 50, 200
 DG_TYPEN = {"linie": ("Linie", "show_chart"), "flaeche": ("Fläche", "area_chart"), "saeule": ("Säulen", "bar_chart")}
 DG_LEGENDE = {"oben": "oben", "unten": "unten", "aus": "aus"}
+# 0.96: Anteils-Diagramme wie in Excel („Kreis oder Ring“, „100 % gestapelt“) – für „wer macht wie viel aus, und wann“
+DG_ANTEILE = {"ring": ("Ring", "donut_large"), "kreis": ("Kreis", "pie_chart"),
+              "saeule100": ("100 %-Säulen", "stacked_bar_chart"), "flaeche100": ("100 %-Fläche", "area_chart")}
 
 STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig", "zoom": 100, "schrift": "standard",
             "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
-            "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band"}
+            "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
+            "dg_anteil": "ring"}
 # 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
 # Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
 NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
@@ -123,6 +127,7 @@ def bereinigen(d: dict) -> dict:
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
     e["nav"] = d.get("nav") if d.get("nav") in NAVIGATION else "band"
+    e["dg_anteil"] = d.get("dg_anteil") if d.get("dg_anteil") in DG_ANTEILE else "ring"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
     e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
     for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung"):

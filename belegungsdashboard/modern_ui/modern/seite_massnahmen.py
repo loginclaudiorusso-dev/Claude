@@ -10,8 +10,9 @@ import json
 
 from nicegui import ui
 
+from . import diagramm_stil as _ds
 from . import massnahmen_kern as mk
-from .ui_bausteine import knopf, leer, segmente, tabelle
+from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
 KURZ = {"lang": "Haupt", "vorbereitung": "Vorb.", "ibtz": "IBTZ", "uebrige": "übrige", "ohne": "ohne Zimmer"}
@@ -149,9 +150,30 @@ def zeichnen(a) -> None:
                          f"Buchungen: {mk.VERFAHREN[d['verfahren']]}) · hell hinterlegt = Prognose · Neuanmeldung = wer in "
                          f"den ersten {mk.NACHRUECK_TAGE // 7} Wochen eines Kurses dabei ist.").classes("m-zweite").style(
                     "white-space:normal")
+            _anteile(a, d)                                   # 0.96: welche Maßnahmen den größten Anteil haben – und wann
             _plan_tabelle(a, d)
             _test(a, d)
             _versteckt(a, d)
+
+
+def _anteile(a, d: dict) -> None:
+    from . import anteile_kern as ank
+    from . import anteile_ui
+
+    reihen = d["reihen"]
+    if len(reihen) < 2:
+        return
+    erste = next(iter(reihen.values()))
+    achse = [mk.hj_kurz(z.hj) for z in erste.zeilen]
+    prog = [z.art != "ist" for z in erste.zeilen]
+    werte = {}
+    for fam, r in reihen.items():
+        je = {mk.hj_kurz(z.hj): z.erwartet for z in r.zeilen}
+        werte[fam] = [je.get(x) for x in achse]
+    an = ank.berechnen(werte, achse, prog)
+    fb = {fam: f for fam, f in zip(reihen, _farben() * 4)}
+    anteile_ui.zeigen(a, "Anteile der Maßnahmen an den Neuanmeldungen", an, fb,
+                      "je Startwelle (W = Winter, S = Sommer, P = Prognose)")
 
 
 def _farben() -> list[str]:
@@ -226,9 +248,14 @@ def _baender(r, farbe: str, h: int) -> list[dict]:
     basis = {"type": "line", "symbol": "none", "stack": f"band-{r.familie}", "lineStyle": {"opacity": 0},
              "tooltip": {"show": False}, "silent": True, "name": r.familie, "legendHoverLink": False}
     return [{**basis, "data": reihe(lambda z: z.klein95)},
-            {**basis, "data": reihe(lambda z: z.klein - z.klein95), "areaStyle": {"color": farbe, "opacity": .10}},
-            {**basis, "data": reihe(lambda z: z.gross - z.klein), "areaStyle": {"color": farbe, "opacity": .22}},
-            {**basis, "data": reihe(lambda z: z.gross95 - z.gross), "areaStyle": {"color": farbe, "opacity": .10}}]
+            {**basis, "data": reihe(lambda z: z.klein - z.klein95), "areaStyle": {"color": _ds.band_flaeche(_tt(), "band95", farbe)}},
+            {**basis, "data": reihe(lambda z: z.gross - z.klein), "areaStyle": {"color": _ds.band_flaeche(_tt(), "band", farbe)}},
+            {**basis, "data": reihe(lambda z: z.gross95 - z.gross), "areaStyle": {"color": _ds.band_flaeche(_tt(), "band95", farbe)}}]
+
+
+def _tt() -> dict:
+    from . import themes
+    return themes.farben(themes.AKTIV)
 
 
 def _prognosebereich(t: dict, x: list, h: int) -> dict:

@@ -324,6 +324,9 @@ class Ansicht:
         from . import diagramm_ui
 
         ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
+        from . import anteile_ui
+
+        ui.add_css(anteile_ui.CSS)             # 0.96: Anteils-Diagramme (Ring, Kreis, 100 %)
         from . import seite_heute as _heute_css
 
         ui.add_css(_heute_css.CSS)             # 0.91: Heute als eine Seite
@@ -931,7 +934,8 @@ class Ansicht:
         if self.design["layout"] != "canvas" and self.prompt:
             self.prompt_eingabe.set_value("")
             self.prompt, self._antwort = "", None
-        diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_modus", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim")
+        diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_modus", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim",
+                    "dg_anteil")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
                       or any(alt.get(k) != self.design.get(k) for k in diagramm))
         if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \
@@ -1705,6 +1709,11 @@ class Ansicht:
             from . import leitstand_ui
 
             await leitstand_ui.umschalten(self)
+            return
+        if e.modifiers.ctrl and e.modifiers.shift and e.key.name.lower() == "f":   # 0.96: Bildschirmfoto
+            from . import menueband_ui
+
+            await menueband_ui.bildschirmfoto(self)
             return
         if (extra := getattr(self, "_extra_taste", None)) is not None and await extra(e):
             return

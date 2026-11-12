@@ -887,6 +887,14 @@ CSS += """
 .m-xg-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; margin-bottom: 4px;
   border-bottom: 1px solid var(--rand); }
 .m-xg-filter-rechts { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+/* 0.96: Filter im Menüband – über dem Diagramm nur die eingestellte Auswahl (Klick: Diagrammentwurf öffnen) */
+.m-xg-standzeile { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--rand, #d9dede); background: transparent; color: var(--text2, #555); font: inherit;
+  font-size: 13px; cursor: pointer; }
+.m-xg-standzeile:hover { background: var(--fl2, #eef1f1); color: var(--text, #222); }
+.m-xg-standzeile .q-icon { font-size: 16px; }
+.m-xg-aendern { color: var(--akzent, #007f7f); font-weight: 600; }
+.m-xg-status.aus:empty { display: none; }
 .m-xg-filter-rechts .m-segm button { padding-left: 11px; padding-right: 11px; }
 .m-xg-ansicht { transition: color .25s, background .25s, border-color .25s, box-shadow .25s; }
 .m-xg-ansicht.leuchtet { color: var(--text); font-weight: 700; border-color: var(--akzent);

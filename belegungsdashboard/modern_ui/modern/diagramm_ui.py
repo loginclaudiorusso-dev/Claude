@@ -13,8 +13,28 @@
 from __future__ import annotations
 
 from nicegui import ui
+from nicegui.elements.echart import EChart
 
+from . import diagramm_stil as _ds
 from . import kennzahlen_katalog as kk
+
+
+# 0.96: JEDES Diagramm ohne Textkontur (im Dunkeln sonst weiß umrandete, schlecht lesbare Schrift) – beim Anlegen und
+# bei jeder Aktualisierung, damit auch später geänderte Optionen sauber bleiben.
+if not getattr(EChart, "_m_ohne_rand", False):
+    _init_alt, _update_alt = EChart.__init__, EChart.update
+
+    def _init_neu(self, options, *args, **kwargs):
+        _init_alt(self, _ds.ohne_textrand(options), *args, **kwargs)
+
+    def _update_neu(self, *args, **kwargs):
+        try:
+            _ds.ohne_textrand(self._props.get("options"))
+        except Exception:                                    # nie wegen der Kosmetik ein Diagramm verlieren
+            pass
+        return _update_alt(self, *args, **kwargs)
+
+    EChart.__init__, EChart.update, EChart._m_ohne_rand = _init_neu, _update_neu, True
 
 
 def anbinden(a, chart, details=None) -> None:
