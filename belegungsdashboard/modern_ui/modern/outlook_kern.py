@@ -2,6 +2,8 @@
 
 Zugriff wie bei Erinnerungen und Tagesbriefing: lokal über das klassische Outlook (Windows, pywin32/COM). Es wird
 nichts gesendet, verschoben, gelöscht oder als gelesen markiert; Outlook wird nicht gestartet, wenn es nicht läuft.
+1.02: Eine Mail (oder den ganzen Ordner) per Klick **in Outlook öffnen** – Outlook zeigt sie in seinem eigenen
+Fenster; ob sie dann als gelesen gilt, regelt Outlook wie bei jedem Öffnen dort.
 Keine Cloud, kein Server, kein OAuth. Ohne eingestellten Ordner ist die Vorschau aus und zeigt keine Inhalte.
 
 Ordner-Angabe (Einstellungen): ``Internatsdienst`` = Posteingang des Postfachs „Internatsdienst“,
@@ -29,6 +31,8 @@ class Mail:
     betreff: str
     absender: str
     ungelesen: bool
+    eintrag: str = ""            # 1.02: Outlook-EntryID – zum Öffnen in Outlook
+    ablage: str = ""             # StoreID des Postfachs (freigegebene Postfächer)
 
     @property
     def wann(self) -> str:
@@ -81,8 +85,8 @@ def _ordner_finden(ns, pfad: str):
     return f
 
 
-def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
-    """Die neuesten Mails des Ordners – nur lesen. ValueError mit verständlichem Text, wenn es nicht geht."""
+def _outlook(text: str = "Outlook ist nicht geöffnet – die Vorschau erscheint, sobald Outlook läuft."):
+    """(pythoncom, laufendes Outlook) – nie starten. Aufrufer meldet COM an und ab."""
     try:
         import pythoncom
         import win32com.client
@@ -90,12 +94,23 @@ def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
         raise ValueError("Die Outlook-Vorschau gibt es nur unter Windows mit dem klassischen Outlook.") from exc
     pythoncom.CoInitialize()
     try:
-        try:
-            ol = win32com.client.GetActiveObject("Outlook.Application")     # nicht starten, nur ein laufendes nutzen
-        except Exception as exc:                      # noqa: BLE001
-            raise ValueError("Outlook ist nicht geöffnet – die Vorschau erscheint, sobald Outlook läuft.") from exc
+        return pythoncom, win32com.client.GetActiveObject("Outlook.Application")
+    except Exception as exc:                          # noqa: BLE001
+        pythoncom.CoUninitialize()
+        raise ValueError(text) from exc
+
+
+def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
+    """Die neuesten Mails des Ordners – nur lesen. ValueError mit verständlichem Text, wenn es nicht geht."""
+    pythoncom, ol = _outlook()
+    try:
         ns = ol.GetNamespace("MAPI")
-        items = _ordner_finden(ns, pfad).Items
+        f = _ordner_finden(ns, pfad)
+        try:
+            ablage = str(f.StoreID or "")
+        except Exception:                             # noqa: BLE001
+            ablage = ""
+        items = f.Items
         items.Sort("[ReceivedTime]", True)
         erg: list[Mail] = []
         m = items.GetFirst()
@@ -103,27 +118,67 @@ def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
             if getattr(m, "Class", 0) == 43:          # olMail
                 rt = m.ReceivedTime
                 erg.append(Mail(datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute), str(m.Subject or "(ohne Betreff)"),
-                                str(m.SenderName or ""), bool(m.UnRead)))
+                                str(m.SenderName or ""), bool(m.UnRead), str(getattr(m, "EntryID", "") or ""), ablage))
             m = items.GetNext()
         return erg
     finally:
         pythoncom.CoUninitialize()
 
 
-def vorschau(neu: bool = False) -> tuple[list[Mail], str]:
+def oeffnen(eintrag: str, ablage: str = "") -> str:
+    """1.02: Die Mail in Outlook im eigenen Fenster zeigen (nur ein laufendes Outlook). Rückgabe: Fehlertext oder ""."""
+    if not eintrag:
+        return "Diese Mail lässt sich nicht öffnen."
+    try:
+        pythoncom, ol = _outlook("Outlook ist nicht geöffnet – bitte Outlook starten, dann noch einmal klicken.")
+    except ValueError as exc:
+        return str(exc)
+    try:
+        ns = ol.GetNamespace("MAPI")
+        m = ns.GetItemFromID(eintrag, ablage) if ablage else ns.GetItemFromID(eintrag)
+        m.Display()
+        return ""
+    except Exception:                                 # noqa: BLE001
+        return "Die Mail wurde in Outlook nicht gefunden (verschoben oder gelöscht?) – bitte neu laden."
+    finally:
+        pythoncom.CoUninitialize()
+
+
+def ordner_oeffnen(pfad: str | None = None) -> str:
+    """1.02: Den eingestellten Ordner (z. B. das Postfach „Internatsdienst“) in einem Outlook-Fenster zeigen."""
+    pfad = ordner() if pfad is None else pfad
+    if not pfad:
+        return "Kein Outlook-Ordner eingestellt."
+    try:
+        pythoncom, ol = _outlook("Outlook ist nicht geöffnet – bitte Outlook starten, dann noch einmal klicken.")
+    except ValueError as exc:
+        return str(exc)
+    try:
+        _ordner_finden(ol.GetNamespace("MAPI"), pfad).Display()
+        return ""
+    except ValueError as exc:
+        return str(exc)
+    except Exception as exc:                          # noqa: BLE001
+        return f"Outlook konnte den Ordner nicht zeigen: {exc}"
+    finally:
+        pythoncom.CoUninitialize()
+
+
+def vorschau(neu: bool = False, anzahl: int = ANZAHL) -> tuple[list[Mail], str]:
     """(Mails, Fehlertext) – höchstens alle ``NEU_LADEN_S`` Sekunden frisch aus Outlook."""
     pfad = ordner()
     if not pfad:
         return [], ""
-    if not neu and _ZWISCHEN["pfad"] == pfad and time.monotonic() - _ZWISCHEN["zeit"] < NEU_LADEN_S:
+    if (not neu and _ZWISCHEN["pfad"] == (pfad, anzahl)
+            and time.monotonic() - _ZWISCHEN["zeit"] < NEU_LADEN_S):
         return _ZWISCHEN["erg"]
     try:
-        erg = (lesen(pfad), "")
+        erg = (lesen(pfad, anzahl), "")
     except ValueError as exc:
         erg = ([], str(exc))
     except Exception as exc:                          # noqa: BLE001 – Outlook-Fehler nie bis zur Oberfläche durchreichen
         erg = ([], f"Outlook konnte nicht gelesen werden: {exc}")
-    _ZWISCHEN.update(zeit=time.monotonic(), pfad=pfad, erg=erg)
+    _ZWISCHEN.update(zeit=time.monotonic(), pfad=(pfad, anzahl), erg=erg)
     return erg
 
 
@@ -168,22 +223,37 @@ def offene_mail() -> dict | None:
         pythoncom.CoUninitialize()
 
 
-def block(a) -> None:
+def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
+    """Mail-Block. ``postfach`` (1.02, Seite „Aufgaben“): mehr Mails, Kopf „Postfach“, Platz unter der Aufgabe.
+    Klick auf eine Mail öffnet sie in Outlook; „In Outlook“ zeigt den ganzen Ordner."""
     from nicegui import run, ui
 
     from .ui_bausteine import attr, knopf
 
     pfad = ordner()
-    with ui.element("section").classes("m-tz-block m-tz-outlook"):
+
+    async def _oeffnen(m: Mail) -> None:
+        fehler = await run.io_bound(oeffnen, m.eintrag, m.ablage)
+        if fehler:
+            a.toast(fehler, fehler=True)
+
+    async def _ordner() -> None:
+        fehler = await run.io_bound(ordner_oeffnen)
+        if fehler:
+            a.toast(fehler, fehler=True)
+
+    with ui.element("section").classes("m-tz-block m-tz-outlook" + (" m-pf-post" if postfach else "")):
         with ui.element("div").classes("m-tz-ab"):
-            ui.label("Outlook" + (f" · {pfad}" if pfad else ""))
+            ui.label(("Postfach" if postfach else "Outlook") + (f" · {pfad}" if pfad else ""))
             if pfad:
-                knopf("", lambda: _laden(True), "leise", "refresh", "Neu laden")
+                with ui.element("div").classes("m-tz-abk"):
+                    knopf("In Outlook", _ordner, "leise", "open_in_new", "Den Ordner in Outlook öffnen")
+                    knopf("", lambda: _laden(True), "leise", "refresh", "Neu laden")
         inhalt = ui.element("div").classes("m-tz-mails")
         if not pfad:
             with inhalt:
                 ui.label("Die Vorschau ist aus. In den Einstellungen den Outlook-Ordner eintragen (z. B. „Internatsdienst“) – "
-                         "dann stehen hier Betreff, Zeit und ungelesen. Nur lesen, nichts wird verändert.").classes(
+                         "dann stehen hier Betreff, Zeit und ungelesen; ein Klick öffnet die Mail in Outlook.").classes(
                     "m-zweite").style("white-space:normal")
                 knopf("Einstellen", lambda: a.oeffnen("einstellungen"), "leise", "settings")
             return
@@ -191,7 +261,7 @@ def block(a) -> None:
             ui.label("Lädt …").classes("m-zweite")
 
     async def _laden(neu: bool = False) -> None:
-        mails, fehler = await run.io_bound(vorschau, neu)
+        mails, fehler = await run.io_bound(vorschau, neu, anzahl)
         inhalt.clear()
         with inhalt:
             if fehler:
@@ -201,15 +271,18 @@ def block(a) -> None:
                 ui.label("Keine Mails in diesem Ordner.").classes("m-zweite")
                 return
             for m in mails:
-                with ui.element("div").classes("m-tz-mail" + (" neu" if m.ungelesen else "")):
+                z = ui.element("button").classes("m-tz-mail" + (" neu" if m.ungelesen else ""))
+                attr(z, title=f"{m.betreff} – in Outlook öffnen", type="button")
+                with z:
                     ui.label(m.wann).classes("m-tz-mzeit")
                     with ui.element("div").classes("m-tz-mtext"):
-                        attr(ui.label(m.betreff).classes("m-tz-mbetreff"), title=m.betreff)
+                        ui.label(m.betreff).classes("m-tz-mbetreff")
                         ui.label(m.absender).classes("m-zweite")
                     if m.ungelesen:
                         ui.label("ungelesen").classes("m-pille akzent")
+                z.on("click", lambda m=m: _oeffnen(m))
             ungelesen = sum(1 for m in mails if m.ungelesen)
-            ui.label(f"nur lesen · {ungelesen} ungelesen unter den neuesten {len(mails)} · "
+            ui.label(f"Klick öffnet die Mail in Outlook · {ungelesen} ungelesen unter den neuesten {len(mails)} · "
                      f"Stand {datetime.now():%H:%M}").classes("m-tz-meta")
 
     ui.timer(0.05, _laden, once=True)

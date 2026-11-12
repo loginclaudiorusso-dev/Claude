@@ -380,7 +380,11 @@ def _postfach(a, t: Tag) -> None:
     with ui.element("div").classes("m-pf"):
         liste = ui.element("nav").classes("m-pf-liste")
         attr(liste, aria_label="Aufgaben")
-        detail = ui.element("section").classes("m-pf-detail")
+        with ui.element("div").classes("m-pf-rechts"):
+            detail = ui.element("section").classes("m-pf-detail")
+            from . import outlook_kern                # 1.02: das Postfach (z. B. „Internatsdienst“) unter der Aufgabe
+
+            outlook_kern.block(a, anzahl=12, postfach=True)
 
     def zeigen(kid: str) -> None:
         a.pf_auswahl = kid

@@ -24,8 +24,10 @@ def gruppe(titel: str):
 
 
 @contextmanager
-def stapel():
-    with ui.element("div").classes("m-bg-st"):
+def stapel(reihe: bool = False, raster: bool = False):
+    """Kleine Knöpfe untereinander (bis 3) – mit ``reihe`` nebeneinander in einer Zeile (1.02, z. B. Standorte), mit
+    ``raster`` in Spalten zu je 3."""
+    with ui.element("div").classes("m-bg-st" + (" m-bg-reihe" if reihe else "") + (" m-bg-raster" if raster else "")):
         yield
 
 
@@ -89,6 +91,12 @@ CSS = r"""
 .m-bg-t { height: 28px; line-height: 13px; padding: 6px 0 9px; box-sizing: border-box; font-size: 11px; color: var(--ob-text2, #5E6E6E); text-align: center;
   white-space: nowrap; }
 .m-bg-st { display: flex; flex-direction: column; gap: 3px; justify-content: flex-start; }
+.m-bg-st.m-bg-reihe { flex-direction: row; align-items: flex-start; gap: 4px; }
+.m-bg-st.m-bg-raster { display: grid; grid-template-rows: repeat(3, 24px); grid-auto-flow: column; gap: 3px 6px;
+  justify-items: start; }
+/* Hinweistexte im Seiten-Band umbrechen statt abgeschnitten zu werden */
+body.ob-seite-an .m-kz .m-kpi { display: block; white-space: normal; max-width: 320px; font-size: 13px; line-height: 19px;
+  margin: 6px 8px; }
 .m-bg-g, .m-bg-k { font: inherit; color: var(--ob-text, #1F2A2A); background: none; border: 1px solid transparent;
   cursor: pointer; border-radius: 4px; }
 .m-bg-g { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px; max-width: 140px; height: 76px;

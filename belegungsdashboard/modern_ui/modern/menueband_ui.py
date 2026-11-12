@@ -703,6 +703,10 @@ body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); height: 
   align-items: flex-start; align-content: flex-start; padding: 6px 8px 0; border-bottom: 1px solid var(--ob-rand);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .08); overflow-x: auto; overflow-y: hidden; row-gap: 4px; }
 body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg) { flex-wrap: nowrap; gap: 0; }
+/* 1.02: auch Bänder aus losen Band-Knöpfen brechen nie um – zu breit → waagrecht schieben */
+body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg-g, .m-bg-st) { flex-wrap: nowrap; }
+body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg-g, .m-bg-st) .m-leiste,
+body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg-g, .m-bg-st) .m-werkzeuge { flex-wrap: nowrap; flex: none; }
 body.lay-office.ob-oben.ob-hat-werkzeuge:not(.ob-seite-an) .m-kz { display: none !important; }   /* kein Springen */
 body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) { overflow-y: auto; align-content: flex-start; padding-top: 8px; }
 body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-chip, body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-knopf {

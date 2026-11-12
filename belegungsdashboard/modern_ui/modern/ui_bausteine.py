@@ -72,10 +72,12 @@ def segmente(optionen: dict, aktiv, bei_klick, sofort: bool = False, ansicht: bo
         from . import band_ui
 
         werte = list(optionen.items())
-        for i in range(0, len(werte), 3):
-            with band_ui.stapel():
-                for wert, text in werte[i:i + 3]:
-                    band_ui.auswahl(str(text), wert == aktiv, lambda wert=wert: bei_klick(wert))
+        # 1.02: EIN Block statt verteilter Stapel – bis 3 untereinander, 4 (z. B. die Standorte) in einer Reihe,
+        # ab 5 in Spalten zu je 3 (ohne Trennlinie dazwischen)
+        art = "reihe" if len(werte) == 4 else ("raster" if len(werte) > 4 else "")
+        with band_ui.stapel(reihe=art == "reihe", raster=art == "raster"):
+            for wert, text in werte:
+                band_ui.auswahl(str(text), wert == aktiv, lambda wert=wert: bei_klick(wert))
         return
     with ui.element("div").classes("m-segm" + (" m-seg-ansicht" if ansicht else "")).props('role="group"'):
         for wert, text in optionen.items():

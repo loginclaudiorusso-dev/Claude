@@ -1090,6 +1090,16 @@ CSS += """
 .m-tz-mtext { display: grid; min-width: 0; }
 .m-tz-mbetreff { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-tz-mail.neu .m-tz-mbetreff { font-weight: 700; }
+/* 1.02: Mails sind Knöpfe (Klick öffnet in Outlook); Postfach unter der Aufgabe */
+button.m-tz-mail { font: inherit; color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--rand);
+  text-align: left; cursor: pointer; width: 100%; padding: 9px 6px; border-radius: 0; }
+button.m-tz-mail:hover { background: var(--fl2); }
+button.m-tz-mail:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+.m-tz-abk { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.m-tz-ab .m-tz-abk .m-knopf { margin-left: 0; }
+.m-pf-rechts { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.m-pf-post { border-radius: 12px; padding: 16px 20px; }
+.m-pf-post .m-tz-ab { margin-bottom: 4px; }
 .m-pille.akzent { background: color-mix(in srgb, var(--akzent) 16%, transparent); color: var(--akzent-hell, var(--akzent)); }
 .m-tz-tag { font: inherit; color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--rand); cursor: pointer;
   display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; text-align: left; padding: 9px 2px; }

@@ -298,8 +298,8 @@ def _mieter_zr(a) -> list:
 def _belegung(a) -> None:
     zr: ak.Zeitraum = a.daten["zr"]
     with a.leiste:
-        von = ui.input("von", value=a.aw_von.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
-        bis = ui.input("bis", value=a.aw_bis.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:160px")
+        von = ui.input("von", value=a.aw_von.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:148px")
+        bis = ui.input("bis", value=a.aw_bis.isoformat()).classes("m-feld").props("dense outlined dark type=date").style("width:148px")
 
         def anwenden():
             try:
