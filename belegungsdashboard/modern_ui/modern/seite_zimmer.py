@@ -191,8 +191,69 @@ async def _gezogen(a, args) -> None:
     a.panel("Zimmer wechseln", bauen)
 
 
+ZL_SYMBOL = {"frei": ("checkmark_circle", "gruen"), "geplant": ("calendar_clock", "blau"), "belegt": ("person", "blau"),
+             "nicht_nutzbar": ("prohibited", "rot")}
+
+
+def _filterband(a, ansicht: str) -> None:
+    """1.00: Werkzeuge von Liste und Karten als Office-Gruppen im Menüband."""
+    from . import band_ui as bu
+    from .ui_bausteine import live_suche
+
+    haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}
+    n = a.daten["n"]
+    with a.werkzeuge:
+        with bu.gruppe("Auswahl"):
+            with bu.gross(haeuser.get(a.zl_haus, "Alle Häuser"), "building_multiple", "blau", pfeil=True,
+                          tipp="Haus wählen"):
+                with ui.menu().props('class="m-ob-menue"'):
+                    for k, t in haeuser.items():
+                        ui.menu_item(t, lambda k=k: a.setzen(zl_haus=k))
+            with bu.stapel():
+                with ui.element("div").style("display:flex;align-items:center;gap:2px"):
+                    bu.klein("", "chevron_left", "", lambda: a.setzen(zu_tag=a.zu_tag - timedelta(days=1)), tipp="Tag zurück")
+                    tag = ui.input(value=a.zu_tag.isoformat()).classes("m-feld").props("dense outlined type=date").style(
+                        "width:136px")
+                    attr(tag, title="Stichtag – Status und Bewohner an diesem Tag")
+                    tag.on_value_change(lambda e: a.setzen(zu_tag=date.fromisoformat(e.value)) if e.value else None)
+                    bu.klein("", "chevron_right", "", lambda: a.setzen(zu_tag=a.zu_tag + timedelta(days=1)), tipp="Tag weiter")
+                bu.klein("Heute", "calendar_today", "blau", lambda: a.setzen(zu_tag=a.heute), an=a.zu_tag == a.heute)
+        with bu.gruppe("Zustand am Tag (Filter)"):
+            for s_, t in zk.STATUS.items():
+                if not s_:
+                    continue
+                sym, farbe = ZL_SYMBOL.get(s_, ("filter", ""))
+                bu.gross(t, sym, farbe, lambda s_=s_: a.setzen(zl_status="" if s_ == a.zl_status else s_),
+                         an=a.zl_status == s_, zahl=n.get(s_, 0), tipp=f"Nur Zimmer „{t}“ (nochmal klicken: alle)")
+        with bu.gruppe("Suchen"):
+            with bu.stapel():
+                suche = ui.input(placeholder="Zimmer, Name, Hinweis …", value=a.zl_text).classes("m-feld").props(
+                    "dense outlined clearable").style("width:200px")
+                suche.on("keydown.enter", lambda: a.setzen(zl_text=suche.value or ""))
+                suche.on("clear", lambda: a.setzen(zl_text=""))
+                live_suche(suche, lambda t: a.setzen(zl_text=t), "zimmer")
+                n_f = zk.mehr_aktiv(a.zl_mehr) + len(a.zl_schnell)
+                with bu.klein(f"Weitere Filter · {n_f}" if n_f else "Weitere Filter", "filter", "", an=bool(n_f), pfeil=True):
+                    _filter_menue_inhalt(a)
+                if a.zl_schnell or a.zl_status or a.zl_text or zk.mehr_aktiv(a.zl_mehr):
+                    bu.klein("Alle Filter aus", "prohibited", "",
+                             lambda: a.setzen(zl_schnell=set(), zl_status="", zl_text="", zl_mehr={}))
+        with bu.gruppe("Bearbeiten"):
+            if ansicht == "liste":
+                with bu.gross("Mehrere bearbeiten", "edit", "amber", pfeil=True,
+                              tipp="Eigenschaften der markierten Zimmer, Renovierungsliste, Zimmer hinzufügen"):
+                    _bearbeiten_menue(a)
+            with bu.gross("Drucken & Export", "table_arrow_up", "gruen", pfeil=True, tipp="Drucken, Excel, Kopieren"):
+                _mehr_menue(a)
+    a.status_info = a.daten["kpi"]
+
+
 def _filterleiste(a, ansicht: str) -> None:
     """Gemeinsame Such- und Filterleiste für Karten und Liste (wie „Zimmer finden“ im bisherigen Programm)."""
+    from . import menueband_ui
+
+    if menueband_ui.werkzeuge_oben(a):              # 1.00: Office-Gruppen im Menüband
+        return _filterband(a, ansicht)
     # 0.74: EINE Kontextzeile – Haus als Auswahl, Stichtag ‹ › als Kontext, Zustände als Filter-Chips, seltene Filter
     # (auch die Schnellfilter Mängel, Vinyl …) unter „Filter“, Drucken/Export unter ⋯; die Zahlen stehen in der Statusleiste
     with a.werkzeuge:
@@ -227,31 +288,47 @@ def _filterleiste(a, ansicht: str) -> None:
                   "filter_alt_off", "Alle Filter zurücksetzen")
         a.status_info = a.daten["kpi"]
         with knopf("", None, "leise m-kz-mehr", "more_horiz", "Mehr: Drucken, Excel, Kopieren"):
-            with ui.menu().props('dark class="m-menue"'):
-                ui.menu_item("Zimmerliste drucken (mit Bewohnern)", lambda: _drucken(a, "liste"))
-                ui.menu_item("Zimmerliste drucken (ohne Namen)", lambda: _drucken(a, "liste_ohne"))
-                ui.menu_item("Als Excel – diese Auswahl mit „frei bis“", lambda: _auswahl_excel(a, True))
-                ui.menu_item("Als Excel – ohne Namen", lambda: _auswahl_excel(a, False))
-                ui.separator()
-                ui.menu_item("Kopieren (für Excel)", lambda: _kopieren(a))
-                ui.menu_item("Belegung am Tag als Excel …", lambda: _excel(a))
-                ui.separator()
-                ui.menu_item("FM-Mängelbericht drucken", lambda: _drucken(a, "fm"))
+            _mehr_menue(a)
         if ansicht == "liste":
             with knopf("", None, "m-kz-rechts", "edit", "Bearbeiten: Eigenschaften, Renovierungsliste, Zimmer hinzufügen"):
-                with ui.menu().props('dark class="m-menue"'):
-                    ui.menu_item("Eigenschaften der markierten Zimmer …", lambda: _eigenschaften_panel(a))
-                    ui.menu_item("Renovierungsliste einfügen …", lambda: _renovierungen_panel(a))
-                    ui.separator()
-                    ui.menu_item("Zimmer hinzufügen …", lambda: _zimmer_neu(a))
-                    ui.menu_item("Zimmer entfernen … (Zimmer-Stammdaten)", lambda: a.oeffnen("einstellungen", ansicht="stammdaten"))
+                _bearbeiten_menue(a)
+
+
+def _mehr_menue(a) -> None:
+    """Menü „Mehr“: Drucken, Excel, Kopieren."""
+    with ui.menu().props('dark class="m-menue"'):
+        ui.menu_item("Zimmerliste drucken (mit Bewohnern)", lambda: _drucken(a, "liste"))
+        ui.menu_item("Zimmerliste drucken (ohne Namen)", lambda: _drucken(a, "liste_ohne"))
+        ui.menu_item("Als Excel – diese Auswahl mit „frei bis“", lambda: _auswahl_excel(a, True))
+        ui.menu_item("Als Excel – ohne Namen", lambda: _auswahl_excel(a, False))
+        ui.separator()
+        ui.menu_item("Kopieren (für Excel)", lambda: _kopieren(a))
+        ui.menu_item("Belegung am Tag als Excel …", lambda: _excel(a))
+        ui.separator()
+        ui.menu_item("FM-Mängelbericht drucken", lambda: _drucken(a, "fm"))
+
+
+def _bearbeiten_menue(a) -> None:
+    """Menü „Bearbeiten“ der Liste."""
+    with ui.menu().props('dark class="m-menue"'):
+        ui.menu_item("Eigenschaften der markierten Zimmer …", lambda: _eigenschaften_panel(a))
+        ui.menu_item("Renovierungsliste einfügen …", lambda: _renovierungen_panel(a))
+        ui.separator()
+        ui.menu_item("Zimmer hinzufügen …", lambda: _zimmer_neu(a))
+        ui.menu_item("Zimmer entfernen … (Zimmer-Stammdaten)", lambda: a.oeffnen("einstellungen", ansicht="stammdaten"))
 
 
 def _filter_menue(a) -> None:
     """Seltenere Filter – Boden, Mangel, Renovierung, Gäste/Bad über Flur, Personengruppe, außer Betrieb."""
+    n = zk.mehr_aktiv(a.zl_mehr) + len(a.zl_schnell)
+    with knopf(f"Filter · {n}" if n else "Filter", None, "akzent m-kz-rechts" if n else "m-kz-rechts", "filter_list"):
+        _filter_menue_inhalt(a)
+
+
+def _filter_menue_inhalt(a) -> None:
+    """Menü „Filter“ (in der Leiste und im Menüband dasselbe)."""
     m = {**zk.MEHR_LEER, **a.zl_mehr}
     opt = zk.filter_optionen(a.heute)
-    n = zk.mehr_aktiv(a.zl_mehr) + len(a.zl_schnell)
 
     def umschalten(art: str, wert: str):
         return a.setzen(zl_mehr={**m, art: sorted(set(m[art]) ^ {wert})})
@@ -264,30 +341,29 @@ def _filter_menue(a) -> None:
             ui.icon("check_box" if an else "check_box_outline_blank").classes("m-mhaken" + (" an" if an else ""))
             ui.label(text)
 
-    with knopf(f"Filter · {n}" if n else "Filter", None, "akzent m-kz-rechts" if n else "m-kz-rechts", "filter_list"):
-        with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
-            ui.label("Schnellfilter").classes("m-mgruppe")              # 0.74: früher eine eigene Leiste
-            for k, t in zk.MERKMALE.items():
-                eintrag(t, k in a.zl_schnell, lambda k=k: a.setzen(zl_schnell=a.zl_schnell ^ {k}))
-            ui.label("Boden").classes("m-mgruppe")
-            for k, t in opt["boeden"].items():
-                eintrag(t, k in m["boeden"], lambda k=k: umschalten("boeden", k))
-            ui.label("Mangel").classes("m-mgruppe")
-            for k, t in opt["maengel"].items():
-                eintrag(t, k in m["maengel"], lambda k=k: umschalten("maengel", k))
-            ui.label("Renovierung").classes("m-mgruppe")
-            for k, t in opt["renoviert"].items():
-                eintrag(t, m["renoviert"] == k, lambda k=k: setzen("renoviert", k))
-            ui.label("Merkmale").classes("m-mgruppe")
-            for k, t in opt["merkmale"].items():
-                eintrag(t, k in m["merkmale"], lambda k=k: umschalten("merkmale", k))
-            ui.label("Personengruppe").classes("m-mgruppe")
-            for k, t in opt["modus"].items():
-                eintrag(t, m["modus"] == k, lambda k=k: setzen("modus", k))
-            for k, t in opt["gruppen"].items():
-                eintrag(t, k in m["gruppen"], lambda k=k: umschalten("gruppen", k))
-            ui.separator()
-            eintrag("Auch Zimmer außer Betrieb (Lager, Jugendhilfe …)", bool(m["alle"]), lambda: setzen("alle", not m["alle"]))
+    with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
+        ui.label("Schnellfilter").classes("m-mgruppe")              # 0.74: früher eine eigene Leiste
+        for k, t in zk.MERKMALE.items():
+            eintrag(t, k in a.zl_schnell, lambda k=k: a.setzen(zl_schnell=a.zl_schnell ^ {k}))
+        ui.label("Boden").classes("m-mgruppe")
+        for k, t in opt["boeden"].items():
+            eintrag(t, k in m["boeden"], lambda k=k: umschalten("boeden", k))
+        ui.label("Mangel").classes("m-mgruppe")
+        for k, t in opt["maengel"].items():
+            eintrag(t, k in m["maengel"], lambda k=k: umschalten("maengel", k))
+        ui.label("Renovierung").classes("m-mgruppe")
+        for k, t in opt["renoviert"].items():
+            eintrag(t, m["renoviert"] == k, lambda k=k: setzen("renoviert", k))
+        ui.label("Merkmale").classes("m-mgruppe")
+        for k, t in opt["merkmale"].items():
+            eintrag(t, k in m["merkmale"], lambda k=k: umschalten("merkmale", k))
+        ui.label("Personengruppe").classes("m-mgruppe")
+        for k, t in opt["modus"].items():
+            eintrag(t, m["modus"] == k, lambda k=k: setzen("modus", k))
+        for k, t in opt["gruppen"].items():
+            eintrag(t, k in m["gruppen"], lambda k=k: umschalten("gruppen", k))
+        ui.separator()
+        eintrag("Auch Zimmer außer Betrieb (Lager, Jugendhilfe …)", bool(m["alle"]), lambda: setzen("alle", not m["alle"]))
 
 
 def _mangel_menue(a) -> None:

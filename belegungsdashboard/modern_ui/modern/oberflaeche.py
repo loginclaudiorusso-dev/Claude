@@ -327,6 +327,12 @@ class Ansicht:
         from . import anteile_ui
 
         ui.add_css(anteile_ui.CSS)             # 0.96: Anteils-Diagramme (Ring, Kreis, 100 %)
+        from . import symbole as _symbole
+
+        ui.add_css(_symbole.CSS)               # 1.00: Fluent-2-Symbole (zweifarbig)
+        from . import band_ui as _band_ui
+
+        ui.add_css(_band_ui.CSS)               # 1.00: Seiten-Werkzeuge als Office-Gruppen
         from . import seite_heute as _heute_css
 
         ui.add_css(_heute_css.CSS)             # 0.91: Heute als eine Seite
@@ -1053,6 +1059,10 @@ class Ansicht:
             return seite_anreisen.eintragen_zeichnen(self)
         if ansicht == "personen":
             return seite_anreisen.personen_zeichnen(self)
+        from . import menueband_ui as _mbu
+
+        if _mbu.werkzeuge_oben(self):                       # 1.00: Office-Gruppen im Menüband
+            return self._anreisen_band()
         with self.werkzeuge:
             optionen = {a.kennung: a.text for a in self.anreisen}
             # Sprung mit neuer Anreise (z. B. aus dem Canvas): vor dem Laden ist sie evtl. noch nicht in der Liste
@@ -1113,6 +1123,36 @@ class Ansicht:
                     knopf(f"Alle Vorschläge übernehmen ({len(offen)})" if len(offen) > 1 else "Vorschlag übernehmen",
                           self._alle_vorschlaege, "primaer", "done_all",
                           "Übernimmt die passenden freien Zimmer. Einzeln: ✓ in der Zimmerspalte.")
+            with ui.element("div").classes("m-raster m-zuteil m-tkopf"):
+                for t in ("", "Name", "Gruppe", "Zeitraum", "Zimmer", "Hinweis"):
+                    ui.label(t)
+            sichtbar = [z for z in self.zeilen if z.filter(self.filter, self.neu)]
+            if not sichtbar:
+                leer("Nichts in diesem Filter – alles in Ordnung.")
+            for z in sichtbar:
+                self._zeile(z)
+
+    def _anreisen_band(self) -> None:
+        """1.00: Zuteilen mit den Werkzeugen als Office-Gruppen im Menüband; der Inhalt bleibt derselbe."""
+        if self.ohne_daten:
+            seite_anreisen.zuteilen_band(self, None, {}, {}, 0, [])
+            with self.inhalt:
+                from belegung import konfig
+
+                leer("Keine Daten gefunden – kein Gebäudeplan und keine Anreiselisten.\n"
+                     f"Datenordner: {konfig.datenordner()}")
+            return
+        offen = [z for z in self.zeilen if z.vorschlag and z.status in ("ohne", "handeln")] if self.kennung else []
+        if self.kennung:
+            tag = date.fromisoformat(self.kennung)
+            n_neu = sum(1 for z in self.zeilen if z.schluessel in self.neu)
+            seite_anreisen.zuteilen_band(self, tag, kern.kennzahlen(self.stand, tag), kern.zaehlen(self.zeilen), n_neu, offen)
+        else:
+            seite_anreisen.zuteilen_band(self, None, {}, {}, 0, [])
+        with self.inhalt:
+            if not self.kennung:
+                leer("Keine Anreisen ab heute in den Listen.")
+                return
             with ui.element("div").classes("m-raster m-zuteil m-tkopf"):
                 for t in ("", "Name", "Gruppe", "Zeitraum", "Zimmer", "Hinweis"):
                     ui.label(t)

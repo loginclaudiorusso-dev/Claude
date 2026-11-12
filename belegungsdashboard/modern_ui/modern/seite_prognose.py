@@ -1229,7 +1229,25 @@ def zeichnen(a) -> None:
                             a.daten.get("gruppen"))
 
     # ---- Kopfleiste (Analyse) ----------------------------------------------------------
-    if not praes:
+    from . import menueband_ui as _mbu
+
+    if not praes and _mbu.werkzeuge_oben(a):         # 1.00: Office-Gruppen im Menüband
+        from . import band_ui as bu
+
+        with a.werkzeuge:
+            with bu.gruppe("Ansicht"):
+                for k_, (sym, farbe) in BEREICH_SYMBOL.items():
+                    bu.gross(BEREICHE.get(k_, k_), sym, farbe, lambda k_=k_: a.setzen(aw_bereich=k_, laden=False),
+                             an=a.aw_bereich == k_)
+            with bu.gruppe("Teilnehmer"):
+                bu.gross("Teilnehmer je Maßnahme", "people_team", "blau",
+                         lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose"),
+                         tipp="Teilnehmer-Prognose je Maßnahmeart (Bestandsmodell) – die zweite Sicht")
+            with bu.gruppe("Ausgabe"):
+                _export_menue(a, pg, zustand, box, ex)
+                bu.gross("Präsentation", "slide_play", "amber", lambda: _modus(a, "praes"),
+                         tipp="Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet")
+    elif not praes:
         with a.leiste:
             with ui.element("div").classes("m-xbereich"):
                 segmente(BEREICHE, a.aw_bereich, lambda v: a.setzen(aw_bereich=v, laden=False))
@@ -1633,6 +1651,8 @@ def zeichnen(a) -> None:
 
 
 BEREICHE = {"dashboard": "Dashboard", "szenario": "Szenarien & Simulation", "details": "Details & Protokoll"}
+BEREICH_SYMBOL = {"dashboard": ("gauge", "blau"), "szenario": ("options", "violett"),          # 1.00: Fluent
+                  "details": ("clipboard_task_list_ltr", "teal")}
 
 
 def _insights(a, e, zustand, kap_echt: int) -> None:
@@ -2147,13 +2167,24 @@ def _export_menue(a, pg, zustand, box, ex) -> None:
                                a.aw_horizont)
         seiten.html_drucken(a, html, f"Executive_Summary_{konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort)}")
 
-    with knopf("Export", None, "", "ios_share"):
+    def inhalt():
         with ui.menu().props('dark class="m-menue"'):
             ui.menu_item("Diagramm als PNG (hochauflösend)", png)
             ui.menu_item("Executive Summary – Druck / PDF", summary)
             ui.separator()
             ui.menu_item("Prognosedaten als Excel (.xlsx)", lambda: daten_("xlsx"))
             ui.menu_item("Prognosedaten als CSV", lambda: daten_("csv"))
+
+    from . import menueband_ui
+
+    if menueband_ui.werkzeuge_oben(a):              # 1.00: im Menüband – Excel-Tabelle mit Pfeil
+        from . import band_ui as bu
+
+        with bu.gross("Export", "table_arrow_up", "gruen", pfeil=True, tipp="Diagramm als Bild, Summary, Excel, CSV"):
+            inhalt()
+        return
+    with knopf("Export", None, "", "ios_share"):
+        inhalt()
 
 
 def praes_umschalten(a) -> None:

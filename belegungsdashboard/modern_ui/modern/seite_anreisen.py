@@ -64,23 +64,28 @@ def mehr_menue(a) -> None:
     """„Mehr“ im Kopf der Ansicht Zuteilen – seltene Aktionen gebündelt statt vieler Knöpfe."""
     with a.werkzeuge:
         with knopf("Mehr", None, "leise m-kz-mehr", "more_horiz"):
-            with ui.menu().props('dark class="m-menue"'):
-                ui.menu_item("Anreiseliste drucken", lambda: _drucken(a, "anreise"))
-                ui.menu_item("Schlüsselliste drucken", lambda: _drucken(a, "schluessel"))
-                ui.menu_item("Zimmerschilder drucken", lambda: _drucken(a, "schilder"))
-                ui.menu_item("Zimmerliste als Excel …", lambda: _excel(a))
-                ui.separator()
-                ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen (12 Monate)",
-                             lambda: a.setzen(zu_vergangene=not a.zu_vergangene))
-                ui.menu_item("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a))
-                ui.separator()
-                ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
-                ui.menu_item("Nichtanreisen ansehen / zurücknehmen …", lambda: nichtanreisen_panel(a))
-                ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
-                ui.separator()
-                ui.menu_item("Belegung optimieren …", lambda: optimieren_panel(a))
-                ui.menu_item("Kommende UWT automatisch zuteilen", lambda: a.aendern(ank.uwt_zuteilen, a.heute))
-                ui.menu_item("Kommende UWT-Planungen zurücknehmen", lambda: a.aendern(ank.uwt_zuruecknehmen, a.heute))
+            mehr_menue_inhalt(a)
+
+
+def mehr_menue_inhalt(a) -> None:
+    """Inhalt des Menüs „Mehr“ (Kopfzeile und Menüband)."""
+    with ui.menu().props('dark class="m-menue"'):
+        ui.menu_item("Anreiseliste drucken", lambda: _drucken(a, "anreise"))
+        ui.menu_item("Schlüsselliste drucken", lambda: _drucken(a, "schluessel"))
+        ui.menu_item("Zimmerschilder drucken", lambda: _drucken(a, "schilder"))
+        ui.menu_item("Zimmerliste als Excel …", lambda: _excel(a))
+        ui.separator()
+        ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen (12 Monate)",
+                     lambda: a.setzen(zu_vergangene=not a.zu_vergangene))
+        ui.menu_item("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a))
+        ui.separator()
+        ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
+        ui.menu_item("Nichtanreisen ansehen / zurücknehmen …", lambda: nichtanreisen_panel(a))
+        ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
+        ui.separator()
+        ui.menu_item("Belegung optimieren …", lambda: optimieren_panel(a))
+        ui.menu_item("Kommende UWT automatisch zuteilen", lambda: a.aendern(ank.uwt_zuteilen, a.heute))
+        ui.menu_item("Kommende UWT-Planungen zurücknehmen", lambda: a.aendern(ank.uwt_zuruecknehmen, a.heute))
 
 
 async def _drucken(a, art: str) -> None:
@@ -425,7 +430,7 @@ def optimieren_panel(a) -> None:
                     a.panel_zu()
 
             with ui.element("div").classes("m-paktionen"):
-                knopf(f"Ausgewählte übernehmen", los, "primaer", "check")
+                knopf("Ausgewählte übernehmen", los, "primaer", "check")
                 knopf("Abbrechen", a.panel_zu, "leise")
 
     def bauen():
@@ -595,3 +600,60 @@ def archiv_panel(a) -> None:
             knopf("Schließen", a.panel_zu, "leise")
 
     a.panel("Archiv: frühere Anreisen", bauen, breit=True)
+
+
+def zuteilen_band(a, tag, k: dict, n: dict, n_neu: int, offen: list) -> None:
+    """1.00: Werkzeuge der Ansicht „Zuteilen“ als Office-Gruppen im Menüband (Anreise · Personen · Lage · Zuteilen)."""
+    from . import band_ui as bu
+
+    with a.werkzeuge:
+        with bu.gruppe("Anreise"):
+            with bu.stapel():
+                optionen = {x.kennung: x.text for x in a.anreisen}
+                wahl = ui.select(optionen, value=a.kennung if a.kennung in optionen else None,
+                                 on_change=a._anreise_gewaehlt).classes("m-zimmer").props(
+                    'dense outlined options-dense popup-content-class="m-popup"')
+                wahl.style("width: 260px")
+                with ui.element("div").style("display:flex;gap:2px"):
+                    bu.klein("Vorherige", "chevron_left", "", lambda: a._schritt(-1), tipp="Vorherige Anreise")
+                    bu.klein("Nächste", "chevron_right", "", lambda: a._schritt(1), tipp="Nächste Anreise")
+        if tag is None:
+            return
+        with bu.gruppe("Personen anzeigen"):
+            bu.gross("Personen", "people", "blau", lambda: a._filtern("alle"), an=a.filter == "alle", zahl=n["alle"],
+                     tipp="Alle Personen dieser Anreise")
+            with bu.stapel():
+                for f, text, sym, farbe in (("handeln", "Handlungsbedarf", "alert_urgent", "rot"),
+                                            ("ohne", "ohne Zimmer", "bed", "amber"), ("maengel", "Mängel", "wrench", "amber")):
+                    bu.klein(text, sym, farbe, lambda f=f: a._filtern("alle" if f == a.filter else f), an=a.filter == f,
+                             zahl=n[f])
+            with bu.stapel():
+                bu.klein("neu (7 Tage)", "new", "violett", lambda: a._filtern("alle" if a.filter == "neu" else "neu"),
+                         an=a.filter == "neu", zahl=n_neu,
+                         tipp="Personen, die in den letzten 7 Tagen in die Listen gekommen sind")
+                b = getattr(a, "bereit", None)
+                if b is not None and b.n:
+                    bu.klein("bezugsfertig", "checkmark_starburst", "gruen", a._bereit_panel, zahl=f"{b.bereit}/{b.n}",
+                             tipp="Zimmer gespeichert, kein Konflikt, Reinigung erledigt – Klick: was fehlt")
+        with bu.gruppe(f"Lage am {tag:%d.%m.}"):
+            with bu.stapel():
+                for kk, text, sym, farbe in (("frei", "frei", "checkmark_circle", "gruen"), ("belegt", "belegt", "person", "blau"),
+                                             ("nicht_nutzbar", "nicht nutzbar", "prohibited", "rot")):
+                    bu.klein(text, sym, farbe, lambda kk=kk: a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=tag, zu_filter=kk),
+                             zahl=k[kk], tipp="Klick: diese Zimmer in der Übersicht")
+            np_ = getattr(a, "np", None)
+            if np_ and np_.tiefst:
+                text, frei, _stufe = np_.tiefst
+                with bu.stapel():
+                    bu.klein(f"nach Planung · {text.split(' · ')[0]}", "arrow_right", "",
+                             lambda: a.oeffnen("auswertung", ansicht="zimmer"), zahl=frei,
+                             tipp="Mindestens so viele Zimmer bleiben frei, wenn alle Anreisen der nächsten 12 Wochen ein "
+                                  "Zimmer hätten – Klick: alle Wochen")
+        with bu.gruppe("Zuteilen"):
+            if offen:
+                bu.gross("Alle übernehmen" if len(offen) > 1 else "Vorschlag übernehmen", "checkmark_circle_square", "gruen",
+                         a._alle_vorschlaege, zahl=len(offen), primaer=True,
+                         tipp="Übernimmt die passenden freien Zimmer. Einzeln: ✓ in der Zimmerspalte.")
+            with bu.gross("Mehr", "more_horizontal", "", pfeil=True, tipp="Drucken, Excel, Archiv, Person hinzufügen …"):
+                mehr_menue_inhalt(a)
+

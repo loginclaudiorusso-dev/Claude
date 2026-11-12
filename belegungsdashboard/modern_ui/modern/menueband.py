@@ -45,45 +45,59 @@ def A(name: str) -> tuple:
     return ("aktion", name)
 
 
-# 0.99: Zweifarbige Symbole wie in Microsoft 365 (Fluent): feines Basissymbol (Schiefergrau oder eine Bedeutungsfarbe)
-# + optional ein kleines farbiges Akzentsymbol unten rechts. BASIS = Schiefergrau (im Dunkeln hell, per CSS-Variable).
-BASIS = "basis"
-GRUEN, AMBER, BLAU, ROT, TEAL, VIOLETT = "#10b981", "#f59e0b", "#0284c7", "#e11d48", "#0f766e", "#7c3aed"
-SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Symbol, Farbe, Akzent, Akzentfarbe)
-    ("heute", "zentrale"): ("wb_twilight", AMBER, "", ""),
-    ("heute", "postfach"): ("task_alt", GRUEN, "", ""),
-    ("termine", "liste"): ("calendar_today", BASIS, "schedule", BLAU),
-    ("termine", "monat"): ("calendar_month", BLAU, "", ""),
-    ("assistenz", "auftraege"): ("assignment", BASIS, "", ""),
-    ("assistenz", "mails"): ("mail", BLAU, "", ""),
-    ("assistenz", "fragen"): ("auto_awesome", AMBER, "", ""),
-    ("anreisen", "zuteilen"): ("meeting_room", BASIS, "check_circle", GRUEN),
-    ("anreisen", "personen"): ("groups", BLAU, "", ""),
-    ("anreisen", "abreisen"): ("luggage", BASIS, "arrow_forward", AMBER),
-    ("anreisen", "eintragen"): ("domain", BASIS, "work", BLAU),
-    ("mieter", None): ("description", BASIS, "vpn_key", AMBER),
-    ("zimmer", "uebersicht"): ("grid_view", BLAU, "", ""),
-    ("zimmer", "zeitstrahl"): ("align_horizontal_left", GRUEN, "", ""),
-    ("zimmer", "liste"): ("table_chart", TEAL, "", ""),
-    ("zimmer", "karten"): ("map", BASIS, "place", ROT),
-    ("zimmer", "maengel"): ("warning_amber", AMBER, "build", BASIS),
-    ("zimmer", "aenderungen"): ("history", BASIS, "", ""),
-    ("reinigung", "liste"): ("cleaning_services", BLAU, "auto_awesome", AMBER),
-    ("reinigung", "last"): ("date_range", BASIS, "", ""),
-    ("reinigung", "facility"): ("fact_check", BASIS, "", ""),
-    ("auswertung", "lage"): ("space_dashboard", BLAU, "", ""),
-    ("auswertung", "belegung"): ("stacked_line_chart", GRUEN, "", ""),
-    ("auswertung", "prognose"): ("trending_up", BLAU, "auto_awesome", AMBER),
-    ("auswertung", "massnahmen"): ("school", VIOLETT, "", ""),
-    ("auswertung", "zimmer"): ("bed", BASIS, "priority_high", ROT),
-    ("steuerung", "cockpit"): ("query_stats", BASIS, "", ""),
-    ("inventar", "gegenstaende"): ("inventory_2", BLAU, "", ""),
-    ("einstellungen", "stammdaten"): ("edit_note", BASIS, "", ""),
+# 1.00: Symbole aus Microsoft Fluent 2 (modern/symbole, MIT) – zweifarbig: Kontur in Schiefergrau, darunter dieselbe
+# Form zart in einer Bedeutungsfarbe. Jede Funktion hat ein eigenes Bild (keine Doppelungen innerhalb eines Reiters).
+BASIS = ""
+BLAU, TEAL, GRUEN, AMBER, VIOLETT, ROT = "#0284c7", "#0f766e", "#10b981", "#f59e0b", "#8b5cf6", "#e11d48"
+SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutungsfarbe)
+    ("heute", "zentrale"): ("weather_sunny", AMBER),
+    ("heute", "postfach"): ("tasks_app", GRUEN),
+    ("termine", "liste"): ("calendar_clock", BLAU),
+    ("termine", "monat"): ("calendar_month", BLAU),
+    ("assistenz", "auftraege"): ("clipboard_task", TEAL),
+    ("assistenz", "mails"): ("mail", BLAU),
+    ("assistenz", "fragen"): ("sparkle", AMBER),
+    ("anreisen", "zuteilen"): ("conference_room", GRUEN),
+    ("anreisen", "personen"): ("people", BLAU),
+    ("anreisen", "abreisen"): ("door_arrow_right", AMBER),
+    ("anreisen", "eintragen"): ("briefcase", BLAU),
+    ("mieter", None): ("key", AMBER),
+    ("zimmer", "uebersicht"): ("grid", BLAU),
+    ("zimmer", "zeitstrahl"): ("gantt_chart", GRUEN),
+    ("zimmer", "liste"): ("table", TEAL),
+    ("zimmer", "karten"): ("content_view_gallery", BLAU),
+    ("zimmer", "maengel"): ("wrench", AMBER),
+    ("zimmer", "aenderungen"): ("history", BASIS),
+    ("reinigung", "liste"): ("broom", BLAU),
+    ("reinigung", "last"): ("calendar_week_numbers", BASIS),
+    ("reinigung", "facility"): ("clipboard_checkmark", TEAL),
+    ("auswertung", "lage"): ("apps", BLAU),
+    ("auswertung", "belegung"): ("building_people", GRUEN),
+    ("auswertung", "prognose"): ("arrow_trending_lines", BLAU),
+    ("auswertung", "massnahmen"): ("hat_graduation", VIOLETT),
+    ("auswertung", "zimmer"): ("bed", ROT),
+    ("steuerung", "cockpit"): ("target_arrow", BASIS),
+    ("inventar", "gegenstaende"): ("box", BLAU),
+    ("einstellungen", "stammdaten"): ("document_edit", BASIS),
+}
+AKTION_SYMBOLE: dict[str, tuple] = {   # Aktionsname (Präfix) → (Fluent-Symbol, Farbe)
+    "aw:aw_chart=trend": ("arrow_trending_lines", BLAU), "aw:aw_chart=reserve": ("battery_charge", GRUEN),
+    "aw:aw_chart=jahr": ("arrow_swap", AMBER), "awt:aw_status": ("people_add", TEAL),
+    "awt:aw_parallel": ("layout_column_three", TEAL), "aw:aw_brutto=false": ("person", BLAU),
+    "aw:aw_brutto=true": ("people", BLAU),
+    "dg_modus:karte": ("content_view", BLAU), "dg_modus:klassisch": ("chart_multiple", BLAU),
+    "dg_modus:einfach": ("lightbulb", AMBER),
+    "dg_typ:linie": ("data_line", BLAU), "dg_typ:flaeche": ("data_area", BLAU), "dg_typ:saeule": ("data_bar_vertical", BLAU),
+}
+TEXT_SYMBOLE: dict[str, tuple] = {   # Schaltflächen ohne eigenes Ziel (Ausklappmenüs) → nach Text
+    "Standort": ("location", ROT), "Zeitraum": ("calendar_date", BLAU), "Anteile": ("data_pie", AMBER),
+    "Elemente": ("layer", VIOLETT), "Legende": ("tag", VIOLETT), "Steuerung": ("target_arrow", BASIS),
+    "Inventar": ("box", BLAU),
 }
 
 
-def symbol(p: "Punkt") -> tuple[str, str, str, str]:
-    """(Symbol, Farbe, Akzent, Akzentfarbe) einer Schaltfläche – aus SYMBOLE, sonst das bisherige Symbol in BASIS."""
+def symbol(p: "Punkt") -> tuple[str, str]:
+    """(Fluent-Symbol, Bedeutungsfarbe) einer Schaltfläche im Menüband."""
     z = p.ziel
     if z and z[0] == "seite":
         _s, seite, ansicht, zustand = z
@@ -91,7 +105,14 @@ def symbol(p: "Punkt") -> tuple[str, str, str, str]:
             ansicht = (zustand or {}).get("heute_ansicht", "zentrale")
         if (seite, ansicht) in SYMBOLE:
             return SYMBOLE[(seite, ansicht)]
-    return (p.icon, BASIS, "", "")
+        if (seite, None) in SYMBOLE:
+            return SYMBOLE[(seite, None)]
+    if z and z[0] == "aktion" and z[1] in AKTION_SYMBOLE:
+        return AKTION_SYMBOLE[z[1]]
+    t = p.text.replace("\u00ad", "")
+    if t in TEXT_SYMBOLE:
+        return TEXT_SYMBOLE[t]
+    return ("more_horizontal", BASIS)
 
 
 ICONS = {   # Symbole der Unteransichten – leicht erkennbar, wie in Office

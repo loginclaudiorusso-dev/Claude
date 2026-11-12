@@ -261,7 +261,7 @@ def stil(d: dict) -> str:
 
 
 ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "knopf-weich", "knopf-kontur",
-                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross", "ob-oben", "nav-leiste"] + [f"lay-{x}" for x in LAYOUTS]
+                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross", "ob-oben", "nav-leiste", "ob-seite-an", "ob-hat-werkzeuge"] + [f"lay-{x}" for x in LAYOUTS]
                 + [f"th-{t}" for t in THEMES])
 
 # ---------------------------------------------------------------------------------------

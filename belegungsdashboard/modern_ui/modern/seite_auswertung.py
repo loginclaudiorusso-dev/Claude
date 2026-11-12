@@ -444,7 +444,6 @@ def _belegung_charts(a, det: ak.BDetails, zr) -> None:
                 opt = _chart_basis()
                 opt["xAxis"]["data"] = det.tage
                 opt["yAxis"]["scale"] = False
-                from . import diagramm_stil as _ds        # 0.95: feste Gruppenfarben auch hier (Reha ≠ Mieter)
 
                 opt["series"] = [{"name": k, "type": "line", "stack": "art", "data": v, "symbol": "none",
                                   "color": _ds.gruppen_farbe(k, i, farben),

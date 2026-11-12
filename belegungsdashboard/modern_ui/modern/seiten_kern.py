@@ -615,3 +615,20 @@ def wochen(heute: date) -> dict[str, str]:
         erg[mo.isoformat()] = f"{text} · KW {mo.isocalendar()[1]} ({mo:%d.%m.}–{mo + timedelta(days=6):%d.%m.})"
     return erg
 
+
+# 1.00: Zeitstrahl filtern – „nur Zimmer mit …“ (belegt, geplant, gesperrt, Konflikt; mehrere = eines davon)
+ZS_ARTEN = {"belegt": "belegt", "geplant": "im Programm geplant", "gesperrt": "gesperrt", "konflikt": "Konflikt"}
+
+
+def zeitstrahl_zaehlen(zeilen: list) -> dict[str, int]:
+    """Je Art: in wie vielen Zimmern sie im Zeitraum vorkommt."""
+    return {k: sum(1 for z in zeilen if any(b.art == k for b in z.balken)) for k in ZS_ARTEN}
+
+
+def zeitstrahl_filtern(zeilen: list, arten) -> list:
+    """Nur Zimmer, in denen mindestens eine der ``arten`` vorkommt; leer = alle."""
+    arten = set(arten or ())
+    if not arten:
+        return list(zeilen)
+    return [z for z in zeilen if any(b.art in arten for b in z.balken)]
+

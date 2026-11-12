@@ -54,9 +54,81 @@ def zs_daten(a) -> None:
 ZS_MODUS = {"zimmer": "Zimmer", "flure": "Flure"}
 
 
+def _zs_filter(a, art: str | None) -> None:
+    """1.00: Legende als Filter – Klick schaltet die Art an/aus (mehrere = Zimmer mit einer davon); None = alle."""
+    jetzt = set(getattr(a, "zs_filter", ()) or ())
+    if art is None:
+        jetzt = set()
+    else:
+        jetzt ^= {art}
+    a.zs_filter = tuple(sorted(jetzt))
+    a.zeichnen()
+
+
+ZS_SYMBOL = {"belegt": ("person", "blau"), "geplant": ("calendar_clock", "blau"), "gesperrt": ("lock_closed", ""),
+             "konflikt": ("warning", "rot")}
+
+
+def _zs_band(a, ende, n_bel: int, zahl: dict) -> None:
+    """1.00: Werkzeuge des Zeitstrahls als Office-Gruppen im Menüband."""
+    from . import band_ui as bu
+
+    filt = set(getattr(a, "zs_filter", ()) or ())
+    with a.werkzeuge:
+        with bu.gruppe("Haus"):
+            with bu.gross(f"Haus {a.zs_haus}", "building_home", "blau", pfeil=True, tipp="Haus wählen"):
+                with ui.menu().props('class="m-ob-menue"'):
+                    for h in a.zs_haeuser:
+                        ui.menu_item(f"Haus {h}", lambda h=h: a.setzen(zs_haus=h, zs_flur=""))
+        with bu.gruppe("Zeitraum"):
+            with bu.stapel():
+                with ui.element("div").style("display:flex;gap:2px"):
+                    bu.klein("", "chevron_left", "", lambda: a.setzen(zs_start=a.zs_start - timedelta(days=7)),
+                             tipp="Eine Woche zurück")
+                    bu.klein("", "chevron_right", "", lambda: a.setzen(zs_start=a.zs_start + timedelta(days=7)),
+                             tipp="Eine Woche weiter")
+                bu.klein("Heute", "calendar_today", "blau",
+                         lambda: a.setzen(zs_start=a.heute - timedelta(days=a.heute.weekday())))
+            with bu.stapel():
+                for t, text in ((14, "2 Wochen"), (28, "4 Wochen"), (56, "8 Wochen")):
+                    bu.klein(text, "calendar_date", "blau", lambda t=t: a.setzen(zs_tage=t), an=a.zs_tage == t)
+        with bu.gruppe("Zeilen"):
+            bu.gross("Zimmer", "door", "teal", lambda: a.setzen(nur_seite=True, zs_modus="zimmer"), an=a.zs_modus == "zimmer")
+            bu.gross("Flure", "arrow_routing", "teal", lambda: a.setzen(nur_seite=True, zs_modus="flure"),
+                     an=a.zs_modus == "flure")
+        with bu.gruppe("Filter – nur Zimmer mit …"):
+            for art, text in sk.ZS_ARTEN.items():
+                sym, farbe = ZS_SYMBOL[art]
+                bu.gross("geplant" if art == "geplant" else text, sym, farbe, lambda art=art: _zs_filter(a, art),
+                         an=art in filt, zahl=zahl.get(art, 0),
+                         tipp=f"Nur Zimmer mit „{text}“ zeigen (nochmal klicken: aus; mehrere kombinierbar)")
+            if filt:
+                with bu.stapel():
+                    bu.klein("Alle zeigen", "filter", "", lambda: _zs_filter(a, None), tipp="Filter aufheben")
+        with bu.gruppe("Zahlen"):
+            with bu.stapel():
+                n = len(sk.zeitstrahl_filtern(a.daten, filt))
+                bu.info(f"<b>{n}</b> von {len(a.daten)} Zimmern" if filt else f"<b>{len(a.daten)}</b> Zimmer")
+                bu.info(f"<b>{n_bel}</b> Belegungen")
+                bu.info(f"{a.zs_start:%d.%m.} – {ende:%d.%m.%Y}")
+                if a.zs_flur:
+                    _h, etage, flur = a.zs_flur.split("|")
+                    bu.klein(f"nur {zp_etage(etage)} {flur}".strip(), "filter", "",
+                             lambda: a.setzen(nur_seite=True, zs_flur=""), tipp="Filter auf den Flur aufheben")
+
+
 def zs_zeichnen(a) -> None:
     if a.zs_modus == "flure":
         _flure_zeichnen(a)
+        return
+    from . import menueband_ui
+
+    ende_ = a.zs_start + timedelta(days=a.zs_tage - 1)
+    n_bel_ = sum(1 for z in a.daten for b in z.balken if b.art in ("belegt", "geplant", "konflikt"))
+    filt = set(getattr(a, "zs_filter", ()) or ())
+    if menueband_ui.werkzeuge_oben(a):
+        _zs_band(a, ende_, n_bel_, sk.zeitstrahl_zaehlen(a.daten))
+        _zs_inhalt(a, filt)
         return
     with a.werkzeuge:
         segmente({h: f"Haus {h}" for h in a.zs_haeuser}, a.zs_haus, lambda h: a.setzen(zs_haus=h, zs_flur=""))
@@ -74,15 +146,32 @@ def zs_zeichnen(a) -> None:
         ui.html(f'<span class="m-kpi"><b>{len(a.daten)}</b> Zimmer<span class="m-punktt">·</span>'
                 f'{a.zs_start:%d.%m.} – {ende:%d.%m.%Y}<span class="m-punktt">·</span><b>{n_bel}</b> Belegungen</span>',
                 sanitize=False)
-        ui.html('<span class="m-legende"><i class="belegt"></i>belegt<i class="geplant"></i>im Programm geplant'
-                '<i class="gesperrt"></i>gesperrt<i class="konflikt"></i>Konflikt</span>', sanitize=False).style(
-            "margin-left: auto")
+        with ui.element("span").classes("m-legende m-legende-filter").style("margin-left: auto"):   # 1.00: als Filter
+            for art, text in sk.ZS_ARTEN.items():
+                k = ui.element("button").classes("m-lf" + (" an" if art in filt else ""))
+                attr(k, title=f"Nur Zimmer mit „{text}“ (nochmal klicken: aus)", aria_pressed=str(art in filt).lower())
+                with k:
+                    ui.html(f'<i class="{art}"></i>{text}', sanitize=False)
+                k.on("click", lambda art=art: _zs_filter(a, art))
         segmente({14: "2 Wochen", 28: "4 Wochen", 56: "8 Wochen"}, a.zs_tage, lambda t: a.setzen(zs_tage=t))
+    _zs_inhalt(a, filt)
+
+
+def _zs_inhalt(a, filt: set) -> None:
     with a.inhalt:
         if not a.daten:
             leer("Keine Zimmer in diesem Haus.")
             return
-        ui.html(_zs_html(a), sanitize=False).classes("m-zs-wrap")
+        zeilen = sk.zeitstrahl_filtern(a.daten, filt)
+        if not zeilen:
+            leer("Kein Zimmer erfüllt den Filter – im Menüband „Alle zeigen“ wählen.")
+            return
+        voll = a.daten
+        a.daten = zeilen                      # _zs_html liest a.daten – nur für das Zeichnen gefiltert
+        try:
+            ui.html(_zs_html(a), sanitize=False).classes("m-zs-wrap")
+        finally:
+            a.daten = voll
 
 
 def zp_etage(etage: str) -> str:

@@ -26,28 +26,33 @@ def _punkt(seite, ansicht=None, **z):
     return mb.Punkt("x", "chevron_right", mb.S(seite, ansicht, **z))
 
 
-def test_duotone_symbole_wie_vorgegeben():
-    assert mb.symbol(_punkt("heute", heute_ansicht="zentrale"))[:2] == ("wb_twilight", mb.AMBER)
-    assert mb.symbol(_punkt("heute", heute_ansicht="postfach"))[:2] == ("task_alt", mb.GRUEN)
-    assert mb.symbol(_punkt("termine", "liste")) == ("calendar_today", mb.BASIS, "schedule", mb.BLAU)
-    assert mb.symbol(_punkt("anreisen", "zuteilen")) == ("meeting_room", mb.BASIS, "check_circle", mb.GRUEN)
-    assert mb.symbol(_punkt("anreisen", "abreisen"))[0] == "luggage"
-    assert mb.symbol(_punkt("anreisen", "eintragen"))[0] == "domain"
-    assert mb.symbol(_punkt("mieter")) == ("description", mb.BASIS, "vpn_key", mb.AMBER)
-    assert mb.symbol(_punkt("zimmer", "karten")) == ("map", mb.BASIS, "place", mb.ROT)
-    assert mb.symbol(_punkt("zimmer", "maengel"))[:3] == ("warning_amber", mb.AMBER, "build")
-    assert mb.symbol(mb.Punkt("Ohne", "tune", mb.A("x"))) == ("tune", mb.BASIS, "", "")
+def test_symbole_fluent_wie_besprochen():
+    # 1.00: Microsoft Fluent 2 – (Symbol, Bedeutungsfarbe)
+    assert mb.symbol(_punkt("heute", heute_ansicht="zentrale")) == ("weather_sunny", mb.AMBER)
+    assert mb.symbol(_punkt("anreisen", "zuteilen"))[0] == "conference_room"
+    assert mb.symbol(_punkt("anreisen", "abreisen"))[0] == "door_arrow_right"
+    assert mb.symbol(_punkt("anreisen", "eintragen"))[0] == "briefcase"
+    assert mb.symbol(_punkt("mieter"))[0] == "key"
+    assert mb.symbol(mb.Punkt("x", "y", mb.A("dg_modus:einfach")))[0] == "lightbulb"          # Variante A
+    assert mb.symbol(mb.Punkt("x", "y", mb.A("dg_modus:karte")))[0] == "content_view"         # Variante A
+    assert mb.symbol(mb.Punkt("x", "y", mb.A("aw:aw_chart=reserve")))[0] == "battery_charge"  # Variante A
 
 
-def test_keine_doppelten_symbole_in_start_anreisen_zimmer():
-    for r in mb.reiter({"anreisen": {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": "Abreisen",
-                                     "eintragen": "Firmenprogramm"},
-                        "zimmer": {"uebersicht": "Übersicht", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
-                                   "karten": "Karten", "maengel": "Defekte Zimmer"},
-                        "assistenz": {"auftraege": "Aufträge", "mails": "Mails", "fragen": "Fragen"},
-                        "termine": {"liste": "Termine", "monat": "Kalender"}}):
-        if r.key not in ("start", "anreisen", "zimmer"):
-            continue
+def test_jedes_menueband_symbol_existiert_als_svg():
+    from modern import menueband_ui as mu
+    from modern import symbole
+
+    for r in mb.reiter(mu._ansichten(), True, {"G": "Gesamt"}):
+        for g in r.gruppen:
+            for p in g.punkte:
+                name, _farbe = mb.symbol(p)
+                assert symbole.vorhanden(name), (r.key, p.text, name)
+
+
+def test_keine_doppelten_symbole_je_reiter():
+    from modern import menueband_ui as mu
+
+    for r in mb.reiter(mu._ansichten(), True, {"G": "Gesamt"}):
         sym = [mb.symbol(p)[0] for g in r.gruppen for p in g.punkte]
         assert len(sym) == len(set(sym)), (r.key, sym)
         if r.key == "zimmer":

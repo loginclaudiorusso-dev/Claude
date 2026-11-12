@@ -207,7 +207,7 @@ def _knopf(a, p: mb.Punkt) -> None:
     n, rot = _zahl(a, p)
     with b:
         with ui.element("span").classes("m-ob-sym"):
-            duotone_symbol(p, _dunkel(a))
+            duotone_symbol(p, _dunkel(a), p.gross)
             if n:
                 ui.label(str(n)).classes("m-ob-zahl" + (" rot" if rot else ""))
         with ui.element("span").classes("m-ob-text"):
@@ -224,23 +224,16 @@ def _dunkel(a) -> bool:
     return (getattr(a, "design", None) or {}).get("helligkeit", "hell") != "hell"
 
 
-def duotone_symbol(p: mb.Punkt, dunkel: bool = False) -> None:
-    """0.99: zweifarbiges Symbol wie in Microsoft 365 – Basissymbol (Schiefergrau oder Bedeutungsfarbe) und optional
-    ein kleines Akzentsymbol unten rechts auf hellem Kreis."""
-    icon, farbe, akzent, akzent_farbe = mb.symbol(p)
-    if dunkel:                                      # im Dunkeln derselbe Farbton heller (≥ 3 : 1 zum Band)
+def duotone_symbol(p: mb.Punkt, dunkel: bool = False, gross: bool = True) -> None:
+    """1.00: Fluent-2-Symbol, zweifarbig (groß) bzw. einfarbig in der Bedeutungsfarbe (kompakt)."""
+    from . import symbole
+
+    name, farbe = mb.symbol(p)
+    if dunkel and farbe and not gross:              # kompakte Kontur im Dunkeln heller (≥ 3 : 1 zum Band)
         from . import diagramm_stil as _ds
 
-        farbe = _ds.angleichen(farbe, "#1E2626", 3) if farbe != mb.BASIS else farbe
-        akzent_farbe = _ds.angleichen(akzent_farbe, "#1E2626", 3) if akzent_farbe not in ("", mb.BASIS) else akzent_farbe
-    with ui.element("span").classes("m-ob-duo" + (" horizont" if icon == "wb_twilight" else "")):
-        i = ui.icon(icon).classes("m-ob-duo-basis")
-        if farbe and farbe != mb.BASIS:
-            i.style(f"color:{farbe} !important")
-        if akzent:
-            k = ui.icon(akzent).classes("m-ob-duo-akzent")
-            if akzent_farbe and akzent_farbe != mb.BASIS:
-                k.style(f"color:{akzent_farbe} !important")
+        farbe = _ds.angleichen(farbe, "#1E2626", 3)
+    ui.html(symbole.html(name, farbe, gross), sanitize=False).classes("m-ob-fluent")
 
 
 def _split(a, p: mb.Punkt) -> None:
@@ -251,7 +244,7 @@ def _split(a, p: mb.Punkt) -> None:
         attr(oben, title=p.tipp or p.text)
         n, rot = _zahl(a, p)
         with oben, ui.element("span").classes("m-ob-sym"):
-            duotone_symbol(p, _dunkel(a))
+            duotone_symbol(p, _dunkel(a), True)
             if n:
                 ui.label(str(n)).classes("m-ob-zahl" + (" rot" if rot else ""))
         oben.on("click", lambda p=p: ausfuehren(a, p.ziel))
@@ -321,8 +314,10 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
         return
     alle = mb.reiter(_ansichten(), a.design.get("leitung", True), _standorte())
     oben = werkzeuge_oben(a)
-    if getattr(a, "_ob_seite", None) not in (None, a.seite) and oben:
-        a._ob_sprung = True                         # Seite gewechselt → nach dem Zeichnen ihre Werkzeuge zeigen
+    ort = (a.seite, a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, "")))
+    if getattr(a, "_ob_ort", None) not in (None, ort) and oben:
+        a._ob_sprung = True                         # Seite/Ansicht gewechselt → nach dem Zeichnen ihre Werkzeuge zeigen
+    a._ob_ort = ort
     tab = getattr(a, "band_tab", None) or "start"
     if tab == "seite" and not (oben and (hat_werkzeuge(a) or not nach_zeichnen)):
         tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))
@@ -343,6 +338,10 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
             a.body.classes(add="ob-seite-an")
         else:
             a.body.classes(remove="ob-seite-an")
+        if oben and hat_werkzeuge(a):               # 1.00: Kopf immer gleich hoch – Titelzeile nur ohne Seiten-Reiter
+            a.body.classes(add="ob-hat-werkzeuge")
+        else:
+            a.body.classes(remove="ob-hat-werkzeuge")
     from belegung import aenderungen as _ae
 
     letzt = _ae.letzter()
@@ -562,7 +561,7 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-punkte { flex: 1; display: flex; align-items: flex-start; gap: 4px; }
 .m-ob-gtitel { text-align: center; font-size: 11px; color: var(--ob-text2); padding: 2px 0 4px; white-space: nowrap; }
 .m-ob-gross { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
-  min-width: 58px; max-width: 86px; height: 70px; padding: 6px 6px 4px; border-radius: 4px; text-align: center;
+  min-width: 58px; max-width: 86px; height: 76px; padding: 4px 6px 2px; box-sizing: border-box; border-radius: 4px; text-align: center;
   border: 1px solid transparent !important; }
 .m-ob-gross .m-ob-sym { position: relative; display: inline-flex; }
 .m-ob-gross .m-ob-sym .q-icon { font-size: 28px; color: var(--ob-sym-basis); }
@@ -572,6 +571,11 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
   white-space: nowrap; font-size: 12px; border: 1px solid transparent !important; }
 .m-ob-klein .m-ob-sym { position: relative; display: inline-flex; }
 .m-ob-klein .m-ob-sym .q-icon { font-size: 17px; color: var(--ob-sym-basis); }
+/* 1.00: Fluent-2-Symbole im Menüband */
+.m-ob-fluent { display: inline-flex; line-height: 0; }
+.m-ob-gross .m-ob-sym, .m-ob-split-o .m-ob-sym { width: 32px; height: 32px; }
+body.lay-office .m-ob { --sym-basis: #334155; }
+body.lay-office:not(.hell) .m-ob { --sym-basis: #CBD5E1; }
 /* 0.99: zweifarbige Symbole (Microsoft 365 / Fluent): feines Basissymbol + kleiner farbiger Akzent unten rechts */
 body.lay-office { --ob-sym-basis: #334155; --ob-duo-grund: #ffffff; }
 body.lay-office.mod-dunkel, body.lay-office:not(.hell) { --ob-sym-basis: #CBD5E1; --ob-duo-grund: var(--ob-band); }
@@ -686,8 +690,18 @@ body.lay-office .m-tz-zahl-k.null .m-tz-zahl { color: var(--text3) !important; }
 body.lay-office.ob-oben:not(.ob-seite-an) .m-kz .m-werkzeuge,
 body.lay-office.ob-oben:not(.ob-seite-an) .m-kz > .m-leiste { display: none !important; }
 body.lay-office.ob-oben.ob-seite-an .m-ob-band { display: none !important; }
-body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); min-height: 96px; align-content: center;
-  padding: 8px 14px; border-bottom: 1px solid var(--ob-rand); }
+/* 1.00: Seiten-Band = gleiche Höhe (96 px), gleiche Farbe, gleiche Kante wie das Menüband – nichts springt, nichts
+   wird abgeschnitten (zu breit → waagrecht schieben; Leisten ohne Gruppen dürfen zweizeilig umbrechen). */
+body.lay-office .m-ob-band { height: 96px; min-height: 96px; box-sizing: border-box; }
+body.lay-office.ob-oben.ob-seite-an .m-kz { background: var(--ob-band); height: 96px; min-height: 96px; box-sizing: border-box;
+  align-items: flex-start; align-content: flex-start; padding: 4px 10px 0; border-bottom: 1px solid var(--ob-rand);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .08); overflow-x: auto; overflow-y: hidden; row-gap: 4px; }
+body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg) { flex-wrap: nowrap; gap: 0; }
+body.lay-office.ob-oben.ob-hat-werkzeuge:not(.ob-seite-an) .m-kz { display: none !important; }   /* kein Springen */
+body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) { overflow-y: auto; align-content: flex-start; padding-top: 8px; }
+body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-chip, body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-knopf {
+  min-height: 28px; }
+body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg) .m-kopf > .m-titel { display: none !important; }
 body.lay-office.ob-oben.ob-seite-an .m-kz .m-kopf > .m-titel { font-size: 13px !important; font-weight: 600 !important;
   color: var(--ob-text2); padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--ob-rand); align-self: stretch;
   display: flex; align-items: center; }
