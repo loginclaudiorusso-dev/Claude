@@ -109,13 +109,18 @@ def aus_material(icon: str, ersatz: tuple = ("more_horizontal", BASIS)) -> tuple
     return (icon, BASIS) if vorhanden(icon) else ersatz
 
 
-def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "") -> str:
-    """Duotone-Symbol als HTML. ``farbe``: Bedeutungsfarbe (Hex) oder leer."""
+def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", overlay: str = "",
+         ofarbe: str = "") -> str:
+    """Duotone-Symbol als HTML. ``farbe``: Bedeutungsfarbe (Hex) oder leer. 1.07: ``overlay`` = kleines zweites Symbol
+    unten rechts (z. B. Trend-Pfeil, Filter, Wechsel-Pfeil) in ``ofarbe``."""
     farbe = FARBEN.get(farbe, farbe)
     if gross:
         flaeche = (f'<span class="m-sym-f" style="color:{_html.escape(farbe)}">{svg(name, "g", "f")}</span>'
                    if farbe else "")
         inhalt = f'{flaeche}<span class="m-sym-k">{svg(name, "g", "r")}</span>'
+        if overlay:
+            of = FARBEN.get(ofarbe, ofarbe) or BLAU
+            inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
         return f'<span class="m-sym gross {klasse}" aria-hidden="true">{inhalt}</span>'
     stil = f' style="color:{_html.escape(farbe)}"' if farbe else ""
     return f'<span class="m-sym klein {klasse}" aria-hidden="true"><span class="m-sym-k"{stil}>{svg(name, "k", "r")}</span></span>'
@@ -131,4 +136,6 @@ body:not(.hell) { --sym-basis: #CBD5E1; --sym-deckung: .55; }
 .m-sym svg { width: 100%; height: 100%; display: block; }
 .m-sym .m-sym-k { color: var(--sym-basis); }
 .m-sym .m-sym-f { opacity: var(--sym-deckung); }
+.m-sym .m-sym-ov { inset: auto; right: -5px; bottom: -4px; width: 17px; height: 17px; padding: 1px; box-sizing: border-box;
+  border-radius: 50%; background: var(--ob-band, #F7F9F9); }
 """

@@ -16,8 +16,10 @@ from .ui_bausteine import attr
 
 
 @contextmanager
-def gruppe(titel: str):
-    with ui.element("div").classes("m-bg"):
+def gruppe(titel: str, klasse: str = ""):
+    """Office-Gruppe mit Unterschrift. ``klasse`` „m-bg-auto“ (1.07): Knöpfe/Umschalter darin werden ebenfalls als
+    Band-Bausteine gebaut (sonst bleiben gemeinsame Bausteine in einer fertigen Gruppe unverändert)."""
+    with ui.element("div").classes(f"m-bg {klasse}".strip()):
         with ui.element("div").classes("m-bg-i"):
             yield
         ui.label(titel).classes("m-bg-t")
@@ -31,9 +33,10 @@ def stapel(reihe: bool = False, raster: bool = False):
         yield
 
 
-def _inhalt(text: str, symbol: str, farbe: str, gross: bool, zahl, pfeil: bool) -> None:
+def _inhalt(text: str, symbol: str, farbe: str, gross: bool, zahl, pfeil: bool, overlay: str = "", ofarbe: str = "") -> None:
     with ui.element("span").classes("m-bg-sym"):
-        ui.html(symbole.html(symbol, farbe, gross), sanitize=False).classes("m-bg-svg")
+        ui.html(symbole.html(symbol, farbe, gross, overlay=overlay if gross else "", ofarbe=ofarbe),
+                sanitize=False).classes("m-bg-svg")
         if zahl is not None and gross:
             ui.label(str(zahl)).classes("m-bg-zahl")
     with ui.element("span").classes("m-bg-text"):
@@ -45,12 +48,12 @@ def _inhalt(text: str, symbol: str, farbe: str, gross: bool, zahl, pfeil: bool) 
 
 
 def gross(text: str, symbol: str, farbe: str = "", klick=None, an: bool = False, zahl=None, tipp: str = "",
-          pfeil: bool = False, primaer: bool = False):
+          pfeil: bool = False, primaer: bool = False, overlay: str = "", ofarbe: str = ""):
     """Großer Knopf (Symbol 32 px, Text darunter). Mit ``pfeil`` öffnet ``with knopf: ui.menu()`` ein Menü."""
     b = ui.element("button").classes("m-bg-g" + (" an" if an else "") + (" primaer" if primaer else ""))
     attr(b, title=tipp or text, aria_pressed=str(bool(an)).lower(), type="button")
     with b:
-        _inhalt(text, symbol, farbe, True, zahl, pfeil)
+        _inhalt(text, symbol, farbe, True, zahl, pfeil, overlay, ofarbe)
     if klick is not None:
         b.on("click", klick)
     return b
@@ -79,6 +82,11 @@ def auswahl(text: str, an: bool, klick):
     return b
 
 
+def trenner():
+    """1.07: dezenter Strich zwischen Auswahl-Stapeln derselben Gruppe."""
+    return ui.element("span").classes("m-bg-tr")
+
+
 def info(text_html: str):
     return ui.html(f'<span class="m-bg-info">{text_html}</span>', sanitize=False)
 
@@ -99,8 +107,8 @@ body.ob-seite-an .m-kz .m-kpi { display: block; white-space: normal; max-width: 
   margin: 6px 8px; }
 .m-bg-g, .m-bg-k { font: inherit; color: var(--ob-text, #1F2A2A); background: none; border: 1px solid transparent;
   cursor: pointer; border-radius: 4px; }
-.m-bg-g { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px; max-width: 140px; height: 76px;
-  padding: 4px 8px 3px; position: relative; box-sizing: border-box; }
+.m-bg-g { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px; max-width: 140px; height: 68px;
+  padding: 4px 8px 3px; position: relative; box-sizing: content-box; }       /* 1.07: 68 px Inhalt */
 .m-bg-k { display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 8px; white-space: nowrap; font-size: 13px; }
 .m-bg-g:hover, .m-bg-k:hover { background: var(--ob-hover, #E3ECEC); }
 .m-bg-g.an, .m-bg-k.an { background: var(--ob-an, #D3E8E8); border-color: var(--ob-rand, #D9DEDE); }
@@ -124,6 +132,17 @@ body.ob-seite-an .m-kz .m-kpi { display: block; white-space: normal; max-width: 
 .m-bg-wahl .m-bg-punkt { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--sym-basis, #334155);
   flex: none; box-sizing: border-box; }
 .m-bg-wahl.an .m-bg-punkt { border-width: 4px; border-color: var(--ob-akzent, #007F7F); }
+/* 1.07: Auswahl als flache Office-Felder statt Optionspunkte */
+.m-bg-k.m-bg-wahl { height: 22px; border-radius: 4px; padding: 0 9px; border: 0; font-size: 12.5px; color: var(--sym-basis, #334155); }
+.m-bg-wahl .m-bg-punkt { display: none; }
+.m-bg-k.m-bg-wahl.an { background: #e0f2fe; color: #0369a1; font-weight: 600; border: 0; }
+body:not(.hell) .m-bg-k.m-bg-wahl.an { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
+.m-bg-tr { align-self: stretch; width: 1px; background: #e2e8f0; margin: 4px 3px 2px; flex: none; }
+body:not(.hell) .m-bg-tr { background: rgba(255, 255, 255, .09); }
+.m-bg-ansicht .m-bg-g.an { background: #e0f2fe; border-color: #bae6fd; }
+.m-bg-ansicht .m-bg-g.an .m-bg-text { color: #0369a1; font-weight: 600; }
+body:not(.hell) .m-bg-ansicht .m-bg-g.an { background: rgba(56, 189, 248, .18); border-color: rgba(56, 189, 248, .35); }
+body:not(.hell) .m-bg-ansicht .m-bg-g.an .m-bg-text { color: #7dd3fc; }
 /* lose Bausteine (ohne eigene Gruppe) im Seiten-Band: gleiche Luft wie in Gruppen */
 body.ob-seite-an .m-kz > .m-leiste > .m-bg-g, body.ob-seite-an .m-kz .m-werkzeuge > .m-bg-g,
 body.ob-seite-an .m-kz > .m-leiste > .m-bg-st, body.ob-seite-an .m-kz .m-werkzeuge > .m-bg-st { margin: 0 3px; }

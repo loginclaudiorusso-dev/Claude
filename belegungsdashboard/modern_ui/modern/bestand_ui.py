@@ -55,8 +55,15 @@ def daten(a) -> dict:
 
 def zeichnen(a, d: dict) -> None:
     b: bk.Bericht | None = d.get("bericht")
+    from .ui_bausteine import im_band
+
     with a.leiste:
-        knopf("Maßnahmearten zuordnen …", lambda: zuordnung_panel(a), "primaer", "rule")
+        if im_band():                                     # 1.07: Pflege & Zuordnung, Wechsel – wie die anderen Ansichten
+            from . import seite_massnahmen as sm
+
+            sm.pflege_knoepfe(a, "Pflege & Zuordnung", arten=True)
+        else:
+            knopf("Maßnahmearten zuordnen …", lambda: zuordnung_panel(a), "primaer", "rule")
     with a.inhalt, ui.element("div").classes("m-rv m-bst"):
         if b is None:
             leer("Für den Prüfbericht den Maßnahmen-Pivot einmal neu einlesen (Daten & Import → Maßnahmen-Prognose) – "

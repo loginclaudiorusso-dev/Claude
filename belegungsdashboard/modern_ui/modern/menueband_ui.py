@@ -561,7 +561,7 @@ body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-punkte { flex: 1; display: flex; align-items: flex-start; gap: 4px; }
 .m-ob-gtitel { text-align: center; font-size: 11px; color: var(--ob-text2); padding: 2px 0 4px; white-space: nowrap; }
 .m-ob-gross { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
-  min-width: 58px; max-width: 86px; height: 76px; padding: 4px 6px 2px; box-sizing: border-box; border-radius: 4px; text-align: center;
+  min-width: 58px; max-width: 86px; height: 68px; padding: 4px 6px 2px; box-sizing: content-box; border-radius: 4px; text-align: center;
   border: 1px solid transparent !important; }
 .m-ob-gross .m-ob-sym { position: relative; display: inline-flex; }
 .m-ob-gross .m-ob-sym .q-icon { font-size: 28px; color: var(--ob-sym-basis); }

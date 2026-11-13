@@ -64,33 +64,29 @@ def zeichnen(a, d: dict) -> None:
     from .ui_bausteine import im_band
 
     with a.werkzeuge:
-        segmente({"planung": "Planung", "leitung": "Leitung"}, sicht, lambda v: a.setzen(mn_sicht=v, laden=False))
-        segmente({"bestand": "Teilnehmende", "zu": "nur Zugänge", "ab": "nur Abgänge"}, fluss,     # 1.06
-                 lambda v: a.setzen(mn_fluss=v, laden=False))
         band = im_band()
-        if band:
-            _art_band(a, md, art)
+        if band:                                           # 1.07: eine Gruppe „Filter & Fokus“
+            from . import band_ui
+
+            with band_ui.gruppe("Filter & Fokus", "m-bg-auto"):
+                _art_band(a, md, art)
+                segmente({"planung": "Planung", "leitung": "Leitung"}, sicht, lambda v: a.setzen(mn_sicht=v, laden=False))
+                band_ui.trenner()
+                segmente({"bestand": "Teilnehmende", "zu": "nur Zugänge", "ab": "nur Abgänge"}, fluss,
+                         lambda v: a.setzen(mn_fluss=v, laden=False))
         else:
+            segmente({"planung": "Planung", "leitung": "Leitung"}, sicht, lambda v: a.setzen(mn_sicht=v, laden=False))
+            segmente({"bestand": "Teilnehmende", "zu": "nur Zugänge", "ab": "nur Abgänge"}, fluss,     # 1.06
+                     lambda v: a.setzen(mn_fluss=v, laden=False))
             ui.select({"Alle": "Alle Maßnahmen", **{x: bp.kurzname(x) for x in md.arten}}, value=art,
                       on_change=lambda e: a.setzen(mn_art=e.value, laden=False)).props(
                 'dense outlined dark options-dense popup-content-class="m-popup"').style("width:230px")
     with a.leiste:
         if band:
-            from . import band_ui, symbole
             from . import seite_massnahmen as sm
 
-            with band_ui.gruppe("Bearbeiten"):
-                if sicht == "leitung":
-                    band_ui.gross("Szenarien", "options", symbole.VIOLETT, lambda: _szenarien_panel(a, d["szen"]),
-                                  tipp="Szenarien: wirtschaftlich schwach / normal / gut – mit Auslöser")
-                band_ui.gross("Maßnahmen aufräumen", "delete", symbole.ROT, lambda: sm.aufraeumen_panel(a),
-                              tipp="Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
-            with ui.element("div").classes("m-bg-rechts"):
-                with band_ui.gruppe("Andere Sicht"):
-                    band_ui.gross("Belegung des Internats", "building_home", symbole.BLAU,
-                                  lambda: a.oeffnen("auswertung", ansicht="prognose"),
-                                  tipp="Wechselt zur Belegungsprognose: Betten je Standort – die zweite Sicht auf "
-                                       "dieselbe Zukunft")
+            sm.pflege_knoepfe(a, "Pflege & Zuordnung", arten=True,
+                              szenarien=(lambda: _szenarien_panel(a, d["szen"])) if sicht == "leitung" else None)
         else:
             if sicht == "leitung":
                 knopf("Szenarien …", lambda: _szenarien_panel(a, d["szen"]), "", "tune")
@@ -109,17 +105,17 @@ def _art_band(a, md, art: str) -> None:
     """1.06: Maßnahme-Wahl im Menüband – großer Knopf mit Kurznamen, Menü mit allen Arten."""
     from . import band_ui, symbole
 
-    with band_ui.gruppe("Maßnahme"):
-        k = band_ui.gross("Alle" if art == "Alle" else bp.kurzname(art), "people_team", symbole.TEAL, pfeil=True,
-                          tipp="Welche Maßnahme gezeigt wird")
-        with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue"):
-            with ui.element("div").classes("m-mn-liste"):
-                for wert, text in [("Alle", "Alle Maßnahmen")] + [(x, bp.kurzname(x)) for x in md.arten]:
-                    z = ui.element("button").classes("m-mn-zeile m-mn-wahl" + (" an" if wert == art else ""))
-                    with z:
-                        ui.element("span").classes("m-bg-punkt")
-                        ui.label(text).classes("m-mn-name")
-                    z.on("click", lambda w=wert: a.setzen(mn_art=w, laden=False))
+    # 1.07: Teil der Gruppe „Filter & Fokus“
+    k = band_ui.gross("Alle" if art == "Alle" else bp.kurzname(art), "people_team", "", pfeil=True,
+                      overlay="filter", ofarbe=symbole.BLAU, tipp="Welche Maßnahme gezeigt wird")
+    with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue"):
+        with ui.element("div").classes("m-mn-liste"):
+            for wert, text in [("Alle", "Alle Maßnahmen")] + [(x, bp.kurzname(x)) for x in md.arten]:
+                z = ui.element("button").classes("m-mn-zeile m-mn-wahl" + (" an" if wert == art else ""))
+                with z:
+                    ui.element("span").classes("m-bg-punkt")
+                    ui.label(text).classes("m-mn-name")
+                z.on("click", lambda w=wert: a.setzen(mn_art=w, laden=False))
 
 
 def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:

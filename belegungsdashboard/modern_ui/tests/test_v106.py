@@ -60,3 +60,16 @@ def test_veraltete_massnahmen_entfernen():
     b = bk.Aufenthalt(2, "GS VW 2601", date(2026, 1, 5), date(2026, 6, 1), 150, 0, 0)
     roh["bestand"]["aufenthalte"] = [x.als_liste() for x in (a, b)]
     assert [x.kurs for x in bk.laden(roh)[0]] == ["GS VW 2601"]
+
+
+def test_v107_overlay_symbol_und_ansicht_knoepfe():
+    from modern import seite_massnahmen as sm
+    from modern import symbole
+
+    h = symbole.html("building", "", overlay="arrow_right", ofarbe=symbole.BLAU)
+    assert "m-sym-ov" in h and "#0284c7" in h
+    assert "m-sym-ov" not in symbole.html("building", "")
+    assert [k[0] for k in sm.ANSICHT_KNOEPFE] == ["neu", "prognose", "bestand"]
+    assert all(symbole.vorhanden(k[2]) and (not k[4] or symbole.vorhanden(k[4])) for k in sm.ANSICHT_KNOEPFE)
+    for n in ("seat", "tag", "broom", "task_list_square_ltr", "people_team", "filter", "arrow_trending"):
+        assert symbole.vorhanden(n), n

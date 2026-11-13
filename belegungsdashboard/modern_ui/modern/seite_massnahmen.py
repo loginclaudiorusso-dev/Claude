@@ -91,8 +91,24 @@ def daten(a) -> None:
                "takt": "monat" if getattr(a, "mn_takt", "welle") == "monat" else "welle", "gruende": {f: r.grund for f, r in reihen.items()}}
 
 
+ANSICHT_KNOEPFE = (("neu", "Neuanmeldungen", "person_add", "#10b981", "", ""),
+                   ("prognose", "Teilnehmer-Prognose", "hat_graduation", "", "arrow_trending", "#0284c7"),
+                   ("bestand", "Prüfbericht", "clipboard_checkmark", "#10b981", "", ""))
+
+
 def _umschalter(a) -> None:
+    from .ui_bausteine import im_band
+
     with a.werkzeuge:
+        if im_band():                                     # 1.07: feste Gruppe „Ansicht“ – die linke Kante springt nie
+            from . import band_ui
+
+            aktiv = getattr(a, "mn_ansicht", "neu")
+            with band_ui.gruppe("Ansicht", "m-bg-ansicht"):
+                for wert, text, sym, farbe, ov, of in ANSICHT_KNOEPFE:
+                    band_ui.gross(text, sym, farbe, lambda w=wert: a.setzen(mn_ansicht=w, nur_seite=True),
+                                  an=wert == aktiv, overlay=ov, ofarbe=of)
+            return
         segmente({"neu": "Neuanmeldungen", "prognose": "Teilnehmer-Prognose", "bestand": "Prüfbericht"},   # 0.86: Name nach der Frage
                  getattr(a, "mn_ansicht", "neu"),
                  lambda v: a.setzen(mn_ansicht=v, nur_seite=True))
@@ -113,52 +129,102 @@ def _auswahl_band(a, d: dict, haupt: list) -> None:
     liste = d["liste"]
     gewaehlt = set(d["auswahl"])
     zustand = {"wahl": set(gewaehlt)}
-    with band_ui.gruppe("Maßnahmen"):
-        k = band_ui.gross("Auswahl", "checkbox_checked", symbole.TEAL, pfeil=True,
-                          zahl=len(gewaehlt) if gewaehlt else None,
-                          tipp=f"Welche Maßnahmen gezeigt werden – {auswahl_text(d['auswahl'], len(liste))}")
-        with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue") as menue:
-            with ui.element("div").classes("m-mn-kopf").on("click.stop", lambda: None):
-                ui.label("Maßnahmen zeigen").classes("m-mn-titel")
-                ui.label(auswahl_text(d["auswahl"], len(liste))).classes("m-zweite")
-            suche = ui.input(placeholder="Suchen …").props("dense outlined clearable autofocus").classes("m-mn-suche")
-            suche.on("click.stop", lambda: None)
-            with ui.element("div").classes("m-mn-schnell"):
-                def alle_():
-                    zustand["wahl"] = set()
-                    menue.close()
+    # 1.07: Teil der Gruppe „Darstellung & Zeitraum“
+    k = band_ui.gross("Auswahl", "task_list_square_ltr", symbole.BLAU, pfeil=True,
+                      zahl=len(gewaehlt) if gewaehlt else None,
+                      tipp=f"Welche Maßnahmen gezeigt werden – {auswahl_text(d['auswahl'], len(liste))}")
+    with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue") as menue:
+        with ui.element("div").classes("m-mn-kopf").on("click.stop", lambda: None):
+            ui.label("Maßnahmen zeigen").classes("m-mn-titel")
+            ui.label(auswahl_text(d["auswahl"], len(liste))).classes("m-zweite")
+        suche = ui.input(placeholder="Suchen …").props("dense outlined clearable autofocus").classes("m-mn-suche")
+        suche.on("click.stop", lambda: None)
+        with ui.element("div").classes("m-mn-schnell"):
+            def alle_():
+                zustand["wahl"] = set()
+                menue.close()
 
-                def haupt_():
-                    zustand["wahl"] = set(haupt)
-                    menue.close()
-                knopf("Alle", alle_, "leise", "done_all")
-                if haupt:
-                    knopf("Nur Hauptmaßnahmen", haupt_, "leise", "checklist")
-            zeilen = ui.element("div").classes("m-mn-liste")
-            boxen: dict = {}
-            with zeilen:
-                for f, g, _t in liste:
-                    with ui.element("label").classes("m-mn-zeile") as z:
-                        cb = ui.checkbox(value=f in gewaehlt,
-                                         on_change=lambda e, f=f: (zustand["wahl"].add(f) if e.value
-                                                                   else zustand["wahl"].discard(f)))
-                        ui.label(f).classes("m-mn-name")
-                        ui.label(KURZ.get(g, g)).classes("m-mn-art " + g)
-                    boxen[f] = (z, cb)
+            def haupt_():
+                zustand["wahl"] = set(haupt)
+                menue.close()
+            knopf("Alle", alle_, "leise", "done_all")
+            if haupt:
+                knopf("Nur Hauptmaßnahmen", haupt_, "leise", "checklist")
+        zeilen = ui.element("div").classes("m-mn-liste")
+        boxen: dict = {}
+        with zeilen:
+            for f, g, _t in liste:
+                with ui.element("label").classes("m-mn-zeile") as z:
+                    cb = ui.checkbox(value=f in gewaehlt,
+                                     on_change=lambda e, f=f: (zustand["wahl"].add(f) if e.value
+                                                               else zustand["wahl"].discard(f)))
+                    ui.label(f).classes("m-mn-name")
+                    ui.label(KURZ.get(g, g)).classes("m-mn-art " + g)
+                boxen[f] = (z, cb)
 
-            def filtern(e) -> None:
-                q = str(e.value or "").lower().strip()
-                for f, (z, _cb) in boxen.items():
-                    z.set_visibility(not q or q in f.lower())
-            suche.on_value_change(filtern)
-            with ui.element("div").classes("m-mn-fuss"):
-                ui.label("Ohne Häkchen = alle").classes("m-zweite")
-                knopf("Übernehmen", menue.close, "primaer")
+        def filtern(e) -> None:
+            q = str(e.value or "").lower().strip()
+            for f, (z, _cb) in boxen.items():
+                z.set_visibility(not q or q in f.lower())
+        suche.on_value_change(filtern)
+        with ui.element("div").classes("m-mn-fuss"):
+            ui.label("Ohne Häkchen = alle").classes("m-zweite")
+            knopf("Übernehmen", menue.close, "primaer")
 
-        def zu() -> None:
-            if zustand["wahl"] != gewaehlt:
-                a.setzen(mn_auswahl=[f for f, _g, _t in liste if f in zustand["wahl"]], mn_darstellung=None, nur_seite=True)
-        menue.on("hide", zu)
+    def zu() -> None:
+        if zustand["wahl"] != gewaehlt:
+            a.setzen(mn_auswahl=[f for f, _g, _t in liste if f in zustand["wahl"]], mn_darstellung=None, nur_seite=True)
+    menue.on("hide", zu)
+
+
+def _filter_segmente(a, d: dict) -> list:
+    """Die Auswahl-Stapel der Neuanmeldungen (Takt, Darstellung, Skala, Zeitraum) – je als Funktion."""
+    erg = [lambda: segmente({"welle": "je Startwelle", "monat": "je Monat"}, d["takt"],       # 1.05
+                            lambda v: a.setzen(mn_takt=v, nur_seite=True), sofort=True),
+           lambda: segmente({"ein": "Ein Diagramm", "je": "Je Maßnahme"}, d["darstellung"],
+                            lambda v: a.setzen(mn_darstellung=v, nur_seite=True), sofort=True)]
+    if d["darstellung"] == "je":
+        erg.append(lambda: segmente({"gleich": "gleiche Skala", "eigen": "eigene Skala"}, d["skala"],
+                                    lambda v: a.setzen(mn_skala=v, nur_seite=True), sofort=True))
+    erg.append(lambda: segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"],
+                                lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True))
+    return erg
+
+
+def pflege_knoepfe(a, gruppe: str, *, plaetze: bool = False, arten: bool = False, szenarien=None) -> None:
+    """1.07: Gruppe Pflege (Geplante Plätze / Szenarien / Arten zuordnen / Aufräumen) und gleich dahinter „Wechsel“."""
+    from . import band_ui, symbole
+
+    with band_ui.gruppe(gruppe):
+        if plaetze:
+            band_ui.gross("Geplante Plätze", "seat", symbole.GRUEN, lambda: _plaetze_panel(a),
+                          tipp="Eigene geplante Plätze je Maßnahme und Startmonat")
+        if szenarien is not None:
+            band_ui.gross("Szenarien", "options", symbole.VIOLETT, szenarien,
+                          tipp="Szenarien: wirtschaftlich schwach / normal / gut – mit Auslöser")
+        if arten:
+            from . import bestand_ui
+
+            band_ui.gross("Arten zuordnen", "tag", symbole.AMBER, lambda: bestand_ui.zuordnung_panel(a),
+                          tipp="Kursfamilien den Maßnahmearten zuordnen (Assessment, Vorbereitung, KBM …)")
+        band_ui.gross("Aufräumen", "broom", "#f97316", lambda: aufraeumen_panel(a),
+                      tipp="Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
+    with band_ui.gruppe("Wechsel"):
+        band_ui.gross("Internats-Belegung", "building", "", lambda: a.oeffnen("auswertung", ansicht="prognose"),
+                      overlay="arrow_right", ofarbe=symbole.BLAU,
+                      tipp="Wechselt zur Belegungsprognose des Internats: Betten je Standort")
+
+
+def _band_neuanmeldungen(a, d: dict, haupt: list) -> None:
+    from . import band_ui
+
+    with band_ui.gruppe("Darstellung & Zeitraum", "m-bg-auto"):
+        _auswahl_band(a, d, haupt)
+        for i, fn in enumerate(_filter_segmente(a, d)):
+            if i:
+                band_ui.trenner()
+            fn()
+    pflege_knoepfe(a, "Kontingente & Pflege", plaetze=True)
 
 
 def aufraeumen_panel(a) -> None:
@@ -223,8 +289,8 @@ def zeichnen(a) -> None:
         optionen = {f: f"{f} · {KURZ.get(g, g)}" for f, g, _t in d["liste"]}
         haupt = [f for f, g, _t in d["liste"] if g == "lang"]
         band = im_band()
-        if band:                                          # 1.04: im Menüband ein Knopf mit Menü statt vieler Chips
-            _auswahl_band(a, d, haupt)
+        if band:                                          # 1.07: Gruppen wie im Vorschlag
+            _band_neuanmeldungen(a, d, haupt)
         else:
             ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",
                       on_change=lambda e: a.setzen(mn_auswahl=list(e.value or []), mn_darstellung=None,
@@ -234,20 +300,12 @@ def zeichnen(a) -> None:
         if not band and haupt and d["auswahl"] != haupt:
             knopf("Nur Hauptmaßnahmen", lambda: a.setzen(mn_auswahl=haupt, mn_darstellung=None, nur_seite=True), "leise",
                   "checklist")
-        segmente({"welle": "je Startwelle", "monat": "je Monat"}, d["takt"],      # 1.05
-                 lambda v: a.setzen(mn_takt=v, nur_seite=True), sofort=True)
-        segmente({"ein": "Ein Diagramm", "je": "Je Maßnahme"}, d["darstellung"],
-                 lambda v: a.setzen(mn_darstellung=v, nur_seite=True), sofort=True)
-        if d["darstellung"] == "je":
-            segmente({"gleich": "gleiche Skala", "eigen": "eigene Skala"}, d["skala"],
-                     lambda v: a.setzen(mn_skala=v, nur_seite=True), sofort=True)
-        segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"], lambda v: a.setzen(mn_vor=v, nur_seite=True),
-                 sofort=True)
-        b_ = knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat")
         if not band:
-            b_.style("margin-left:auto")
-        knopf("Maßnahmen aufräumen …", lambda: aufraeumen_panel(a), "leise", "delete",
-              "Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
+            for fn in _filter_segmente(a, d):
+                fn()
+            knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
+            knopf("Maßnahmen aufräumen …", lambda: aufraeumen_panel(a), "leise", "delete",
+                  "Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
         if d["darstellung"] == "je":
             from . import diagramm_karte
 

@@ -28,7 +28,7 @@ def im_band() -> bool:
             if el is None:
                 return False
             k = getattr(el, "_classes", []) or []
-            if "m-bg" in k or "q-menu" in k or el.tag in ("q-menu", "q-dialog"):
+            if ("m-bg" in k and "m-bg-auto" not in k) or "q-menu" in k or el.tag in ("q-menu", "q-dialog"):
                 return False
             if "m-werkzeuge" in k or "m-leiste" in k:
                 return True
