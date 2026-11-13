@@ -1269,29 +1269,52 @@ def _buendeln(teile: list) -> list[tuple]:
     return [(v, b, ", ".join(k)) for v, b, k in erg]
 
 
+def gantt_text(von: date, bis: date, kurz: str, art: str) -> str:
+    """1.12: Beschriftung eines Balkens – Zeitraum und bei Einzelzimmern die Zahl der Zimmer, z. B. „10.06.–24.06. · 3 Zi.“."""
+    zeit = f"{von:%d.%m.}–{bis:%d.%m.}"
+    if art == "etage":
+        return zeit
+    n = kurz.count(",") + 1 if kurz else 0
+    return f"{zeit} · {n} Zi." if n else zeit
+
+
+def gantt_kosten(bau: float, moebel: float, summe: float, kompakt: bool = False) -> str:
+    """1.12: Kostenzeile ohne „Bau 0 T€“ – nur die Teile, die etwas kosten."""
+    if kompakt:
+        return rk.tsd(summe)
+    teile = [f"{t} {rk.tsd(x)}" for t, x in (("Bau", bau), ("Möbel", moebel)) if round(x / 1000)]
+    if len(teile) == 2:
+        return " · ".join(teile) + f" = {rk.tsd(summe)}"
+    return teile[0] if teile else f"Kosten {rk.tsd(summe)}"
+
+
 def _gantt(a, zeilen: list, jahr: int, kompakt: bool = False) -> None:
-    """Zeilen = Maßnahmen. Schraffiert = Belegungsstopp, Balken = Bauzeit, gestrichelt = Vorschlag;
-    ⚑ = Ausweich fehlt, ▲ = Warnschwelle, grau = nicht prüfbar (hinter den Buchungen)."""
+    """Zeilen = Maßnahmen, zeitlich sortiert. Schraffiert = Belegungsstopp, Balken = Bauzeit, gestrichelt = Vorschlag;
+    ⚑ = Ausweich fehlt, ▲ = Warnschwelle, grau = nicht prüfbar (hinter den Buchungen).
+    1.12: Jeder Balken trägt Zeitraum und Zimmerzahl (im Balken, wenn er breit genug ist, sonst daneben);
+    Titel und Kosten werden nicht mehr abgeschnitten."""
     j0, j1 = date(jahr, 1, 1), date(jahr, 12, 31)
     tage = (j1 - j0).days + 1
     pos = lambda d_: max(0.0, min(100.0, 100 * ((d_ - j0).days) / tage))
+    zeilen = sorted(zeilen, key=lambda z: (z.start, z.text))
     with ui.element("div").classes("m-gantt" + (" kompakt" if kompakt else "")):
         with ui.element("div").classes("m-gantt-zeile m-gantt-kopf"):
             ui.label("Maßnahme")
             with ui.element("div").classes("m-gantt-spur"):
                 for m in range(12):
-                    ui.label(rk.MONATE[m]).classes("m-gantt-monat").style(f"left:{100 * m / 12:.2f}%")
+                    ui.label(rk.MONATE[m]).classes("m-gantt-monat" + (" q" if m % 3 == 0 else "")).style(
+                        f"left:{100 * m / 12:.2f}%")
         if not zeilen:
             ui.label("Noch nichts geplant und kein Vorschlag – Baubudget oder Ziel setzen.").classes("m-zweite")
         for z in zeilen:
             k = z.kosten
-            with ui.element("div").classes("m-gantt-zeile"):
+            with ui.element("div").classes("m-gantt-zeile" + (" vorschlag" if z.status != "vorgemerkt" else "")):
                 t = ui.element("div").classes("m-gantt-titel")
                 with t:
-                    ui.label(z.text if z.art == "etage" else f"{z.text} · {z.zimmer} Zi.").classes("m-name")
-                    ui.label(("" if z.art == "etage" else rk.ARTEN[z.art] + " · ")
-                             + (f"Bau {rk.tsd(k.instandhaltung)} · Möbel {rk.tsd(k.investition)}" if not kompakt
-                                else rk.tsd(k.summe))).classes("m-zweite")
+                    ui.label(z.text).classes("m-name")
+                    ui.label((f"{z.zimmer} Zimmer · {z.betten} Betten" if z.art == "etage"
+                              else f"{z.zimmer} Zimmer · {rk.ARTEN[z.art]}")).classes("m-zweite")
+                    ui.label(gantt_kosten(k.instandhaltung, k.investition, k.summe, kompakt)).classes("m-zweite m-gantt-kosten")
                 attr(t, title="\n".join(f"{x}: {rk.euro(b)}" for x, b in k.herleitung if b) + f"\n= {rk.euro(k.summe)}")
                 with ui.element("div").classes("m-gantt-spur"):
                     if a.heute.year == jahr:
@@ -1303,10 +1326,12 @@ def _gantt(a, zeilen: list, jahr: int, kompakt: bool = False) -> None:
                             title=f"Belegungsstopp ab {z.stopp_ab:%d.%m.%Y}")
                     zeichen = ("⚑" if z.ohne_ausweich else "") + ("▲" if z.engpass else "")
                     for von, bis, kurz in teile:
+                        links, breite = pos(von), max(1.2, pos(bis) - pos(von))
+                        text = gantt_text(von, bis, kurz, z.art) + (f" {zeichen}" if zeichen else "")
+                        innen = breite >= (9 if not kompakt else 12)
                         b = ui.element("button").classes(
                             f"m-gantt-bau {z.status}" + (" aus" if z.ohne_ausweich else "") + (" warn" if z.engpass else "")
-                            + ("" if z.pruefbar else " offen") + ("" if z.art == "etage" else " klein")).style(
-                            f"left:{pos(von):.2f}%; width:{max(.8, pos(bis) - pos(von)):.2f}%")
+                            + ("" if z.pruefbar else " offen")).style(f"left:{links:.2f}%; width:{breite:.2f}%")
                         attr(b, title=f"{kurz or z.text}: {von:%d.%m.} – {bis:%d.%m.%Y} · "
                                       f"{'vorgemerkt' if z.status == 'vorgemerkt' else 'Vorschlag'}"
                                       + (" · ⚑ Ausweich fehlt" if z.ohne_ausweich else "")
@@ -1314,16 +1339,22 @@ def _gantt(a, zeilen: list, jahr: int, kompakt: bool = False) -> None:
                                       + ("" if z.pruefbar else " · nicht prüfbar (hinter den Buchungen)")
                                       + (" · Monat gleichwertig" if z.gleichwertig else ""))
                         with b:
-                            ui.label((f"{von:%d.%m.}" if z.art == "etage" else str(kurz.count(",") + 1) if kurz else "")
-                                     + (f" {zeichen}" if zeichen else ""))
+                            if innen:
+                                ui.label(text)
                         b.on("click", lambda z=z: _zeile_panel(a, z))
+                        if not innen:                       # Beschriftung neben dem Balken – rechts, am Jahresende links
+                            rechts = links + breite <= 78
+                            ui.label(text).classes("m-gantt-text" + (" eng" if zeichen else "")).style(
+                                f"left:calc({links + breite:.2f}% + 6px)" if rechts else f"right:calc({100 - links:.2f}% + 6px)")
     with ui.element("div").classes("m-gantt-legende"):
-        ui.label("▬ vorgemerkt")
-        ui.label("┅ Vorschlag").classes("vorschlag")
-        ui.label("░ Belegungsstopp").classes("vorlauf")
+        for kl, txt in (("fest", "vorgemerkt (fest)"), ("vorschlag", "Vorschlag"), ("vorlauf", "Belegungsstopp vor dem Bau"),
+                        ("offen", "nicht prüfbar (hinter den Buchungen)")):
+            with ui.element("span").classes("m-gantt-lg"):
+                ui.element("i").classes(kl)
+                ui.label(txt)
         ui.label("⚑ Ausweich fehlt").classes("eng")
         ui.label("▲ Warnschwelle").classes("eng")
-        ui.label("grau: nicht prüfbar (hinter den Buchungen)")
+        ui.label("Klick auf einen Balken zeigt Zimmer und Termine").classes("hinweis")
 
 
 def _zeile_panel(a, z: rk.PlanZeile) -> None:

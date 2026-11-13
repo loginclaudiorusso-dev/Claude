@@ -8,7 +8,7 @@ def test_bereinigen_und_zoom():
     d = dk.bereinigen({"farbe": "lila?", "farbe_eigen": "zzz", "zoom": 900, "schrift": "comic", "dg_typ": "torte",
                        "dg_gitter": False})
     assert d["farbe"] == "petrol" and d["farbe_eigen"] == "#007F7F" and d["zoom"] == dk.ZOOM_MAX
-    assert d["schrift"] == "standard" and d["dg_typ"] == "linie" and d["dg_gitter"] is False
+    assert d["schrift"] == "standard" and d["dg_typ"] == "auto" and d["dg_gitter"] is False   # 1.12: Standard „Automatisch“
     assert dk.bereinigen({"farbe": "eigen", "farbe_eigen": "ffb900"})["farbe_eigen"] == "#FFB900"
     assert dk.zoom_schritt(100, 1) == 110 and dk.zoom_schritt(100, -1) == 90
     assert dk.zoom_schritt(200, 1) == 200 and dk.zoom_schritt(50, -1) == 50

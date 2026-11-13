@@ -213,7 +213,7 @@ def pflege_knoepfe(a, gruppe: str, *, plaetze: bool = False, arten: bool = False
         band_ui.gross("Aufräumen", "broom", "#f97316", lambda: aufraeumen_panel(a),
                       tipp="Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
     with band_ui.gruppe("Wechsel"):
-        band_ui.gross("Internats-Belegung", "building", "", lambda: a.oeffnen("auswertung", ansicht="prognose"),
+        band_ui.gross("Belegungs\u00adprognose", "building", "", lambda: a.oeffnen("auswertung", ansicht="prognose"),
                       overlay="arrow_right", ofarbe=symbole.BLAU,
                       tipp="Wechselt zur Belegungsprognose des Internats: Betten je Standort")
 

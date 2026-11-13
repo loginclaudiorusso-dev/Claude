@@ -48,14 +48,15 @@ SCHRIFTEN = {   # nur Schriften, die unter Windows vorhanden sind (Webfonts sind
 }
 ZOOM_STUFEN = [50, 75, 90, 100, 110, 125, 150, 175, 200]
 ZOOM_MIN, ZOOM_MAX = 50, 200
-DG_TYPEN = {"linie": ("Linie", "show_chart"), "flaeche": ("Fläche", "area_chart"), "saeule": ("Säulen", "bar_chart")}
+# 1.12: „Automatisch“ = jedes Diagramm in seiner eigenen Form; Linie/Fläche/Säulen stellen ALLE Diagramme um
+DG_TYPEN = {"auto": ("Automatisch", "auto_awesome"), "linie": ("Linie", "show_chart"), "flaeche": ("Fläche", "area_chart"), "saeule": ("Säulen", "bar_chart")}
 DG_LEGENDE = {"oben": "oben", "unten": "unten", "aus": "aus"}
 # 0.96: Anteils-Diagramme wie in Excel („Kreis oder Ring“, „100 % gestapelt“) – für „wer macht wie viel aus, und wann“
 DG_ANTEILE = {"ring": ("Ring", "donut_large"), "kreis": ("Kreis", "pie_chart"),
               "saeule100": ("100 %-Säulen", "stacked_bar_chart"), "flaeche100": ("100 %-Fläche", "area_chart")}
 
 STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig", "zoom": 100, "schrift": "standard",
-            "band_gross": False, "dg_typ": "linie", "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
+            "band_gross": False, "dg_typ": "auto", "dg_typ_v": 2, "dg_glatt": False, "dg_punkte": False, "dg_werte": False,
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
@@ -123,7 +124,9 @@ def bereinigen(d: dict) -> dict:
     e["schrift"] = d.get("schrift") if d.get("schrift") in SCHRIFTEN else "standard"
     e["helligkeit"] = d.get("helligkeit") if d.get("helligkeit") in HELLIGKEIT else "hell"
     e["faerbung"] = d.get("faerbung") if d.get("faerbung") in FAERBUNG else "akzent"
-    e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "linie"
+    e["dg_typ"] = d.get("dg_typ") if d.get("dg_typ") in DG_TYPEN else "auto"
+    if e["dg_typ"] == "linie" and d.get("dg_typ_v", 1) < 2:      # 1.12: bis 1.11 war „Linie“ der Standard = Automatisch
+        e["dg_typ"] = "auto"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
     e["nav"] = d.get("nav") if d.get("nav") in NAVIGATION else "band"

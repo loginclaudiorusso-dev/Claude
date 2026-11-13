@@ -87,10 +87,11 @@ AKTION_SYMBOLE: dict[str, tuple] = {   # Aktionsname (Präfix) → (Fluent-Symbo
     "aw:aw_brutto=true": ("people", BLAU),
     "dg_modus:karte": ("content_view", BLAU), "dg_modus:klassisch": ("chart_multiple", BLAU),
     "dg_modus:einfach": ("lightbulb", AMBER),
-    "dg_typ:linie": ("data_line", BLAU), "dg_typ:flaeche": ("data_area", BLAU), "dg_typ:saeule": ("data_bar_vertical", BLAU),
+    "dg_typ:auto": ("sparkle", BLAU), "dg_typ:linie": ("data_line", BLAU), "dg_typ:flaeche": ("data_area", BLAU), "dg_typ:saeule": ("data_bar_vertical", BLAU),
 }
 TEXT_SYMBOLE: dict[str, tuple] = {   # Schaltflächen ohne eigenes Ziel (Ausklappmenüs) → nach Text
     "Standort": ("location", ROT), "Zeitraum": ("calendar_date", BLAU), "Anteile": ("data_pie", AMBER),
+    "Diagrammtyp": ("data_line", BLAU),
     "Elemente": ("layer", VIOLETT), "Legende": ("tag", VIOLETT), "Steuerung": ("target_arrow", BASIS),
     "Inventar": ("box", BLAU),
 }
@@ -265,9 +266,11 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                       Punkt("Standorte einzeln", "stacked_line_chart", A("awt:aw_parallel"), False,
                             "Bei „Gesamt“: die drei Standorte nebeneinander")], nur=PROGNOSE),
             Gruppe("Darstellung", [Punkt(t, i, A(f"dg_modus:{k}"), tipp=b_) for k, t, i, b_ in _dg_modi()]),
-            Gruppe("Typ", [Punkt(t, i, A(f"dg_typ:{k}"), tipp=f"Verläufe als {t} (Darstellung „Klassisch“)")
-                           for k, (t, i) in _dg_typen()]
-                   + [Punkt("Anteile", "donut_large", None, True,
+            Gruppe("Typ", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
+                                 "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
+                                 "Säulen stellen alle Verläufe um",
+                                 [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()]),
+                           Punkt("Anteile", "donut_large", None, True,
                             "Anteils-Diagramme (Belegung, Maßnahmen): Ring, Kreis, 100 %-Säulen oder 100 %-Fläche",
                             [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()])]),
             Gruppe("Elemente", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",

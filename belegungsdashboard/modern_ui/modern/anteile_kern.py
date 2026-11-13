@@ -134,13 +134,13 @@ def option(a: Anteile, art: str, t: dict, farben: dict[str, str] | list[str], ti
             daten = [{"value": v, "itemStyle": {"color": f, "borderColor": t.get("bg", "#fff"), "borderWidth": 1.5,
                                                 "borderType": "dashed"} if a.prognose[j] else {"color": f}}
                      for j, v in enumerate(pz)]
-            reihen.append({"name": k, "type": "bar", "stack": "100", "data": daten, "barMaxWidth": 46,
+            reihen.append({"name": k, "type": "bar", "stack": "100", "m_fest": True, "data": daten, "barMaxWidth": 46,
                            "itemStyle": {"color": f}, "color": f,
                            "label": {"show": len(a.achse) <= 16, "position": "inside", "color": "#fff", "fontSize": 12,
                                      "textBorderWidth": 0,
                                      ":formatter": "(p) => (p.value == null || p.value < 8) ? '' : Math.round(p.value) + ' %'"}})
         else:
-            reihen.append({"name": k, "type": "line", "stack": "100", "data": pz, "symbol": "none", "smooth": False,
+            reihen.append({"name": k, "type": "line", "stack": "100", "m_fest": True, "data": pz, "symbol": "none", "smooth": False,
                            "color": f, "lineStyle": {"color": f, "width": 1}, "areaStyle": {"color": f, "opacity": .75}})
     if any(a.prognose) and not all(a.prognose) and reihen:
         ab = next(i for i, p in enumerate(a.prognose) if p)

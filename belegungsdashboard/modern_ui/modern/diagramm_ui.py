@@ -30,6 +30,15 @@ if not getattr(EChart, "_m_ohne_rand", False):
         return themes.farben(themes.AKTIV)
 
     def _init_neu(self, options, *args, **kwargs):
+        try:                                                 # 1.12: Diagrammentwurf (Typ, Elemente) gilt für JEDES Diagramm
+            from . import themes
+
+            o = _ds.anwenden(options, themes.AKTIV)
+            if o is not options and isinstance(options, dict):
+                options.clear()
+                options.update(o)
+        except Exception:                                    # nie wegen der Kosmetik ein Diagramm verlieren
+            pass
         try:                                                 # 0.97: Kontrast – Schrift hell im Dunkeln, Linien klar
             _ds.lesbar(options, _t())
         except Exception:                                    # nie wegen der Kosmetik ein Diagramm verlieren

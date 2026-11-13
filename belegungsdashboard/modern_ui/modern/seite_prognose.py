@@ -1239,9 +1239,10 @@ def zeichnen(a) -> None:
                 for k_, (sym, farbe) in BEREICH_SYMBOL.items():
                     bu.gross(BEREICHE.get(k_, k_), sym, farbe, lambda k_=k_: a.setzen(aw_bereich=k_, laden=False),
                              an=a.aw_bereich == k_)
-            with bu.gruppe("Teilnehmer"):
+            with bu.gruppe("Wechsel"):
                 bu.gross("Teilnehmer je Maßnahme", "people_team", "blau",
-                         lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose"),
+                         lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose",
+                                           von=("Belegungs\u00adprognose", "auswertung", "prognose")),
                          tipp="Teilnehmer-Prognose je Maßnahmeart (Bestandsmodell) – die zweite Sicht")
             with bu.gruppe("Ausgabe"):
                 _export_menue(a, pg, zustand, box, ex)
@@ -1251,7 +1252,8 @@ def zeichnen(a) -> None:
         with a.leiste:
             with ui.element("div").classes("m-xbereich"):
                 segmente(BEREICHE, a.aw_bereich, lambda v: a.setzen(aw_bereich=v, laden=False))
-            knopf("Teilnehmer je Maßnahme", lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose"),
+            knopf("Teilnehmer je Maßnahme", lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose",
+                                           von=("Belegungs\u00adprognose", "auswertung", "prognose")),
                   "leise", "groups", "Teilnehmer-Prognose je Maßnahmeart (Bestandsmodell) – die zweite Sicht")
             knopf("Präsentation", lambda: _modus(a, "praes"), "primaer", "slideshow",
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")

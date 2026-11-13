@@ -80,6 +80,7 @@ class Ansicht:
     def __init__(self) -> None:
         self.heute = date.today()
         self.seite = "heute"
+        self.zurueck = None                     # 1.12: Rückweg nach einem Sprung zwischen Seiten
         self.ansicht: dict[str, str] = {}      # Unteransicht je Seite (z. B. Zimmer → Zeitstrahl)
         self.stand = None
         self.anreisen: list[kern.Anreise] = []
@@ -288,6 +289,8 @@ class Ansicht:
     async def oeffnen(self, seite: str, ansicht: str | None = None, **zustand) -> None:
         """Zu einer Seite springen (Seitenleiste, Suche, Karten) – optional mit Unteransicht und Zustand."""
         karte = zustand.pop("karte", None)
+        von = zustand.pop("von", None)          # 1.12: (Titel, Seite, Ansicht) – woher man gesprungen ist → „Zurück“
+        self.zurueck = (*von, seite, ansicht or self.ansicht_von(seite, "")) if von else None
         for k, v in zustand.items():
             setattr(self, k, v)
         if ansicht:
@@ -300,6 +303,28 @@ class Ansicht:
             from . import seite_zimmer
 
             await seite_zimmer.karte_oeffnen(self, karte)
+
+    def _zurueck_knopf(self) -> None:
+        """1.12: Nach einem Sprung (z. B. Belegungsprognose → Teilnehmer je Maßnahme) steht vorne „Zurück“ – solange
+        man auf der angesprungenen Seite bleibt."""
+        z = getattr(self, "zurueck", None)
+        if not z:
+            return
+        titel, seite, ansicht, ziel_seite, ziel_ansicht = z
+        if self.seite != ziel_seite or self.ansicht_von(ziel_seite, "") != ziel_ansicht:
+            self.zurueck = None
+            return
+        from . import ui_bausteine as _ub
+
+        zurueck = lambda: self.oeffnen(seite, ansicht)          # noqa: E731
+        if _ub.BAND.get("an"):
+            from . import band_ui, symbole
+
+            with self.werkzeuge, band_ui.gruppe("Zurück"):
+                band_ui.gross(titel, "arrow_left", symbole.BLAU, zurueck, tipp=f"Zurück zu: {titel}")
+        else:
+            with self.leiste:
+                knopf(f"Zurück: {titel}", zurueck, "leise", "arrow_back")
 
     def ansicht_von(self, seite: str, standard: str) -> str:
         return self.ansicht.get(seite, standard)
@@ -975,6 +1000,7 @@ class Ansicht:
         from . import ui_bausteine as _ub
 
         _ub.BAND["an"] = _mbu_z.werkzeuge_oben(self) if self.design.get("layout") == "office" else False   # 1.01
+        self._zurueck_knopf()
         self.status_info = ""                   # 0.74: Zahlen der Ansicht für die Statusleiste (wie in Excel)
         titel = register.TITEL[self.seite]
         from . import menueband_ui

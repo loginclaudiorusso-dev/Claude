@@ -1208,6 +1208,34 @@ CSS += """
 .m-rv-varianten { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 6px; }
 .m-rv-var { min-height: 120px; align-content: start; }
 .m-gantt-bau.klein { padding: 0; top: 6px; bottom: 6px; border-radius: 3px; }
+/* 1.12: Gantt lesbar – höhere Zeilen, Titel/Kosten ungekürzt, Beschriftung an jedem Balken, Legende mit Mustern */
+.m-gantt { gap: 6px; }
+.m-gantt-zeile { grid-template-columns: minmax(200px, 270px) 1fr; min-height: 58px; padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rand) 60%, transparent); }
+.m-gantt-kopf { min-height: 22px; border-bottom: none; }
+.m-gantt.kompakt .m-gantt-zeile { grid-template-columns: minmax(160px, 220px) 1fr; min-height: 44px; }
+.m-gantt-titel .m-name { font-size: 14px; font-weight: 600; white-space: normal; }
+.m-gantt-titel .m-zweite { white-space: normal; font-size: 12.5px; }
+.m-gantt-titel .m-gantt-kosten { color: var(--text3); }
+.m-gantt-spur { height: 34px; }
+.m-gantt-kopf .m-gantt-spur { height: 20px; }
+.m-gantt-monat { font-size: 12.5px; font-weight: 500; color: var(--text2); }
+.m-gantt-monat.q { border-left: 1px solid var(--rand); }
+.m-gantt-bau { top: 4px; bottom: 4px; font-size: 12.5px; font-weight: 600; padding: 0 8px; display: flex; align-items: center; }
+.m-gantt-bau.vorschlag { border-width: 2px; }
+.m-gantt-text { position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 500; color: var(--text);
+  white-space: nowrap; pointer-events: none; padding: 1px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--fl) 85%, transparent); }
+.m-gantt-text.eng { color: var(--orange); }
+.m-gantt-legende { font-size: 12.5px; color: var(--text2); align-items: center; }
+.m-gantt-lg { display: inline-flex; align-items: center; gap: 6px; }
+.m-gantt-lg i { display: inline-block; width: 22px; height: 12px; border-radius: 3px; }
+.m-gantt-lg i.fest { background: var(--akzent); }
+.m-gantt-lg i.vorschlag { background: color-mix(in srgb, var(--akzent) 14%, transparent); border: 1.5px dashed var(--akzent); }
+.m-gantt-lg i.vorlauf { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--akzent) 35%, transparent) 0 3px, transparent 3px 6px); }
+.m-gantt-lg i.offen { border: 1px solid var(--text3);
+  background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--text3) 45%, transparent) 3px 5px); }
+.m-gantt-legende .hinweis { color: var(--text3); margin-left: auto; }
 """
 CSS += """
 /* 0.43: Engpässe klickbar */

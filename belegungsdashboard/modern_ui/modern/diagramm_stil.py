@@ -36,19 +36,60 @@ def _bezug(se: dict) -> bool:
 
 
 def datenreihe(se: dict) -> bool:
-    return se.get("type") == "line" and not _band(se) and not _bezug(se) and bool(se.get("name", "") or se.get("data"))
+    return (se.get("type") == "line" and not se.get("m_fest") and not _band(se) and not _bezug(se)
+            and bool(se.get("name", "") or se.get("data")))
+
+
+def saeulenreihe(se: dict) -> bool:
+    """1.12: Säulen mit Werten (Ist, erwartet …) – Anteile (100 %) und Hilfsreihen („_…“) bleiben, wie sie sind."""
+    return (se.get("type") == "bar" and not se.get("m_fest") and not str(se.get("name", "")).startswith("_")
+            and str(se.get("stack") or "") != "100" and bool(se.get("data")))
+
+
+def _saeule_zu_linie(se: dict, flaeche: bool) -> None:
+    """1.12: Säulenreihe → Linie (Farbe bleibt; hellere Säulen = Prognose → gestrichelt)."""
+    stil = dict(se.get("itemStyle") or {})
+    farbe = stil.get("color") or se.get("color")
+    prognose = (stil.get("opacity") or 1) < .9
+    se["type"] = "line"
+    for k in ("barMaxWidth", "barWidth", "barGap", "barCategoryGap"):
+        se.pop(k, None)
+    stil.pop("borderRadius", None)
+    stil.pop("opacity", None)
+    se["itemStyle"] = stil
+    se["lineStyle"] = {**({"color": farbe} if farbe else {}), "width": 3, **({"type": "dashed"} if prognose else {})}
+    se.setdefault("symbol", "circle")
+    se.setdefault("symbolSize", 6)
+    se["connectNulls"] = False
+    if flaeche:
+        se["areaStyle"] = {"opacity": 0.08 if prognose else 0.14}
 
 
 def anwenden(opt: dict, d: dict) -> dict:
     """Gibt eine angepasste Kopie zurück. ``d``: Darstellung (dg_typ, dg_glatt, dg_punkte, dg_werte, dg_gitter,
     dg_legende, dg_anim)."""
-    typ = d.get("dg_typ", "linie")
-    if (typ == "linie" and not d.get("dg_glatt") and not d.get("dg_punkte") and not d.get("dg_werte")
+    typ = d.get("dg_typ", "auto")
+    if (typ in ("auto", "linie") and not any(saeulenreihe(se) for se in opt.get("series") or [] if typ == "linie")
+            and not d.get("dg_glatt") and not d.get("dg_punkte") and not d.get("dg_werte")
             and d.get("dg_gitter", True) and d.get("dg_legende", "oben") == "oben" and d.get("dg_anim", True)):
         return opt
     o = copy.deepcopy(opt)
     reihen = o.get("series") or []
     saeule = False
+    if typ in ("linie", "flaeche"):                     # 1.12: auch Säulen-Diagramme folgen „Linie“/„Fläche“
+        umzustellen = [se for se in reihen if saeulenreihe(se)]
+        for st in {se.get("stack") for se in umzustellen if se.get("stack")}:
+            gruppe = [se for se in umzustellen if se.get("stack") == st]
+            belegt = [{i for i, w in enumerate(_werte(se)) if w is not None} for se in gruppe]
+            if all(not (x & y) for i, x in enumerate(belegt) for y in belegt[i + 1:]):
+                for se in gruppe:                       # Ist | erwartet nebeneinander gestapelt → zwei Linien
+                    se.pop("stack", None)
+        for se in umzustellen:
+            _saeule_zu_linie(se, typ == "flaeche")
+        if umzustellen:
+            for achse in _liste(o.get("xAxis")):
+                if achse.get("type") == "category":
+                    achse["boundaryGap"] = False
     for se in reihen:
         if se.get("type") == "line" and d.get("dg_glatt"):
             se["smooth"] = True
@@ -98,7 +139,9 @@ def anwenden(opt: dict, d: dict) -> dict:
             else:
                 lg.pop("top", None)
                 lg["bottom"] = 0
-        if leg == "unten":
+        if leg == "unten" and not any(lg.get("m_unten") for lg in _liste(o.get("legend"))):
+            for lg in _liste(o.get("legend")):
+                lg["m_unten"] = True                    # 1.12: nur einmal Platz schaffen (wird ggf. zweimal angewandt)
             for g in _liste(o.get("grid")):
                 if isinstance(g.get("bottom"), (int, float)):
                     g["bottom"] = g["bottom"] + 24
