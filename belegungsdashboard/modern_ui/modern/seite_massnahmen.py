@@ -83,7 +83,7 @@ def daten(a) -> None:
     arten = auswahl or [f for f, _g, _t in wahl_liste]
     darstellung = getattr(a, "mn_darstellung", None) or ("ein" if len(arten) <= EIN_DIAGRAMM_BIS else "je")
     a.daten = {"stand": mk.stand(), "vor": vor, "liste": wahl_liste, "auswahl": auswahl, "arten": arten,
-               "darstellung": darstellung, "skala": getattr(a, "mn_skala", "gleich"),
+               "darstellung": darstellung, "skala": getattr(a, "mn_skala", "eigen"),
                "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
                "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
                "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1,
@@ -171,9 +171,12 @@ def _auswahl_band(a, d: dict, haupt: list) -> None:
             ui.label("Ohne Häkchen = alle").classes("m-zweite")
             knopf("Übernehmen", menue.close, "primaer")
 
-    def zu() -> None:
-        if zustand["wahl"] != gewaehlt:
-            a.setzen(mn_auswahl=[f for f, _g, _t in liste if f in zustand["wahl"]], mn_darstellung=None, nur_seite=True)
+    async def zu() -> None:
+        # 1.08: setzen ist asynchron – ohne „await“ wurde die Auswahl nie übernommen
+        if zustand["wahl"] != gewaehlt and not zustand.get("fertig"):
+            zustand["fertig"] = True
+            await a.setzen(mn_auswahl=[f for f, _g, _t in liste if f in zustand["wahl"]], mn_darstellung=None,
+                           nur_seite=True)
     menue.on("hide", zu)
 
 
@@ -184,7 +187,7 @@ def _filter_segmente(a, d: dict) -> list:
            lambda: segmente({"ein": "Ein Diagramm", "je": "Je Maßnahme"}, d["darstellung"],
                             lambda v: a.setzen(mn_darstellung=v, nur_seite=True), sofort=True)]
     if d["darstellung"] == "je":
-        erg.append(lambda: segmente({"gleich": "gleiche Skala", "eigen": "eigene Skala"}, d["skala"],
+        erg.append(lambda: segmente({"eigen": "eigene Skala", "gleich": "gleiche Skala"}, d["skala"],
                                     lambda v: a.setzen(mn_skala=v, nur_seite=True), sofort=True))
     erg.append(lambda: segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"],
                                 lambda v: a.setzen(mn_vor=v, nur_seite=True), sofort=True))
@@ -620,7 +623,11 @@ def _kpis(d: dict) -> None:
             a80, b80 = mk.summen_spanne(alle, 80)
             a95, b95 = mk.summen_spanne(alle, 95)
             _kpi(f"Erwartet {d['plan_jahr']}", _z(naechst), f"80 %: {_z(a80)}–{_z(b80)} · 95 %: {_z(a95)}–{_z(b95)}")
-        if mit_trend:
+        if len(mit_trend) == 1:                          # 1.08: eine Maßnahme – eine Kachel statt zweimal derselben
+            r = mit_trend[0]
+            _kpi("Entwicklung", r.familie, f"{_pfeil(r.trend)[0]} Neuanmeldungen (12 Mon. zum Vorjahr)",
+                 "krit" if r.trend <= -.1 else "")
+        elif mit_trend:
             hoch = max(mit_trend, key=lambda r: r.trend)
             tief = min(mit_trend, key=lambda r: r.trend)
             _kpi("Am stärksten gewachsen", hoch.familie, f"{_pfeil(hoch.trend)[0]} Neuanmeldungen (12 Mon. zum Vorjahr)")
