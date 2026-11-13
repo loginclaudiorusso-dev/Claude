@@ -29,6 +29,15 @@ CSS = r"""
 .m-mn-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-mn-art { font-size: 12px; color: var(--text2); border: 1px solid var(--rand); border-radius: 10px; padding: 1px 8px; }
 .m-mn-art.lang { color: var(--akzent); border-color: color-mix(in srgb, var(--akzent) 45%, transparent); }
+.m-mn-wahl { font: inherit; color: inherit; background: none; border: 0; width: 100%; text-align: left;
+  grid-template-columns: auto minmax(0, 1fr); }
+.m-mn-wahl.an .m-bg-punkt { border-width: 4px; border-color: var(--ob-akzent, #007F7F); }
+.m-mn-wahl .m-bg-punkt { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--sym-basis, #334155);
+  box-sizing: border-box; }
+/* 1.06: „Andere Sicht“ (z. B. Belegung des Internats) ganz rechts im Band, deutlich abgesetzt */
+body.ob-seite-an .m-kz:has(.m-bg-rechts) .m-kz-luft { display: none !important; }   /* Platz geht nach rechts */
+.m-bg-rechts { margin-left: auto; padding-left: 40px; display: flex; }
+.m-bg-rechts > .m-bg { border-left: 1px solid var(--ob-rand, #D9DEDE); border-right: 0; }
 .m-mn-fuss { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 12px;
   border-top: 1px solid var(--rand); }
 """
@@ -152,6 +161,49 @@ def _auswahl_band(a, d: dict, haupt: list) -> None:
         menue.on("hide", zu)
 
 
+def aufraeumen_panel(a) -> None:
+    """1.06: Veraltete Maßnahmen aus allen Prognosen nehmen. Sie bleiben im Pivot (und lassen sich jederzeit
+    wiederherstellen), zählen aber in Neuanmeldungen, Teilnehmer-Prognose und Prüfbericht nicht mehr."""
+    infos = mk.familien_uebersicht()
+    wahl = {x.familie for x in infos if x.entfernt}
+    grenze = a.heute.replace(year=a.heute.year - 2)
+
+    def bauen():
+        ui.label("Häkchen = entfernen. Die Maßnahme bleibt im Pivot gespeichert und lässt sich jederzeit wiederherstellen "
+                 "(Häkchen weg). Ganz oben stehen die, die am längsten nicht mehr begonnen haben.").classes(
+            "m-ptext").style("white-space:normal")
+        alt = [x.familie for x in infos if x.letzter < grenze]
+        with ui.element("div").classes("m-paktionen"):
+            def alle_alten():
+                wahl.update(alt)
+                for f_, cb in boxen.items():
+                    cb.value = f_ in wahl
+            if alt:
+                knopf(f"Alle seit über 2 Jahren ohne Start markieren ({len(alt)})", alle_alten, "leise", "history")
+        sp = "minmax(190px,1.8fr) minmax(100px,1fr) minmax(60px,.6fr) minmax(120px,.9fr)"
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+            for k_ in ("Maßnahme entfernen", "letzter Start", "Kurse", "Neuanmeldungen"):
+                ui.label(k_)
+        boxen: dict = {}
+        for x in infos:
+            with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
+                cb = ui.checkbox(x.familie, value=x.familie in wahl,
+                                 on_change=lambda e, f_=x.familie: wahl.add(f_) if e.value else wahl.discard(f_))
+                boxen[x.familie] = cb
+                ui.label(f"{x.letzter:%m.%Y}").classes("m-zweite" + (" m-warn" if x.letzter < grenze else ""))
+                ui.label(str(x.kurse)).classes("m-zweite")
+                ui.label(str(x.teilnehmende)).classes("m-zweite")
+
+        async def speichern():
+            if await a.aendern(mk.entfernt_schritt, sorted(wahl)):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Maßnahmen aufräumen", bauen, breit=True)
+
+
 def zeichnen(a) -> None:
     d = a.daten
     _umschalter(a)
@@ -194,6 +246,8 @@ def zeichnen(a) -> None:
         b_ = knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat")
         if not band:
             b_.style("margin-left:auto")
+        knopf("Maßnahmen aufräumen …", lambda: aufraeumen_panel(a), "leise", "delete",
+              "Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
         if d["darstellung"] == "je":
             from . import diagramm_karte
 

@@ -346,10 +346,65 @@ class Kurs:
         return self.werte[k] if 0 <= k < len(self.werte) else 0
 
 
-def kurse(daten: dict | None = None) -> list[Kurs]:
+def alle_kurse(daten: dict | None = None) -> list[Kurs]:
+    """Alle Kurse des Pivots – auch die als veraltet entfernten (für die Verwaltung)."""
     roh = daten if daten is not None else _roh()
     return [Kurs(k, familie(k), date.fromisoformat(v["von"]), _unrle(v["werte"]))
             for k, v in ((roh.get("pivot") or {}).get("kurse") or {}).items()]
+
+
+def kurse(daten: dict | None = None) -> list[Kurs]:
+    """Kurse für alle Prognosen – 1.06: ohne die als veraltet entfernten Maßnahmen."""
+    roh = daten if daten is not None else _roh()
+    weg = entfernt(roh)
+    return [k for k in alle_kurse(roh) if k.familie not in weg]
+
+
+# ---- 1.06: veraltete Maßnahmen entfernen (bleiben im Pivot, zählen aber nirgends mehr) ----------------------------
+
+def entfernt(daten: dict | None = None) -> set[str]:
+    roh = daten if daten is not None else _roh()
+    return {str(x) for x in roh.get("entfernt") or []}
+
+
+@dataclass
+class FamilieInfo:
+    familie: str
+    kurse: int
+    erster: date
+    letzter: date                 # letzter Kursstart
+    teilnehmende: int             # Neuanmeldungen über alle Kurse
+    entfernt: bool
+
+
+def familien_uebersicht(daten: dict | None = None) -> list[FamilieInfo]:
+    """Alle Maßnahmen (Kursfamilien) des Pivots – die am längsten nicht mehr gestarteten zuerst."""
+    roh = daten if daten is not None else _roh()
+    weg = entfernt(roh)
+    je: dict[str, list[Kurs]] = {}
+    for k in alle_kurse(roh):
+        je.setdefault(k.familie, []).append(k)
+    erg = [FamilieInfo(f, len(ks), min(k.start for k in ks), max(k.start for k in ks),
+                       sum(neu_im_kurs(k) for k in ks), f in weg) for f, ks in je.items()]
+    return sorted(erg, key=lambda x: (x.letzter, x.familie))
+
+
+def entfernt_schritt(familien: list[str]) -> str:
+    """Liste der entfernten Maßnahmen ersetzen – mit Rückgängig. Wiederherstellen = aus der Liste nehmen."""
+    from .kern import _schritt
+
+    neu = sorted(set(familien))
+
+    def tun():
+        roh = _roh()
+        if neu:
+            roh["entfernt"] = neu
+        else:
+            roh.pop("entfernt", None)
+        _schreiben(roh)
+    _schritt("Veraltete Maßnahmen", tun, [DATEI])
+    return (f"{len(neu)} Maßnahme(n) entfernt – sie zählen in keiner Prognose mehr (wiederherstellbar)" if neu
+            else "Keine Maßnahme mehr entfernt")
 
 
 def internat_anteile(daten: dict | None = None) -> tuple[dict[str, float], float | None]:

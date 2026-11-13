@@ -430,8 +430,11 @@ def bericht(aufenthalte: list[Aufenthalt], meta: dict, tabelle: list[dict], stic
 def laden(roh: dict | None = None) -> tuple[list[Aufenthalt], dict]:
     from . import massnahmen_kern as mk
 
-    b = (roh if roh is not None else mk._roh()).get("bestand") or {}
-    return [Aufenthalt.aus_liste(x) for x in b.get("aufenthalte") or []], dict(b.get("meta") or {})
+    roh = roh if roh is not None else mk._roh()
+    b = roh.get("bestand") or {}
+    weg = mk.entfernt(roh)                         # 1.06: veraltete Maßnahmen zählen nicht mehr
+    alle = [Aufenthalt.aus_liste(x) for x in b.get("aufenthalte") or []]
+    return [x for x in alle if mk.familie(x.kurs) not in weg] if weg else alle, dict(b.get("meta") or {})
 
 
 def tabelle(roh: dict | None = None) -> list[dict]:

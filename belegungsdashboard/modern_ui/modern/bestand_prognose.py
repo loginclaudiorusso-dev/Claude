@@ -32,6 +32,8 @@
 
 from __future__ import annotations
 
+import re
+
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -291,6 +293,10 @@ class Ergebnis:
     roh: np.ndarray | None = None      # (Arten + 1, R, T) – für Wenn-dann
     p025: np.ndarray | None = None     # 0.94: „fast sicher“ (19 von 20) – aus denselben Verläufen
     p975: np.ndarray | None = None
+    # 1.06: Zu- und Abgänge je Monat (Monat k = zwischen Messtag k−1 und k) – je Verlauf, für Summen über Zeiträume
+    zu: np.ndarray | None = None       # (Arten + 1, R, T) float32
+    ab: np.ndarray | None = None
+    zu_bekannt: np.ndarray | None = None   # (Arten + 1, T) – davon fest angemeldet (Mittel)
 
     def zeile(self, art: str | None) -> int:
         return len(self.arten) if art in (None, "", "Alle") else self.arten.index(art)
@@ -423,9 +429,76 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
         np.add.at(bestand[q, :A], (art, runs), anw.astype(float))
     bestand[:, A] = bestand[:, :A].sum(axis=1)
     gesamt = bestand.sum(axis=0)                                     # (A+1, R, T)
+    # 1.06: Zugänge (Eintritt im Monat) und Abgänge (Ende im Monat) – passend zu „anwesend, wenn start ≤ t < ende“
+    T = len(t)
+    zu = np.zeros((A + 1, R, T), dtype=np.float32)
+    ab = np.zeros((A + 1, R, T), dtype=np.float32)
+    bek = np.zeros((A + 1, T))
+    for q, art, runs, start, ende in teile:
+        k = np.searchsorted(t, start, side="left")
+        ok = (start > 0) & (k >= 1) & (k < T)
+        np.add.at(zu[:A], (art[ok], runs[ok], k[ok]), 1)
+        if q == 1:
+            np.add.at(bek[:A], (art[ok], k[ok]), 1.0 / R)
+        k2 = np.searchsorted(t, ende, side="left")
+        ok2 = (ende > 0) & (ende > start) & (k2 >= 1) & (k2 < T)
+        np.add.at(ab[:A], (art[ok2], runs[ok2], k2[ok2]), 1)
+    zu[A], ab[A], bek[A] = zu[:A].sum(axis=0), ab[:A].sum(axis=0), bek[:A].sum(axis=0)
     return Ergebnis(tage, md.arten, np.median(gesamt, axis=1), np.percentile(gesamt, 10, axis=1),
                     np.percentile(gesamt, 90, axis=1), bestand.mean(axis=2), ueber, gesamt if roh else None,
-                    np.percentile(gesamt, 2.5, axis=1), np.percentile(gesamt, 97.5, axis=1))
+                    np.percentile(gesamt, 2.5, axis=1), np.percentile(gesamt, 97.5, axis=1), zu, ab, bek)
+
+
+# ---- 1.06: Zu- und Abgänge ------------------------------------------------------------------------------------------
+
+def kurzname(art: str) -> str:
+    """1.06: „Hauptmaßnahme KBM“ → „KBM“ (nur für die Anzeige; die Zuordnung behält den vollen Namen)."""
+    return re.sub(r"^Hauptmaßnahme\s+", "", str(art or "")) or str(art or "")
+
+
+FLUSS_TEXT = {"bestand": "Teilnehmende (Bestand)", "zu": "Zugänge (neu begonnen)", "ab": "Abgänge (beendet)"}
+
+
+@dataclass
+class Fluss:
+    median: np.ndarray                 # je Monat (Index 0 = Stichtag, immer 0)
+    p10: np.ndarray
+    p90: np.ndarray
+    p025: np.ndarray
+    p975: np.ndarray
+    bekannt: np.ndarray | None         # nur Zugänge: davon fest angemeldet
+
+
+def fluss(e: "Ergebnis", art: str | None, richtung: str) -> Fluss:
+    x = (e.zu if richtung == "zu" else e.ab)[e.zeile(art)]          # (R, T)
+    return Fluss(np.median(x, axis=0), np.percentile(x, 10, axis=0), np.percentile(x, 90, axis=0),
+                 np.percentile(x, 2.5, axis=0), np.percentile(x, 97.5, axis=0),
+                 e.zu_bekannt[e.zeile(art)] if richtung == "zu" else None)
+
+
+def fluss_summe(e: "Ergebnis", art: str | None, richtung: str, von: int, bis: int) -> tuple[float, float, float, float]:
+    """Summe über die Monate von..bis (1 = erster Monat nach dem Stichtag): (Median, 10 %, 90 %, davon bekannt)."""
+    x = (e.zu if richtung == "zu" else e.ab)[e.zeile(art)][:, von:bis + 1].sum(axis=1)
+    bek = float(e.zu_bekannt[e.zeile(art)][von:bis + 1].sum()) if richtung == "zu" else 0.0
+    return float(np.median(x)), float(np.percentile(x, 10)), float(np.percentile(x, 90)), bek
+
+
+def ist_fluss(fs: list["Fall"], letzter: date, art: str | None, richtung: str, monate: int = 12) -> list[tuple[date, int | None]]:
+    """Zu- bzw. Abgänge der letzten Monate – je Zeitraum zwischen zwei Messtagen (15.), wie ``ist_verlauf``.
+    Abgang = letzter Tag liegt im Zeitraum und die Person ist nicht mehr dabei."""
+    tage = [d for d, _ in ist_verlauf(fs, letzter, art, monate + 1)]
+    beginn = min((f.ein for f in fs), default=None)
+    erg = []
+    for vorher, d in zip(tage, tage[1:] + [letzter]):
+        if beginn is None or vorher < beginn:
+            erg.append((d, None))
+            continue
+        if richtung == "zu":
+            n = sum(1 for f in fs if _passt(f, art) and vorher < f.ein <= d)
+        else:
+            n = sum(1 for f in fs if _passt(f, art) and not f.laufend and vorher <= f.aus < d)
+        erg.append((d, n))
+    return erg[-monate:]
 
 
 # ---- Kennzahlen, Ist-Verlauf, Frühindikator ------------------------------------------------------------------------
@@ -743,7 +816,7 @@ def leitungssicht(erg: dict, art: str, monate: int = 12, voraus: int = 6) -> Lei
     md: Modell = erg["modell"]
     e: Ergebnis = erg["szenarien"]["basis"]
     a_ = None if art in (None, "", "Alle") else art
-    name = "Alle Maßnahmen" if a_ is None else art
+    name = "Alle Maßnahmen" if a_ is None else kurzname(art)
     z = e.zeile(a_)
     heute = bestand_heute(erg["faelle"], erg["letzter"], a_)
     v = min(voraus, len(e.monate) - 1)

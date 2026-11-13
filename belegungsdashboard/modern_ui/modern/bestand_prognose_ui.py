@@ -58,20 +58,157 @@ def zeichnen(a, d: dict) -> None:
     art = getattr(a, "mn_art", "Alle")
     if art not in md.arten:
         art = "Alle"
+    fluss = getattr(a, "mn_fluss", "bestand")
+    if fluss not in bp.FLUSS_TEXT:
+        fluss = "bestand"
+    from .ui_bausteine import im_band
+
     with a.werkzeuge:
         segmente({"planung": "Planung", "leitung": "Leitung"}, sicht, lambda v: a.setzen(mn_sicht=v, laden=False))
-        ui.select({"Alle": "Alle Maßnahmen", **{x: x for x in md.arten}}, value=art,
-                  on_change=lambda e: a.setzen(mn_art=e.value, laden=False)).props(
-            'dense outlined dark options-dense popup-content-class="m-popup"').style("width:230px")
+        segmente({"bestand": "Teilnehmende", "zu": "nur Zugänge", "ab": "nur Abgänge"}, fluss,     # 1.06
+                 lambda v: a.setzen(mn_fluss=v, laden=False))
+        band = im_band()
+        if band:
+            _art_band(a, md, art)
+        else:
+            ui.select({"Alle": "Alle Maßnahmen", **{x: bp.kurzname(x) for x in md.arten}}, value=art,
+                      on_change=lambda e: a.setzen(mn_art=e.value, laden=False)).props(
+                'dense outlined dark options-dense popup-content-class="m-popup"').style("width:230px")
     with a.leiste:
-        if sicht == "leitung":
-            knopf("Szenarien …", lambda: _szenarien_panel(a, d["szen"]), "", "tune")
-        knopf("Belegung des Internats", lambda: a.oeffnen("auswertung", ansicht="prognose"), "leise", "hotel",
-              "Belegungsprognose: Betten je Standort (Zeitreihe) – die zweite Sicht auf dieselbe Zukunft")
+        if band:
+            from . import band_ui, symbole
+            from . import seite_massnahmen as sm
+
+            with band_ui.gruppe("Bearbeiten"):
+                if sicht == "leitung":
+                    band_ui.gross("Szenarien", "options", symbole.VIOLETT, lambda: _szenarien_panel(a, d["szen"]),
+                                  tipp="Szenarien: wirtschaftlich schwach / normal / gut – mit Auslöser")
+                band_ui.gross("Maßnahmen aufräumen", "delete", symbole.ROT, lambda: sm.aufraeumen_panel(a),
+                              tipp="Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
+            with ui.element("div").classes("m-bg-rechts"):
+                with band_ui.gruppe("Andere Sicht"):
+                    band_ui.gross("Belegung des Internats", "building_home", symbole.BLAU,
+                                  lambda: a.oeffnen("auswertung", ansicht="prognose"),
+                                  tipp="Wechselt zur Belegungsprognose: Betten je Standort – die zweite Sicht auf "
+                                       "dieselbe Zukunft")
+        else:
+            if sicht == "leitung":
+                knopf("Szenarien …", lambda: _szenarien_panel(a, d["szen"]), "", "tune")
+            knopf("Belegung des Internats", lambda: a.oeffnen("auswertung", ansicht="prognose"), "leise", "hotel",
+                  "Belegungsprognose: Betten je Standort (Zeitreihe) – die zweite Sicht auf dieselbe Zukunft")
     a.status_info = (f"Stichtag {erg['letzter']:%d.%m.%Y} · {len(md.faelle)} Aufenthalte · {bp.DURCHLAEUFE} "
                      "durchgerechnete Verläufe")
     with a.inhalt, ui.element("div").classes("m-rv m-bst"):
-        (_planung if sicht == "planung" else _leitung)(a, d, art)
+        if fluss != "bestand":
+            _fluss_ansicht(a, d, art, fluss, sicht == "leitung")
+        else:
+            (_planung if sicht == "planung" else _leitung)(a, d, art)
+
+
+def _art_band(a, md, art: str) -> None:
+    """1.06: Maßnahme-Wahl im Menüband – großer Knopf mit Kurznamen, Menü mit allen Arten."""
+    from . import band_ui, symbole
+
+    with band_ui.gruppe("Maßnahme"):
+        k = band_ui.gross("Alle" if art == "Alle" else bp.kurzname(art), "people_team", symbole.TEAL, pfeil=True,
+                          tipp="Welche Maßnahme gezeigt wird")
+        with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue"):
+            with ui.element("div").classes("m-mn-liste"):
+                for wert, text in [("Alle", "Alle Maßnahmen")] + [(x, bp.kurzname(x)) for x in md.arten]:
+                    z = ui.element("button").classes("m-mn-zeile m-mn-wahl" + (" an" if wert == art else ""))
+                    with z:
+                        ui.element("span").classes("m-bg-punkt")
+                        ui.label(text).classes("m-mn-name")
+                    z.on("click", lambda w=wert: a.setzen(mn_art=w, laden=False))
+
+
+def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
+    """1.06: nur Zugänge bzw. nur Abgänge – je Monat, mit Spanne (Leitung) bzw. als klare Zahlen (Planung)."""
+    from . import seite_auswertung as sa
+
+    erg = d["erg"]
+    e: bp.Ergebnis = erg["szenarien"]["basis"]
+    a_ = None if art in (None, "", "Alle") else art
+    name = "Alle Maßnahmen" if a_ is None else bp.kurzname(art)
+    zu = richtung == "zu"
+    wort = "Zugänge" if zu else "Abgänge"
+    ist = bp.ist_fluss(erg["faelle"], erg["letzter"], a_, richtung, 12)
+    ist12 = sum(n for _d, n in ist if n)
+    s3, s6, s12 = (bp.fluss_summe(e, a_, richtung, 1, n) for n in (3, 6, 12))
+    ui.label(f"{name}: in den nächsten 6 Monaten etwa {_z(s6[0])} {wort}"
+             + (f" (sehr wahrscheinlich {_z(s6[1])} bis {_z(s6[2])})" if leitung else "")).classes("m-bp-titel")
+    with ui.element("div").classes("m-bp-kacheln"):
+        for titel, (med, lo, hi, bek), bezug in (("Nächste 3 Monate", s3, ""), ("Nächste 6 Monate", s6, ""),
+                                                  ("Nächste 12 Monate", s12, f"letzte 12 Monate: {_z(ist12)}")):
+            teile = [bezug] if bezug else []
+            if leitung:
+                teile.insert(0, f"sehr wahrscheinlich {_z(lo)} bis {_z(hi)}")
+            if zu and bek >= .5:
+                teile.append(f"davon {_z(bek)} schon fest angemeldet")
+            _kpi(f"{wort} · {titel}", _z(med), " · ".join(teile))
+    f = bp.fluss(e, a_, richtung)
+    M = 12
+    with ui.element("section").classes("m-block"):
+        ui.label(f"{wort} je Monat – links Ist, rechts erwartet").classes("m-btitel")
+        t = sa._T()
+        x = [_m(dd) for dd, _n in ist] + [_m(m) for m in e.monate[1:M + 1]]
+        n_ist = len(ist)
+        hist = [n for _d, n in ist] + [None] * M
+        prog = [None] * n_ist + [round(float(v), 1) for v in f.median[1:M + 1]]
+        lo = [None] * n_ist + [round(float(v), 1) for v in f.p10[1:M + 1]]
+        br = [None] * n_ist + [round(float(h - l_), 1) for h, l_ in zip(f.p90[1:M + 1], f.p10[1:M + 1])]
+        reihen = [{"name": "Ist", "type": "bar", "data": hist, "barMaxWidth": 26, "stack": "w",
+                   "itemStyle": {"color": t["akzent"], "borderRadius": [3, 3, 0, 0]},
+                   "label": {"show": True, "position": "top", "fontSize": 12}},
+                  {"name": "erwartet", "type": "bar", "data": prog, "barMaxWidth": 26, "stack": "w",
+                   "itemStyle": {"color": t["akzent"], "opacity": .45, "borderColor": t["akzent"], "borderWidth": 1.5,
+                                 "borderType": "dashed", "borderRadius": [3, 3, 0, 0]},
+                   "label": {"show": True, "position": "top", "fontSize": 12, ":formatter": "(p) => Math.round(p.value)"}}]
+        if leitung:
+            reihen += [{"name": "_lo", "type": "line", "data": lo, "stack": "b", "symbol": "none", "silent": True,
+                        "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
+                       {"name": "sehr wahrscheinlich (8 von 10)", "type": "line", "data": br, "stack": "b",
+                        "symbol": "none", "silent": True, "lineStyle": {"opacity": 0},
+                        "color": t["akzent"], "itemStyle": {"color": t["akzent"], "opacity": .35},
+                        "areaStyle": {"color": t["akzent"], "opacity": .16}}]
+        opt = {"animation": False, "grid": {"left": 44, "right": 20, "top": 40, "bottom": 30},
+               "legend": {"top": 0, "data": ["Ist", "erwartet"] + ([{"name": "sehr wahrscheinlich (8 von 10)",
+                                                                       "icon": "roundRect"}] if leitung else [])},
+               "tooltip": {"trigger": "axis"},
+               "xAxis": {"type": "category", "data": x, "axisLabel": {"fontSize": 13}},
+               "yAxis": {"type": "value", "minInterval": 1, "axisLabel": {"fontSize": 13}},
+               "series": reihen}
+        if n_ist:
+            opt["series"][0]["markLine"] = {"symbol": "none", "silent": True, "lineStyle": {"color": t["text2"],
+                                                                                           "type": "solid", "width": 1.5},
+                                            "label": {"formatter": "Heute", "position": "end"},
+                                            "data": [{"xAxis": n_ist - .5}]}
+        ui.echart(opt, renderer="svg").classes("m-chart m-dg m-bp-chart")
+        ui.label(("Zugang = Eintritt in eine Maßnahme dieser Art (auch aus Assessment/Vorbereitung). " if zu else
+                  "Abgang = letzter Tag in der Maßnahme – regulär oder vorzeitig. ") +
+                 "Je Zeitraum zwischen zwei Monatsmitten (15.), wie beim Bestand. Erwartet = der mittlere von "
+                 f"{bp.DURCHLAEUFE} durchgerechneten Verläufen" + ("; das Band zeigt, wo der Wert in 8 von 10 Fällen "
+                                                                  "liegt." if leitung else ".")).classes(
+            "m-zweite").style("white-space:normal")
+    if not leitung:
+        with ui.element("section").classes("m-block"):
+            ui.label(f"{wort} je Maßnahmeart").classes("m-btitel")
+            sp = "minmax(200px,1.6fr) " + " ".join(["minmax(120px,1fr)"] * 3)
+            with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
+                for k_ in ("Maßnahmeart", "nächste 3 Monate", "nächste 6 Monate", "nächste 12 Monate"):
+                    ui.label(k_)
+            for zeile_art in e.arten + ["Alle"]:
+                werte = [bp.fluss_summe(e, None if zeile_art == "Alle" else zeile_art, richtung, 1, n) for n in (3, 6, 12)]
+                if zeile_art != "Alle" and werte[-1][0] < .5:
+                    continue
+                with ui.element("div").classes("m-raster m-zeile" + (" m-bp-summe" if zeile_art == "Alle" else "")).style(
+                        f"grid-template-columns:{sp}"):
+                    ui.label("Alle Maßnahmen" if zeile_art == "Alle" else bp.kurzname(zeile_art)).classes("m-name")
+                    for med, _lo, _hi, bek in werte:
+                        with ui.element("div").classes("m-bp-zelle"):
+                            ui.label(_z(med)).classes("m-name")
+                            if zu and bek >= .5:
+                                ui.label(f"{_z(bek)} fest angemeldet").classes("m-zweite")
 
 
 # ---- Planung: klare Ansage -------------------------------------------------------------------------------------------
@@ -83,7 +220,7 @@ def _planung(a, d, art: str) -> None:
     plan = round(e.median[z, k])
     sicher = round(e.zerlegung[0, z, k] + e.zerlegung[1, z, k])
     with ui.element("section").classes("m-block m-bp-ansage"):
-        ui.label(f"{'Alle Maßnahmen' if art == 'Alle' else art} · {_m(e.monate[k])}").classes("m-zweite")
+        ui.label(f"{'Alle Maßnahmen' if art == 'Alle' else bp.kurzname(art)} · {_m(e.monate[k])}").classes("m-zweite")
         with ui.element("div").classes("m-bp-satz"):
             ui.html(f"Plane mit <b>{plan}</b> Teilnehmenden – <b>{sicher}</b> davon sind schon da oder angemeldet, "
                     f"mit <b>{max(0, plan - sicher)}</b> weiteren rechnen wir.", sanitize=False)
@@ -104,7 +241,7 @@ def _planung(a, d, art: str) -> None:
                 continue
             klasse = " m-bp-summe" if zeile_art == "Alle" else ""
             with ui.element("div").classes("m-raster m-zeile" + klasse).style(f"grid-template-columns:{sp}"):
-                ui.label("Alle Maßnahmen" if zeile_art == "Alle" else zeile_art).classes("m-name")
+                ui.label("Alle Maßnahmen" if zeile_art == "Alle" else bp.kurzname(zeile_art)).classes("m-name")
                 for s in SPALTEN:
                     p = round(e.median[zi, s])
                     si = round(e.zerlegung[0, zi, s] + e.zerlegung[1, zi, s])
