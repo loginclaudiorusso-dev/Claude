@@ -25,7 +25,8 @@ WURZEL = "belegungsdashboard"
 WEGLASSEN_DATEIEN = {"Start.bat", "belegungsdashboard_gui.py", "belegungsdashboard_gui.spec",
                      "belegungsdashboard_export.py", "OFFENE_PUNKTE.md", "UX_KONZEPT.md", "ROLLBACK.md",
                      "modern_ui/Start.bat", "modern_ui/modern_ui.log"}
-WEGLASSEN_ORDNER = ("tests/", "modern_ui/tests/", "modern_ui/netz/", "belegung/ui/")
+WEGLASSEN_ORDNER = ("tests/", "modern_ui/tests/", "modern_ui/netz/", "belegung/ui/",
+                    "modern_ui/austausch/")          # 1.05: Werkzeug nur für das alte Programm
 OBEN = ("INNternat starten.bat", "LIESMICH.txt")
 
 

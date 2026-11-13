@@ -170,30 +170,34 @@ def tage(tage_: list[date], werte: list[float | None], ist: list[bool], stand: d
 def wellen(namen: list[str], werte: list[float | None], ist: list[bool], stand: date,
            klein: list[float | None] | None = None, gross: list[float | None] | None = None,
            treffer: tuple[int, int] | None = None, naechstes_jahr: float | None = None,
-           abweichung: float | None = None, reihe_ist: str = "Ist", reihe_prog: str = "erwartet") -> Blick:
-    """Sätze zu Neuanmeldungen je Halbjahres-Welle. Das Vorjahr derselben Welle liegt zwei Stellen davor."""
+           abweichung: float | None = None, reihe_ist: str = "Ist", reihe_prog: str = "erwartet",
+           je_monat: bool = False) -> Blick:
+    """Sätze zu Neuanmeldungen je Halbjahres-Welle. Das Vorjahr derselben Welle liegt zwei Stellen davor.
+    ``je_monat`` (1.05): Punkte sind Monate – Vorjahr 12 Stellen davor, „letzte 12 Monate“ = 12 Ist-Monate."""
     b = Blick()
+    vj, wort = (12, "Monat") if je_monat else (2, "Welle")
     n = len(namen)
     prog = [i for i in range(n) if not ist[i] and werte[i] is not None]
     ist_idx = [i for i in range(n) if ist[i] and werte[i] is not None]
     b.stand = f"Datenstand {stand:%d.%m.%Y}" + (f" · ab {namen[prog[0]]} Prognose." if prog else " · alle Werte sind Ist.")
     if ist_idx:
         i = ist_idx[-1]
-        t = f"Letzte Welle {namen[i]}: {zahl(werte[i])} Neuanmeldungen"
-        if i >= 2 and werte[i - 2] is not None:
-            t += f", {vergleich(werte[i] - werte[i - 2], schwelle_fuer(werte[i], abweichung), 'ein Jahr zuvor')}" \
-                 f" ({zahl(werte[i - 2])})"
+        t = f"{'Letzter' if je_monat else 'Letzte'} {wort} {namen[i]}: {zahl(werte[i])} Neuanmeldungen"
+        if i >= vj and werte[i - vj] is not None:
+            t += f", {vergleich(werte[i] - werte[i - vj], schwelle_fuer(werte[i], abweichung), 'ein Jahr zuvor')}" \
+                 f" ({zahl(werte[i - vj])})"
         b.saetze.append(Satz(t + ".", i, werte[i], reihe_ist))
     if prog:
         i = prog[0]
-        t = f"Nächste Welle {namen[i]}: "
+        t = f"{'Nächster' if je_monat else 'Nächste'} {wort} {namen[i]}: "
         if klein and gross and klein[i] is not None and gross[i] is not None:
             t += f"{zahl(klein[i])} bis {zahl(gross[i])} erwartet (Planwert {zahl(werte[i])})."
         else:
             t += f"{zahl(werte[i])} erwartet."
         b.saetze.append(Satz(t, i, werte[i], reihe_prog))
     if naechstes_jahr is not None:
-        letzte12 = sum(werte[i] for i in ist_idx[-2:]) if len(ist_idx) >= 2 else None
+        k = 12 if je_monat else 2
+        letzte12 = sum(werte[i] for i in ist_idx[-k:]) if len(ist_idx) >= k else None
         t = f"Nächstes Jahr zusammen ≈ {zahl(naechstes_jahr)}"
         if letzte12 is not None:
             t += f", {vergleich(naechstes_jahr - letzte12, schwelle_fuer(letzte12, abweichung), 'in den letzten 12 Monaten')}"

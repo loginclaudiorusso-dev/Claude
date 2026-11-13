@@ -76,6 +76,7 @@ def zeichnen(a) -> None:
                    "Erinnerungen bleiben bei einem neuen Upload erhalten.",
                    lambda: knopf("Ordner jetzt einlesen", lambda: _ordner(a), "leise", "folder_open",
                                  " · ".join(f"{k}: {v}" for k, v in dk.eingangsordner().items())))
+            _austausch_block(a)                    # 1.05: Austausch mit dem anderen Programm
             if not standort_kern.ist_goslar():     # UWT, Schlüssellisten, ZKL und Prognose-Quellen: nur Goslar
                 _gebaeudeplan_block(a, d, q)
                 _standort_hinweis()
@@ -759,3 +760,90 @@ def _manuell_panel(a) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Manueller Eintrag", bauen)
+
+
+# ---- 1.05: Austauschdatei mit dem anderen Programm -------------------------------------------------------------------
+
+def _austausch_block(a) -> None:
+    from . import austausch_kern as ak
+
+    with ui.element("section").classes("m-block"):
+        ui.label("Austausch mit dem anderen Programm").classes("m-btitel")
+        ui.label("Wer mit dem alten Programm arbeitet, bekommt Ihre Änderungen an Anreisen, Abreisen, Zimmerplanung, "
+                 "Umzügen und Mietverträgen als Datei – und umgekehrt. Jeder Eintrag trägt einen Prüfwert; beim Einlesen "
+                 "sehen Sie vorher, was übernommen wird, und entscheiden bei Konflikten selbst.").classes("m-ptext")
+        from belegung import speicher
+
+        basis = ak.basis_lesen(speicher.lesen)
+        ui.label("Noch kein Austausch – der erste Export enthält den ganzen Stand." if basis is None else
+                 "Export enthält alles, was sich seit dem letzten Austausch geändert hat.").classes("m-zweite")
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Meine Änderungen exportieren", lambda: _austausch_export(a, False), "primaer", "download")
+            _hochladen(a, "Austauschdatei einlesen", ".json", lambda f: _austausch_lesen(a, f))
+            knopf("Ganzen Stand exportieren", lambda: _austausch_export(a, True), "leise", "download",
+                  "Alles, unabhängig vom letzten Austausch – z. B. wenn eine Datei verloren ging")
+
+
+async def _austausch_export(a, alles: bool) -> None:
+    from . import austausch_dienst as ad
+
+    roh, name, n, st = await run.io_bound(ad.export, alles)
+    if not n:
+        a.toast("Seit dem letzten Austausch hat sich nichts geändert.", rueck=False)
+        return
+    ui.download(roh, name)
+    await run.io_bound(ad.export_gemerkt, st)
+    a.toast(f"{n} Änderung(en) exportiert: {name} – bitte an die Kollegin bzw. den Kollegen weitergeben.", rueck=False)
+
+
+async def _austausch_lesen(a, dateien) -> None:
+    from . import austausch_dienst as ad
+    from . import austausch_kern as ak
+
+    pfad, name = dateien[0]
+    try:
+        punkte, meta = await run.io_bound(ad.lesen, pfad.read_bytes())
+    except ak.AustauschFehler as exc:
+        a.toast(str(exc), fehler=True)
+        return
+    b = ak.bilanz(punkte)
+
+    def bauen():
+        ui.label(f"{name} · von {meta.get('von') or '–'} · {str(meta.get('erstellt') or '')[:16].replace('T', ' ')} · "
+                 f"{'altes' if meta.get('programm') == 'alt' else 'neues'} Programm").classes("m-zweite")
+        ui.label("Prüfwerte in Ordnung.").classes("m-pille ok")
+        ui.label(f"{b.uebernehmen} werden übernommen · {b.schon_da} sind schon gleich · {b.konflikt} Konflikt(e)"
+                 ).classes("m-name")
+        if b.konflikt:
+            ui.label("Konflikt: Der Eintrag wurde hier seit dem letzten Austausch anders geändert. Ohne Häkchen bleibt Ihr "
+                     "Stand – er geht beim nächsten Export zurück.").classes("m-zweite").style("white-space:normal")
+        for bereich in ak.BEREICHE:
+            xs = [p for p in punkte if p.aenderung.bereich == bereich.name and p.status != "schon_da"]
+            if not xs:
+                continue
+            ui.label(f"{bereich.titel} · {len(xs)}").classes("m-btitel").style("margin-top:10px")
+            for p in xs:
+                x = p.aenderung
+                text = ak.beschreibung(x.bereich, x.eintrag if x.eintrag is not None else p.hier, x.schluessel)
+                with ui.element("div").classes("m-plan-u"):
+                    with ui.element("div").classes("m-zeile-kopf").style("display:flex;gap:8px;align-items:center"):
+                        etikett = ("Konflikt" if p.status == "konflikt" else
+                                   "neu" if x.art == "stand" and p.hier is None else ak.ART_TEXT.get(x.art, x.art))
+                        ui.label(etikett).classes("m-pille " + ("krit" if p.status == "konflikt" else "akzent")).style(
+                            "flex:none")
+                        ui.label(text).classes("m-name").style("white-space:normal")
+                    if p.status == "konflikt":
+                        if p.hier is not None:
+                            ui.label("hier: " + ak.beschreibung(x.bereich, p.hier, x.schluessel)).classes("m-zweite")
+                        ui.checkbox("aus der Datei übernehmen", value=False,
+                                    on_change=lambda e, p=p: setattr(p, "uebernehmen", bool(e.value)))
+
+        async def los():
+            if await a.aendern(ad.uebernehmen, punkte):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Übernehmen", los, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Austauschdatei einlesen", bauen, breit=True)

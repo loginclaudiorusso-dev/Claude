@@ -78,7 +78,8 @@ def daten(a) -> None:
                "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
                "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
                "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1,
-               "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80, "gruende": {f: r.grund for f, r in reihen.items()}}
+               "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80,
+               "takt": "monat" if getattr(a, "mn_takt", "welle") == "monat" else "welle", "gruende": {f: r.grund for f, r in reihen.items()}}
 
 
 def _umschalter(a) -> None:
@@ -181,6 +182,8 @@ def zeichnen(a) -> None:
         if not band and haupt and d["auswahl"] != haupt:
             knopf("Nur Hauptmaßnahmen", lambda: a.setzen(mn_auswahl=haupt, mn_darstellung=None, nur_seite=True), "leise",
                   "checklist")
+        segmente({"welle": "je Startwelle", "monat": "je Monat"}, d["takt"],      # 1.05
+                 lambda v: a.setzen(mn_takt=v, nur_seite=True), sofort=True)
         segmente({"ein": "Ein Diagramm", "je": "Je Maßnahme"}, d["darstellung"],
                  lambda v: a.setzen(mn_darstellung=v, nur_seite=True), sofort=True)
         if d["darstellung"] == "je":
@@ -205,30 +208,34 @@ def zeichnen(a) -> None:
             return
         with ui.element("div").classes("m-rv"):
             pv = d["stand"]["pivot"]
-            ui.label(f"Neuanmeldungen je Startwelle – Winterstart (Nov–Apr) und Sommerstart (Mai–Okt) – alle "
+            monat = d["takt"] == "monat"
+            reihen = mk.monatlich(None, a.heute, d["reihen"]) if monat else d["reihen"]
+            ui.label(("Neuanmeldungen je Monat (letzte 24 Monate und Prognose; künftige Monate: schon gebucht + Rest der "
+                      "Wellen-Erwartung nach dem Startmuster früherer Jahre)" if monat else
+                      "Neuanmeldungen je Startwelle – Winterstart (Nov–Apr) und Sommerstart (Mai–Okt)") + " – alle "
                      f"Teilnehmenden (Pendler und Internat) · Maßnahmen-Pivot "
                      f"{pv['von'][:10]} – {pv['bis'][:10]}").classes("m-zweite").style("white-space:normal")
             _kpis(d)
             with ui.element("section").classes("m-block m-breit"):
-                ui.label(f"{len(d['reihen'])} Maßnahme(n) – Neuanmeldungen je Startwelle (W = Winter, S = Sommer)"
-                         ).classes("m-btitel")
+                ui.label(f"{len(d['reihen'])} Maßnahme(n) – Neuanmeldungen " +
+                         ("je Monat" if monat else "je Startwelle (W = Winter, S = Sommer)")).classes("m-btitel")
                 if d["darstellung"] == "ein":
-                    _ein_diagramm(d["reihen"])
+                    _ein_diagramm(reihen)
                 else:
                     from . import diagramm_karte
 
                     m_ = diagramm_karte.modus()                  # 0.89: Darstellung wählbar
                     if m_ == "klassisch":
-                        _raster_klassisch(d["reihen"], d["skala"] == "gleich")
+                        _raster_klassisch(reihen, d["skala"] == "gleich")
                     elif m_ == "einfach":
                         _raster_einfach(d["reihen"])
                         an = bool(getattr(a, "mn_diagramme", False))     # 0.93: Diagramme je Maßnahme auf Wunsch
                         knopf("Diagramme je Maßnahme ausblenden" if an else "Diagramme je Maßnahme zeigen",
                               lambda: a.setzen(mn_diagramme=not an, laden=False), "", "expand_less" if an else "expand_more")
                         if an:
-                            _raster(a, d["reihen"], d["skala"] == "gleich", pv)
+                            _raster(a, reihen, d["skala"] == "gleich", pv)
                     else:
-                        _raster(a, d["reihen"], d["skala"] == "gleich", pv)
+                        _raster(a, reihen, d["skala"] == "gleich", pv)
                 tr = next((t for t in d["tests"] if t.verfahren == d["verfahren"]), None)
                 if tr and tr.treffer80[1]:
                     ui.label(f"Rückwärtstest (gepunktet): In {tr.treffer80[0]} von {tr.treffer80[1]} vergangenen Wellen lag "
@@ -424,7 +431,8 @@ def _raster(a, reihen: dict, gleiche_skala: bool, pivot: dict | None = None) -> 
             imm = [z.im80 for z in r.zeilen if z.art == "ist" and z.im80 is not None]
             blick = bk.wellen(x, werte, [k < h for k in range(len(x))], stand,
                               [z.klein for z in r.zeilen], [z.gross for z in r.zeilen],
-                              (sum(imm), len(imm)) if imm else None, r.naechstes_jahr)
+                              (sum(imm), len(imm)) if imm else None, r.naechstes_jahr,
+                              je_monat=bool(r.zeilen) and len(r.zeilen[0].hj) == 3)
             with ui.element("div").classes("m-mn-kachel"):
                 with diagramm_karte.Karte(a, fam, f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)} · "
                                                   f"Datenstand {stand:%d.%m.%Y}", blick, klein=True) as k:

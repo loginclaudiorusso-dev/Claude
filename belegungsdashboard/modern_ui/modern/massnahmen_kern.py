@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 import statistics as stt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 
 from belegung import speicher
@@ -969,11 +969,20 @@ def halbjahr(d: date) -> tuple[int, int]:
     return (d.year, 1) if d.month < SOMMER_AB else (d.year, 2)
 
 
-def hj_text(h: tuple[int, int]) -> str:
+MONAT_KURZ = ("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+MONAT_LANG = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
+              "Dezember")
+
+
+def hj_text(h: tuple) -> str:
+    if len(h) == 3:                                   # 1.05: Monat (Jahr, Monat, "m")
+        return f"{MONAT_LANG[h[1] - 1]} {h[0]}"
     return f"{'Winterstart' if h[1] == 1 else 'Sommerstart'} {h[0]}"
 
 
-def hj_kurz(h: tuple[int, int]) -> str:
+def hj_kurz(h: tuple) -> str:
+    if len(h) == 3:
+        return f"{MONAT_KURZ[h[1] - 1]} {h[0] % 100:02d}"
     return f"{'W' if h[1] == 1 else 'S'} {h[0] % 100:02d}"
 
 
@@ -1422,3 +1431,76 @@ def sichtbar_schritt(fam: str, wert: bool | None) -> str:
         _schreiben(roh)
     _schritt(f"Maßnahme {'eingeblendet' if wert else 'ausgeblendet'}: {fam}", tun, [DATEI])
     return f"{fam} {'wird immer gezeigt' if wert else 'ausgeblendet' if wert is False else 'nach Regel'}"
+
+
+# ---- 1.05: Neuanmeldungen je Monat (statt je Startwelle) -------------------------------------------------------------
+
+def _monat_plus(d: date, n: int) -> date:
+    i = d.year * 12 + d.month - 1 + n
+    return date(i // 12, i % 12 + 1, 1)
+
+
+def _monat_ende(d: date) -> date:
+    return _monat_plus(d, 1) - timedelta(days=1)
+
+
+def startmuster(ks: list, welle: int, vor: date) -> list[float]:
+    """Anteil jedes der 6 Monate einer Startwelle (Winter 1 / Sommer 2) an ihren Neuanmeldungen – aus den vollständig
+    vergangenen Wellen vor ``vor``. Ohne Daten gleich verteilt."""
+    summe = [0.0] * 6
+    for k in ks:
+        h = halbjahr(k.start)
+        if h[1] != welle or hj_ende(h) >= vor:
+            continue
+        a = hj_start(h)
+        i = (k.start.year - a.year) * 12 + k.start.month - a.month
+        if 0 <= i < 6:
+            summe[i] += neu_im_kurs(k)
+    ges = sum(summe)
+    return [x / ges for x in summe] if ges > 0 else [1 / 6] * 6
+
+
+def monatlich(daten: dict | None, stichtag: date, reihen: dict, monate_zurueck: int = 24) -> dict:
+    """Dieselben Reihen je Monat. Vergangene Monate: Ist (Neuanmeldungen in Kursen, die in dem Monat begonnen haben).
+    Offene Monate einer Welle: schon begonnen + schon gebucht im jeweiligen Monat, dazu der Rest der Wellen-Erwartung
+    nach dem Startmuster früherer Wellen verteilt. Die Summe der Monate einer Welle ist genau die Wellen-Erwartung."""
+    roh = daten if daten is not None else _roh()
+    ks = kurse(roh)
+    if not ks:
+        return {}
+    daten_ab = date.fromisoformat((roh.get("pivot") or {}).get("von") or min(k.start for k in ks).isoformat())
+    starts = _starts(ks, daten_ab)
+    ab = _monat_plus(date(stichtag.year, stichtag.month, 1), -monate_zurueck)
+    erg = {}
+    for fam, r in reihen.items():
+        eigene = [k for k in starts if k.familie == fam]
+        muster = {w: startmuster(eigene, w, stichtag) for w in (1, 2)}
+        zeilen: list[HZeile] = []
+        for z in r.zeilen:
+            a = hj_start(z.hj)
+            ms = [_monat_plus(a, i) for i in range(6)]
+            ist = [float(sum(neu_im_kurs(k) for k in eigene if m <= k.start <= min(_monat_ende(m), stichtag))) for m in ms]
+            gebucht = [float(sum(neu_im_kurs(k) for k in eigene if m <= k.start <= _monat_ende(m) and k.start > stichtag))
+                       for m in ms]
+            offen = [z.art != "ist" and _monat_ende(m) >= stichtag for m in ms]
+            anteil = [muster[z.hj[1]][i] if offen[i] else 0.0 for i in range(6)]
+            if any(offen) and sum(anteil) <= 0:
+                anteil = [1.0 if o else 0.0 for o in offen]
+            g = sum(anteil) or 1.0
+            anteil = [x / g for x in anteil]
+            bekannt = sum(ist) + sum(gebucht)
+
+            def verteilt(gesamt: float, i: int) -> float:
+                return ist[i] + gebucht[i] + max(0.0, gesamt - bekannt) * anteil[i]
+            for i, m in enumerate(ms):
+                if _monat_ende(m) < ab:
+                    continue
+                if not offen[i]:
+                    v = ist[i]
+                    zeilen.append(HZeile((m.year, m.month, "m"), "ist", v, 0.0, v, v, v, False, v, v))
+                else:
+                    zeilen.append(HZeile((m.year, m.month, "m"), "prognose", ist[i], gebucht[i], verteilt(z.erwartet, i),
+                                         verteilt(z.klein, i), verteilt(z.gross, i), z.geplant,
+                                         verteilt(z.klein95, i), verteilt(z.gross95, i)))
+        erg[fam] = replace(r, zeilen=zeilen)
+    return erg
