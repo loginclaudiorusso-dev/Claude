@@ -65,6 +65,7 @@ def name_aus(text: str) -> str:
 
 def erkennen(betreff: str, text: str, heute: date | None = None):
     heute = heute or date.today()
+    text, betreff = einheitlich(text), einheitlich(betreff)
     e = mails.erkennen(betreff, text, heute)
     b = _bereinigt(betreff)
     koerper = mails._koerper(text or "")
@@ -188,31 +189,56 @@ def _name_zeile(teil: str) -> tuple[str, str]:
 
 
 def _zellen_zusammenfuegen(koerper: str, heute: date) -> str:
-    """Tabelle aus Outlook: jede Zelle in einer eigenen Zeile → Zellen bis zum Zeitraum wieder zu EINER Zeile (Tab)."""
-    aus, puffer = [], []
-    for zeile in koerper.splitlines():
-        if not zeile.strip():
-            if puffer:
-                aus.append("\n".join(puffer))
-                puffer = []
-            aus.append("")
+    """Tabelle aus Outlook: jede Zelle in einer eigenen Zeile, oft mit Leerzeilen dazwischen. 1.10: Zu jeder kurzen
+    Zeile mit Zeitraum werden die Zellen davor gesucht – Zimmerangabe und Name (Leerzeilen zählen nicht) – und zu EINER
+    Zeile mit Tabs zusammengefügt. Alles andere bleibt Begleittext."""
+    zeilen = [z.strip() for z in koerper.splitlines() if z.strip()]
+    benutzt: set[int] = set()
+    zeilen_neu: dict[int, str] = {}
+    for i, z in enumerate(zeilen):
+        if len(z) > 60 or len(mails.daten(z, heute)) < 2:
             continue
-        puffer.append(zeile.strip())
-        if len(mails.daten(zeile, heute)) >= 2:
-            aus.append("\t".join(puffer))
-            puffer = []
-    if puffer:
-        aus.append("\n".join(puffer))
+        zellen = [z]
+        k = i - 1
+        if k >= 0 and k not in benutzt and (_ZIMMER.search(zeilen[k]) or _GAESTE.search(zeilen[k])
+                                           or re.search(r"\b(EZ|DZ|Zimmer)\b", zeilen[k])) and len(zeilen[k]) <= 80:
+            zellen.insert(0, zeilen[k])
+            k -= 1
+        if k >= 0 and k not in benutzt and len(zeilen[k]) <= 100 and not mails.daten(zeilen[k], heute):
+            zellen.insert(0, zeilen[k])
+            k -= 1
+        if len(zellen) < 3:
+            continue
+        for x in range(k + 1, i + 1):
+            benutzt.add(x)
+        zeilen_neu[k + 1] = "\t".join(zellen)
+    aus = []
+    for i, z in enumerate(zeilen):
+        if i in zeilen_neu:
+            aus.append(zeilen_neu[i])
+        elif i not in benutzt:
+            aus.append(z)
     return "\n".join(aus)
 
 
 def buchungen(betreff: str, text: str, heute: date | None = None) -> list[Buchung]:
     """Alle Zeilen mit Zeitraum und Zimmerangabe als eigene Buchungen; dazu fest/offen aus dem Begleittext."""
     heute = heute or date.today()
-    erg = _buchungen(mails._koerper(text or ""), heute)
+    text = einheitlich(text)
+    erg = _buchungen(mails._koerper(text), heute)
     if not erg:
-        erg = _buchungen(_zellen_zusammenfuegen(mails._koerper(text or ""), heute), heute)
+        erg = _buchungen(_zellen_zusammenfuegen(mails._koerper(text), heute), heute)
     return erg
+
+
+_STRICHE = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "–", "\u2013": "–", "\u2014": "–", "\u2015": "–",
+                          "\u2212": "-", "\u00a0": " ", "\u202f": " ", "\u2007": " ", "\u200b": "", "\ufeff": "",
+                          "\r": ""})
+
+
+def einheitlich(text: str | None) -> str:
+    """1.10: Text aus Outlook vereinheitlichen – geschützte Leerzeichen, besondere Bindestriche, Windows-Zeilenenden."""
+    return (text or "").translate(_STRICHE)
 
 
 def _buchungen(koerper: str, heute: date) -> list[Buchung]:

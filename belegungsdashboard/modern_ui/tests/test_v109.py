@@ -71,3 +71,32 @@ def test_fliesstext_mit_zimmer_wird_keine_liste():
 def test_posteingang_name_ohne_zimmerzusatz():
     b = mk.buchungen(BETREFF, TEXT, HEUTE)[0]
     assert mk.erkannt_fuer(b, None).name == "Muster, Max"
+
+
+def test_v110_tabelle_mit_leerzeilen_zwischen_den_zellen():
+    """So kommt die Tabelle aus Outlook: jede Zelle ein Absatz, dazwischen Leerzeilen."""
+    zellen = TEXT.replace("\t", "\n\n")
+    b = mk.buchungen(BETREFF, zellen, HEUTE)
+    assert [(x.name, x.zimmer, x.art, x.von, x.bis) for x in b] == [
+        ("Muster, Max", 2, "DZ", date(2026, 12, 4), date(2026, 12, 6)),
+        ("Beispiel", 6, "EZ o. DZ", date(2026, 12, 10), date(2026, 12, 13)),
+        ("Probe, Paula", 3, "EZ", date(2026, 12, 19), date(2026, 12, 20)),
+        ("Test, Tim", 1, "DZ", date(2026, 12, 11), date(2026, 12, 13))]
+    assert {x.nachname: x.status for x in b} == {"Muster": "offen", "Beispiel": "offen", "Probe": "fix", "Test": "fix"}
+    assert b[3].zusatz == "Musterweg 1, 12345 Musterort"
+
+
+def test_v110_tabelle_ohne_begleittext_und_mit_langer_unterschrift():
+    t = ("Hr. Max MUSTER, MA JH\n\n2 DZ\n\n04. - 06.12.2026\n\nPaula PROBE, ehem. TN\n\n3 EZ\n\n19. - 20.12.2026\n\n\n"
+         "Freundliche Grüße\n\ni. A. Lena Lorem\nKundenmanagement\nMusterallee 1\n12345 Musterstadt\n"
+         "Beispiel gGmbH | Sitz der Gesellschaft: 12345 Musterstadt | Amtsgericht Musterstadt HRB: 000000\n")
+    b = mk.buchungen("Vormerkungen", t, HEUTE)
+    assert [(x.name, x.zimmer) for x in b] == [("Muster, Max", 2), ("Probe, Paula", 3)]
+
+
+def test_v110_outlook_zeichen():
+    t = (TEXT.replace("\t", "\r\n\r\n").replace(". - ", ". ‑ ").replace("Hr. ", "Hr. "))
+    b = mk.buchungen(BETREFF, t, HEUTE)
+    assert [(x.name, x.zimmer, x.von, x.bis) for x in b][:2] == [("Muster, Max", 2, date(2026, 12, 4), date(2026, 12, 6)),
+                                                                ("Beispiel", 6, date(2026, 12, 10), date(2026, 12, 13))]
+    assert len(b) == 4
