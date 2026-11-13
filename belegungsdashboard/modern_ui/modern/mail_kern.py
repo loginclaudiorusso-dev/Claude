@@ -16,7 +16,7 @@ wo sie typische Mails des Internatsdiensts nicht ganz versteht:
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 
 from belegung import mails
@@ -126,3 +126,203 @@ def erkennen(betreff: str, text: str, heute: date | None = None):
         u.append(f"Anreise am Sonntag: Zimmer ab {von:%d.%m.%Y} eingeplant (Unterbringung ab {beginn:%d.%m.}) – bitte prüfen.")
     e2.unsicher = u
     return e2
+
+
+# ---- 1.09: mehrere Gästehaus-Vormerkungen in einer Mail ---------------------------------------------------------------
+# Typisch vom Kundenmanagement: je Zeile „Hr. Vorname NACHNAME, Zusatz <Tab> 2 DZ <Tab> 04. - 06.12.2026“, davor ein Satz,
+# wer fest ist („… und … sind fix“) und wer sich noch meldet. Die Erkennung des Hauptprogramms kennt nur EINE Person je
+# Mail – hier wird jede Zeile eine eigene Buchung.
+
+_ZIMMER = re.compile(r"(\d+)\s*(EZ|DZ|Einzelzimmer|Doppelzimmer)\b", re.I)
+_GAESTE = re.compile(r"(\d+)\s*(?:[-–]\s*(\d+)\s*)?(?:Gäste|Gaeste|Personen|Pers\.)", re.I)
+_ANREDE = re.compile(r"^\s*(Herrn?|Hr\.?|Frau|Fr\.?)\s+", re.I)
+_FIX = re.compile(r"\b(fix|fest|bestätigt|verbindlich|zugesagt)\b", re.I)
+_OFFEN = re.compile(r"melde[nt]?\s+sich\s+noch|noch\s+offen|vorläufig|unverbindlich|nicht\s+bestätigt|"
+                    r"steh(?:t|en)\s+noch\s+nicht\s+fest|unter\s+vorbehalt", re.I)
+
+
+@dataclass
+class Buchung:
+    name: str                         # „Nachname, Vorname“ bzw. nur Nachname
+    zusatz: str                       # Firma/Bereich/Anschrift aus der Zeile
+    zimmer: int                       # so viele Zimmer werden reserviert
+    art: str                          # „EZ“ | „DZ“ | „EZ o. DZ“
+    von: date
+    bis: date
+    gaeste: tuple[int, int] | None = None   # „Zimmer für 5 - 6 Gäste“
+    status: str = "offen"             # fix | offen (meldet sich noch / vorgemerkt)
+    hinweise: list[str] = field(default_factory=list)
+    geschlecht: str = ""
+
+    @property
+    def nachname(self) -> str:
+        return self.name.split(",")[0].strip()
+
+    @property
+    def text(self) -> str:
+        z = f"{self.zimmer} {self.art}" if self.gaeste is None else \
+            f"{self.zimmer} Zimmer ({self.art}) für {self.gaeste[0]}{'–' + str(self.gaeste[1]) if self.gaeste[1] != self.gaeste[0] else ''} Gäste"
+        return (f"{self.name}" + (f" · {self.zusatz}" if self.zusatz else "") + f" · {z} · {self.von:%d.%m.}–{self.bis:%d.%m.%Y}"
+                + (" · fest" if self.status == "fix" else " · vorgemerkt, Bestätigung offen"))
+
+
+def _name_zeile(teil: str) -> tuple[str, str]:
+    """„Hr. Max MUSTER“ → („Muster, Max“, „m“); „René HOPPE“ → („Hoppe, René“, „“); „Hr. Probe“ → („Probe“, „m“)."""
+    g = ""
+    m = _ANREDE.match(teil)
+    if m:
+        g = "w" if m.group(1).lower().startswith("fr") else "m"
+        teil = teil[m.end():]
+    woerter = [w for w in re.split(r"\s+", teil.strip()) if w]
+    if not woerter:
+        return "", g
+    titel = lambda w: w if not w.isupper() else w.capitalize()      # noqa: E731
+    gross = [w for w in woerter if w.isupper() and len(w) > 1]
+    if gross:                                                       # NACHNAME in Großbuchstaben
+        nach = gross[-1]
+        vor = " ".join(titel(w) for w in woerter if w is not nach)
+        return (f"{titel(nach)}, {vor}" if vor else titel(nach)), g
+    if len(woerter) == 1:
+        return titel(woerter[0]), g
+    return f"{titel(woerter[-1])}, {' '.join(woerter[:-1])}", g
+
+
+def _zellen_zusammenfuegen(koerper: str, heute: date) -> str:
+    """Tabelle aus Outlook: jede Zelle in einer eigenen Zeile → Zellen bis zum Zeitraum wieder zu EINER Zeile (Tab)."""
+    aus, puffer = [], []
+    for zeile in koerper.splitlines():
+        if not zeile.strip():
+            if puffer:
+                aus.append("\n".join(puffer))
+                puffer = []
+            aus.append("")
+            continue
+        puffer.append(zeile.strip())
+        if len(mails.daten(zeile, heute)) >= 2:
+            aus.append("\t".join(puffer))
+            puffer = []
+    if puffer:
+        aus.append("\n".join(puffer))
+    return "\n".join(aus)
+
+
+def buchungen(betreff: str, text: str, heute: date | None = None) -> list[Buchung]:
+    """Alle Zeilen mit Zeitraum und Zimmerangabe als eigene Buchungen; dazu fest/offen aus dem Begleittext."""
+    heute = heute or date.today()
+    erg = _buchungen(mails._koerper(text or ""), heute)
+    if not erg:
+        erg = _buchungen(_zellen_zusammenfuegen(mails._koerper(text or ""), heute), heute)
+    return erg
+
+
+def _buchungen(koerper: str, heute: date) -> list[Buchung]:
+    erg: list[Buchung] = []
+    begleit: list[str] = []
+    for zeile in koerper.splitlines():
+        if not zeile.strip():
+            continue
+        daten = [d for _p, d in mails.daten(zeile, heute)]
+        zm = list(_ZIMMER.finditer(zeile))
+        gm = _GAESTE.search(zeile)
+        if len(daten) < 2 or not (zm or gm or re.search(r"\b(EZ|DZ|Zimmer)\b", zeile)):
+            begleit.append(zeile)
+            continue
+        von, bis = daten[0], daten[1]
+        if bis < von:
+            continue
+        teile = [t.strip() for t in re.split(r"\t+|\s{3,}", zeile.strip()) if t.strip()]
+        kopf = teile[0] if teile else zeile
+        if _ZIMMER.search(kopf) or mails.daten(kopf, heute):         # ohne Tabs: bis zur Zimmer-/Datumsangabe
+            kopf = re.split(r"\s\d+\s*(?:EZ|DZ)|Zimmer|\d{1,2}\.\s*[-–]", kopf)[0]
+        name_teil, _, zusatz = kopf.partition(",")
+        woerter = [w for w in _ANREDE.sub("", name_teil).split() if w]
+        # Fließtext ist keine Buchungszeile: Name = 1–4 großgeschriebene Wörter, Zeile kurz oder in Zellen geteilt
+        if not woerter or len(woerter) > 4 or not all(w[0].isupper() for w in woerter) \
+                or (len(teile) < 2 and len(zeile) > 140):
+            begleit.append(zeile)
+            continue
+        name, g = _name_zeile(name_teil)
+        if not name:
+            continue
+        zusatz = zusatz.strip(" ,")
+        if zm:
+            anzahl = sum(int(m.group(1)) for m in zm)
+            arten = {("EZ" if m.group(2).upper().startswith("E") else "DZ") for m in zm}
+            art = " + ".join(sorted(arten)) if len(arten) > 1 else arten.pop()
+            gaeste = None
+            hinweise = []
+        else:
+            lo = int(gm.group(1)) if gm else 1
+            hi = int(gm.group(2)) if gm and gm.group(2) else lo
+            ez, dz = bool(re.search(r"\bEZ\b|Einzel", zeile, re.I)), bool(re.search(r"\bDZ\b|Doppel", zeile, re.I))
+            art = "EZ o. DZ" if ez and dz else ("DZ" if dz else "EZ")
+            anzahl = hi if art != "DZ" else -(-hi // 2)
+            gaeste = (lo, hi)
+            hinweise = [f"Zimmerzahl offen ({lo}–{hi} Gäste{', EZ oder DZ' if art == 'EZ o. DZ' else ''}) – "
+                        f"{anzahl} Zimmer vorgemerkt, bitte bei der Bestätigung anpassen."]
+        erg.append(Buchung(name, zusatz, max(1, anzahl), art, von, bis, gaeste, "offen", hinweise, g))
+    if not erg:
+        return []
+    # fest / meldet sich noch – je Satzteil die genannten Nachnamen
+    satz = " ".join(begleit)
+    letzter = None
+    for teil in re.split(r"[,;.]|\bwobei\b|\baber\b", satz):
+        genannt = [b for b in erg if re.search(rf"\b{re.escape(b.nachname)}\b", teil, re.I)]
+        if _FIX.search(teil):
+            for b in genannt:
+                b.status = "fix"
+        elif _OFFEN.search(teil):
+            for b in genannt:
+                b.status = "offen"
+        if genannt:
+            letzter = genannt[-1]
+        if re.search(r"\bletzterer\b|\bletztere\b", teil, re.I) and letzter is not None:
+            if re.search(r"kurzfristig|ändert|geändert|visa", satz, re.I):
+                letzter.hinweise.append("Kurzfristige Bestätigung oder Änderung möglich (laut Mail).")
+    return erg
+
+
+def erkannt_fuer(b: Buchung, nr: int | None = 0) -> "mails.Erkannt":
+    """Eine Buchung (bzw. ihr ``nr``-tes Zimmer) als Erkannt fürs Hauptprogramm (Gästehaus). ``nr=None``: die ganze
+    Buchung (z. B. für den Posteingang) – ohne Zimmerzusatz im Namen."""
+    name = b.name if b.zimmer == 1 or nr is None else f"{b.name} ({b.art.split()[0]} {nr + 1}/{b.zimmer})"
+    notiz = " · ".join(x for x in (f"Gästehaus {b.art}", b.zusatz,
+                                    "fest" if b.status == "fix" else "vorgemerkt – Bestätigung offen") if x)
+    return mails.Erkannt(art="gast", name=name, von=b.von, bis=b.bis, geschlecht=b.geschlecht,
+                         massnahme="Gast Gästehaus", einzelzimmer=b.art == "EZ", zusammenfassung=notiz[:200],
+                         bestaetigung=False)
+
+
+def schritte(liste: list[Buchung], stand, heute: date | None = None) -> list[list]:
+    """Je Buchung die Schritte: Person(en) anlegen, Zimmer reservieren (gemeinsam vorgeschlagen, damit sich die
+    Buchungen keine Zimmer wegnehmen), bei offenen Vormerkungen eine Wiedervorlage."""
+    from belegung import zimmerplan as zp
+
+    heute = heute or date.today()
+    personen = []                      # (Buchung-Index, Person)
+    for i, b in enumerate(liste):
+        for n in range(b.zimmer):
+            p = mails.neue_person(erkannt_fuer(b, n))
+            if p is not None:
+                personen.append((i, p))
+    bedarf = zp.bedarf_aus_personen([p for _i, p in personen]) if personen else []
+    vorschlaege = zp.vorschlagen(stand.lage, bedarf) if bedarf else []
+    zu = {zt.bedarf.schluessel: zt for zt in vorschlaege}
+    erg: list[list] = [[] for _ in liste]
+    for i, p in personen:
+        erg[i].append(mails.Schritt("person_anlegen", f"Gast anlegen: {p.name}, {p.anreise:%d.%m.} – {p.abreise:%d.%m.%Y}",
+                                    daten={"person": p.zu_dict()}))
+        zt = zu.get(p.schluessel)
+        if zt is not None and zt.zimmer is not None:
+            erg[i].append(mails.Schritt("zimmer", f"Zimmer reservieren: {zt.zimmer.kurz} ({zt.grund})",
+                                        daten={"zimmer": zt.zimmer.id, "person": p.schluessel}))
+        else:
+            grund = (zt.warnungen[0] if zt is not None and zt.warnungen else "")
+            erg[i].append(mails.Schritt("zimmer", f"Kein passendes Zimmer frei – {grund}".rstrip(" –"), an=False,
+                                        daten={"zimmer": "", "person": p.schluessel}))
+    for i, b in enumerate(liste):
+        if b.status != "fix" and personen:
+            wv = min(max(heute, b.von - timedelta(days=14)), heute + timedelta(days=7))
+            erg[i].append(mails.Schritt("notiz", f"Wiedervorlage {wv:%d.%m.}: Bestätigung von {b.nachname} abwarten",
+                                        daten={"text": f"Vormerkung {b.nachname}: Bestätigung abwarten", "wv": wv.isoformat()}))
+    return erg

@@ -169,6 +169,12 @@ def _mails(a) -> None:
                         return
                     from . import mail_kern               # 1.04: Zeitraum mit „–“, Name aus Betreff, UWT
 
+                    liste = await run.io_bound(mail_kern.buchungen, betreff.value or "", text.value or "")
+                    if liste:                             # 1.09: mehrere Gästehaus-Vormerkungen in einer Mail
+                        stand = await run.io_bound(zp.laden)
+                        sch = await run.io_bound(mail_kern.schritte, liste, stand)
+                        _buchungen_ergebnis(a, erg, liste, sch, betreff, absender, text)
+                        return
                     e = await run.io_bound(mail_kern.erkennen, betreff.value or "", text.value or "")
                     personen, _ = await run.io_bound(anreiseliste.laden)
                     treffer = await run.io_bound(mails.zuordnen, e, zp.laden(), personen)
@@ -295,6 +301,53 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
             knopf("Umsetzen", umsetzen, "primaer", "check")
             knopf("Nur ablegen", lambda: ablegen("offen"), "leise")
             knopf("Verwerfen", lambda: ablegen("verworfen"), "leise")
+
+
+def _buchungen_umsetzen(liste, schritte, betreff, text, absender) -> str:
+    """1.09: alle Buchungen einer Mail in EINEM Schritt (Rückgängig nimmt alles zurück); je Buchung ein Posteingang."""
+    from . import mail_kern
+
+    stand = zp.laden()
+    n = 0
+
+    def aktion():
+        nonlocal n
+        for b, sch in zip(liste, schritte):
+            if any(x.an for x in sch):
+                mails.umsetzen(mail_kern.erkannt_fuer(b, None), sch, stand, betreff, text, absender, None)
+                n += 1
+    _schritt(f"Mail umgesetzt: {len(liste)} Vormerkungen", aktion,
+             [mails.DATEI, anreiseliste.DATEI, tm.DATEI, zp.PERSONEN_ANGABEN])
+    return f"{n} Vormerkung(en) umgesetzt" if n else "Nichts angehakt – nichts umgesetzt"
+
+
+def _buchungen_ergebnis(a, box, liste, schritte, betreff, absender, text) -> None:
+    box.clear()
+    with box:
+        fest = sum(1 for b in liste if b.status == "fix")
+        ui.label(f"Erkannt: {len(liste)} Gästehaus-Vormerkungen · {fest} fest · {len(liste) - fest} melden sich noch"
+                 ).classes("m-name")
+        for b, sch in zip(liste, schritte):
+            with ui.element("div").classes("m-plan-u m-mail-buchung"):
+                with ui.element("div").style("display:flex;gap:8px;align-items:center;flex-wrap:wrap"):
+                    ui.label("fest" if b.status == "fix" else "vorgemerkt").classes(
+                        "m-pille " + ("ok" if b.status == "fix" else "warn")).style("flex:none")
+                    ui.label(b.text).classes("m-name").style("white-space:normal")
+                for h in b.hinweise:
+                    ui.label(h).classes("m-zweite").style("color:var(--orange);white-space:normal")
+                for s_ in sch:
+                    cb = ui.checkbox(s_.text, value=s_.an).props("dense dark color=indigo-4")
+                    cb.on_value_change(lambda ev, s_=s_: setattr(s_, "an", ev.value))
+
+        async def umsetzen():
+            if await a.aendern(_buchungen_umsetzen, liste, schritte, betreff.value or "", text.value or "",
+                               absender.value or ""):
+                betreff.value = absender.value = text.value = ""
+                box.clear()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Alle angehakten umsetzen", umsetzen, "primaer", "check")
+            knopf("Verwerfen", box.clear, "leise")
 
 
 # =======================================================================================
