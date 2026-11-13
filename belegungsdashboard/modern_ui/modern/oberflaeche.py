@@ -333,6 +333,9 @@ class Ansicht:
         from . import band_ui as _band_ui
 
         ui.add_css(_band_ui.CSS)               # 1.00: Seiten-Werkzeuge als Office-Gruppen
+        from . import seite_massnahmen as _mn_css
+
+        ui.add_css(_mn_css.CSS)                # 1.04: Menü der Maßnahmen-Auswahl im Menüband
         from . import seite_heute as _heute_css
 
         ui.add_css(_heute_css.CSS)             # 0.91: Heute als eine Seite

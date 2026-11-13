@@ -184,41 +184,113 @@ def vorschau(neu: bool = False, anzahl: int = ANZAHL) -> tuple[list[Mail], str]:
 
 # ---- Oberfläche (Block auf „Heute“) ------------------------------------------------------
 
-def offene_mail() -> dict | None:
-    """0.91: Die Mail, an der gerade gearbeitet wird – zuerst die im eigenen Fenster geöffnete, sonst die in Outlook
-    markierte. Nur ein laufendes klassisches Outlook (nie starten), nur lesen. None = keine Mail offen/markiert.
-    ValueError mit verständlichem Text, wenn Outlook nicht erreichbar ist (z. B. „neues Outlook“)."""
+def _als_mail(x):
+    """Ein Outlook-Element → Mail (oder None). Auch Unterhaltungen (Unterhaltungsansicht) und Elemente ohne
+    Empfangszeit (Entwürfe, Berichte) – Hauptsache Betreff und Text."""
+    if x is None:
+        return None
     try:
-        import pythoncom
-        import win32com.client
-    except ImportError as exc:
-        raise ValueError("Outlook ist nur unter Windows mit dem klassischen Outlook erreichbar – bitte den Text "
-                         "einfügen.") from exc
-    pythoncom.CoInitialize()                       # eigener Thread (run.io_bound) → COM hier anmelden
+        klasse = int(getattr(x, "Class", 0) or 0)
+    except Exception:                              # noqa: BLE001
+        klasse = 0
+    if klasse == 43:                               # olMail
+        return x
+    try:                                           # Unterhaltungs-Kopf: die neueste Mail daraus
+        teile = x.GetItems()
+        beste = None
+        for i in range(1, teile.Count + 1):
+            m = teile.Item(i)
+            if int(getattr(m, "Class", 0) or 0) == 43:
+                beste = m
+        if beste is not None:
+            return beste
+    except Exception:                              # noqa: BLE001
+        pass
     try:
+        if getattr(x, "Subject", None) is not None and getattr(x, "Body", None) is not None:
+            return x                               # z. B. Besprechungsanfrage, Bericht – Text reicht zum Erkennen
+    except Exception:                              # noqa: BLE001
+        pass
+    return None
+
+
+def _zeit(m) -> datetime:
+    for feld in ("ReceivedTime", "SentOn", "CreationTime"):
         try:
-            ol = win32com.client.GetActiveObject("Outlook.Application")
-        except Exception as exc:                   # noqa: BLE001
-            raise ValueError("Outlook ist nicht geöffnet (oder es ist das „neue Outlook“) – bitte den Text "
-                             "einfügen.") from exc
-        m = None
-        try:
-            insp = ol.ActiveInspector()
-            m = insp.CurrentItem if insp else None            # 1. Mail im eigenen Fenster
+            rt = getattr(m, feld)
+            return datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute)
         except Exception:                          # noqa: BLE001
-            m = None
-        if m is None:
+            continue
+    return datetime.now().replace(second=0, microsecond=0)
+
+
+def kandidaten(ol) -> list:
+    """Reihenfolge: aktives Mail-Fenster, alle offenen Mail-Fenster (neuestes zuerst), Auswahl im aktiven Explorer,
+    Auswahl in allen Explorern."""
+    erg: list = []
+
+    def dazu(f):
+        try:
+            x = f()
+        except Exception:                          # noqa: BLE001
+            return
+        if x is not None:
+            erg.append(x)
+    dazu(lambda: ol.ActiveInspector().CurrentItem if ol.ActiveInspector() else None)
+    try:
+        insp = ol.Inspectors
+        for i in range(insp.Count, 0, -1):
+            dazu(lambda i=i: insp.Item(i).CurrentItem)
+    except Exception:                              # noqa: BLE001
+        pass
+
+    def auswahl(ex):
+        sel = ex.Selection if ex else None
+        if sel is not None and sel.Count:
+            for i in range(1, sel.Count + 1):
+                dazu(lambda i=i: sel.Item(i))
+    try:
+        auswahl(ol.ActiveExplorer())
+    except Exception:                              # noqa: BLE001
+        pass
+    try:
+        exs = ol.Explorers
+        for i in range(1, exs.Count + 1):
             try:
-                ex = ol.ActiveExplorer()
-                sel = ex.Selection if ex else None
-                m = sel.Item(1) if sel is not None and sel.Count else None     # 2. markierte Mail
+                auswahl(exs.Item(i))
             except Exception:                      # noqa: BLE001
-                m = None
-        if m is None or getattr(m, "Class", 0) != 43:         # 43 = Mail
-            return None
-        rt = m.ReceivedTime
-        return {"betreff": str(m.Subject or ""), "absender": str(m.SenderName or ""), "text": str(m.Body or ""),
-                "zeit": datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute)}
+                continue
+    except Exception:                              # noqa: BLE001
+        pass
+    return erg
+
+
+def offene_mail() -> dict | None:
+    """0.91/1.04: Die Mail, an der gerade gearbeitet wird – zuerst ein geöffnetes Mail-Fenster, sonst die in Outlook
+    markierte (auch in der Unterhaltungsansicht und in freigegebenen Postfächern). Nur ein laufendes klassisches
+    Outlook (nie starten), nur lesen. None = keine Mail offen/markiert. ValueError mit verständlichem Text, wenn
+    Outlook nicht erreichbar ist (z. B. „neues Outlook“)."""
+    try:
+        pythoncom, ol = _outlook("Outlook ist nicht geöffnet (oder es ist das „neue Outlook“) – bitte den Text "
+                                 "einfügen.")
+    except ValueError as exc:
+        if "nur unter Windows" in str(exc):
+            raise ValueError("Outlook ist nur unter Windows mit dem klassischen Outlook erreichbar – bitte den Text "
+                             "einfügen.") from exc
+        raise
+    try:
+        for x in kandidaten(ol):
+            m = _als_mail(x)
+            if m is None:
+                continue
+            try:
+                betreff, absender, text = str(m.Subject or ""), str(getattr(m, "SenderName", "") or ""), str(m.Body or "")
+            except Exception:                      # noqa: BLE001
+                continue
+            if not (betreff or text):
+                continue
+            return {"betreff": betreff, "absender": absender, "text": text, "zeit": _zeit(m)}
+        return None
     finally:
         pythoncom.CoUninitialize()
 

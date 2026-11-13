@@ -65,6 +65,7 @@ MATERIAL = {
     "calendar_month": ("calendar_month", BLAU), "date_range": ("calendar_date", BLAU), "warning": ("warning", AMBER),
     "build": ("wrench", AMBER), "history": ("history", BASIS), "bed": ("bed", BASIS), "check_circle": ("checkmark_circle", GRUEN),
     "block": ("prohibited", ROT), "schedule": ("calendar_clock", BLAU), "today": ("calendar_today", BLAU),
+    "event_seat": ("seat", VIOLETT), "checklist": ("checkbox_checked", TEAL), "edit_calendar": ("calendar_edit", BLAU),
     "table_rows": ("table", TEAL), "grid_view": ("grid", BLAU), "inventory_2": ("box", BLAU), "edit_note": ("document_edit", BASIS),
 }
 # Zustands- und Filterschlüssel der Kennzahl-Chips → Fluent

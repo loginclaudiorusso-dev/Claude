@@ -167,7 +167,9 @@ def _mails(a) -> None:
                 async def erkennen():
                     if not (text.value or betreff.value):
                         return
-                    e = await run.io_bound(mails.erkennen, betreff.value or "", text.value or "")
+                    from . import mail_kern               # 1.04: Zeitraum mit „–“, Name aus Betreff, UWT
+
+                    e = await run.io_bound(mail_kern.erkennen, betreff.value or "", text.value or "")
                     personen, _ = await run.io_bound(anreiseliste.laden)
                     treffer = await run.io_bound(mails.zuordnen, e, zp.laden(), personen)
                     _mail_ergebnis(a, erg, e, treffer, betreff, absender, text)
@@ -255,6 +257,7 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
     zustand = {"treffer": treffer[0] if treffer else None, "schritte": []}
     with box:
         ui.label(f"Erkannt: {mails.ARTEN.get(e.art, e.art)}" + (f" · {e.name}" if e.name else "") +
+                 (f" · {e.massnahme}" if e.massnahme else "") + (f" · TN {e.tn_id}" if e.tn_id else "") +
                  (f" · {e.von:%d.%m.%Y}" if e.von else "") + (f" – {e.bis:%d.%m.%Y}" if e.bis else "")).classes("m-name")
         for u in e.unsicher:
             ui.label(u).classes("m-zweite").style("color:var(--orange)")

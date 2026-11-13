@@ -15,6 +15,23 @@ from . import massnahmen_kern as mk
 from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+# 1.04: Menü der Maßnahmen-Auswahl im Menüband
+CSS = r"""
+.m-mn-menue { width: 380px; max-width: 92vw; padding: 0 !important; }
+.m-mn-kopf { padding: 14px 16px 8px; display: grid; gap: 2px; }
+.m-mn-titel { font-weight: 600; font-size: 14px; }
+.m-mn-suche { margin: 0 16px 8px; }
+.m-mn-schnell { display: flex; gap: 8px; padding: 0 16px 8px; border-bottom: 1px solid var(--rand); }
+.m-mn-liste { max-height: 380px; overflow-y: auto; padding: 6px 8px; }
+.m-mn-zeile { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px;
+  padding: 2px 8px; border-radius: 6px; cursor: pointer; min-height: 36px; }
+.m-mn-zeile:hover { background: var(--fl2); }
+.m-mn-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-mn-art { font-size: 12px; color: var(--text2); border: 1px solid var(--rand); border-radius: 10px; padding: 1px 8px; }
+.m-mn-art.lang { color: var(--akzent); border-color: color-mix(in srgb, var(--akzent) 45%, transparent); }
+.m-mn-fuss { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 12px;
+  border-top: 1px solid var(--rand); }
+"""
 KURZ = {"lang": "Haupt", "vorbereitung": "Vorb.", "ibtz": "IBTZ", "uebrige": "übrige", "ohne": "ohne Zimmer"}
 FARBEN_EXTRA = ["#9b6bd6", "#c2a14a", "#4fb3bf", "#d67fa6", "#7a8f3a", "#b5654a", "#5c7fb8", "#8c8c8c"]
 EIN_DIAGRAMM_BIS = 5
@@ -71,6 +88,69 @@ def _umschalter(a) -> None:
                  lambda v: a.setzen(mn_ansicht=v, nur_seite=True))
 
 
+def auswahl_text(auswahl: list, alle: int) -> str:
+    """Kurztext für den Auswahl-Knopf – rein."""
+    if not auswahl or len(auswahl) >= alle:
+        return f"alle {alle}"
+    return f"{len(auswahl)} von {alle}"
+
+
+def _auswahl_band(a, d: dict, haupt: list) -> None:
+    """1.04: Maßnahmen-Auswahl im Menüband – ein großer Knopf, dahinter ein Menü mit Suche, Schnellauswahl und
+    Häkchen. Übernommen wird beim Schließen (nicht bei jedem Häkchen – sonst schlösse sich das Menü)."""
+    from . import band_ui, symbole
+
+    liste = d["liste"]
+    gewaehlt = set(d["auswahl"])
+    zustand = {"wahl": set(gewaehlt)}
+    with band_ui.gruppe("Maßnahmen"):
+        k = band_ui.gross("Auswahl", "checkbox_checked", symbole.TEAL, pfeil=True,
+                          zahl=len(gewaehlt) if gewaehlt else None,
+                          tipp=f"Welche Maßnahmen gezeigt werden – {auswahl_text(d['auswahl'], len(liste))}")
+        with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue") as menue:
+            with ui.element("div").classes("m-mn-kopf").on("click.stop", lambda: None):
+                ui.label("Maßnahmen zeigen").classes("m-mn-titel")
+                ui.label(auswahl_text(d["auswahl"], len(liste))).classes("m-zweite")
+            suche = ui.input(placeholder="Suchen …").props("dense outlined clearable autofocus").classes("m-mn-suche")
+            suche.on("click.stop", lambda: None)
+            with ui.element("div").classes("m-mn-schnell"):
+                def alle_():
+                    zustand["wahl"] = set()
+                    menue.close()
+
+                def haupt_():
+                    zustand["wahl"] = set(haupt)
+                    menue.close()
+                knopf("Alle", alle_, "leise", "done_all")
+                if haupt:
+                    knopf("Nur Hauptmaßnahmen", haupt_, "leise", "checklist")
+            zeilen = ui.element("div").classes("m-mn-liste")
+            boxen: dict = {}
+            with zeilen:
+                for f, g, _t in liste:
+                    with ui.element("label").classes("m-mn-zeile") as z:
+                        cb = ui.checkbox(value=f in gewaehlt,
+                                         on_change=lambda e, f=f: (zustand["wahl"].add(f) if e.value
+                                                                   else zustand["wahl"].discard(f)))
+                        ui.label(f).classes("m-mn-name")
+                        ui.label(KURZ.get(g, g)).classes("m-mn-art " + g)
+                    boxen[f] = (z, cb)
+
+            def filtern(e) -> None:
+                q = str(e.value or "").lower().strip()
+                for f, (z, _cb) in boxen.items():
+                    z.set_visibility(not q or q in f.lower())
+            suche.on_value_change(filtern)
+            with ui.element("div").classes("m-mn-fuss"):
+                ui.label("Ohne Häkchen = alle").classes("m-zweite")
+                knopf("Übernehmen", menue.close, "primaer")
+
+        def zu() -> None:
+            if zustand["wahl"] != gewaehlt:
+                a.setzen(mn_auswahl=[f for f, _g, _t in liste if f in zustand["wahl"]], mn_darstellung=None, nur_seite=True)
+        menue.on("hide", zu)
+
+
 def zeichnen(a) -> None:
     d = a.daten
     _umschalter(a)
@@ -84,14 +164,21 @@ def zeichnen(a) -> None:
 
         bestand_ui.zeichnen(a, d["bestand"])
         return
+    from .ui_bausteine import im_band
+
     with a.leiste:
         optionen = {f: f"{f} · {KURZ.get(g, g)}" for f, g, _t in d["liste"]}
-        ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",
-                  on_change=lambda e: a.setzen(mn_auswahl=list(e.value or []), mn_darstellung=None, nur_seite=True)).classes(
-            "m-feld").props('dense outlined dark use-chips clearable options-dense popup-content-class="m-popup"').style(
-            "min-width:280px;max-width:420px")
         haupt = [f for f, g, _t in d["liste"] if g == "lang"]
-        if haupt and d["auswahl"] != haupt:
+        band = im_band()
+        if band:                                          # 1.04: im Menüband ein Knopf mit Menü statt vieler Chips
+            _auswahl_band(a, d, haupt)
+        else:
+            ui.select(optionen, value=d["auswahl"], multiple=True, with_input=True, label="Maßnahmen (leer = alle)",
+                      on_change=lambda e: a.setzen(mn_auswahl=list(e.value or []), mn_darstellung=None,
+                                                   nur_seite=True)).classes(
+                "m-feld").props('dense outlined dark use-chips clearable options-dense popup-content-class="m-popup"').style(
+                "min-width:280px;max-width:420px")
+        if not band and haupt and d["auswahl"] != haupt:
             knopf("Nur Hauptmaßnahmen", lambda: a.setzen(mn_auswahl=haupt, mn_darstellung=None, nur_seite=True), "leise",
                   "checklist")
         segmente({"ein": "Ein Diagramm", "je": "Je Maßnahme"}, d["darstellung"],
@@ -101,7 +188,9 @@ def zeichnen(a) -> None:
                      lambda v: a.setzen(mn_skala=v, nur_seite=True), sofort=True)
         segmente({2: "1 Jahr", 4: "2 Jahre", 6: "3 Jahre"}, d["vor"], lambda v: a.setzen(mn_vor=v, nur_seite=True),
                  sofort=True)
-        knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat").style("margin-left:auto")
+        b_ = knopf("Geplante Plätze …", lambda: _plaetze_panel(a), "", "event_seat")
+        if not band:
+            b_.style("margin-left:auto")
         if d["darstellung"] == "je":
             from . import diagramm_karte
 
