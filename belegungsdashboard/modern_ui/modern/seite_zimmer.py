@@ -860,7 +860,7 @@ def _auszug(a, k: zk.Karte, p: zk.Person) -> None:
                  "bis zum nächsten Gebäudeplan – auch dort), der Grund kommt in die Bemerkung. Danach ist das Zimmer "
                  "frei und kommt auf die Reinigungsliste. Rückgängig ist möglich.").classes("m-ptext")
         with ui.element("div").classes("m-zweispaltig"):
-            tag = ui.input("Auszug am", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            tag = ui.input("Auszug am", value=gewaehlter_tag(a).isoformat()).classes("m-feld").props("dense outlined dark type=date")
             grund = ui.select(zk.AUSZUG_GRUENDE, value="Abbruch", label="Grund").classes("m-feld").props(
                 'dense outlined dark popup-content-class="m-popup"')
 
@@ -920,7 +920,7 @@ def _reinigung(a, k: zk.Karte) -> None:
     from . import seiten_kern as sk
 
     def bauen():
-        tag = ui.input("Tag", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+        tag = ui.input("Tag", value=gewaehlter_tag(a).isoformat()).classes("m-feld").props("dense outlined dark type=date")
         grund = ui.select(zp.REINIGUNG_GRUENDE, value=zp.REINIGUNG_GRUENDE[0], label="Grund", new_value_mode="add-unique",
                           with_input=True).classes("m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
 
@@ -951,6 +951,8 @@ def _uebersicht(a) -> None:
     defekt = sum(1 for k in alle if k.stufe)
     f = zk.kacheln(a.zu_filter)
     mf = a.zl_mehr.get("maengel") or []
+    pf = zk.uebersicht_passend(a.stand, a.zl_schnell, a.zl_mehr, a.zu_tag)       # 1.11: Zimmerart, Tier, Boden …
+    n_zf = len(a.zl_schnell) + zk.mehr_aktiv({**a.zl_mehr, "maengel": []})
     with a.leiste:
         unfertig = sum(1 for k in alle if k.nicht_fertig)
         unbew = sum(1 for k in alle if k.unbewohnbar and zu[k.zimmer] == "nicht_nutzbar")
@@ -974,8 +976,12 @@ def _uebersicht(a) -> None:
                     "maengel": "Markierung: offener Mangel jeder Stufe (Marke „!“) – auch an belegten Zimmern – Klick: nur "
                                "diese"})
         _mangel_menue(a)
-        if f or mf:
-            knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_mehr={**a.zl_mehr, "maengel": []}, laden=False),
+        # 1.11: Zimmerfilter wie in der Liste (Einzel-/Doppelzimmer, Tier, Bad über Flur, Boden, Renovierung, Gruppe …)
+        with knopf(f"Filter · {n_zf}" if n_zf else "Filter", None, "leise", "filter_alt",
+                   "Zimmerart (Einzel-/Doppelzimmer), Tier, Bad über Flur, Boden, Renovierung, Personengruppe …"):
+            _filter_menue_inhalt(a)
+        if f or mf or n_zf:
+            knopf("Zurücksetzen", lambda: a.setzen(zu_filter=frozenset(), zl_schnell=set(), zl_mehr={}, laden=False),
                   "leise", "close")
         # 0.69: EINE Tagesauswahl ‹ Datum › – 0.74: als Kontext gleich hinter dem Titel
         with a.werkzeuge, ui.element("div").classes("m-tagwahl"):
@@ -999,6 +1005,19 @@ def _uebersicht(a) -> None:
         knopf("Notfallliste", lambda: notfall_drucken(a), "leise", "emergency",
               "Wer ist laut Plan jetzt im Haus? Je Haus und Etage, mit Abhak-Spalte für den Sammelplatz – zum Drucken")
     with a.inhalt:
+        if pf is not None:
+            namen = [zk.MERKMALE.get(x, x) for x in sorted(a.zl_schnell, key=list(zk.MERKMALE).index)
+                     if x in zk.MERKMALE]
+            frei_pf = sum(1 for k in alle if k.zimmer in pf and zu[k.zimmer] == "frei")
+            with ui.element("div").classes("m-ue-filter"):
+                ui.icon("filter_alt")
+                ui.label(f"Gefiltert: {' · '.join(namen) or 'weitere Filter'}"
+                         + (f" (+{n_zf - len(namen)} weitere)" if namen and n_zf > len(namen) else "")
+                         + f" – {len(pf)} Zimmer passen, davon {frei_pf} frei am {a.zu_tag:%d.%m.%Y}")
+                knopf("Filter aus", lambda: a.setzen(zl_schnell=set(), zl_mehr={**a.zl_mehr, "boeden": [], "merkmale": [],
+                                                                                "gruppen": [], "renoviert": "alle",
+                                                                                "alle": False}, laden=False),
+                      "leise", "close")
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
                 with ui.element("section").classes("m-block m-haus"):
@@ -1008,7 +1027,8 @@ def _uebersicht(a) -> None:
                             ui.label(etage).classes("m-zweite m-etage-titel")
                             with ui.element("div").classes("m-kacheln"):
                                 for k in ks:
-                                    passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf, bool(k.nicht_fertig))
+                                    passt = zk.kachel_passt(k.status, k.stufe, k.unbewohnbar, k.arten, f, mf, bool(k.nicht_fertig)) \
+                                        and (pf is None or k.zimmer in pf)
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus") \
                                         + (" nn" if zu[k.zimmer] == "nicht_nutzbar" else "") \
                                         + (" strittig" if k.strittig else "")
@@ -1146,8 +1166,19 @@ async def _fm_zurueck(a, dateien) -> None:
 GESCHLECHT = {"": "unbekannt", "m": "männlich", "w": "weiblich", "d": "divers"}
 
 
+def gewaehlter_tag(a) -> date:
+    """1.11: In der Übersicht gewählter Tag (z. B. 10.12.) als Vorschlag für Anreise, Auszug, Reinigung –
+    nur wenn man auf Zimmer & Haus → Übersicht ist und der Tag nicht in der Vergangenheit liegt, sonst heute."""
+    tag = getattr(a, "zu_tag", None)
+    if (isinstance(tag, date) and tag > a.heute and getattr(a, "seite", "") == "zimmer"
+            and a.ansicht_von("zimmer", "uebersicht") == "uebersicht"):
+        return tag
+    return a.heute
+
+
 async def person_hinzu_panel(a, k: zk.Karte) -> None:
-    kandidaten = await run.io_bound(zk.kandidaten, a.stand, k.zimmer, a.heute)
+    ab = gewaehlter_tag(a)
+    kandidaten = await run.io_bound(zk.kandidaten, a.stand, k.zimmer, a.heute, 8 + (ab - a.heute).days // 7)
 
     def bauen():
         knopf("Zurück zur Zimmerkarte", lambda: karte_oeffnen(a, k.zimmer), "leise", "arrow_back")
@@ -1176,8 +1207,8 @@ async def person_hinzu_panel(a, k: zk.Karte) -> None:
             'dense outlined dark popup-content-class="m-popup"')
         attr(gr, title="Bestimmt, welche Zimmer erlaubt sind (z. B. Gast nur Gästezimmer, Mieter nur Haus 6)")
         with ui.element("div").classes("m-zweispaltig"):
-            von = ui.input("Anreise", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
-            bis = ui.input("Abreise", value=(a.heute + timedelta(days=28)).isoformat()).classes("m-feld").props(
+            von = ui.input("Anreise", value=ab.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            bis = ui.input("Abreise", value=(ab + timedelta(days=28)).isoformat()).classes("m-feld").props(
                 "dense outlined dark type=date")
         with ui.element("div").classes("m-zweispaltig"):
             ge = ui.select(GESCHLECHT, value="", label="Geschlecht").classes("m-feld").props(

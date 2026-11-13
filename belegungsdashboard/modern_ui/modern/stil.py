@@ -502,6 +502,11 @@ CSS += """
 
 /* Kacheln ausblenden, die nicht zum Filter passen */
 .m-kachel.aus { opacity: .14; filter: grayscale(.6); }
+/* 1.11: Hinweis über den Häusern, wenn Zimmerfilter (Einzel-/Doppelzimmer, Tier …) gesetzt sind */
+.m-ue-filter { display: flex; align-items: center; gap: 10px; margin: 4px 20px 0; padding: 8px 14px; border-radius: 8px;
+  background: color-mix(in srgb, var(--akzent) 10%, transparent); color: var(--text); font-size: 13.5px; }
+.m-ue-filter .q-icon { color: var(--akzent); font-size: 18px; }
+.m-ue-filter .m-knopf { margin-left: auto; }
 
 /* Navigation: aktiver Punkt mit Akzentleiste */
 .m-navpunkt { position: relative; height: 34px; border-radius: 8px; }

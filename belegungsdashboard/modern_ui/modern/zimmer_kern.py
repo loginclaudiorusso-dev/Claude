@@ -37,8 +37,8 @@ def zustand(status: str, unbewohnbar: bool = False) -> str:
     if status in ("belegt", "geplant"):
         return status
     return "nicht_nutzbar" if unbewohnbar else "frei"
-MERKMALE = {"maengel": "Mängel", "reno": "Renoviert", "Vinyl": "Vinyl", "Teppich": "Teppich", "tiere": "Tier",
-            "doppel": "Doppelzimmer", "maenner": "Bad über Flur"}
+MERKMALE = {"einzel": "Einzelzimmer", "doppel": "Doppelzimmer", "tiere": "Tier", "maenner": "Bad über Flur",
+            "maengel": "Mängel", "reno": "Renoviert", "Vinyl": "Vinyl", "Teppich": "Teppich"}   # 1.11: + Einzelzimmer
 # Seltenere Filter (wie „Filter ▾“ im bisherigen Programm)
 MEHR_LEER = {"boeden": [], "merkmale": [], "renoviert": "alle", "gruppen": [], "modus": "wohnt", "alle": False, "maengel": []}
 
@@ -74,12 +74,24 @@ def filter_bauen(haus: str = "", status: str = "", schnell: set[str] | None = No
                      nur_internat=not m["alle"], gruppen=set(m["gruppen"]), gruppen_modus=m["modus"],
                      maengel=set(m["maengel"]) | ({"*"} if "maengel" in schnell else set()))
     f.zustand = status if status in ("frei", "nicht_nutzbar") else ""   # frei/nicht nutzbar: eigene Regel (s. zustand)
+    f.einzel = "einzel" in schnell             # 1.11: Einzelzimmer (das Hauptprogramm kennt nur „Doppelzimmer“)
     return f
 
 
 def _zustand_passt(stand: zp.Planstand, f, r) -> bool:
+    if getattr(f, "einzel", False) and (r.zimmer.betten or 1) >= 2:
+        return False
     z = getattr(f, "zustand", "")
     return not z or zustand(r.status, r.zimmer.id in stand.lage.unbewohnbar) == z
+
+
+def uebersicht_passend(stand: zp.Planstand, schnell: set[str] | None, mehr: dict | None, tag: date) -> set[str] | None:
+    """1.11: Zimmer-IDs, die zu den Zimmerfiltern passen (Einzel/Doppel, Tier, Boden, Renovierung, Gruppe …) – für die
+    Kachel-Übersicht. None = kein solcher Filter gesetzt (Mangelart regelt die Übersicht selbst)."""
+    m = {**MEHR_LEER, **(mehr or {}), "maengel": []}
+    if not schnell and not mehr_aktiv(m):
+        return None
+    return {r.zimmer.id for r in _sortiert(stand, filter_bauen("", "", schnell, "", m), tag)}
 
 
 def mehr_aktiv(mehr: dict | None) -> int:
