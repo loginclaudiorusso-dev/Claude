@@ -91,9 +91,9 @@ def daten(a) -> None:
                "takt": "monat" if getattr(a, "mn_takt", "welle") == "monat" else "welle", "gruende": {f: r.grund for f, r in reihen.items()}}
 
 
-ANSICHT_KNOEPFE = (("neu", "Neuanmeldungen", "person_add", "#10b981", "", ""),
+ANSICHT_KNOEPFE = (("neu", "Neuanmeldungen", "person_arrow_right", "#10b981", "", ""),
                    ("prognose", "Teilnehmer-Prognose", "hat_graduation", "", "arrow_trending", "#0284c7"),
-                   ("bestand", "Prüfbericht", "clipboard_checkmark", "#10b981", "", ""))
+                   ("bestand", "Prüfbericht", "document_checkmark", "#10b981", "", ""))
 
 
 def _umschalter(a) -> None:
@@ -208,9 +208,9 @@ def pflege_knoepfe(a, gruppe: str, *, plaetze: bool = False, arten: bool = False
         if arten:
             from . import bestand_ui
 
-            band_ui.gross("Arten zuordnen", "tag", symbole.AMBER, lambda: bestand_ui.zuordnung_panel(a),
+            band_ui.gross("Arten zuordnen", "tag_multiple", symbole.AMBER, lambda: bestand_ui.zuordnung_panel(a),
                           tipp="Kursfamilien den Maßnahmearten zuordnen (Assessment, Vorbereitung, KBM …)")
-        band_ui.gross("Aufräumen", "broom", "#f97316", lambda: aufraeumen_panel(a),
+        band_ui.gross("Aufräumen", "archive", "#f97316", lambda: aufraeumen_panel(a),
                       tipp="Veraltete Maßnahmen aus allen Prognosen nehmen (wiederherstellbar)")
     with band_ui.gruppe("Wechsel"):
         band_ui.gross("Belegungs\u00adprognose", "building", "", lambda: a.oeffnen("auswertung", ansicht="prognose"),

@@ -1006,7 +1006,7 @@ def aw_zeichnen(a) -> None:
         ui.html(f'<span class="m-kpi"><b>{aw.offen}</b> Anreisen ohne Zimmer in 12 Wochen<span class="m-punktt">·</span>'
                 f'<b>{aw.ohne_platz}</b> fänden keins<span class="m-punktt">·</span>knappste Woche nach Planung: '
                 f'<b>{E(tief.kw) if tief else "–"}</b> ({tief.frei_nach if tief else 0} frei)</span>', sanitize=False)
-        knopf("Grenzen ändern", lambda: a.oeffnen("einstellungen", ansicht="allgemein"), "leise", "tune").style("margin-left:auto")
+        knopf("Grenzen ändern", lambda: a.oeffnen("einstellungen", ansicht="allgemein"), "leise", "straighten").style("margin-left:auto")
     with a.inhalt:
         _engpass_heatmap(a, aw)
         with ui.element("div").classes("m-zwei"):

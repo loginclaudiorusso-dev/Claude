@@ -376,7 +376,7 @@ def _mangel_menue(a) -> None:
         return a.setzen(zl_mehr={**a.zl_mehr, "maengel": sorted(set(gewaehlt) ^ {k})}, laden=False)
 
     titel = "Mangelart" + (f" · {len(gewaehlt)}" if gewaehlt else "")
-    with knopf(titel, None, "akzent" if gewaehlt else "", "construction"):
+    with knopf(titel, None, "akzent" if gewaehlt else "", "handyman"):          # 1.13: Mangelart ≠ „mit Mangel“
         with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
             ui.label("Stufe").classes("m-mgruppe")
             for k, t in opt.items():

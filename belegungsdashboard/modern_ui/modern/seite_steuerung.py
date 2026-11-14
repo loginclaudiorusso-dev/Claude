@@ -207,7 +207,7 @@ def zeichnen(a) -> None:
             ui.label("Planjahr bzw. 5 Jahre ab").classes("m-zweite")
         segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, d["jahr"],
                  lambda j: a.setzen(st_jahr=j, nur_seite=True), sofort=True)
-        knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "primaer", "print").style("margin-left:auto")
+        knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "primaer", "picture_as_pdf").style("margin-left:auto")
     {"cockpit": _cockpit, "vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
      "grundlagen": _grundlagen}[ansicht_](a)
 
@@ -751,7 +751,7 @@ def _grundlagen(a) -> None:
     d = a.daten
     p, fl = d["p"], d["fl"]
     with a.leiste:
-        knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "tune")
+        knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "request_quote")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             _platzhalter_banner(a, d)
@@ -764,7 +764,7 @@ def _grundlagen(a) -> None:
                             ui.label(text).classes("m-zweite").style("white-space:normal")
                             if hk:
                                 _hk(hk)
-                    knopf("Annahmen & Angebote ändern …", lambda: _annahmen(a), "leise", "tune")
+                    knopf("Annahmen & Angebote ändern …", lambda: _annahmen(a), "leise", "request_quote")
                 with ui.element("section").classes("m-block"):
                     ang = p.get("angebote") or []
                     ui.label(f"Angebote ({len(ang)})").classes("m-btitel")
@@ -906,7 +906,7 @@ def _szenarien(a) -> None:
 def _kennzahlen(a) -> None:
     d = a.daten
     with a.leiste:
-        knopf("Werte eingeben …", lambda: _werte_panel(a), "", "edit_note")
+        knopf("Werte eingeben …", lambda: _werte_panel(a), "", "dialpad")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             with ui.element("div").classes("m-kpis"):
@@ -1067,7 +1067,7 @@ def _renovierung(a) -> None:
     d = a.daten
     p, fl, jahr = d["p"], d["fl"], d["jahr"]
     with a.leiste:
-        knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "tune")
+        knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "request_quote")
 
         async def export():
             from pathlib import Path
@@ -1080,7 +1080,7 @@ def _renovierung(a) -> None:
                 a.toast(f"Nicht gespeichert: {exc}", fehler=True)
                 return
             a.toast("Renovierungsplan gespeichert" if seiten._datei_oeffnen(str(pfad)) else f"Gespeichert: {pfad}", rueck=False)
-        knopf("Excel", export, "", "table_view")
+        knopf("Excel", export, "", "grid_on")
     with a.inhalt:
         with ui.element("div").classes("m-rv"):
             _platzhalter_banner(a, d)

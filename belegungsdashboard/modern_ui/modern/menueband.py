@@ -52,13 +52,13 @@ BLAU, TEAL, GRUEN, AMBER, VIOLETT, ROT = "#0284c7", "#0f766e", "#10b981", "#f59e
 SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutungsfarbe)
     ("heute", "zentrale"): ("weather_sunny", AMBER),
     ("heute", "postfach"): ("tasks_app", GRUEN),
-    ("termine", "liste"): ("calendar_clock", BLAU),
+    ("termine", "liste"): ("calendar_ltr", BLAU),          # 1.13: nicht wie „geplant“
     ("termine", "monat"): ("calendar_month", BLAU),
     ("assistenz", "auftraege"): ("clipboard_task", TEAL),
     ("assistenz", "mails"): ("mail", BLAU),
     ("assistenz", "fragen"): ("sparkle", AMBER),
     ("anreisen", "zuteilen"): ("conference_room", GRUEN),
-    ("anreisen", "personen"): ("people", BLAU),
+    ("anreisen", "personen"): ("people_list", BLAU),
     ("anreisen", "abreisen"): ("door_arrow_right", AMBER),
     ("anreisen", "eintragen"): ("briefcase", BLAU),
     ("mieter", None): ("key", AMBER),
@@ -69,7 +69,7 @@ SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutu
     ("zimmer", "maengel"): ("wrench", AMBER),
     ("zimmer", "aenderungen"): ("history", BASIS),
     ("reinigung", "liste"): ("broom", BLAU),
-    ("reinigung", "last"): ("calendar_week_numbers", BASIS),
+    ("reinigung", "last"): ("calendar_arrow_right", BASIS),   # 1.13: Vorschau statt Woche
     ("reinigung", "facility"): ("clipboard_checkmark", TEAL),
     ("auswertung", "lage"): ("apps", BLAU),
     ("auswertung", "belegung"): ("building_people", GRUEN),

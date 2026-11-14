@@ -596,7 +596,7 @@ def archiv_panel(a) -> None:
 
         with ui.element("div").classes("m-paktionen"):
             knopf("Drucken", drucken, "", "print")
-            knopf("Excel", excel, "", "table_view")
+            knopf("Excel", excel, "", "grid_on")
             knopf("Schließen", a.panel_zu, "leise")
 
     a.panel("Archiv: frühere Anreisen", bauen, breit=True)
@@ -620,11 +620,11 @@ def zuteilen_band(a, tag, k: dict, n: dict, n_neu: int, offen: list) -> None:
         if tag is None:
             return
         with bu.gruppe("Personen anzeigen"):
-            bu.gross("Personen", "people", "blau", lambda: a._filtern("alle"), an=a.filter == "alle", zahl=n["alle"],
+            bu.gross("Personen", "people_list", "blau", lambda: a._filtern("alle"), an=a.filter == "alle", zahl=n["alle"],
                      tipp="Alle Personen dieser Anreise")
             with bu.stapel():
                 for f, text, sym, farbe in (("handeln", "Handlungsbedarf", "alert_urgent", "rot"),
-                                            ("ohne", "ohne Zimmer", "bed", "amber"), ("maengel", "Mängel", "wrench", "amber")):
+                                            ("ohne", "ohne Zimmer", "person_question_mark", "amber"), ("maengel", "Mängel", "wrench", "amber")):
                     bu.klein(text, sym, farbe, lambda f=f: a._filtern("alle" if f == a.filter else f), an=a.filter == f,
                              zahl=n[f])
             with bu.stapel():

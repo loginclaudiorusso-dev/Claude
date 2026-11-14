@@ -41,6 +41,9 @@ def alle() -> list[str]:
 # 1.01: Material-Symbolnamen der bisherigen Knöpfe → (Fluent-Symbol, Bedeutungsfarbe). So zeigen auch Seiten, die noch
 # Material-Namen übergeben, im Menüband einheitlich Fluent.
 MATERIAL = {
+    # 1.13: eigene Symbole statt Dopplungen (Budget, Annahmen, Grenzen, Kennzahlen eingeben, Excel-Export)
+    "account_balance_wallet": ("money", AMBER), "request_quote": ("calculator", TEAL), "straighten": ("ruler", BASIS),
+    "dialpad": ("number_symbol_square", TEAL), "grid_on": ("table_arrow_up", GRUEN),
     "check": ("checkmark", GRUEN), "print": ("print", BASIS), "more_horiz": ("more_horizontal", BASIS),
     "delete": ("delete", ROT), "delete_outline": ("delete", ROT), "close": ("dismiss", BASIS), "add": ("add", BLAU),
     "undo": ("arrow_undo", BASIS), "table_view": ("table", TEAL), "content_copy": ("copy", BLAU), "search": ("search", BASIS),
@@ -59,12 +62,12 @@ MATERIAL = {
     "download": ("arrow_download", BLAU), "file_download": ("arrow_download", BLAU), "upload": ("arrow_upload", BLAU),
     "chevron_left": ("chevron_left", BASIS), "chevron_right": ("chevron_right", BASIS), "settings": ("settings", BASIS),
     "info": ("info", BLAU), "help_outline": ("question_circle", BLAU), "event_available": ("calendar_add", BLAU),
-    "refresh": ("arrow_clockwise", BASIS), "emergency": ("alert_urgent", ROT), "view_sidebar": ("layout_column_three", BASIS),
+    "refresh": ("arrow_clockwise", BASIS), "emergency": ("person_alert", ROT), "view_sidebar": ("layout_column_three", BASIS),
     "filter_alt_off": ("arrow_reset", BASIS), "cleaning_services": ("broom", BLAU), "key": ("key", AMBER),
     "groups": ("people", BLAU), "person": ("person", BLAU), "apartment": ("building_multiple", BLAU),
     "calendar_month": ("calendar_month", BLAU), "date_range": ("calendar_date", BLAU), "warning": ("warning", AMBER),
     "build": ("wrench", AMBER), "history": ("history", BASIS), "bed": ("bed", BASIS), "check_circle": ("checkmark_circle", GRUEN),
-    "block": ("prohibited", ROT), "schedule": ("calendar_clock", BLAU), "today": ("calendar_today", BLAU),
+    "block": ("prohibited", ROT), "handyman": ("wrench_settings", AMBER), "schedule": ("calendar_clock", BLAU), "today": ("calendar_today", BLAU),
     "event_seat": ("seat", VIOLETT), "checklist": ("checkbox_checked", TEAL), "edit_calendar": ("calendar_edit", BLAU),
     "table_rows": ("table", TEAL), "grid_view": ("grid", BLAU), "inventory_2": ("box", BLAU), "edit_note": ("document_edit", BASIS),
 }
@@ -72,8 +75,8 @@ MATERIAL = {
 ZUSTAND = {
     "frei": ("checkmark_circle", GRUEN), "teilweise": ("checkmark_circle", GRUEN), "belegt": ("person", BLAU),
     "geplant": ("calendar_clock", BLAU), "gesperrt": ("lock_closed", BASIS), "nicht_nutzbar": ("prohibited", ROT),
-    "maengel": ("wrench", AMBER), "unbewohnbar": ("prohibited", ROT), "pruefen": ("warning", AMBER), "ohne": ("bed", AMBER),
-    "handeln": ("alert_urgent", ROT), "alle": ("people", BLAU), "np": ("arrow_right", BASIS), "offen": ("calendar_clock", AMBER),
+    "maengel": ("wrench", AMBER), "unbewohnbar": ("prohibited", ROT), "pruefen": ("warning", AMBER), "ohne": ("person_question_mark", AMBER), "mit": ("home_checkmark", GRUEN),
+    "handeln": ("alert_urgent", ROT), "alle": ("people", BLAU), "np": ("arrow_right", BASIS), "offen": ("clock", AMBER),
     "eilig": ("flash", ROT), "erledigt": ("checkmark_circle", GRUEN), "laufend": ("key", AMBER), "mail": ("mail", BLAU),
     "weitere": ("building_multiple", BASIS), "neu": ("new", VIOLETT), "bereit": ("checkmark_starburst", GRUEN),
     "unfertig": ("broom", AMBER), 3: ("prohibited", ROT), 2: ("warning", AMBER), 1: ("info", BLAU),
@@ -83,7 +86,8 @@ TON = {"ok": ("checkmark_circle", GRUEN), "warn": ("warning", AMBER), "krit": ("
 
 
 # 1.01: Knöpfe ohne Symbol im Menüband – nach Stichwort im Text (erstes passendes gilt), sonst „⋯“
-TEXT = (("heute", ("calendar_today", BLAU)), ("monat", ("calendar_month", BLAU)), ("jahr", ("calendar_date", BLAU)),
+TEXT = (("letzte", ("calendar_arrow_counterclockwise", BLAU)),        # 1.13: Zeiträume unterscheidbar
+        ("nächste 3", ("calendar_arrow_right", BLAU)), ("heute", ("calendar_today", BLAU)), ("monat", ("calendar_month", BLAU)), ("jahr", ("calendar_date", BLAU)),
         ("woche", ("calendar_week_numbers", BLAU)), ("anzeigen", ("eye", BLAU)), ("ansehen", ("eye", BLAU)),
         ("hinzufügen", ("add", BLAU)), ("neue", ("add", BLAU)), ("entfernen", ("delete", ROT)), ("mail", ("mail", BLAU)),
         ("speichern", ("save", BLAU)), ("zurück", ("arrow_undo", BASIS)), ("reinigung", ("broom", BLAU)),
@@ -91,7 +95,8 @@ TEXT = (("heute", ("calendar_today", BLAU)), ("monat", ("calendar_month", BLAU))
         ("diagramm", ("data_trending", BLAU)), ("prognose", ("data_trending", BLAU)), ("szenari", ("options", VIOLETT)),
         ("bearbeiten", ("edit", AMBER)), ("ändern", ("edit", AMBER)), ("planen", ("calendar_clock", BLAU)),
         ("zuteilen", ("person_add", BLAU)), ("zuweisen", ("person_add", BLAU)), ("person", ("person", BLAU)),
-        ("übernehmen", ("checkmark", GRUEN)), ("zur ", ("arrow_right", BASIS)), ("zu den", ("arrow_right", BASIS)))
+        ("übernehmen", ("checkmark", GRUEN)), ("zur ", ("arrow_right", BASIS)), ("zu den", ("arrow_right", BASIS)),
+        ("tage", ("calendar_day", BLAU)))                                     # 1.13: „Tage“ statt „Mehr …“
 
 
 def aus_text(text: str, ersatz: tuple = ("more_horizontal", BASIS)) -> tuple[str, str]:
