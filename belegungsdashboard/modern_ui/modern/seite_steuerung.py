@@ -51,6 +51,19 @@ def _prognose(a):
         return None, f"Prognose nicht verfügbar: {exc}"
 
 
+def _abgleich(a, pg) -> list:
+    """1.14: Bettenprognose gegen Maßnahmen-Prognose im Internat (nur netto vergleichbar: ohne UWTler und Mieter)."""
+    if pg is None or getattr(a, "aw_brutto", False):
+        return []
+    try:
+        from . import massnahmen_kern as mk
+
+        mp = mk.prognose(None, a.heute, 0, 12, internat=True)
+        return sk.prognosen_abgleich(pg.zeilen, mp.zeilen if mp else [], 12)
+    except Exception:                        # noqa: BLE001 – der Abgleich ist eine Zugabe
+        return []
+
+
 def _platzhalter(p: dict) -> list[str]:
     erg = []
     for h in p["haeuser"]:
@@ -125,7 +138,7 @@ def daten(a) -> None:
          "robust": rk.robustheit(fl, p_rest, jahr, empf, **kw) if empf else "", "antrag": _antrag(gewaehlt, bereits),
          "platzhalter": _platzhalter(p), "machbar": machbar, "bereits": bereits, "p_rest": p_rest, "prog": prog,
          "kap": kap, "vorhaben": vorhaben, "andere": andere, "budgets": budgets, "konten": konten, "konten2": konten2,
-         "einstellungen": ein,
+         "einstellungen": ein, "abgleich": _abgleich(a, pg),
          "vorschlag": {"bau": sum(z.kosten.instandhaltung for z in zeilen if z.status != "vorgemerkt"),
                        "moebel": sum(z.kosten.investition for z in zeilen if z.status != "vorgemerkt")}}
     if ansicht_ == "finanzen":
@@ -140,7 +153,8 @@ def daten(a) -> None:
         f = next((x for x in fl if x.schluessel == a.rv_flur), None)
         if f:
             fs = rk.monatsfenster(a.stand, f, jahr, p, prog)
-            rk.engpass_markieren(fs, f, kap, rk.jahresplan(a.stand, jahr, None, p))
+            rk.engpass_markieren(fs, f, kap, rk.jahresplan(a.stand, jahr, None, p),
+                                 defekt=rk.defekte_betten(a.stand, {z.id for z in f.zimmer}))
             d["monate"] = (f, fs, rk.bester_monat(fs, a.heute))
     if ansicht_ == "zeitplan":
         d["staende"] = sk.buchungsstaende()
@@ -323,6 +337,8 @@ def _cockpit(a) -> None:
     if alt := rk.angebote_alt(p, a.heute):
         warnungen.append((f"Angebot älter als 12 Monate: {alt[0]}" + (f" (+{len(alt) - 1})" if len(alt) > 1 else ""),
                           "warn", "grundlagen"))
+    if satz := sk.abgleich_satz(d.get("abgleich") or []):
+        warnungen.append((satz, "warn", "grundlagen"))                     # 1.14: nur, wenn es wirklich abweicht
     mit_hinweis = [v for v in d["vorhaben"] if vk.hinweise(v, a.heute)]
     if mit_hinweis:
         warnungen.append((f"{len(mit_hinweis)} Vorhaben mit offenem Widerspruch (z. B. {mit_hinweis[0]['titel']})", "warn",
@@ -785,7 +801,37 @@ def _grundlagen(a) -> None:
                                 ui.label("abgelaufen – wird hochgerechnet").classes("m-pille warn")
                             elif any(s.startswith(f"Haus {x.get('haus')} {art}") for s in alt):
                                 ui.label("älter als 12 Monate").classes("m-pille warn")
+            _abgleich_block(d.get("abgleich") or [])
     _kennzahlen(a)
+
+
+def _abgleich_block(zeilen: list) -> None:
+    """1.14: Bettenprognose gegen Teilnehmer-Prognose (× Internatsanteil) – je Monat, Abweichung nur hervorgehoben,
+    wenn sie größer ist als die halbe 80-%-Spanne."""
+    with ui.element("section").classes("m-block m-breit"):
+        ui.label("Abgleich: Betten- und Teilnehmerprognose").classes("m-btitel")
+        if not zeilen:
+            ui.label("Kein Abgleich möglich – es fehlt der Maßnahmen-Pivot oder die Belegungsprognose, oder die Prognose "
+                     "zeigt „Brutto“ (mit UWTlern und Mietern; der Abgleich braucht „Netto“).").classes("m-zweite")
+            return
+        ui.label("Betten = Belegungsprognose (Teilnehmende ohne UWTler/Mieter). Teilnehmende = Maßnahmen-Prognose × "
+                 "Internatsanteil der Art. Markiert ist ein Monat, wenn der Unterschied größer ist als die halbe "
+                 "80-%-Spanne der Bettenprognose, mindestens aber 10 % des Planwerts bzw. 2 Plätze.").classes("m-zweite").style("white-space:normal")
+        with tabelle("minmax(110px, 1fr) auto auto auto auto"):
+            with ui.element("div").classes("m-raster m-tkopf"):
+                for t in ("Monat", "Betten (Planwert)", "80-%-Spanne", "Teilnehmende im Internat", "Unterschied"):
+                    ui.label(t)
+            for z in zeilen:
+                with ui.element("div").classes("m-raster m-zeile"):
+                    ui.label(f"{rk.MONATE[z.monat.month - 1]} {z.monat.year}").classes("m-name")
+                    ui.label(f"{z.betten:.0f}").classes("m-mono")
+                    ui.label(f"{z.lo80:.0f}–{z.hi80:.0f}").classes("m-mono")
+                    ui.label(f"{z.teilnehmende:.0f}").classes("m-mono")
+                    ui.label(f"{z.differenz:+.0f}" + (" ⚠" if z.auffaellig else "")).classes(
+                        "m-mono" + (" m-warn" if z.auffaellig else ""))
+        if satz := sk.abgleich_satz(zeilen):
+            ui.label(satz + ". Prüfen: Fehlt ein Kurs im Maßnahmen-Pivot, stimmt der Internatsanteil, sind geplante Plätze "
+                     "eingetragen?").classes("m-zweite m-warn").style("white-space:normal")
 
 
 def _prognose_seite(a) -> None:
@@ -1001,7 +1047,8 @@ def _etage_panel(a, d, f) -> None:
     p, jahr = d["p"], d["jahr"]
     k = rk.kosten(p, f.haus, len(f.zimmer), jahr)
     fs = rk.monatsfenster(a.stand, f, jahr, p, d.get("prog"))
-    rk.engpass_markieren(fs, f, d.get("kap"), rk.jahresplan(a.stand, jahr, None, p))
+    rk.engpass_markieren(fs, f, d.get("kap"), rk.jahresplan(a.stand, jahr, None, p),
+                         defekt=rk.defekte_betten(a.stand, {z.id for z in f.zimmer}))
     best = rk.bester_monat(fs, a.heute)
 
     def bauen():

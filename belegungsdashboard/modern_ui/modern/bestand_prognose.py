@@ -11,7 +11,8 @@
   Stufe. Quote nur aus Fällen mit vollständig abgelaufenem Beobachtungsfenster; dazu die Verzögerung und die Zielarten.
 * **Simulation:** 1000 Durchläufe mit festem Startwert (wiederholbar). Ausgabe je Monat: Median (Planwert), 10./90.
   Perzentil (80 %-Spanne) und die mittlere Zerlegung nach Herkunft.
-* **Szenarien** wirken nur auf die übrigen Zugänge – Bestand und Pipeline sind in allen gleich.
+* **Szenarien** wirken auf die übrigen Zugänge und (1.14) auf die Übergangsquote der Pipeline – der Bestand ist in allen
+  gleich.
 * **Kursgröße:** Wo eine Obergrenze hinterlegt ist (VW: 24), werden Zugänge je Startmonat gekappt; der Rest wird als
   „Nachfrage über Kapazität“ ausgewiesen.
 
@@ -365,13 +366,18 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
                 bekannt_frei[ai[f.art], m_] += 1
 
     # 3 Pipeline aus laufenden/kürzlich beendeten Vorstufen ohne Folge
+    # 1.14: Das Szenario wirkt auch auf die Übergangsquote – Bewilligungen hängen an denselben Kostenträgern wie die
+    # übrigen Zugänge (schwach: weniger Assessment-Teilnehmende kommen in die Hauptmaßnahme, gut: mehr).
+    faktor = max(0.0, 1 + faktor_prozent / 100)
+
     def folgen(von_gruppe: str, start_vorstufe: np.ndarray, runs: np.ndarray, quelle: int, schon: np.ndarray):
         u = md.uebergaenge.get(von_gruppe)
         if u is None or not u.quote or not len(u.verzoegerung) or not len(runs):
             return
         F = lambda x: np.searchsorted(np.sort(u.verzoegerung), x, side="right") / len(u.verzoegerung)  # noqa: E731
         f_s = F(schon)
-        p = u.quote * (1 - f_s) / np.maximum(1e-9, 1 - u.quote * f_s)
+        q = min(0.98, u.quote * faktor)
+        p = q * (1 - f_s) / np.maximum(1e-9, 1 - q * f_s)
         ja = rng.random(len(runs)) < p
         if not ja.any():
             return
@@ -400,7 +406,6 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
             folgen(f.gruppe, np.full(R, s0), alle_runs, 2, np.full(R, float((md.letzter - f.ein).days)))
 
     # 4 übrige Zugänge (Saison × Szenario × gemeinsamer Jahresfaktor), abzüglich schon bekannter, Kappe je Startmonat
-    faktor = max(0.0, 1 + faktor_prozent / 100)
     jahr = rng.lognormal(-JAHR_STREUUNG ** 2 / 2, JAHR_STREUUNG, R) if JAHR_STREUUNG > 0 else np.ones(R)
     ueber = {}
     for a in md.arten:

@@ -542,7 +542,9 @@ def bericht_html(c: dict) -> str:
                     "(Note 4, ≥ 15 Jahre, Boden/Wand), C = später. Getrennt für Bau und Möbel. Erst alle A, dann B."),
         ("Baubudget", "Feste Grenze, die verfällt – deshalb soll es möglichst voll in gedeckten Bedarf gehen."),
         ("Möbelantrag", "Möbel für die Bau-Maßnahmen plus „nur Möbel“ für Zimmer mit dringendem Möbelbedarf."),
-        ("Spanne", "Unsicherheit nach Herkunft: Angebot ±10 %, Eingabe ±15 %, Schätzung ±25 %, Platzhalter ±40 %."),
+        ("Spanne", "Unsicherheit nach Herkunft: Angebot ±10 %, Eingabe ±15 %, Schätzung ±25 %, Platzhalter ±40 %. "
+                   "Beim Zusammenrechnen wirkt die Hälfte gemeinsam (gleicher Rahmenvertrag, gleiche Preissteigerung), "
+                   "der Rest gleicht sich teilweise aus – die Gesamtspanne ist dadurch schmaler als die Summe der Einzelspannen."),
         ("Belegungsstopp", "Ab diesem Tag wird niemand mehr neu in die Etage geplant."),
         ("Ausweich ⚑", "Für jede betroffene Person ein passendes freies Zimmer in allen Häusern (Regeln wie beim Zuteilen)."),
         ("Warnschwelle ▲", "95 % der Kapazität ohne gesperrte Zimmer; die obere Prognose darf sie im Baumonat nicht erreichen."),
@@ -596,3 +598,54 @@ border: 1px solid #c9a227; padding: 4px 8px; margin: 4px 0; font-weight: 600 }} 
 <h2>H Erläuterungen</h2><table>{erl_html}</table>
 <h2>Offene Punkte</h2><ul>{''.join(f'<li>{e(x)}</li>' for x in c.get('entscheidungen') or []) or '<li>Keine.</li>'}</ul>
 </body></html>"""
+
+
+# ---- 1.14: Abgleich der beiden Prognosen -------------------------------------------------------------------------
+# Die Belegungsprognose rechnet Betten (Teilnehmende ohne UWTler/Mieter, aus dem Standort-Pivot), die Maßnahmen-
+# Prognose Teilnehmende je Kurs × Internatsanteil (aus dem Maßnahmen-Pivot). Kein drittes Modell: nur nebeneinander-
+# stellen und melden, wo der Unterschied größer ist als die halbe 80-%-Spanne der Bettenprognose.
+
+@dataclass
+class AbgleichMonat:
+    monat: date
+    betten: float                 # Belegungsprognose (Planwert)
+    lo80: float
+    hi80: float
+    teilnehmende: float           # Maßnahmen-Prognose × Internatsanteil
+    differenz: float              # Teilnehmende − Betten
+    auffaellig: bool
+
+
+def abgleich_schwelle(planwert: float, lo80: float, hi80: float) -> float:
+    """Ab wann ein Unterschied auffällt: halbe 80-%-Spanne, mindestens 10 % des Planwerts und 2 Plätze – eine sehr
+    schmale Spanne (kurz voraus fast sicher) soll nicht jeden kleinen Unterschied zum Alarm machen."""
+    return max((hi80 - lo80) / 2, 0.10 * planwert, 2.0)
+
+
+def prognosen_abgleich(betten_zeilen, massnahmen_zeilen, monate: int = 12) -> list[AbgleichMonat]:
+    """Je künftigem Monat: Bettenprognose (PZeile/SZeile: monat, art, erwartet, lo80, hi80) gegen Maßnahmen-Prognose
+    im Internat (MZeile: monat, art, summe). Auffällig, wenn |Unterschied| > ``abgleich_schwelle``."""
+    tn = {(z.monat.year, z.monat.month): z.summe for z in massnahmen_zeilen or [] if z.art != "ist"}
+    erg = []
+    for z in betten_zeilen or []:
+        if z.art == "ist" or (z.monat.year, z.monat.month) not in tn:
+            continue
+        t = tn[(z.monat.year, z.monat.month)]
+        diff = t - z.erwartet
+        erg.append(AbgleichMonat(z.monat, z.erwartet, z.lo80, z.hi80, t, diff,
+                                 abs(diff) > abgleich_schwelle(z.erwartet, z.lo80, z.hi80)))
+        if len(erg) >= monate:
+            break
+    return erg
+
+
+def abgleich_satz(zeilen: list[AbgleichMonat]) -> str:
+    """Ein Satz für die Leitung – leer, wenn beide Prognosen zusammenpassen."""
+    auff = [z for z in zeilen if z.auffaellig]
+    if not auff:
+        return ""
+    z = max(auff, key=lambda x: abs(x.differenz))
+    richtung = "mehr" if z.differenz > 0 else "weniger"
+    return (f"Betten- und Teilnehmerprognose weichen in {len(auff)} Monat(en) stärker ab als die Spanne – am meisten "
+            f"{['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][z.monat.month - 1]} "
+            f"{z.monat.year}: laut Maßnahmen {abs(round(z.differenz))} Plätze {richtung}")

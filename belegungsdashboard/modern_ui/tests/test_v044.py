@@ -243,7 +243,10 @@ def test_schaetzanteil_und_spanne_beim_zusammenrechnen(leer):
     b = rk.kosten(p, "2", 20, art="etage")                        # Bau Platzhalter
     s = a.plus(b)
     assert 0 < s.geschaetzt < 1 and s.geschaetzt == pytest.approx((a.ungewiss + b.ungewiss) / s.summe) and a.ungewiss < a.summe
-    assert s.spanne[1] - s.summe == pytest.approx(a.u_bau + a.u_moebel + b.u_bau + b.u_moebel)
+    # 1.14: nicht mehr einfach addiert – gemeinsamer Teil (linear) + unabhängiger Rest (quadratisch)
+    linear = a.u_bau + a.u_moebel + b.u_bau + b.u_moebel
+    quadr = (a.u_bau ** 2 + a.u_moebel ** 2 + b.u_bau ** 2 + b.u_moebel ** 2) ** .5
+    assert quadr < s.spanne[1] - s.summe < linear
 
 
 def test_angebot_summe_mit_vielen_leerzeichen_und_fuer_alle_haeuser(leer):

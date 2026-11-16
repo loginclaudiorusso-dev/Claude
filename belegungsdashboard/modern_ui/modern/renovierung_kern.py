@@ -74,6 +74,11 @@ BAU_MAENGEL = {"boden_kaputt", "boden_dreckig", "wand", "schimmel", "geruch"}
 MOEBEL_MAENGEL = {"moebel", "matratze"}
 KLASSEN_WERT = {"A": 100, "B": 10, "C": 1, None: 0}
 UNSICHER = {"angebot": .10, "eingabe": .15, "schaetzung": .25, "platzhalter": .40}
+# 1.14: Kostenspannen hängen zusammen (gleicher Rahmenvertrag, gleiche Preissteigerung, oft dieselbe Firma). Ein Teil
+# ρ der Unsicherheit wirkt gemeinsam (addiert sich), der Rest ist unabhängig (addiert sich quadratisch):
+#   Spanne² = (Σ ρ·uᵢ)² + Σ (1 − ρ²)·uᵢ²       – für eine einzelne Position bleibt es genau uᵢ.
+# Einfaches Addieren (bis 1.13) machte die Gesamtspanne zu breit, rein quadratisch wäre sie zu schmal.
+KOSTEN_GEMEINSAM = 0.5
 HERKUNFT_TEXT = {"angebot": "Angebot", "eingabe": "Eingabe", "schaetzung": "Schätzung", "platzhalter": "Platzhalter"}
 ARTEN = {"etage": "ganze Etage", "zimmer": "Einzelzimmer komplett", "moebel": "nur Möbel tauschen"}
 
@@ -154,13 +159,20 @@ class Kosten:
     herkunft_moebel: str = "platzhalter"
     basis_bau: float = 0.0        # Bau netto wie im Angebot (ohne Steigerung, Nebenkosten, Puffer)
     ust_satz: float = 0.0         # nicht abziehbarer Steuersatz
-    u_bau: float = 0.0            # Unsicherheit (± €) des Bau-Teils – addiert sich beim Zusammenrechnen
+    u_bau: float = 0.0            # Unsicherheit (± €) des Bau-Teils – ab 1.14 aus uc/vi zusammengesetzt
     u_moebel: float = 0.0
     ungewiss: float = 0.0         # Betrag, der nicht aus einem Angebot stammt
+    uc_bau: float = 0.0           # 1.14: gemeinsamer Teil der Unsicherheit (addiert sich)
+    uc_moebel: float = 0.0
+    vi_bau: float = 0.0           # 1.14: unabhängiger Teil als Varianz (addiert sich quadratisch)
+    vi_moebel: float = 0.0
 
     def _unsicherheit(self) -> "Kosten":
         self.u_bau = self.instandhaltung * UNSICHER.get(self.herkunft_bau, .4)
         self.u_moebel = self.investition * UNSICHER.get(self.herkunft_moebel, .4)
+        r = KOSTEN_GEMEINSAM
+        self.uc_bau, self.vi_bau = r * self.u_bau, (1 - r * r) * self.u_bau ** 2
+        self.uc_moebel, self.vi_moebel = r * self.u_moebel, (1 - r * r) * self.u_moebel ** 2
         self.ungewiss = ((self.instandhaltung if self.herkunft_bau != "angebot" else 0)
                          + (self.investition if self.herkunft_moebel != "angebot" else 0))
         return self
@@ -202,8 +214,10 @@ class Kosten:
 
     @property
     def spanne(self) -> tuple[float, float]:
-        """(von, bis) – Unsicherheit nach Herkunft der Werte (Angebot ±10 % … Platzhalter ±40 %)."""
-        d = self.u_bau + self.u_moebel
+        """(von, bis) – Unsicherheit nach Herkunft der Werte (Angebot ±10 % … Platzhalter ±40 %); Bau und Möbel
+        zusammen wie mehrere Positionen (gemeinsamer Teil + unabhängiger Rest, 1.14)."""
+        d = gesamt_unsicherheit(self.uc_bau + self.uc_moebel, self.vi_bau + self.vi_moebel,
+                                self.u_bau + self.u_moebel)
         return self.summe - d, self.summe + d
 
     def spanne_von(self, teil: str) -> tuple[float, float]:
@@ -226,7 +240,18 @@ class Kosten:
                       or "angebot",
                       schlechter(self.herkunft_moebel if self.investition else "", o.herkunft_moebel if o.investition else "")
                       or "angebot", self.basis_bau + o.basis_bau, max(self.ust_satz, o.ust_satz),
-                      self.u_bau + o.u_bau, self.u_moebel + o.u_moebel, self.ungewiss + o.ungewiss)
+                      gesamt_unsicherheit(self.uc_bau + o.uc_bau, self.vi_bau + o.vi_bau, self.u_bau + o.u_bau),
+                      gesamt_unsicherheit(self.uc_moebel + o.uc_moebel, self.vi_moebel + o.vi_moebel,
+                                          self.u_moebel + o.u_moebel),
+                      self.ungewiss + o.ungewiss, self.uc_bau + o.uc_bau, self.uc_moebel + o.uc_moebel,
+                      self.vi_bau + o.vi_bau, self.vi_moebel + o.vi_moebel)
+
+
+def gesamt_unsicherheit(gemeinsam: float, varianz: float, linear: float = 0.0) -> float:
+    """1.14: ± € aus gemeinsamem Teil und unabhängiger Varianz. Ohne Aufteilung (alte Objekte): die lineare Summe."""
+    if gemeinsam == 0 and varianz == 0:
+        return linear
+    return (gemeinsam * gemeinsam + varianz) ** 0.5
 
 
 def gueltig_bis(p: dict, haus: str | None, moebel: bool = False) -> date | None:
@@ -905,16 +930,24 @@ def zyklus(fl: list[Flur], zimmer_je_jahr: float) -> float | None:
     return round(bestand(fl) / zimmer_je_jahr, 1) if zimmer_je_jahr > 0 else None
 
 
+def defekte_betten(stand: zp.Planstand, ohne: set | None = None) -> float:
+    """1.14: Betten in Zimmern, die heute nicht bewohnbar sind (Mängel) – ``ohne``: Zimmer, die schon anders zählen."""
+    ohne = ohne or set()
+    return float(sum(z.betten for z in stand.zimmer
+                     if z.aktiv and z.id in stand.lage.unbewohnbar and z.id not in ohne))
+
+
 def engpass_markieren(fs: list[Fenster], f: Flur, kap: float | None, belegt: list | None = None,
-                      warn_anteil: float = .95) -> None:
+                      warn_anteil: float = .95, defekt: float = 0.0) -> None:
     """Monat ist ein Engpass, wenn die obere Prognose die Warnschwelle der Kapazität erreicht – Kapazität minus diese
-    Etage und minus Etagen, die im selben Monat schon im Bau sind (``belegt``: PlanZeilen)."""
+    Etage, minus Etagen, die im selben Monat schon im Bau sind (``belegt``: PlanZeilen), und (1.14) minus defekte
+    Betten (``defekt``, Stand heute – sie fehlen auch während des Baus)."""
     if not kap:
         return
     for fe in fs:
         if not fe.prognose:
             continue
-        weg = f.betten + gesperrte_betten(belegt or [], date(fe.start.year, fe.start.month, 1))
+        weg = f.betten + defekt + gesperrte_betten(belegt or [], date(fe.start.year, fe.start.month, 1))
         fe.engpass = fe.prognose[2] >= (kap - weg) * warn_anteil
 
 
@@ -956,6 +989,13 @@ class Variante:
         return sum(m.wert for m in self.massnahmen)
 
     @property
+    def klassen(self) -> tuple[int, ...]:
+        """1.14: (Bau A, B, C, Möbel A, B, C) – Varianten werden der Reihe nach verglichen: erst Bau-Bedarf A, dann B,
+        dann C, danach Möbel. So schlagen viele kleine Fälle nie einen dringenden."""
+        liste = [(m.flur, z, m.art) for m in self.massnahmen for z in m.zimmer]
+        return klassen_zahl(liste, "bau") + klassen_zahl(liste, "moebel")
+
+    @property
     def a_zimmer(self) -> int:
         return sum(m.a_zimmer for m in self.massnahmen)
 
@@ -981,6 +1021,37 @@ class Variante:
 
 def _wert(b: ZBedarf, art: str) -> float:
     return (b.wert_bau if art != "moebel" else 0) + b.wert_moebel
+
+
+def _klasse(b: ZBedarf, art: str) -> str | None:
+    """Maßgebliche Klasse eines Zimmers: Bau (bei Etage/Zimmer), sonst Möbel; frisch renoviert = kein Bau."""
+    if art != "moebel" and b.bau and not b.frisch:
+        return b.bau
+    return b.moebel
+
+
+def _rang(b: ZBedarf, art: str) -> int:
+    """1.14: feste Rangfolge A (3) vor B (2) vor C (1) – unabhängig davon, wie viele Zimmer einer Klasse es sind."""
+    return {"A": 3, "B": 2, "C": 1}.get(_klasse(b, art) or "", 0)
+
+
+def klassen_zahl(liste, teil: str = "bau") -> tuple[int, int, int]:
+    """(Anzahl A, B, C) einer Auswahl [(Flur, Zimmer, Art)] – zum Vergleichen der Reihe nach (1.14).
+    ``teil`` „bau“: Bau-Klasse der Bau-Maßnahmen (Etage/Zimmer, frisch renoviert zählt nicht); „moebel“: Möbel-Klasse
+    aller Maßnahmen (auch Etage/Zimmer komplett tauschen die Möbel)."""
+    n = {"A": 0, "B": 0, "C": 0}
+    for t in liste:
+        f, z = t[0], t[1]
+        art = t[2] if len(t) > 2 else "etage"
+        if art == "moebel" and teil != "moebel":
+            continue                                      # „nur Möbel“ deckt keinen Bau-Bedarf; Etage/Zimmer komplett
+                                                          # bringen dagegen auch neue Möbel mit
+
+        b = f.bedarfe.get(z.id) or ZBedarf()
+        k = b.moebel if teil == "moebel" else (None if b.frisch else b.bau)
+        if k in n:
+            n[k] += 1
+    return n["A"], n["B"], n["C"]
 
 
 def _massnahme(p, f: Flur, zimmer: list, art: str, jahr: int) -> Massnahme:
@@ -1014,8 +1085,9 @@ def _zimmer_kandidaten(fl: list[Flur], frei: set, p: dict, jahr: int, art: str) 
                 continue
             k = cache.setdefault((f.haus, art, len(f.zimmer)), kosten(p, f.haus, 1, jahr, art, len(f.zimmer)))
             preis = k.instandhaltung if art == "zimmer" else k.investition
-            erg.append((w / max(preis, 1), w, k.instandhaltung, k.investition, f, z))
-    return sorted(erg, key=lambda x: (-x[0], -x[1], x[4].haus, x[5].id))
+            erg.append(((_rang(b, art), w / max(preis, 1)), w, k.instandhaltung, k.investition, f, z))
+    # 1.14: erst die Klasse (A vor B vor C), dann Bedarf je € – kein billiges C-Zimmer vor einem A-Zimmer
+    return sorted(erg, key=lambda x: (-x[0][0], -x[0][1], -x[1], x[4].haus, x[5].id))
 
 
 def _fuellen(kand: list, rest_b: float | None, rest_m: float | None, belegt: set, ziel: int | None = None):
@@ -1078,7 +1150,7 @@ def optimieren(fl: list[Flur], p: dict, jahr: int, budget_bau: float | None, moe
         # 0.46: Zimmer ohne Bedarf zählen nicht (außer beim Zimmerziel) – bei gleichem Bedarf die günstigere Lösung,
         # nie eine Etage nur zum Ausschöpfen des Budgets
         n = len(liste) if ziel is not None else sum(1 for f, z, _a in liste if _wert(f.bedarfe.get(z.id) or ZBedarf(), "etage") > 0)
-        wert = (w_v, w, n, -genutzt)
+        wert = (w_v, klassen_zahl(liste), w, n, -genutzt)   # 1.14: A vor B vor C (Reihenfolge, nicht Summe)
         if best_wert is None or wert > best_wert:
             best, best_wert, best_rest = liste, wert, rest_b
     return best, best_rest
@@ -1164,8 +1236,20 @@ def varianten(fl: list[Flur], p: dict, jahr: int, ziel: int | None = None, schon
         a.hinweis = "Für keine Etage ist Bedarf erfasst – Renovierungsdaten, Mängel oder Zustandsnoten pflegen."
     elif budget and bb is not None and not a.massnahmen:
         a.hinweis = "Mit diesem Baubudget passt keine ganze Etage mit Bedarf."
+    if budget:                                            # 1.14: offener A-Bedarf wird sichtbar, nie still verschoben
+        a_offen = {z.id for f in fl_ok for z in f.zimmer
+                   if z.id not in schon and (f.bedarfe.get(z.id) or ZBedarf()).bau == "A"
+                   and not (f.bedarfe.get(z.id) or ZBedarf()).frisch}
+        for v in (a, b, c):
+            drin = {z.id for m in v.massnahmen if m.art != "moebel" for z in m.zimmer}
+            rest_a = len(a_offen - drin)
+            if rest_a and v.massnahmen:
+                txt = ((f"{rest_a} Zimmer mit A-Bedarf passen" if rest_a > 1 else "1 Zimmer mit A-Bedarf passt")
+                       + " nicht mehr ins Baubudget und rutscht ins nächste Jahr".replace("rutscht", "rutschen" if rest_a > 1 else "rutscht")
+                       + (" – C-Bedarf ist nur dabei, weil für A und B kein passender Rest mehr da war." if v.klassen[2] else "."))
+                v.hinweis = (v.hinweis + " " if v.hinweis else "") + txt
     kandidaten = [v for v in vs[:3] if v.massnahmen]
-    empf = max(kandidaten, key=lambda v: (v.wert, v.zimmer, -(v.rest_bau or 0))).schluessel if kandidaten else (
+    empf = max(kandidaten, key=lambda v: (v.klassen, v.wert, v.zimmer, -(v.rest_bau or 0))).schluessel if kandidaten else (
         "moebel" if d.massnahmen else "")
     return vs, empf
 
@@ -1399,7 +1483,7 @@ def vorschlaege(stand: zp.Planstand, fl: list[Flur], jahr: int, heute: date, p: 
         if f.schluessel in schon:
             continue
         fs = [x for x in monatsfenster(stand, f, jahr, p, prognose) if x.start.month not in belegt_monate]
-        engpass_markieren(fs, f, kap, bau)
+        engpass_markieren(fs, f, kap, bau, defekt=defekte_betten(stand, {z.id for z in f.zimmer}))
         best = bester_monat(fs, heute)
         if best:
             belegt_monate.add(best.start.month)

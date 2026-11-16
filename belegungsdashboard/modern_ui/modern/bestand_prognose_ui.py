@@ -623,7 +623,8 @@ def _szenarien_panel(a, szen: dict) -> None:
     werte = {k: dict(v) for k, v in szen.items()}
 
     def bauen():
-        ui.label("Szenarien wirken nur auf die weiteren Zugänge (nicht auf Bestand und Pipeline). Je Szenario ein "
+        ui.label("Szenarien wirken auf die weiteren Zugänge und auf die Übergänge aus Assessment/Vorbereitung (gleiche "
+                 "Kostenträger) – der heutige Bestand bleibt in allen gleich. Je Szenario ein "
                  "Auslöser, der quartalsweise geprüft wird. Welches gerade passt, zeigt der Frühindikator.").classes("m-ptext")
         for k in ("schwach", "stark"):
             ui.label(bp.SZENARIO_NAMEN[k]).classes("m-btitel")
