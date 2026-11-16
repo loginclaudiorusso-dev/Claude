@@ -346,7 +346,7 @@ def vorschau_texte(v: Vorschau, jahr: int) -> dict:
 
 
 def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#334155", vor: Bewertung | None = None,
-             wd: "WennDann | None" = None) -> dict:
+             wd: "WennDann | None" = None, band: bool = True, null: bool = False) -> dict:
     """ECharts-Option „Decke gegen Bedarf“: von unten der Bedarf (fest, erwartet, obere Spanne), von oben die Decke
     (defekte Zimmer grau, Baustellen orange), rot, wo die obere Spanne über die Decke geht. Alle Reihen ``m_fest``:
     der Diagrammtyp aus „Diagrammentwurf“ stellt dieses Diagramm nicht um (es ist eine Bilanz, kein Verlauf)."""
@@ -361,15 +361,15 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
     risk = [n(h - e) if h is not None and e is not None else None for h, e in zip(bd.hoch, bd.erwartet)]
     eng = [n(max(0.0, h - d)) if h is not None and h > d else None for h, d in zip(bd.hoch, decke_v)]
     werte = [v for v in list(bd.erwartet) + decke if v is not None]       # Achse dort, wo Bedarf und Decke liegen
-    unten = max(0, int((min(werte) - 15) // 10 * 10)) if werte else 0
+    unten = 0 if null else (max(0, int((min(werte) - 15) // 10 * 10)) if werte else 0)
     step = {"step": "middle", "symbol": "none", "m_fest": True}
     balken = {"type": "bar", "barWidth": "88%", "m_fest": True, "barGap": "-100%"}
     serien = [
-        {**step, "name": "fest gebucht / laufend", "type": "line", "stack": "b", "data": fest, "areaStyle": {"color": fest_f, "opacity": 1},
+        {**step, "name": "schon gebucht", "type": "line", "stack": "b", "data": fest, "areaStyle": {"color": fest_f, "opacity": 1},
          "lineStyle": {"width": 0}, "itemStyle": {"color": fest_f}, "z": 2},
-        {**step, "name": "erwartet dazu", "type": "line", "stack": "b", "data": erw, "areaStyle": {"color": erw_f, "opacity": 1},
+        {**step, "name": "noch erwartet", "type": "line", "stack": "b", "data": erw, "areaStyle": {"color": erw_f, "opacity": 1},
          "lineStyle": {"width": 0}, "itemStyle": {"color": erw_f}, "z": 2},
-        {**step, "name": "Risiko (8 von 10)", "type": "line", "stack": "b", "data": risk,
+        {**step, "name": "ungünstiger Fall (8 von 10)", "type": "line", "stack": "b", "data": risk,
          "areaStyle": {"color": risk_f, "opacity": 1}, "lineStyle": {"width": 1, "type": "dashed", "color": "#0369a1"},
          "itemStyle": {"color": "#9cc3dd"}, "z": 2},
         {**balken, "name": "_frei", "stack": "d", "data": [round(bd.decke - max(x, y), 1) for x, y in zip(b0, b1)],
@@ -392,6 +392,8 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
         {**step, "name": "verfügbare Betten", "type": "line", "data": decke, "lineStyle": {"width": 2.5, "color": text},
          "itemStyle": {"color": text}, "z": 5},
     ]
+    if not band:                                          # 1.20: Unsicherheit ausblenden
+        serien = [x for x in serien if x["name"] != "ungünstiger Fall (8 von 10)"]
     if wd is not None and wd.vorher is not None:          # 1.19: Vergleich „ohne Wenn-dann“ und der angenommene Punkt
         serien.append({**step, "name": "ohne Wenn-dann", "type": "line", "data": [n(e) for e in wd.vorher.erwartet], "z": 6,
                        "lineStyle": {"width": 2, "type": "dotted", "color": "#7c3aed"}, "itemStyle": {"color": "#7c3aed"}})
@@ -404,10 +406,10 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
         serien.append({**step, "name": "Vorschau: verfügbar", "type": "line", "data": decke_v, "z": 6,
                        "lineStyle": {"width": 2, "type": "dashed", "color": "#f59e0b"}, "itemStyle": {"color": "#f59e0b"}})
     return {"animation": False, "grid": {"left": 48, "right": 16, "top": 64, "bottom": 30},
-            "legend": {"top": 0, "left": 0, "data": ["fest gebucht / laufend", "erwartet dazu", "Risiko (8 von 10)", "defekte Zimmer",
+            "legend": {"top": 0, "left": 0, "data": ["schon gebucht", "noch erwartet"] + (["ungünstiger Fall (8 von 10)"] if band else []) + ["defekte Zimmer",
                                           "Baustelle", "Engpass", "verfügbare Betten"]
                        + (["Vorschau: verfügbar"] if vor else []) + (["ohne Wenn-dann"] if wd is not None else [])},
-            "tooltip": {"trigger": "axis"},
+            "tooltip": _tooltip(monats_texte(bd, bw)),
             "xAxis": {"type": "category", "data": [f"{MONATE[d.month - 1]}" for d in bd.monate], "boundaryGap": True},
             "yAxis": {"type": "value", "min": unten, "max": int(bd.kapazitaet + 5)},
             "series": serien}
@@ -494,3 +496,96 @@ def wenn_dann_satz(w: WennDann, vorher: Bewertung, nachher: Bewertung) -> str:
     if len(nachher.engpaesse) != len(vorher.engpaesse):
         teile.append(f"{len(nachher.engpaesse)} statt {len(vorher.engpaesse)} Monat(e) mit Engpass")
     return " → ".join([teile[0], " · ".join(teile[1:])]) + f" (Abweichung klingt je Monat auf {round(100 * w.rho)} % ab)"
+
+
+# ---- 1.20: verständlicher – „Freie Betten je Monat“ und Tooltip als Satz -----------------------------------------
+
+def monats_texte(bd: Bedarf, bw: Bewertung) -> list[str]:
+    """Je Monat ein kurzer Klartext (HTML) für den Tooltip – statt einer Liste aller Reihen mit „–“."""
+    erg = []
+    for i, m in enumerate(bd.monate):
+        kopf = f"<b>{MONATE[m.month - 1]} {m.year}</b>"
+        if bd.erwartet[i] is None:
+            erg.append(kopf + "<br>keine Prognose")
+            continue
+        verf = bd.decke - bw.baustellen[i]
+        frei_e, frei_h = verf - bd.erwartet[i], verf - bd.hoch[i]
+        teile = [kopf]
+        if bd.ist[i]:
+            teile.append(f"belegt: {round(bd.erwartet[i])} (Ist)")
+        else:
+            gebucht = f" – davon {round(bd.fest[i])} schon gebucht" if bd.fest[i] is not None else ""
+            teile.append(f"erwartet belegt: {round(bd.erwartet[i])}{gebucht}")
+            teile.append(f"im ungünstigen Fall (8 von 10): bis {round(bd.hoch[i])}")
+        abzug = [f"{round(bd.defekt)} defekt" if bd.defekt else "", f"{round(bw.baustellen[i])} Baustelle" if bw.baustellen[i] else ""]
+        abzug = [x for x in abzug if x]
+        teile.append(f"verfügbar: {round(verf)} Betten" + (f" ({round(bd.kapazitaet)} − {' − '.join(abzug)})" if abzug else ""))
+        if bd.ist[i]:
+            teile.append(f"frei: {round(frei_e)}")
+        else:
+            teile.append(f"frei: {round(frei_e)} erwartet · {round(frei_h)} im ungünstigen Fall"
+                         if frei_h >= 0 else f"<span style='color:#e11d48'>im ungünstigen Fall fehlen {abs(round(frei_h))} Betten</span>")
+        erg.append("<br>".join(teile))
+    return erg
+
+
+def _tooltip(texte: list[str]) -> dict:
+    import json
+
+    return {"trigger": "axis", "confine": True,
+            ":formatter": f"(ps) => {{ const t = {json.dumps(texte, ensure_ascii=False)}; return t[ps[0].dataIndex] || ''; }}"}
+
+
+def diagramm_frei(bd: Bedarf, bw: Bewertung, vor: Bewertung | None = None, wd: "WennDann | None" = None,
+                  band: bool = True, null: bool = True) -> dict:
+    """Je Monat eine Säule „freie Betten“: dunkel = bleibt auch im ungünstigen Fall frei (8 von 10), hell = zusätzlich
+    frei, wenn es wie erwartet kommt, rot = fehlen im ungünstigen Fall. ``band`` False: nur der erwartete Wert."""
+    n = lambda v: None if v is None else round(v, 1)                                    # noqa: E731
+    verf = [bd.decke - b for b in bw.baustellen]
+    frei_e = [n(v - e) if e is not None else None for v, e in zip(verf, bd.erwartet)]
+    frei_h = [n(v - h) if h is not None else None for v, h in zip(verf, bd.hoch)]
+    sicher, extra, fehlt = [], [], []
+    for e, h in zip(frei_e, frei_h):
+        if e is None:
+            sicher.append(None), extra.append(None), fehlt.append(None)
+        elif not band:
+            sicher.append(max(0.0, e)), extra.append(None), fehlt.append(n(min(0.0, e)) or None)
+        else:
+            sicher.append(max(0.0, h)), extra.append(n(max(0.0, e) - max(0.0, h)) or None), fehlt.append(n(min(0.0, h)) or None)
+    balken = {"type": "bar", "stack": "f", "barMaxWidth": 44, "m_fest": True}
+    serien = [
+        {**balken, "name": "frei auch im ungünstigen Fall" if band else "frei (erwartet)", "data": sicher,
+         "itemStyle": {"color": "#0f766e"}},
+        {**balken, "name": "frei, wenn es wie erwartet kommt", "data": extra,
+         "itemStyle": {"color": "rgba(15,118,110,.35)"}},
+        {**balken, "name": "fehlen", "data": fehlt, "itemStyle": {"color": "#e11d48"},
+         "label": {"show": True, "position": "bottom", "color": "#e11d48", "fontWeight": "bold",
+                   ":formatter": "(p) => p.value == null ? '' : Math.round(p.value)"}},
+        {"type": "line", "name": "_summe", "data": [n(max(0.0, e)) if e is not None else None for e in frei_e],
+         "symbol": "none", "lineStyle": {"opacity": 0}, "m_fest": True, "silent": True, "tooltip": {"show": False},
+         "label": {"show": True, "position": "top", "fontSize": 12, ":formatter": "(p) => p.value == null ? '' : Math.round(p.value)"}},
+    ]
+    if vor is not None:
+        verf_v = [bd.decke - b for b in vor.baustellen]
+        serien.append({"type": "line", "name": "Vorschau", "m_fest": True, "step": "middle", "symbol": "none",
+                       "data": [n(v - (h if band else e)) if e is not None else None
+                                for v, e, h in zip(verf_v, bd.erwartet, bd.hoch)],
+                       "lineStyle": {"width": 2.5, "type": "dashed", "color": "#f59e0b"}, "itemStyle": {"color": "#f59e0b"}, "z": 6})
+    if wd is not None and wd.vorher is not None:
+        verf0 = verf
+        serien.append({"type": "line", "name": "ohne Wenn-dann", "m_fest": True, "step": "middle", "symbol": "none",
+                       "data": [n(v - (h if band else e)) if e is not None else None
+                                for v, e, h in zip(verf0, wd.vorher.erwartet, wd.vorher.hoch)],
+                       "lineStyle": {"width": 2, "type": "dotted", "color": "#7c3aed"}, "itemStyle": {"color": "#7c3aed"}, "z": 6})
+    werte = [v for v in (fehlt + frei_e) if v is not None]
+    legende = ["frei auch im ungünstigen Fall", "frei, wenn es wie erwartet kommt", "fehlen"] if band else ["frei (erwartet)", "fehlen"]
+    return {"animation": False, "grid": {"left": 48, "right": 16, "top": 56, "bottom": 30},
+            "legend": {"top": 0, "left": 0, "data": legende + (["Vorschau"] if vor is not None else [])
+                       + (["ohne Wenn-dann"] if wd is not None else [])},
+            "tooltip": _tooltip(monats_texte(bd, bw)),
+            "xAxis": {"type": "category", "data": [MONATE[d.month - 1] for d in bd.monate]},
+            "yAxis": {"type": "value", "name": "freie Betten", "nameGap": 10,
+                      "nameTextStyle": {"align": "left"}, "min": (min(0, int(min(werte)) - 5) if werte else 0) if null
+                      or (werte and min(werte) < 0) else None,
+                      "splitLine": {"lineStyle": {"type": "dashed"}}},
+            "series": serien}

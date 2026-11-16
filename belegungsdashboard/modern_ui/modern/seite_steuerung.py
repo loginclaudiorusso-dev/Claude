@@ -19,10 +19,11 @@ from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 # 0.46: nach Fragen statt nach Werkzeugen – Cockpit (nur lesen) · Vorhaben (planen) · Zeitplan & Kapazität · Finanzen ·
 # Grundlagen. Alte Namen (aus Links anderer Seiten) werden umgeleitet.
-ANSICHTEN = {"cockpit_neu": "Cockpit (neu)", "cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
+ANSICHTEN = {"cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
              "grundlagen": "Grundlagen"}
-ALT = {"uebersicht": "cockpit", "renovierung": "vorhaben", "prognose": "zeitplan", "szenarien": "finanzen",
-       "kennzahlen": "grundlagen"}
+# 1.20: „Cockpit (neu)“ ist jetzt das Cockpit
+ALT = {"cockpit_neu": "cockpit", "uebersicht": "cockpit", "renovierung": "vorhaben", "prognose": "zeitplan",
+       "szenarien": "finanzen", "kennzahlen": "grundlagen"}
 
 
 def ansicht(a) -> str:
@@ -158,7 +159,7 @@ def daten(a) -> None:
             d["monate"] = (f, fs, rk.bester_monat(fs, a.heute))
     if ansicht_ == "zeitplan":
         d["staende"] = sk.buchungsstaende()
-    if ansicht_ == "cockpit_neu":                 # 1.16: Karten je Monat einmal vorrechnen – danach wirkt jeder Klick sofort
+    if ansicht_ == "cockpit":                     # 1.16/1.20: Karten je Monat einmal vorrechnen – danach wirkt jeder Klick sofort
         from . import cockpit_kern as ck
 
         d["heute"] = a.heute
@@ -231,12 +232,12 @@ def zeichnen(a) -> None:
         segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, d["jahr"],
                  lambda j: a.setzen(st_jahr=j, nur_seite=True), sofort=True)
         knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "primaer", "picture_as_pdf").style("margin-left:auto")
-    if ansicht_ == "cockpit_neu":
+    if ansicht_ == "cockpit":                     # 1.20: das neue Cockpit ersetzt das alte
         from . import cockpit_ui
 
         cockpit_ui.zeichnen(a)
         return
-    {"cockpit": _cockpit, "vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
+    {"vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
      "grundlagen": _grundlagen}[ansicht_](a)
 
 
@@ -325,98 +326,6 @@ def _zone(nr: str, titel: str, frage: str) -> None:
         ui.label(nr).classes("m-zone-nr")
         ui.label(titel).classes("m-zone-t")
         ui.label(frage).classes("m-zweite")
-
-
-def _cockpit(a) -> None:
-    """Nur lesen: höchstens 5 Kennzahlen, 3 Warnungen, 3 Handlungsempfehlungen – jede Kachel führt zur passenden Liste."""
-    d, li = a.daten, a.daten["li"]
-    jahr, p, v, ant = d["jahr"], d["p"], d["gewaehlt"], d["antrag"]
-    warn = sk.warnmonate(li)
-    verplant = d["konten"]["bau"].belastet + d["vorschlag"]["bau"]          # verbraucht + offen + Vorschlag
-    a_heute = rk.a_zimmer(d["fl"])
-    a_rest = rk.a_zimmer(d["fl"], {z.id for m in (v.massnahmen if v else []) for z in m.zimmer})
-    bb = d["budgets"]["bau"]
-
-    def zu(ans: str):
-        return lambda: a.oeffnen("steuerung", ansicht=ans)
-
-    warnungen: list[tuple[str, str, str]] = []           # (Text, Stufe, Ansicht)
-    if bb is not None and verplant > bb + 500:
-        warnungen.append((f"Baubudget {jahr} überschritten um {rk.tsd(verplant - bb)}", "krit", "finanzen"))
-    if warn:
-        warnungen.append((f"Kapazität: {len(warn)} Monat(e) an der Warnschwelle, zuerst {rk.MONATE[warn[0].month - 1]} "
-                          f"{warn[0].year}", "warn", "zeitplan"))
-    if d["platzhalter"]:
-        warnungen.append((f"{len(d['platzhalter'])} Preis(e) ohne Angebot – Summen nur Richtwerte", "warn", "grundlagen"))
-    if alt := rk.angebote_alt(p, a.heute):
-        warnungen.append((f"Angebot älter als 12 Monate: {alt[0]}" + (f" (+{len(alt) - 1})" if len(alt) > 1 else ""),
-                          "warn", "grundlagen"))
-    if satz := sk.abgleich_satz(d.get("abgleich") or []):
-        warnungen.append((satz, "warn", "grundlagen"))                     # 1.14: nur, wenn es wirklich abweicht
-    mit_hinweis = [v for v in d["vorhaben"] if vk.hinweise(v, a.heute)]
-    if mit_hinweis:
-        warnungen.append((f"{len(mit_hinweis)} Vorhaben mit offenem Widerspruch (z. B. {mit_hinweis[0]['titel']})", "warn",
-                          "vorhaben"))
-    if d["luecken"]:
-        warnungen.append((f"{len(d['luecken'])} Datenlücke(n) – Ergebnisse weniger belastbar", "neutral", "grundlagen"))
-    with a.inhalt:
-        with ui.element("div").classes("m-rv"):
-            if d["fehler"]:
-                ui.label(d["fehler"]).classes("m-pille warn").style("white-space:normal")
-            with ui.element("div").classes("m-kpis"):
-                if p.get("modus") != "ziel":
-                    _kpi(f"Bau {jahr}: verplant", rk.tsd(verplant),
-                         f"von {rk.tsd(bb)} Budget" if bb is not None else "kein Baubudget eingetragen",
-                         "krit" if bb is not None and verplant > bb + 500 else "", "Vormerkungen + Vorschläge", zu("finanzen"))
-                    if bb is not None:
-                        frei = bb - verplant
-                        _kpi(f"Bau {jahr}: frei", rk.tsd(max(0.0, frei)) if frei >= -500 else f"−{rk.tsd(-frei)}",
-                             f"verfällt am 31.12.{jahr}" if frei > 500 else "ausgeschöpft" if frei >= -500 else "überschritten",
-                             "krit" if frei < -500 else "", "Baubudget = feste Grenze, die verfällt", zu("finanzen"))
-                else:
-                    _kpi(f"Renovierung {jahr}", f"{v.zimmer if v else 0} / {p.get('ziel_zimmer')} Zimmer", "Ziel", "", "",
-                         zu("vorhaben"))
-                _kpi(f"Möbel {jahr}: Antrag", rk.tsd(ant["summe"]), f"Spanne {rk.spanne_text(ant['von'], ant['bis'])}", "",
-                     "Möbel für die Bau-Maßnahmen + „nur Möbel“ für Zimmer mit dringendem Möbelbedarf", zu("finanzen"))
-                _kpi("Offene Klasse-A-Zimmer", f"{a_heute} → {a_rest}", "heute → nach diesem Plan", "krit" if a_rest else "",
-                     "", zu("vorhaben"))
-                _kpi("Monate an der Warnschwelle", f"{len(warn)}", "von 12 · inkl. Baustellen", "warn" if warn else "", "",
-                     zu("zeitplan"))
-            with ui.element("div").classes("m-zwei"):
-                with ui.element("section").classes("m-block"):
-                    ui.label("Warnungen").classes("m-btitel")
-                    if not warnungen:
-                        ui.label("Keine.").classes("m-pille ok")
-                    for text, stufe, ans in warnungen[:3]:
-                        z = ui.element("div").classes("m-liste-zeile m-klick")
-                        with z:
-                            ui.icon({"krit": "error", "warn": "warning"}.get(stufe, "info")).classes(
-                                {"krit": "m-krit", "warn": "m-warn"}.get(stufe, "m-zweite"))
-                            ui.label(text).style("white-space:normal")
-                        z.on("click", zu(ans))
-                    if len(warnungen) > 3:
-                        ui.label(f"+ {len(warnungen) - 3} weitere").classes("m-zweite")
-                with ui.element("section").classes("m-block"):
-                    ui.label("Handlungsempfehlungen").classes("m-btitel")
-                    es = d["entscheidungen"]
-                    if not es:
-                        ui.label("Nichts offen.").classes("m-pille ok")
-                    for t in es[:3]:
-                        z = ui.element("div").classes("m-liste-zeile m-klick")
-                        with z:
-                            ui.icon("help_outline").classes("m-zweite")
-                            ui.label(t).style("white-space:normal")
-                        z.on("click", zu("vorhaben"))
-                    if len(es) > 3:
-                        with ui.expansion(f"Alle {len(es)} anzeigen").classes("m-rv-exp"):
-                            for t in es[3:]:
-                                with ui.element("div").classes("m-liste-zeile"):
-                                    ui.icon("help_outline").classes("m-zweite")
-                                    ui.label(t).style("white-space:normal")
-            if v:
-                _empfehlung_karte(a, d, kompakt=True)
-            ui.label("Das Cockpit zeigt nur – geplant wird unter „Vorhaben“. Jede Kachel führt zur passenden Ansicht.").classes(
-                "m-xk-hinweis")
 
 
 STATUS_STUFE = {"abgeschlossen": "ok", "abgerechnet": "ok", "freigegeben": "ok", "in Arbeit": "blau", "beauftragt": "blau",

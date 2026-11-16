@@ -37,6 +37,7 @@ import re
 
 from collections import Counter
 from dataclasses import dataclass, field
+import calendar
 from datetime import date, timedelta
 
 import numpy as np
@@ -205,6 +206,7 @@ class Modell:
     folge: set = field(default_factory=set)   # Index der Vorstufen-Fälle, die schon eine Folge haben
     erklaert: set = field(default_factory=set)   # 0.86: Index der Fälle, die Folge einer Vorstufe sind
     abgang_alt: dict = field(default_factory=dict)   # 0.86: Abgangsquote nach der bisherigen Rechnung (Vergleich)
+    startmonate: dict = field(default_factory=dict)  # 1.20: Art → {Monat: typischer Tag} bei festem Startrhythmus
 
 
 def _personen(fs: list[Fall]) -> dict[int, list[int]]:
@@ -277,7 +279,50 @@ def modell(fs: list[Fall], letzter: date, tabelle: list[dict]) -> Modell:
     for e in tabelle:
         if e.get("max_plaetze"):
             kappe[e["art"]] = int(e["max_plaetze"])
-    return Modell(letzter, fs, arten, gruppe, soll, kurven, quelle, uebergaenge, raten, kappe, folge, erklaert, abgang_alt)
+    return Modell(letzter, fs, arten, gruppe, soll, kurven, quelle, uebergaenge, raten, kappe, folge, erklaert, abgang_alt,
+                  startmonate(fs, letzter))
+
+
+# 1.20: Hauptmaßnahmen beginnen in festen Wellen (z. B. Januar und Juni/Juli). Wer aus Assessment oder Vorbereitung
+# wechselt, kommt zum nächsten Starttermin – nicht nach einer zufälligen Wartezeit irgendwann im Jahr. Den Rhythmus misst
+# die eigene Geschichte: Liegen ≥ 85 % der Eintritte der letzten 3 Jahre in höchstens 3 Kalendermonaten, gilt die Art
+# als „fester Start“ (sonst flexibel, z. B. IBTZ oder Assessment).
+START_ANTEIL = 0.85
+START_MAX_MONATE = 3
+START_MIN_FAELLE = 8
+
+
+def startmonate(fs: list[Fall], letzter: date) -> dict:
+    ab = date(letzter.year - JAHRE_HISTORIE, letzter.month, 1)
+    erg = {}
+    for a in sorted({f.art for f in fs}):
+        tage = [f.ein for f in fs if f.art == a and ab <= f.ein <= letzter]
+        if len(tage) < START_MIN_FAELLE:
+            continue
+        je: dict[int, list[int]] = {}
+        for d in tage:
+            je.setdefault(d.month, []).append(d.day)
+        reihe = sorted(je, key=lambda m: -len(je[m]))
+        n, wahl = 0, []
+        for m in reihe[:START_MAX_MONATE]:
+            wahl.append(m)
+            n += len(je[m])
+            if n >= START_ANTEIL * len(tage):
+                erg[a] = {m_: int(np.median(je[m_])) for m_ in sorted(wahl)}
+                break
+    return erg
+
+
+def naechster_start(d: date, monate: dict) -> date:
+    """Liegt ``d`` in einem Startmonat, bleibt es; sonst der typische Starttag des nächsten Startmonats."""
+    if not monate or d.month in monate:
+        return d
+    for k in range(1, 13):
+        m = (d.month - 1 + k) % 12 + 1
+        if m in monate:
+            j = d.year + (d.month - 1 + k) // 12
+            return date(j, m, min(monate[m], calendar.monthrange(j, m)[1]))
+    return d
 
 
 # ---- Simulation ------------------------------------------------------------------------------------------------
@@ -340,6 +385,21 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
             ende = np.minimum(ende, start + plan)
         teile.append((q, np.full(len(runs), ai[art]), runs, start.astype(float), ende.astype(float)))
 
+    rhythmus = getattr(md, "startmonate", {}) or {}
+    _karten: dict = {}
+
+    def an_start(art: str, start: np.ndarray) -> np.ndarray:
+        """1.20: Tage-Versatz (zum Stichtag) auf den nächsten Starttermin der Art legen – nur bei festem Rhythmus."""
+        if art not in rhythmus or not len(start):
+            return start
+        if art not in _karten:
+            lo, hi = -400, int(t[-1]) + 400
+            _karten[art] = (lo, np.array([(naechster_start(md.letzter + timedelta(days=x), rhythmus[art]) - md.letzter).days
+                                          for x in range(lo, hi + 1)], dtype=float))
+        lo, karte = _karten[art]
+        idx = np.clip(np.floor(start).astype(int) - lo, 0, len(karte) - 1)
+        return np.maximum(start, karte[idx])
+
     def neu_plan(art: str):                   # neue Zugänge: reguläres Ende nach der typischen Solldauer
         return float(md.soll[art]) if md.soll.get(art) else None
 
@@ -394,10 +454,11 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
         for k, z in enumerate(ziele):
             m = art_wahl == k
             if m.any() and z in ai:
-                dazu(quelle, z, r[m], start[m], plan=neu_plan(z))
-                np.add.at(zugang[ai[z]], (monat_von(start[m]), r[m]), 1)
+                s_z = an_start(z, start[m])                    # 1.20: zum nächsten Starttermin der Zielart
+                dazu(quelle, z, r[m], s_z, plan=neu_plan(z))
+                np.add.at(zugang[ai[z]], (monat_von(s_z), r[m]), 1)
                 if md.gruppe[z] in VORSTUFEN:              # z. B. Vorbereitung → Hauptmaßnahme
-                    folgen(md.gruppe[z], start[m], r[m], quelle, np.zeros(m.sum()))
+                    folgen(md.gruppe[z], s_z, r[m], quelle, np.zeros(m.sum()))
 
     for i, f in enumerate(md.faelle):
         if f.gruppe in VORSTUFEN and i not in md.folge and f.ein <= md.letzter \
@@ -422,7 +483,7 @@ def simulieren(md: Modell, faktor_prozent: float = 0.0, durchlaeufe: int = DURCH
             if not n.any():
                 continue
             runs = np.repeat(alle_runs, n)
-            start = t[k - 1] + rng.random(len(runs)) * (t[k] - t[k - 1])
+            start = an_start(a, t[k - 1] + rng.random(len(runs)) * (t[k] - t[k - 1]))
             dazu(3, a, runs, start, plan=neu_plan(a))
             if md.gruppe[a] in VORSTUFEN:
                 folgen(md.gruppe[a], start, runs, 3, np.zeros(len(runs)))

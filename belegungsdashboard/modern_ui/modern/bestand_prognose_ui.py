@@ -167,6 +167,8 @@ def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
                         "symbol": "none", "silent": True, "lineStyle": {"opacity": 0},
                         "color": t["akzent"], "itemStyle": {"color": t["akzent"], "opacity": .35},
                         "areaStyle": {"color": t["akzent"], "opacity": .16}}]
+        for r_ in reihen:                        # 1.20: Zählwerte je Monat bleiben Säulen – kein Umstellen, kein Glätten
+            r_["m_fest"] = True
         opt = {"animation": False, "grid": {"left": 44, "right": 20, "top": 40, "bottom": 30},
                "legend": {"top": 0, "data": ["Ist", "erwartet"] + ([{"name": "sehr wahrscheinlich (8 von 10)",
                                                                        "icon": "roundRect"}] if leitung else [])},
@@ -495,6 +497,9 @@ def _verlauf_option(erg, szen, art: str, sicht=None, szen_an: bool = False) -> t
     namen = [r["name"] for r in reihen if not r["name"].startswith("_")]
     tip = json.dumps({"kat": kat, "h": h, "ist": [n for _d, n in ist], "plan": plan, "lo": lo, "hi": hi,
                       "lo95": lo95, "hi95": hi95})
+    if sicht.klein:                              # 1.20: wenige Teilnehmende = bewusst Säulen (Zählwerte), nicht umstellen
+        for r_ in reihen:
+            r_["m_fest"] = True
     opt = {"animation": False, "grid": {"left": 48, "right": 200, "top": 56, "bottom": 36},
            "legend": {"top": 0, "left": 0, "data": namen, "textStyle": {"color": t["text"], "fontSize": 13}},
            "tooltip": {"trigger": "axis", "confine": True, "textStyle": {"fontSize": 13},

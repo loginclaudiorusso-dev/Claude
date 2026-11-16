@@ -67,6 +67,8 @@ body:not(.hell) .m-ck-w.ok { color: #34d399; } body:not(.hell) .m-ck-w.warn { co
 .m-ck-satz { font-size: 13.5px; background: color-mix(in srgb, var(--akzent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--akzent) 35%, transparent); border-radius: 8px; padding: 9px 12px; }
 .m-ck-fuss { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+/* 1.20: Erklärung unter dem Diagramm */
+.m-ck-lesen { font-size: 12.5px; color: var(--text2); margin-top: 4px; white-space: normal; line-height: 1.45; }
 /* 1.19: Wenn-dann unter dem Diagramm */
 .m-ck-wd { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .m-ck-wd-t { font-weight: 700; color: #7c3aed; } .m-ck-wd-m { min-width: 120px; } .m-ck-wd-z { width: 96px; }
@@ -116,7 +118,9 @@ def zeichnen(a) -> None:
     wd = _wenn_dann(a, d, bd)                       # 1.19: angenommener Wert in einem Monat → Bedarf bedingt angepasst
     bd0, bd = bd, (wd.bedarf if wd else bd)
     bw = ck.bewerten(ks, aw, bd, d["budgets"]["bau"], d["andere"].get("bau", 0.0), d["fl"])
-    refs: dict = {"bw": bw, "aw": aw, "bd": bd, "wd": wd}
+    refs: dict = {"bw": bw, "aw": aw, "bd": bd, "wd": wd, "ansicht": getattr(a, "ck_ansicht", "frei"),
+                  "band": getattr(a, "ck_band", True), "null": getattr(a, "ck_null", False)}
+    _menueband(a, refs)
     with a.inhalt, ui.element("div").classes("m-ck"):
         _kacheln(d, bw, bd, refs)
         hinweise = list(bw.hinweise)
@@ -145,16 +149,16 @@ def zeichnen(a) -> None:
                         ui.label("Geändert – erst „Übernehmen“ speichert.").classes("m-zweite m-warn")
             with ui.element("div").classes("m-ck-box"):
                 with ui.element("h3"):
-                    ui.label("Betten: Decke gegen Bedarf")
-                    ui.label("obere Spanne = 8 von 10 Verläufen · Planjahr Jan–Dez").classes("hint")
+                    ui.label("Freie Betten je Monat" if refs["ansicht"] == "frei" else "Betten: Bedarf gegen verfügbare Betten")
+                    ui.label(f"Planjahr {d['jahr']} · Maus auf einen Monat: Erklärung").classes("hint")
                 if bd:
                     from . import themes
 
                     dunkel = (themes.AKTIV or {}).get("modus") == "dunkel"
                     t = themes.farben(themes.AKTIV)
                     refs["stil"] = (dunkel, t.get("text", "#334155"))
-                    refs["chart"] = ch = ui.echart(ck.diagramm(bd, bw, dunkel, t.get("text", "#334155"), wd=wd)).classes(
-                        "m-chart m-dg").style("height:430px")
+                    refs["chart"] = ch = ui.echart(_option(refs)).classes("m-chart m-dg").style("height:430px")
+                    _so_lesen(refs)
                     ch.on("m_achse", lambda e: _monat_gewaehlt(a, d, e.args), ["index"])
                     _wenn_dann_zeile(a, d, bd0, bw, wd)
                 else:
@@ -318,6 +322,59 @@ def _satz(d: dict, ks: list, aw: dict, bw: ck.Bewertung, bd) -> str:
     return s
 
 
+def _option(refs: dict, vor=None) -> dict:
+    """1.20: Diagramm je nach Einstellung – „Freie Betten“ (Standard, leicht zu lesen) oder „Bedarf & Decke“."""
+    if refs["ansicht"] == "frei":
+        return ck.diagramm_frei(refs["bd"], refs["bw"], vor, refs.get("wd"), refs["band"], True)
+    return ck.diagramm(refs["bd"], refs["bw"], *refs["stil"], vor=vor, wd=refs.get("wd"), band=refs["band"], null=refs["null"])
+
+
+SO_LESEN = {
+    "frei": ("So lesen: Jede Säule sind die freien Betten im Monat – nach Abzug von defekten Zimmern und den angehakten "
+             "Baustellen. Dunkel: bleiben auch frei, wenn es ungünstig läuft (8 von 10 Fällen). Hell: zusätzlich frei, wenn "
+             "es so kommt wie erwartet. Rot unter der Null: so viele Betten fehlen im ungünstigen Fall. Je höher, desto "
+             "besser passt eine Renovierung in diesen Monat."),
+    "bedarf": ("So lesen: Von unten wächst der Bedarf – dunkel schon gebucht, hell noch erwartet, gestrichelt der ungünstige "
+               "Fall (8 von 10). Die schwarze Linie oben sind die verfügbaren Betten; von ihr hängen grau die defekten Zimmer "
+               "und orange die Baustellen herunter. Wo der Bedarf an die Linie stößt, wird es rot (Engpass). Der Abstand "
+               "zwischen Bedarf und Linie sind die freien Betten."),
+}
+
+
+def _so_lesen(refs: dict) -> None:
+    t = SO_LESEN[refs["ansicht"]]
+    if not refs["band"]:
+        t += " Unsicherheit ist ausgeblendet – gezeigt wird nur der erwartete Wert."
+    ui.label(t).classes("m-ck-lesen")
+
+
+def _menueband(a, refs: dict) -> None:
+    """1.20: Diagramm-Einstellungen im Menüband (Office) bzw. in der Leiste."""
+    from .ui_bausteine import BAND, segmente
+
+    ans, band, null = refs["ansicht"], refs["band"], refs["null"]
+    if BAND.get("an"):                         # Menüband (Office): eigene Gruppe „Diagramm“
+        from . import band_ui
+
+        with a.werkzeuge, band_ui.gruppe("Diagramm", "m-bg-ansicht"):
+            band_ui.gross("Freie Betten", "data_bar_vertical", "teal", lambda: _setzen(a, ck_ansicht="frei"),
+                          an=ans == "frei", tipp="Je Monat die freien Betten – am leichtesten zu lesen")
+            band_ui.gross("Bedarf & Decke", "data_area", "blau", lambda: _setzen(a, ck_ansicht="bedarf"),
+                          an=ans == "bedarf", tipp="Bedarf von unten gegen die verfügbaren Betten von oben – für die Detailsicht")
+            with band_ui.stapel():
+                band_ui.auswahl("Unsicherheit zeigen", band, lambda: _setzen(a, ck_band=not band))
+                if ans == "bedarf":
+                    band_ui.auswahl("Achse ab 0", null, lambda: _setzen(a, ck_null=not null))
+    else:
+        with a.leiste:
+            segmente({"frei": "Freie Betten", "bedarf": "Bedarf & Decke"}, ans, lambda v: _setzen(a, ck_ansicht=v))
+            segmente({True: "mit Unsicherheit", False: "nur erwartet"}, band, lambda v: _setzen(a, ck_band=v))
+
+
+async def _setzen(a, **werte) -> None:
+    await a.setzen(laden=False, **werte)
+
+
 def _wenn_dann(a, d: dict, bd) -> ck.WennDann | None:
     w = getattr(a, "ck_wd", None)
     if not w or not bd or w[0] != d["jahr"]:
@@ -399,7 +456,7 @@ def _vorschau_an(a, d: dict, k: ck.Karte, m: int, refs: dict, karte) -> None:
             lbl.classes(add="an krit" if krit else "an")
     karte.classes(add="vorschau")
     if refs.get("chart") is not None and refs.get("bd"):
-        _diagramm_setzen(refs, ck.diagramm(refs["bd"], refs["bw"], *refs["stil"], vor=v.bw, wd=refs.get("wd")))
+        _diagramm_setzen(refs, _option(refs, v.bw))
 
 
 def _vorschau_aus(d: dict, refs: dict, karte) -> None:
@@ -408,7 +465,7 @@ def _vorschau_aus(d: dict, refs: dict, karte) -> None:
             refs[name].classes(remove="an krit")
     karte.classes(remove="vorschau")
     if refs.get("chart") is not None and refs.get("bd"):
-        _diagramm_setzen(refs, ck.diagramm(refs["bd"], refs["bw"], *refs["stil"], wd=refs.get("wd")))
+        _diagramm_setzen(refs, _option(refs))
 
 
 def _diagramm_setzen(refs: dict, opt: dict) -> None:
