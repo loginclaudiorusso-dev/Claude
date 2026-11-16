@@ -656,4 +656,14 @@ def zuteilen_band(a, tag, k: dict, n: dict, n_neu: int, offen: list) -> None:
                          tipp="Übernimmt die passenden freien Zimmer. Einzeln: ✓ in der Zimmerspalte.")
             with bu.gross("Mehr", "more_horizontal", "", pfeil=True, tipp="Drucken, Excel, Archiv, Person hinzufügen …"):
                 mehr_menue_inhalt(a)
+            from . import dz_einzeln_kern as dze
+
+            if dze.betroffen(a.stand.bedarf, a.kennung):          # 1.21: nur wenn UWT an diesem Tag anreisen
+                einzeln = dze.an(a.kennung)
+                with bu.stapel():
+                    w = bu.auswahl("Doppelzimmer einzeln", einzeln, lambda: a.aendern(dze.setzen, a.kennung, not einzeln))
+                    bu.attr(w, title="An: Die UWT dieser Anreise wohnen jeweils allein – die DZ-Liste (wer mit wem) wird "
+                                    "hier nicht verwendet. Gespeicherte Paare werden aufgelöst "
+                                    "(eine Person bleibt, die zweite bekommt einen Vorschlag – „Alle übernehmen“). "
+                                    "Mit Rückgängig zurück.")
 

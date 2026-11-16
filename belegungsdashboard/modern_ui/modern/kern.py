@@ -1157,3 +1157,7 @@ _sperre.installieren()                       # 0.61: Sperre laut Gebäudeplan fr
 from . import nichtanreise_kern as _nichtanreise  # noqa: E402
 
 _nichtanreise.nichtanreise_installieren()          # 0.90: Nichtanreise übersteht einen neuen Import der Anreiseliste
+
+from . import dz_einzeln_kern as _dz_einzeln  # noqa: E402
+
+_dz_einzeln.installieren()                         # 1.21: Doppelzimmer je Anreise einzeln vergeben (DZ-Liste falsch)
