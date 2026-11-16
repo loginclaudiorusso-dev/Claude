@@ -23,6 +23,18 @@ def export(alles: bool = False) -> tuple[bytes, str, int, dict]:
     return roh, ak.dateiname(PROGRAMM), len(liste), st
 
 
+def speichern(roh: bytes, name: str):
+    """1.20.1: Austauschdatei in den Export-Ordner schreiben (wie die anderen Exporte). Im Programmfenster sind
+    Browser-Downloads gesperrt – die Datei kam dort nie im Download-Ordner an. Gibt den Pfad zurück."""
+    from pathlib import Path
+
+    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Exporte"))
+    ziel.mkdir(parents=True, exist_ok=True)
+    pfad = ziel / name
+    pfad.write_bytes(roh)
+    return pfad
+
+
 def export_gemerkt(st: dict) -> None:
     ak.basis_schreiben(speicher.schreiben, ak.pruefwerte(st))
 

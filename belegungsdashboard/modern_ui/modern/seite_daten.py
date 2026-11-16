@@ -791,9 +791,26 @@ async def _austausch_export(a, alles: bool) -> None:
     if not n:
         a.toast("Seit dem letzten Austausch hat sich nichts geändert.", rueck=False)
         return
-    ui.download(roh, name)
+    pfad = await run.io_bound(ad.speichern, roh, name)
     await run.io_bound(ad.export_gemerkt, st)
-    a.toast(f"{n} Änderung(en) exportiert: {name} – bitte an die Kollegin bzw. den Kollegen weitergeben.", rueck=False)
+    if not _im_ordner_zeigen(pfad):
+        ui.download(roh, name)                                  # im Browser zusätzlich als Download
+    a.toast(f"{n} Änderung(en) exportiert – gespeichert unter {pfad}. Bitte diese Datei an die Kollegin bzw. den "
+            "Kollegen weitergeben.", rueck=False)
+
+
+def _im_ordner_zeigen(pfad) -> bool:
+    """Windows: Explorer öffnen und die Datei markieren. False = nicht möglich (z. B. Browser auf anderem System)."""
+    import subprocess
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    try:
+        subprocess.Popen(["explorer", f"/select,{pfad}"])       # noqa: S603,S607 – eigene Datei im Export-Ordner
+        return True
+    except OSError:
+        return False
 
 
 async def _austausch_lesen(a, dateien) -> None:
