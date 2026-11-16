@@ -345,7 +345,8 @@ def vorschau_texte(v: Vorschau, jahr: int) -> dict:
     return t
 
 
-def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#334155", vor: Bewertung | None = None) -> dict:
+def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#334155", vor: Bewertung | None = None,
+             wd: "WennDann | None" = None) -> dict:
     """ECharts-Option „Decke gegen Bedarf“: von unten der Bedarf (fest, erwartet, obere Spanne), von oben die Decke
     (defekte Zimmer grau, Baustellen orange), rot, wo die obere Spanne über die Decke geht. Alle Reihen ``m_fest``:
     der Diagrammtyp aus „Diagrammentwurf“ stellt dieses Diagramm nicht um (es ist eine Bilanz, kein Verlauf)."""
@@ -391,14 +392,105 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
         {**step, "name": "verfügbare Betten", "type": "line", "data": decke, "lineStyle": {"width": 2.5, "color": text},
          "itemStyle": {"color": text}, "z": 5},
     ]
+    if wd is not None and wd.vorher is not None:          # 1.19: Vergleich „ohne Wenn-dann“ und der angenommene Punkt
+        serien.append({**step, "name": "ohne Wenn-dann", "type": "line", "data": [n(e) for e in wd.vorher.erwartet], "z": 6,
+                       "lineStyle": {"width": 2, "type": "dotted", "color": "#7c3aed"}, "itemStyle": {"color": "#7c3aed"}})
+        serien.append({"name": "Wenn-dann", "type": "scatter", "m_fest": True, "z": 7, "symbolSize": 14,
+                       "data": [[wd.monat, round(wd.wert, 1)]],
+                       "itemStyle": {"color": "#fff", "borderColor": "#7c3aed", "borderWidth": 3},
+                       "label": {"show": True, "position": "top", "color": "#7c3aed", "fontWeight": "bold",
+                                 "formatter": f"wenn {round(wd.wert)}"}})
     if vor:
         serien.append({**step, "name": "Vorschau: verfügbar", "type": "line", "data": decke_v, "z": 6,
                        "lineStyle": {"width": 2, "type": "dashed", "color": "#f59e0b"}, "itemStyle": {"color": "#f59e0b"}})
     return {"animation": False, "grid": {"left": 48, "right": 16, "top": 64, "bottom": 30},
             "legend": {"top": 0, "left": 0, "data": ["fest gebucht / laufend", "erwartet dazu", "Risiko (8 von 10)", "defekte Zimmer",
                                           "Baustelle", "Engpass", "verfügbare Betten"]
-                       + (["Vorschau: verfügbar"] if vor else [])},
+                       + (["Vorschau: verfügbar"] if vor else []) + (["ohne Wenn-dann"] if wd is not None else [])},
             "tooltip": {"trigger": "axis"},
             "xAxis": {"type": "category", "data": [f"{MONATE[d.month - 1]}" for d in bd.monate], "boundaryGap": True},
             "yAxis": {"type": "value", "min": unten, "max": int(bd.kapazitaet + 5)},
             "series": serien}
+
+
+# ---- 1.19: Wenn-dann ------------------------------------------------------------------------------------------
+# „Wenn im März 270 statt 255 belegt sind – wie geht es weiter?“ Die Belegung ist ein Bestand: eine Abweichung bleibt
+# eine Weile, klingt aber ab (Abreisen, neue Anreisen). Wie schnell, wird aus der eigenen Geschichte gemessen
+# (Beharrung ρ = Korrelation der Abweichung vom Monatsmittel mit der des Folgemonats). Danach:
+#   erwartet' = erwartet + d · ρᵏ           (k Monate nach dem gewählten Monat, d = Wert − Planwert)
+#   Spanne'   = Spanne · √(1 − ρ²ᵏ)         (im gewählten Monat 0 – der Wert ist ja angenommen –, später wieder breiter)
+# Keine neue Simulation, kein drittes Modell: dieselbe Prognose, nur bedingt verschoben.
+
+BEHARRUNG_STANDARD = 0.8
+
+
+def beharrung(pg) -> float:
+    """ρ aus den Ist-Monaten der Belegungsprognose; ohne genug Geschichte (unter 12 Paaren) der Standard 0,8."""
+    ist = [(z.monat, float(z.ist)) for z in (pg.zeilen if pg else []) if z.art == "ist" and z.ist is not None]
+    if len(ist) < 14:
+        return BEHARRUNG_STANDARD
+    je_monat: dict[int, list] = {}
+    for m, v in ist:
+        je_monat.setdefault(m.month, []).append(v)
+    mittel = {k: sum(v) / len(v) for k, v in je_monat.items()}
+    ab = [v - mittel[m.month] for m, v in ist]
+    paare = list(zip(ab[:-1], ab[1:]))
+    if len(paare) < 12:
+        return BEHARRUNG_STANDARD
+    mx = sum(x for x, _ in paare) / len(paare)
+    my = sum(y for _, y in paare) / len(paare)
+    sxy = sum((x - mx) * (y - my) for x, y in paare)
+    sxx = sum((x - mx) ** 2 for x, _ in paare) ** .5
+    syy = sum((y - my) ** 2 for _, y in paare) ** .5
+    if not sxx or not syy:
+        return BEHARRUNG_STANDARD
+    return round(min(0.95, max(0.3, sxy / (sxx * syy))), 2)
+
+
+@dataclass
+class WennDann:
+    monat: int                       # Index 0–11 im Planjahr
+    wert: float
+    planwert: float
+    rho: float
+    bedarf: Bedarf                   # bedingt angepasster Bedarf
+    vorher: Bedarf | None = None     # Bedarf ohne Wenn-dann (Vergleichslinie)
+
+    @property
+    def abweichung(self) -> float:
+        return self.wert - self.planwert
+
+
+def wenn_dann(bd: Bedarf, monat: int, wert: float, rho: float = BEHARRUNG_STANDARD) -> WennDann | None:
+    """Bedarf, wenn im Monat ``monat`` (Index im Planjahr) ``wert`` belegt sind. None bei Ist-Monat oder ohne Prognose."""
+    if not bd or not (0 <= monat < len(bd.monate)) or bd.ist[monat] or bd.erwartet[monat] is None:
+        return None
+    d = float(wert) - bd.erwartet[monat]
+    neu = replace(bd, fest=list(bd.fest), erwartet=list(bd.erwartet), hoch=list(bd.hoch))
+    for i in range(monat, len(bd.monate)):
+        if bd.erwartet[i] is None or bd.hoch[i] is None:
+            continue
+        k = i - monat
+        e = bd.erwartet[i] + d * rho ** k
+        if bd.fest[i] is not None:
+            e = max(e, bd.fest[i])                          # unter das schon fest Gebuchte geht es nicht
+        breite = (bd.hoch[i] - bd.erwartet[i]) * (1 - rho ** (2 * k)) ** .5
+        neu.erwartet[i] = round(e, 1)
+        neu.hoch[i] = round(e + breite, 1)
+    return WennDann(monat, float(wert), bd.erwartet[monat], rho, neu, bd)
+
+
+def wenn_dann_satz(w: WennDann, vorher: Bewertung, nachher: Bewertung) -> str:
+    m = MONATE[w.monat]
+    teile = [f"Wenn im {m} {round(w.wert)} statt {round(w.planwert)} belegt sind"]
+    folgend = [i for i in range(w.monat + 1, min(w.monat + 4, 12)) if w.bedarf.erwartet[i] is not None]
+    if folgend:
+        i = folgend[-1]
+        teile.append(f"erwartet {MONATE[i]} {round(w.bedarf.erwartet[i])} statt {round(w.vorher.erwartet[i])}")
+    if nachher.knappster is not None:
+        r = nachher.reserve[nachher.knappster]
+        teile.append(f"knappster Monat {MONATE[nachher.knappster]} "
+                     + (f"{round(r):+d} Betten".replace("-", "−") if r >= 0 else f"– fehlen {abs(round(r))} Betten"))
+    if len(nachher.engpaesse) != len(vorher.engpaesse):
+        teile.append(f"{len(nachher.engpaesse)} statt {len(vorher.engpaesse)} Monat(e) mit Engpass")
+    return " → ".join([teile[0], " · ".join(teile[1:])]) + f" (Abweichung klingt je Monat auf {round(100 * w.rho)} % ab)"

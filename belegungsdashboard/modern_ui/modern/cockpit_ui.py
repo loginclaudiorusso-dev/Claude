@@ -67,6 +67,11 @@ body:not(.hell) .m-ck-w.ok { color: #34d399; } body:not(.hell) .m-ck-w.warn { co
 .m-ck-satz { font-size: 13.5px; background: color-mix(in srgb, var(--akzent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--akzent) 35%, transparent); border-radius: 8px; padding: 9px 12px; }
 .m-ck-fuss { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+/* 1.19: Wenn-dann unter dem Diagramm */
+.m-ck-wd { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.m-ck-wd-t { font-weight: 700; color: #7c3aed; } .m-ck-wd-m { min-width: 120px; } .m-ck-wd-z { width: 96px; }
+.m-ck-wd-satz { margin-top: 6px; font-size: 13px; color: #6d28d9; white-space: normal; }
+body:not(.hell) .m-ck-wd-t, body:not(.hell) .m-ck-wd-satz { color: #c4b5fd; }
 /* 1.18: Vorschau beim Überfahren einer Karte */
 .m-ck-vor { display: none; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
   border: 1.5px dashed #f59e0b; color: #b45309; background: color-mix(in srgb, #f59e0b 10%, transparent); width: fit-content; }
@@ -108,8 +113,10 @@ def zeichnen(a) -> None:
             leer("Für das Cockpit fehlen Prognose und Renovierungsdaten (Bedarf, Angebote).")
         return
     aw = auswahl(a, d)
+    wd = _wenn_dann(a, d, bd)                       # 1.19: angenommener Wert in einem Monat → Bedarf bedingt angepasst
+    bd0, bd = bd, (wd.bedarf if wd else bd)
     bw = ck.bewerten(ks, aw, bd, d["budgets"]["bau"], d["andere"].get("bau", 0.0), d["fl"])
-    refs: dict = {"bw": bw, "aw": aw}
+    refs: dict = {"bw": bw, "aw": aw, "bd": bd, "wd": wd}
     with a.inhalt, ui.element("div").classes("m-ck"):
         _kacheln(d, bw, bd, refs)
         hinweise = list(bw.hinweise)
@@ -146,11 +153,15 @@ def zeichnen(a) -> None:
                     dunkel = (themes.AKTIV or {}).get("modus") == "dunkel"
                     t = themes.farben(themes.AKTIV)
                     refs["stil"] = (dunkel, t.get("text", "#334155"))
-                    refs["chart"] = ui.echart(ck.diagramm(bd, bw, dunkel, t.get("text", "#334155"))).classes(
-                        "m-chart").style("height:430px")
+                    refs["chart"] = ch = ui.echart(ck.diagramm(bd, bw, dunkel, t.get("text", "#334155"), wd=wd)).classes(
+                        "m-chart m-dg").style("height:430px")
+                    ch.on("m_achse", lambda e: _monat_gewaehlt(a, d, e.args), ["index"])
+                    _wenn_dann_zeile(a, d, bd0, bw, wd)
                 else:
                     leer("Keine Belegungsprognose – Diagramm nicht möglich.")
-                ui.label(_satz(d, ks, aw, bw, bd)).classes("m-ck-satz").style("margin-top:10px")
+                ui.label(_satz(d, ks, aw, bw, bd) + (f" – Achtung: gerechnet mit der Annahme „{rk.MONATE[wd.monat]} "
+                                                    f"{round(wd.wert)} belegt“ (Wenn-dann)." if wd else "")).classes(
+                    "m-ck-satz").style("margin-top:10px")
 
 
 def _vor(refs: dict, name: str) -> None:
@@ -248,7 +259,7 @@ def _karte(a, d: dict, k: ck.Karte, bw: ck.Bewertung, refs: dict) -> None:
                 attr(w, title="Späterer möglicher Monat")
             sim = bw
             if not ist_an and k.art == "etage":      # nicht angehakt: Wirkung so, als käme sie zu den angehakten dazu
-                sim = ck.bewerten(d["ck_karten"], {**auswahl(a, d), k.schluessel: m}, d.get("ck_bedarf"), None, 0, [])
+                sim = ck.bewerten(d["ck_karten"], {**auswahl(a, d), k.schluessel: m}, refs["bd"], None, 0, [])
             text, st = ck.wirkung_text(k, m, sim)
             ui.label(("wenn dazu: " if not ist_an and k.art == "etage" else "") + text).classes(f"m-ck-w {st}")
             if k.art == "etage":
@@ -307,9 +318,72 @@ def _satz(d: dict, ks: list, aw: dict, bw: ck.Bewertung, bd) -> str:
     return s
 
 
+def _wenn_dann(a, d: dict, bd) -> ck.WennDann | None:
+    w = getattr(a, "ck_wd", None)
+    if not w or not bd or w[0] != d["jahr"]:
+        return None
+    return ck.wenn_dann(bd, w[1], w[2], d.get("ck_rho", ck.BEHARRUNG_STANDARD))
+
+
+def _kuenftig(bd) -> list[int]:
+    return [i for i in range(12) if bd and not bd.ist[i] and bd.erwartet[i] is not None]
+
+
+def _wenn_dann_zeile(a, d: dict, bd0, bw, wd) -> None:
+    """Monat wählen (oder im Diagramm anklicken), Wert eingeben, Enter – Kacheln, Karten und Diagramm rechnen damit."""
+    monate = _kuenftig(bd0)
+    if not monate:
+        return
+    sel = getattr(a, "ck_wd_monat", None)
+    sel = wd.monat if wd else (sel if sel in monate else monate[0])
+    with ui.element("div").classes("m-ck-wd"):
+        ui.label("Wenn-dann").classes("m-ck-wd-t")
+        auswahl_m = ui.select({i: f"{rk.MONATE[i]} {d['jahr']}" for i in monate}, value=sel).props(
+            'dense outlined options-dense popup-content-class="m-popup"').classes("m-ck-wd-m")
+        zahl = ui.number(value=round(wd.wert if wd else bd0.erwartet[sel]), min=0, step=1, format="%.0f").props(
+            "dense outlined").classes("m-ck-wd-z")
+        attr(zahl, title="Angenommene Belegung (Betten) in diesem Monat – Enter rechnet")
+        ui.label(f"Planwert {round(bd0.erwartet[sel])}").classes("m-zweite")
+
+        async def rechnen():
+            if zahl.value is None:
+                return
+            a.ck_wd = (d["jahr"], int(auswahl_m.value), float(zahl.value))
+            await a.setzen(laden=False)
+
+        async def monat_neu(e):
+            a.ck_wd_monat = int(e.value)
+            a.ck_wd = None
+            await a.setzen(laden=False)
+
+        auswahl_m.on_value_change(monat_neu)
+        zahl.on("keydown.enter", rechnen)
+        zahl.on("blur", rechnen)
+        knopf("Rechnen", rechnen, "leise", "play_arrow", "Mit diesem Wert rechnen")
+        if wd:
+            knopf("Aus", lambda: _wenn_dann_aus(a), "leise", "close", "Wenn-dann ausschalten")
+    if wd:
+        bw0 = ck.bewerten(d["ck_karten"], auswahl(a, d), bd0, d["budgets"]["bau"], d["andere"].get("bau", 0.0), d["fl"])
+        ui.label(ck.wenn_dann_satz(wd, bw0, bw)).classes("m-ck-wd-satz")
+
+
+async def _monat_gewaehlt(a, d: dict, args) -> None:
+    i = (args or {}).get("index") if isinstance(args, dict) else None
+    if i is None or i not in _kuenftig(d.get("ck_bedarf")):
+        return
+    a.ck_wd_monat = int(i)
+    a.ck_wd = None
+    await a.setzen(laden=False)
+
+
+async def _wenn_dann_aus(a) -> None:
+    a.ck_wd = None
+    await a.setzen(laden=False)
+
+
 def _vorschau_an(a, d: dict, k: ck.Karte, m: int, refs: dict, karte) -> None:
     """1.18: Was wäre, wenn diese Karte an- bzw. abgehakt würde – Kacheln und Diagramm, ohne die Seite neu aufzubauen."""
-    v = ck.vorschau(d["ck_karten"], refs["aw"], k, m, d.get("ck_bedarf"), d["budgets"]["bau"],
+    v = ck.vorschau(d["ck_karten"], refs["aw"], k, m, refs["bd"], d["budgets"]["bau"],
                     d["andere"].get("bau", 0.0), d["fl"], refs["bw"])
     texte = ck.vorschau_texte(v, d["jahr"])
     for name in ("budget", "moebel", "engpass", "umzuege"):
@@ -324,8 +398,8 @@ def _vorschau_an(a, d: dict, k: ck.Karte, m: int, refs: dict, karte) -> None:
         if t:
             lbl.classes(add="an krit" if krit else "an")
     karte.classes(add="vorschau")
-    if refs.get("chart") is not None and d.get("ck_bedarf"):
-        _diagramm_setzen(refs, ck.diagramm(d["ck_bedarf"], refs["bw"], *refs["stil"], vor=v.bw))
+    if refs.get("chart") is not None and refs.get("bd"):
+        _diagramm_setzen(refs, ck.diagramm(refs["bd"], refs["bw"], *refs["stil"], vor=v.bw, wd=refs.get("wd")))
 
 
 def _vorschau_aus(d: dict, refs: dict, karte) -> None:
@@ -333,8 +407,8 @@ def _vorschau_aus(d: dict, refs: dict, karte) -> None:
         if refs.get(name) is not None:
             refs[name].classes(remove="an krit")
     karte.classes(remove="vorschau")
-    if refs.get("chart") is not None and d.get("ck_bedarf"):
-        _diagramm_setzen(refs, ck.diagramm(d["ck_bedarf"], refs["bw"], *refs["stil"]))
+    if refs.get("chart") is not None and refs.get("bd"):
+        _diagramm_setzen(refs, ck.diagramm(refs["bd"], refs["bw"], *refs["stil"], wd=refs.get("wd")))
 
 
 def _diagramm_setzen(refs: dict, opt: dict) -> None:

@@ -164,6 +164,7 @@ def daten(a) -> None:
         d["heute"] = a.heute
         d["ck_karten"] = ck.karten(a.stand, fl, p, jahr, a.heute, zeilen, machbar, prog)
         d["ck_bedarf"] = ck.bedarf(pg, jahr, a.heute, kap, rk.defekte_betten(a.stand))
+        d["ck_rho"] = ck.beharrung(pg)                                                  # 1.19: Wenn-dann
         reno = next((v for v in vorhaben if v.get("id") == vk.reno_id(jahr)), None)      # 1.17: Stand der Vormerkungen
         d["ck_phase"] = vk.phase(reno, a.heute) if reno else ("Vorschlag", "")
     if ansicht_ == "grundlagen":
