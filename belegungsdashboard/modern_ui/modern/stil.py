@@ -1236,6 +1236,14 @@ CSS += """
 .m-gantt-lg i.offen { border: 1px solid var(--text3);
   background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--text3) 45%, transparent) 3px 5px); }
 .m-gantt-legende .hinweis { color: var(--text3); margin-left: auto; }
+/* 1.17: Stand als eine Leiste (Vorschlag → … → Abgerechnet) */
+.m-phasen { display: grid; gap: 3px; min-width: 0; }
+.m-phasen-leiste { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+.m-phasen-leiste > * { text-align: center; font-size: 10.5px; padding: 2px 3px; border-radius: 3px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; background: color-mix(in srgb, var(--text3) 14%, transparent); color: var(--text3); }
+.m-phasen-leiste > *.da { background: color-mix(in srgb, var(--akzent) 55%, transparent); color: #fff; }
+.m-phasen-leiste > *.jetzt { background: var(--akzent); color: #fff; font-weight: 700; }
+.m-phasen-luecke { font-size: 11.5px; color: var(--text3); } .m-phasen-luecke.warn { color: #b45309; font-weight: 600; }
 """
 CSS += """
 /* 0.43: Engpässe klickbar */

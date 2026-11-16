@@ -164,6 +164,8 @@ def daten(a) -> None:
         d["heute"] = a.heute
         d["ck_karten"] = ck.karten(a.stand, fl, p, jahr, a.heute, zeilen, machbar, prog)
         d["ck_bedarf"] = ck.bedarf(pg, jahr, a.heute, kap, rk.defekte_betten(a.stand))
+        reno = next((v for v in vorhaben if v.get("id") == vk.reno_id(jahr)), None)      # 1.17: Stand der Vormerkungen
+        d["ck_phase"] = vk.phase(reno, a.heute) if reno else ("Vorschlag", "")
     if ansicht_ == "grundlagen":
         d["werte"] = sk.werte()
         d["noten"] = rk.zustandsnoten()
@@ -420,6 +422,24 @@ STATUS_STUFE = {"abgeschlossen": "ok", "abgerechnet": "ok", "freigegeben": "ok",
                 "gebunden": "blau", "teilweise bezahlt": "blau", "abgelehnt": "krit"}
 
 
+def phasen_leiste(phase: str, luecke: str = "", tipp: str = "") -> None:
+    """1.17: Stand als eine Leiste Vorschlag → Freigegeben → Beauftragt → In Umsetzung → Abgerechnet."""
+    box = ui.element("div").classes("m-phasen")
+    if tipp:
+        attr(box, title=tipp)
+    with box:
+        if phase == "Abgelehnt":
+            ui.label("Abgelehnt").classes("m-pille krit")
+        else:
+            i = vk.PHASEN.index(phase)
+            with ui.element("div").classes("m-phasen-leiste"):
+                for j, p_ in enumerate(vk.PHASEN):
+                    ui.label(p_).classes("da" if j < i else "jetzt" if j == i else "")
+        if luecke:
+            ui.label(("⚠ " if luecke in ("Freigabe fehlt", "Rechnung fehlt") else "") + luecke).classes(
+                "m-phasen-luecke" + (" warn" if luecke in ("Freigabe fehlt", "Rechnung fehlt") else ""))
+
+
 def _vorhaben(a) -> None:
     """Vorhaben: Portfolio-Liste (alle Arten, gefiltert) + Werkzeug „Renovierung planen“."""
     d = a.daten
@@ -438,10 +458,9 @@ def _vorhaben(a) -> None:
                     ui.label("Noch keine Vorhaben in diesem Jahr. „Neues Vorhaben …“ legt eines an; vorgemerkte Renovierungen "
                              "erscheinen hier automatisch als „Renovierung <Jahr>“.").classes("m-zweite").style("white-space:normal")
                 else:
-                    with tabelle("minmax(200px, 2fr) auto auto auto auto auto auto auto"):
+                    with tabelle("minmax(200px, 2fr) auto auto minmax(300px, 1.4fr) auto auto"):
                         with ui.element("div").classes("m-raster m-tkopf"):
-                            for t in ("Vorhaben", "Kategorie", "Haupttreiber", "Entscheidung", "Umsetzung", "Finanzen", "Kosten",
-                                      "Jahr"):
+                            for t in ("Vorhaben", "Kategorie", "Haupttreiber", "Stand", "Kosten", "Jahr"):
                                 ui.label(t)
                         for z in zeilen:
                             v = z.v
@@ -454,8 +473,8 @@ def _vorhaben(a) -> None:
                                 ui.label(v.get("kategorie", "")).classes("m-zweite")
                                 attr(ui.label(vk.TREIBER.get(v.get("treiber"), "–")).classes(
                                     "m-pille " + ("krit" if v.get("treiber") == "pflicht" else "neutral")), title=v.get("nachweis", ""))
-                                for s in (z.entscheidung, z.umsetzung, z.finanzen):
-                                    ui.label(s).classes(f"m-pille {STATUS_STUFE.get(s, 'neutral')}")
+                                phasen_leiste(z.phase, z.luecke, f"Entscheidung: {z.entscheidung} · Umsetzung: {z.umsetzung} · "
+                                              f"Finanzen: {z.finanzen}")
                                 ui.label(rk.euro(z.summe)).classes("m-mono")
                                 ui.label(", ".join(str(j) for j in z.jahre) or "–").classes("m-mono")
                             r.on("click", lambda v=v: _vorhaben_panel(a, v))

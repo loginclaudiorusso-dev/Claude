@@ -167,6 +167,37 @@ def finanzen(v: dict) -> str:
     return "geschätzt"
 
 
+# 1.17: EIN Stand statt drei Achsen – abgeleitet, nichts wird anders gespeichert. Maßgeblich ist die weiteste Stufe,
+# die eine der drei Achsen erreicht hat (Entscheidung von Hand, Umsetzung aus Terminen/Auftrag, Finanzen aus Rechnungen).
+# Fehlt dabei eine frühere Stufe (z. B. beauftragt, aber nicht freigegeben), steht das als Lücke daneben.
+PHASEN = ("Vorschlag", "Freigegeben", "Beauftragt", "In Umsetzung", "Abgerechnet")
+
+
+def phase(v: dict, heute: date) -> tuple[str, str]:
+    """(Phase, Lücke) – Phase aus PHASEN oder „Abgelehnt“; Lücke = kurzer Hinweis oder leer."""
+    e = (v.get("entscheidung") or {}).get("status", "idee")
+    if e == "abgelehnt":
+        return "Abgelehnt", ""
+    u, f = umsetzung(v, heute), finanzen(v)
+    stufe = 0
+    if e == "freigegeben":
+        stufe = 1
+    if u == "beauftragt" or f == "gebunden":
+        stufe = max(stufe, 2)
+    if u in ("in Arbeit", "abgeschlossen") or f == "teilweise bezahlt":
+        stufe = max(stufe, 3)
+    if f == "abgerechnet":
+        stufe = 4
+    luecke = ""
+    if stufe >= 2 and e != "freigegeben":
+        luecke = "Freigabe fehlt"
+    elif u == "abgeschlossen" and f in ("geschätzt", "gebunden"):
+        luecke = "Rechnung fehlt"
+    elif stufe == 0 and e in ("pruefung", "beantragt"):
+        luecke = ENTSCHEIDUNG[e]                    # kein Fehler – nur genauer, wo der Vorschlag steht
+    return PHASEN[stufe], luecke
+
+
 def hinweise(v: dict, heute: date) -> list[str]:
     """Unmögliche bzw. fragwürdige Kombinationen (kein Speicherhindernis, aber sichtbar)."""
     e = (v.get("entscheidung") or {}).get("status", "idee")
@@ -279,6 +310,8 @@ class Zeile:
     summe: float
     jahre: list = field(default_factory=list)
     hinweise: list = field(default_factory=list)
+    phase: str = "Vorschlag"                        # 1.17
+    luecke: str = ""
 
 
 def liste(vorhaben: list[dict], heute: date, kategorie: str = "", jahr: int | None = None) -> list[Zeile]:
@@ -290,7 +323,7 @@ def liste(vorhaben: list[dict], heute: date, kategorie: str = "", jahr: int | No
         if jahr is not None and jahre and jahr not in jahre:
             continue
         erg.append(Zeile(v, ENTSCHEIDUNG.get((v.get("entscheidung") or {}).get("status"), "–"), umsetzung(v, heute),
-                         finanzen(v), betraege(v)["geplant"], jahre, hinweise(v, heute)))
+                         finanzen(v), betraege(v)["geplant"], jahre, hinweise(v, heute), *phase(v, heute)))
     prio = {"hoch": 0, "mittel": 1, "niedrig": 2}
     erg.sort(key=lambda z: (z.v.get("treiber") != "pflicht", prio.get(z.v.get("prioritaet"), 1), z.v.get("titel", "")))
     return erg

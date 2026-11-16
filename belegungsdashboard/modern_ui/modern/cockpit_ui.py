@@ -24,9 +24,9 @@ CSS = """
   overflow: hidden; display: flex; }
 .m-ck-balken i { display: block; height: 100%; }
 .m-ck-hinweise { display: flex; flex-wrap: wrap; gap: 8px; }
-.m-ck-hinweise .q-label { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 8px; padding: 6px 10px;
+.m-ck-hinweise > * { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 8px; padding: 6px 10px;
   font-size: 12.5px; white-space: normal; }
-body:not(.hell) .m-ck-hinweise .q-label { background: rgba(245,158,11,.12); color: #fbbf24; border-color: rgba(245,158,11,.35); }
+body:not(.hell) .m-ck-hinweise > * { background: rgba(245,158,11,.12); color: #fbbf24; border-color: rgba(245,158,11,.35); }
 .m-ck-haupt { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; align-items: start; }
 .m-ck-box { background: var(--fl); border: 1px solid var(--rand); border-radius: 10px; padding: 12px 14px; }
 .m-ck-box h3 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
@@ -67,6 +67,13 @@ body:not(.hell) .m-ck-w.ok { color: #34d399; } body:not(.hell) .m-ck-w.warn { co
 .m-ck-satz { font-size: 13.5px; background: color-mix(in srgb, var(--akzent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--akzent) 35%, transparent); border-radius: 8px; padding: 9px 12px; }
 .m-ck-fuss { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+/* 1.18: Vorschau beim Überfahren einer Karte */
+.m-ck-vor { display: none; margin-top: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  border: 1.5px dashed #f59e0b; color: #b45309; background: color-mix(in srgb, #f59e0b 10%, transparent); width: fit-content; }
+.m-ck-vor.an { display: block; } .m-ck-vor.krit { border-color: var(--rot); color: var(--rot);
+  background: color-mix(in srgb, var(--rot) 8%, transparent); }
+body:not(.hell) .m-ck-vor { color: #fbbf24; }
+.m-ck-karte.vorschau { outline: 2px dashed #f59e0b; outline-offset: 1px; }
 @media (max-width: 1100px) { .m-ck-kz { grid-template-columns: repeat(2, minmax(0, 1fr)); } .m-ck-haupt { grid-template-columns: 1fr; } }
 """
 
@@ -102,8 +109,9 @@ def zeichnen(a) -> None:
         return
     aw = auswahl(a, d)
     bw = ck.bewerten(ks, aw, bd, d["budgets"]["bau"], d["andere"].get("bau", 0.0), d["fl"])
+    refs: dict = {"bw": bw, "aw": aw}
     with a.inhalt, ui.element("div").classes("m-ck"):
-        _kacheln(d, bw, bd)
+        _kacheln(d, bw, bd, refs)
         hinweise = list(bw.hinweise)
         from . import steuerung_kern as sk
 
@@ -119,7 +127,7 @@ def zeichnen(a) -> None:
                     ui.label(f"Vorhaben & Renovierung {d['jahr']}")
                     ui.label("vorsortiert: A vor B vor C · Haken = im Plan").classes("hint")
                 for k in ks:
-                    _karte(a, d, k, bw)
+                    _karte(a, d, k, bw, refs)
                 with ui.element("div").classes("m-ck-fuss"):
                     knopf("Übernehmen (vormerken)", lambda: _uebernehmen(a, d), "primaer", "check",
                           "Angehakte Karten vormerken (Etagen im gewählten Monat), abgehakte Vormerkungen entfernen – "
@@ -137,13 +145,19 @@ def zeichnen(a) -> None:
 
                     dunkel = (themes.AKTIV or {}).get("modus") == "dunkel"
                     t = themes.farben(themes.AKTIV)
-                    ui.echart(ck.diagramm(bd, bw, dunkel, t.get("text", "#334155"))).classes("m-chart").style("height:430px")
+                    refs["stil"] = (dunkel, t.get("text", "#334155"))
+                    refs["chart"] = ui.echart(ck.diagramm(bd, bw, dunkel, t.get("text", "#334155"))).classes(
+                        "m-chart").style("height:430px")
                 else:
                     leer("Keine Belegungsprognose – Diagramm nicht möglich.")
                 ui.label(_satz(d, ks, aw, bw, bd)).classes("m-ck-satz").style("margin-top:10px")
 
 
-def _kacheln(d: dict, bw: ck.Bewertung, bd) -> None:
+def _vor(refs: dict, name: str) -> None:
+    refs[name] = ui.label("").classes("m-ck-vor")
+
+
+def _kacheln(d: dict, bw: ck.Bewertung, bd, refs: dict) -> None:
     with ui.element("div").classes("m-ck-kz"):
         b = bw.budget
         stufe = "krit" if b is not None and bw.verplant > b + 1 else ""
@@ -162,10 +176,12 @@ def _kacheln(d: dict, bw: ck.Bewertung, bd) -> None:
                 teile.append(f"davon andere Vorhaben {_eur(bw.andere_bau)}")
             teile.append("A-Bedarf vollständig drin" if not bw.a_offen else f"{bw.a_offen} A-Zimmer offen")
             ui.label(" · ".join(teile)).classes("s")
+            _vor(refs, "budget")
         with ui.element("div").classes("m-ck-kachel"):
             ui.label("Möbel-Antrag").classes("k")
             ui.html(f'<div class="w">{_eur(bw.moebel)} <small>{bw.moebel_zimmer} Zimmer</small></div>')
             ui.label("aus den angehakten Karten (Etage und Zimmer komplett bringen neue Möbel mit)").classes("s")
+            _vor(refs, "moebel")
         if bd and bw.knappster is not None:
             r = bw.reserve[bw.knappster]
             st = "krit" if r < 0 else "warn" if r < 10 else "ok"
@@ -175,6 +191,7 @@ def _kacheln(d: dict, bw: ck.Bewertung, bd) -> None:
                         f"<small>{rk.MONATE[bw.knappster]} {d['jahr']}</small></div>")
                 ui.label((f"{len(bw.engpaesse)} Monat(e) mit Engpass" if bw.engpaesse else "kein Monat mit Engpass")
                          + " · gerechnet mit der oberen Spanne").classes("s")
+                _vor(refs, "engpass")
         else:
             with ui.element("div").classes("m-ck-kachel"):
                 ui.label("Engpass-Radar").classes("k")
@@ -185,13 +202,17 @@ def _kacheln(d: dict, bw: ck.Bewertung, bd) -> None:
             ui.html(f'<div class="w">{bw.umzuege} <small>Umzüge</small></div>')
             alt = rk.angebote_alt(d["p"], d.get("heute")) if d.get("heute") else []
             ui.label(f"{len(alt)} Angebot(e) älter als 12 Monate" if alt else "Angebote aktuell").classes("s")
+            _vor(refs, "umzuege")
 
 
-def _karte(a, d: dict, k: ck.Karte, bw: ck.Bewertung) -> None:
+def _karte(a, d: dict, k: ck.Karte, bw: ck.Bewertung, refs: dict) -> None:
     an, monat = a.ck_an, a.ck_monat
     ist_an = k.schluessel in an
     m = monat.get(k.schluessel) or k.zeile.start.month
-    with ui.element("div").classes("m-ck-karte" + ("" if ist_an else " aus")):
+    karte = ui.element("div").classes("m-ck-karte" + ("" if ist_an else " aus"))
+    karte.on("mouseenter", lambda k=k, m=m, karte=karte: _vorschau_an(a, d, k, m, refs, karte))
+    karte.on("mouseleave", lambda karte=karte: _vorschau_aus(d, refs, karte))
+    with karte:
         cb = ui.element("button").classes("m-ck-cb" + (" an" if ist_an else ""))
         with cb:
             if ist_an:
@@ -203,8 +224,10 @@ def _karte(a, d: dict, k: ck.Karte, bw: ck.Bewertung) -> None:
                 ui.label(k.titel)
                 if k.klasse:
                     ui.label(f"{k.klasse} · {'Bau' if any(k.klassen_bau) else 'Möbel'}").classes(f"m-ck-pill {k.klasse}")
-                ui.label("vorgemerkt" if k.vorgemerkt else ("Vorschlag" if k.vorschlag else "weitere Etage")).classes(
-                    "m-ck-phase" + (" vm" if k.vorgemerkt else ""))
+                ph, lu = d.get("ck_phase") or ("Vorschlag", "")
+                t_ = (f"vorgemerkt · {ph}" if k.vorgemerkt else ("Vorschlag" if k.vorschlag else "weitere Etage"))
+                attr(ui.label(t_ + (" ⚠" if k.vorgemerkt and lu in ("Freigabe fehlt", "Rechnung fehlt") else "")).classes(
+                    "m-ck-phase" + (" vm" if k.vorgemerkt else "")), title=(lu if k.vorgemerkt else "") or "")
         lo, hi = k.kosten.spanne
         hk = rk.HERKUNFT_TEXT.get(k.kosten.herkunft_bau if k.kosten.instandhaltung else k.kosten.herkunft_moebel, "")
         pct = round(100 * (hi - k.kosten.summe) / k.kosten.summe) if k.kosten.summe else 0
@@ -235,10 +258,10 @@ def _karte(a, d: dict, k: ck.Karte, bw: ck.Bewertung) -> None:
                 ui.label("Details ▾" if k.schluessel in a.ck_offen else "Details ▸")
             mehr.on("click", lambda k=k: _details(a, k))
         if k.schluessel in a.ck_offen:
-            _drawer(k, m)
+            _drawer(k, m, d.get("ck_phase") or ("Vorschlag", ""))
 
 
-def _drawer(k: ck.Karte, m: int) -> None:
+def _drawer(k: ck.Karte, m: int, phase: tuple = ("Vorschlag", "")) -> None:
     with ui.element("div").classes("m-ck-drawer"):
         if k.gruende:
             ui.html("<b>Bedarf</b> " + " · ".join(k.gruende))
@@ -259,7 +282,11 @@ def _drawer(k: ck.Karte, m: int) -> None:
         else:
             z = k.zeile
             ui.html(f"<b>Termine</b> Kampagne im Leerstand {z.start:%d.%m.} – {z.ende:%d.%m.%Y}; neu planen unter „Vorhaben“.")
-        ui.html('<b>Stand</b> ' + ("vorgemerkt" if k.vorgemerkt else "Vorschlag – noch nicht vorgemerkt"))
+        ui.html("<b>Stand</b>" + ("" if k.vorgemerkt else " – noch nicht vorgemerkt"))
+        from .seite_steuerung import phasen_leiste
+
+        phasen_leiste(*(phase if k.vorgemerkt else ("Vorschlag", "")),
+                      "Stand des Vorhabens „Renovierung <Jahr>“ – Freigabe, Auftrag und Rechnungen pflegen unter „Vorhaben“")
 
 
 def _satz(d: dict, ks: list, aw: dict, bw: ck.Bewertung, bd) -> str:
@@ -278,6 +305,43 @@ def _satz(d: dict, ks: list, aw: dict, bw: ck.Bewertung, bd) -> str:
     if bw.a_offen:
         s += f" {bw.a_offen} Zimmer mit A-Bedarf bleiben offen."
     return s
+
+
+def _vorschau_an(a, d: dict, k: ck.Karte, m: int, refs: dict, karte) -> None:
+    """1.18: Was wäre, wenn diese Karte an- bzw. abgehakt würde – Kacheln und Diagramm, ohne die Seite neu aufzubauen."""
+    v = ck.vorschau(d["ck_karten"], refs["aw"], k, m, d.get("ck_bedarf"), d["budgets"]["bau"],
+                    d["andere"].get("bau", 0.0), d["fl"], refs["bw"])
+    texte = ck.vorschau_texte(v, d["jahr"])
+    for name in ("budget", "moebel", "engpass", "umzuege"):
+        lbl = refs.get(name)
+        if lbl is None:
+            continue
+        t = texte.get(name, "")
+        lbl.set_text(("Wenn dazu – " if v.an else "Wenn weg – ") + t.replace("Vorschau: ", "") if t else "")
+        krit = (name == "budget" and v.bw.rest is not None and v.bw.rest < 0) or \
+               (name == "engpass" and v.knapp_nachher is not None and v.knapp_nachher[1] < 0)
+        lbl.classes(remove="an krit")
+        if t:
+            lbl.classes(add="an krit" if krit else "an")
+    karte.classes(add="vorschau")
+    if refs.get("chart") is not None and d.get("ck_bedarf"):
+        _diagramm_setzen(refs, ck.diagramm(d["ck_bedarf"], refs["bw"], *refs["stil"], vor=v.bw))
+
+
+def _vorschau_aus(d: dict, refs: dict, karte) -> None:
+    for name in ("budget", "moebel", "engpass", "umzuege"):
+        if refs.get(name) is not None:
+            refs[name].classes(remove="an krit")
+    karte.classes(remove="vorschau")
+    if refs.get("chart") is not None and d.get("ck_bedarf"):
+        _diagramm_setzen(refs, ck.diagramm(d["ck_bedarf"], refs["bw"], *refs["stil"]))
+
+
+def _diagramm_setzen(refs: dict, opt: dict) -> None:
+    ch = refs["chart"]
+    ch.options.clear()
+    ch.options.update(opt)
+    ch.update()
 
 
 async def _umschalten(a, k: ck.Karte) -> None:

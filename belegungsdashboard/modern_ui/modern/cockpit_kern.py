@@ -293,17 +293,72 @@ def uebernehmen_schritt(ks: list[Karte], auswahl: dict) -> str:
     return erg[0]
 
 
-def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#334155") -> dict:
+@dataclass
+class Vorschau:
+    """1.18: Was ändert sich, wenn diese Karte an- bzw. abgehakt würde (im angezeigten Monat)?"""
+    bw: Bewertung
+    an: bool                         # True = Karte käme dazu, False = fiele weg
+    bau: float
+    moebel: float
+    zimmer: int
+    umzuege: int
+    knapp_vorher: tuple | None       # (Monatsindex, Reserve)
+    knapp_nachher: tuple | None
+    neue_engpaesse: list
+
+
+def vorschau(ks: list[Karte], auswahl: dict, k: Karte, monat: int | None, bd: Bedarf | None, budget: float | None,
+             andere_bau: float, fl: list, jetzt: Bewertung) -> Vorschau:
+    an = k.schluessel not in auswahl
+    neu = dict(auswahl)
+    if an:
+        neu[k.schluessel] = monat if k.art == "etage" else 0
+    else:
+        neu.pop(k.schluessel)
+    bw = bewerten(ks, neu, bd, budget, andere_bau, fl)
+    kn = lambda b: (b.knappster, b.reserve[b.knappster]) if b.knappster is not None else None       # noqa: E731
+    return Vorschau(bw, an, bw.bau - jetzt.bau, bw.moebel - jetzt.moebel, bw.moebel_zimmer - jetzt.moebel_zimmer,
+                    bw.umzuege - jetzt.umzuege, kn(jetzt), kn(bw), [i for i in bw.engpaesse if i not in jetzt.engpaesse])
+
+
+def _vz(n: int) -> str:
+    return f"+{n}" if n >= 0 else f"−{abs(n)}"
+
+
+def vorschau_texte(v: Vorschau, jahr: int) -> dict:
+    """Kurze Texte für die vier Kacheln (leer = keine Änderung)."""
+    eur = lambda x: f"{round(abs(x)):,} €".replace(",", ".")                                      # noqa: E731
+    t = {}
+    if round(v.bau):
+        t["budget"] = (f"Vorschau: {'+' if v.bau > 0 else '−'}{eur(v.bau)}"
+                       + (f" → {eur(v.bw.rest)} über Budget" if v.bw.rest is not None and v.bw.rest < 0 else
+                          f" → Rest {eur(v.bw.rest)}" if v.bw.rest is not None else ""))
+    if round(v.moebel) or v.zimmer:
+        t["moebel"] = f"Vorschau: {_vz(v.zimmer)} Zimmer · {'+' if v.moebel >= 0 else '−'}{eur(v.moebel)}"
+    if v.knapp_nachher and (v.neue_engpaesse or v.knapp_vorher is None
+                            or round(v.knapp_nachher[1]) != round(v.knapp_vorher[1])):   # nur bei echter Änderung
+        i, r = v.knapp_nachher
+        t["engpass"] = (f"Vorschau: {MONATE[i]} fehlen {abs(round(r))} Betten" if r < 0
+                        else f"Vorschau: knappster Monat {MONATE[i]} {_vz(round(r))}")
+    if v.umzuege:
+        t["umzuege"] = f"Vorschau: {_vz(v.umzuege)} Umzüge"
+    return t
+
+
+def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#334155", vor: Bewertung | None = None) -> dict:
     """ECharts-Option „Decke gegen Bedarf“: von unten der Bedarf (fest, erwartet, obere Spanne), von oben die Decke
     (defekte Zimmer grau, Baustellen orange), rot, wo die obere Spanne über die Decke geht. Alle Reihen ``m_fest``:
     der Diagrammtyp aus „Diagrammentwurf“ stellt dieses Diagramm nicht um (es ist eine Bilanz, kein Verlauf)."""
     fest_f, erw_f, risk_f = ("#566B87" if dunkel else "#1e3a5f"), "#7fb3d5", ("rgba(127,179,213,.35)")
     decke = [round(bd.decke - b, 1) for b in bw.baustellen]
+    b0 = bw.baustellen
+    b1 = vor.baustellen if vor else b0
+    decke_v = [round(bd.decke - b, 1) for b in b1]
     n = lambda v: None if v is None else round(v, 1)                                    # noqa: E731
     fest = [n(f if f is not None else e) for f, e in zip(bd.fest, bd.erwartet)]
     erw = [n(e - f) if e is not None and f is not None else None for e, f in zip(bd.erwartet, fest)]
     risk = [n(h - e) if h is not None and e is not None else None for h, e in zip(bd.hoch, bd.erwartet)]
-    eng = [n(max(0.0, h - d)) if h is not None and h > d else None for h, d in zip(bd.hoch, decke)]
+    eng = [n(max(0.0, h - d)) if h is not None and h > d else None for h, d in zip(bd.hoch, decke_v)]
     werte = [v for v in list(bd.erwartet) + decke if v is not None]       # Achse dort, wo Bedarf und Decke liegen
     unten = max(0, int((min(werte) - 15) // 10 * 10)) if werte else 0
     step = {"step": "middle", "symbol": "none", "m_fest": True}
@@ -316,13 +371,19 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
         {**step, "name": "Risiko (8 von 10)", "type": "line", "stack": "b", "data": risk,
          "areaStyle": {"color": risk_f, "opacity": 1}, "lineStyle": {"width": 1, "type": "dashed", "color": "#0369a1"},
          "itemStyle": {"color": "#9cc3dd"}, "z": 2},
-        {**balken, "name": "_frei", "stack": "d", "data": decke, "itemStyle": {"color": "transparent"}, "silent": True,
-         "tooltip": {"show": False}},
-        {**balken, "name": "Baustelle", "stack": "d", "data": [n(b) or None for b in bw.baustellen],
+        {**balken, "name": "_frei", "stack": "d", "data": [round(bd.decke - max(x, y), 1) for x, y in zip(b0, b1)],
+         "itemStyle": {"color": "transparent"}, "silent": True, "tooltip": {"show": False}},
+        {**balken, "name": "Vorschau: Baustelle dazu", "stack": "d", "data": [n(max(0.0, y - x)) or None for x, y in zip(b0, b1)],
+         "itemStyle": {"color": "rgba(245,158,11,.30)", "borderColor": "#f59e0b", "borderWidth": 1.5, "borderType": "dashed"},
+         "z": 3},
+        {**balken, "name": "Vorschau: wird frei", "stack": "d", "data": [n(max(0.0, x - y)) or None for x, y in zip(b0, b1)],
+         "itemStyle": {"color": "rgba(16,185,129,.25)", "borderColor": "#10b981", "borderWidth": 1.5, "borderType": "dashed"},
+         "z": 3},
+        {**balken, "name": "Baustelle", "stack": "d", "data": [n(min(x, y)) or None for x, y in zip(b0, b1)],
          "itemStyle": {"color": "#f59e0b"}, "z": 3},
         {**balken, "name": "defekte Zimmer", "stack": "d", "data": [n(bd.defekt) or None] * 12, "itemStyle": {"color": "#94a3b8"},
          "z": 3},
-        {**balken, "name": "_eng0", "stack": "e", "data": [d if e else None for d, e in zip(decke, eng)],
+        {**balken, "name": "_eng0", "stack": "e", "data": [d if e else None for d, e in zip(decke_v, eng)],
          "itemStyle": {"color": "transparent"}, "silent": True, "tooltip": {"show": False}},
         {**balken, "name": "Engpass", "stack": "e", "data": eng, "itemStyle": {"color": "#e11d48"}, "z": 4,
          "label": {"show": True, "position": "insideTop", "color": "#fff", "fontWeight": "bold", "fontSize": 12,
@@ -330,9 +391,13 @@ def diagramm(bd: Bedarf, bw: Bewertung, dunkel: bool = False, text: str = "#3341
         {**step, "name": "verfügbare Betten", "type": "line", "data": decke, "lineStyle": {"width": 2.5, "color": text},
          "itemStyle": {"color": text}, "z": 5},
     ]
+    if vor:
+        serien.append({**step, "name": "Vorschau: verfügbar", "type": "line", "data": decke_v, "z": 6,
+                       "lineStyle": {"width": 2, "type": "dashed", "color": "#f59e0b"}, "itemStyle": {"color": "#f59e0b"}})
     return {"animation": False, "grid": {"left": 48, "right": 16, "top": 64, "bottom": 30},
             "legend": {"top": 0, "left": 0, "data": ["fest gebucht / laufend", "erwartet dazu", "Risiko (8 von 10)", "defekte Zimmer",
-                                          "Baustelle", "Engpass", "verfügbare Betten"]},
+                                          "Baustelle", "Engpass", "verfügbare Betten"]
+                       + (["Vorschau: verfügbar"] if vor else [])},
             "tooltip": {"trigger": "axis"},
             "xAxis": {"type": "category", "data": [f"{MONATE[d.month - 1]}" for d in bd.monate], "boundaryGap": True},
             "yAxis": {"type": "value", "min": unten, "max": int(bd.kapazitaet + 5)},
