@@ -344,7 +344,10 @@ class Ansicht:
         ui.add_css(suche_palette.CSS)          # 0.71: Befehlssuche
         from . import arbeitsflaeche
 
-        ui.add_css(arbeitsflaeche.CSS)         # 0.74: Arbeitsfläche – Kontextzeile, feste Größen, Detailpanel
+        ui.add_css(arbeitsflaeche.CSS)
+        from . import cockpit_ui
+
+        ui.add_css(cockpit_ui.CSS)              # 1.16: Cockpit (neu)         # 0.74: Arbeitsfläche – Kontextzeile, feste Größen, Detailpanel
         ui.add_body_html(arbeitsflaeche.JS)
         from . import diagramm_ui
 

@@ -125,7 +125,7 @@ ICONS = {   # Symbole der Unteransichten – leicht erkennbar, wie in Office
     "assistenz": {"auftraege": "assignment", "mails": "mail", "fragen": "help_center"},
     "auswertung": {"lage": "dashboard", "belegung": "stacked_line_chart", "prognose": "trending_up",
                    "massnahmen": "school", "zimmer": "bed"},
-    "steuerung": {"cockpit": "speed", "vorhaben": "construction", "zeitplan": "event_note", "finanzen": "euro",
+    "steuerung": {"cockpit_neu": "dashboard_customize", "cockpit": "speed", "vorhaben": "construction", "zeitplan": "event_note", "finanzen": "euro",
                   "grundlagen": "tune"},
     "inventar": {"gegenstaende": "inventory_2", "zimmer": "meeting_room", "haeuser": "apartment"},
     "einstellungen": {"allgemein": "settings", "stammdaten": "edit_note", "sicherung": "backup"},

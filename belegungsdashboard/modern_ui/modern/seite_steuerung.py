@@ -19,7 +19,7 @@ from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 # 0.46: nach Fragen statt nach Werkzeugen – Cockpit (nur lesen) · Vorhaben (planen) · Zeitplan & Kapazität · Finanzen ·
 # Grundlagen. Alte Namen (aus Links anderer Seiten) werden umgeleitet.
-ANSICHTEN = {"cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
+ANSICHTEN = {"cockpit_neu": "Cockpit (neu)", "cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
              "grundlagen": "Grundlagen"}
 ALT = {"uebersicht": "cockpit", "renovierung": "vorhaben", "prognose": "zeitplan", "szenarien": "finanzen",
        "kennzahlen": "grundlagen"}
@@ -158,6 +158,12 @@ def daten(a) -> None:
             d["monate"] = (f, fs, rk.bester_monat(fs, a.heute))
     if ansicht_ == "zeitplan":
         d["staende"] = sk.buchungsstaende()
+    if ansicht_ == "cockpit_neu":                 # 1.16: Karten je Monat einmal vorrechnen – danach wirkt jeder Klick sofort
+        from . import cockpit_kern as ck
+
+        d["heute"] = a.heute
+        d["ck_karten"] = ck.karten(a.stand, fl, p, jahr, a.heute, zeilen, machbar, prog)
+        d["ck_bedarf"] = ck.bedarf(pg, jahr, a.heute, kap, rk.defekte_betten(a.stand))
     if ansicht_ == "grundlagen":
         d["werte"] = sk.werte()
         d["noten"] = rk.zustandsnoten()
@@ -222,6 +228,11 @@ def zeichnen(a) -> None:
         segmente({j: str(j) for j in (a.heute.year, a.heute.year + 1, a.heute.year + 2)}, d["jahr"],
                  lambda j: a.setzen(st_jahr=j, nur_seite=True), sofort=True)
         knopf("Entscheidungsvorlage (PDF)", lambda: _bericht(a), "primaer", "picture_as_pdf").style("margin-left:auto")
+    if ansicht_ == "cockpit_neu":
+        from . import cockpit_ui
+
+        cockpit_ui.zeichnen(a)
+        return
     {"cockpit": _cockpit, "vorhaben": _vorhaben, "zeitplan": _zeitplan, "finanzen": _finanzen,
      "grundlagen": _grundlagen}[ansicht_](a)
 
