@@ -46,7 +46,7 @@ def lesen(daten: bytes) -> tuple[list[ak.Punkt], dict]:
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ak.AustauschFehler("Die Datei lässt sich nicht lesen – ist es eine INNternat-Austauschdatei?") from exc
     liste = ak.datei_pruefen(inhalt)
-    return ak.abgleichen(liste, ak.stand(speicher.lesen)), {k: inhalt.get(k) for k in ("von", "erstellt", "programm", "art")}
+    return ak.abgleichen(liste, ak.stand(speicher.lesen), ak.basis_lesen(speicher.lesen)), {k: inhalt.get(k) for k in ("von", "erstellt", "programm", "art")}
 
 
 def uebernehmen(punkte: list[ak.Punkt]) -> str:
@@ -61,4 +61,6 @@ def uebernehmen(punkte: list[ak.Punkt]) -> str:
         ak.basis_schreiben(speicher.schreiben, ak.basis_nach_import(ak.basis_lesen(speicher.lesen), punkte))
     _schritt("Austauschdatei eingelesen", aktion, dateien + [ak.BASIS_DATEI])
     teile = [f"{erg.get('neu', 0)} neu", f"{erg.get('geaendert', 0)} geändert", f"{erg.get('entfernt', 0)} entfernt"]
-    return "Austauschdatei übernommen: " + ", ".join(teile)
+    behalten = sum(1 for p in punkte if p.status == "konflikt" and not p.uebernehmen)
+    return ("Austauschdatei übernommen: " + ", ".join(teile)
+            + (f" – {behalten} Konflikt(e): eigener Stand behalten" if behalten else ""))

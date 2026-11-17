@@ -831,9 +831,23 @@ async def _austausch_lesen(a, dateien) -> None:
         ui.label("Prüfwerte in Ordnung.").classes("m-pille ok")
         ui.label(f"{b.uebernehmen} werden übernommen · {b.schon_da} sind schon gleich · {b.konflikt} Konflikt(e)"
                  ).classes("m-name")
+        haken: list = []
         if b.konflikt:
-            ui.label("Konflikt: Der Eintrag wurde hier seit dem letzten Austausch anders geändert. Ohne Häkchen bleibt Ihr "
-                     "Stand – er geht beim nächsten Export zurück.").classes("m-zweite").style("white-space:normal")
+            ui.label("Konflikt: Der Eintrag ist hier anders als in der Datei, und es lässt sich nicht erkennen, wer zuletzt "
+                     "geändert hat (z. B. beim ersten Austausch oder wenn beide Seiten geändert haben). Ohne Häkchen bleibt "
+                     "Ihr Stand – er geht beim nächsten Export zurück.").classes("m-zweite").style("white-space:normal")
+
+            def alle(wert: bool):
+                for p_ in punkte:
+                    if p_.status == "konflikt":
+                        p_.uebernehmen = wert
+                for h in haken:
+                    h.value = wert
+
+            with ui.element("div").classes("m-paktionen").style("justify-content:flex-start"):
+                knopf(f"Alle {b.konflikt} Konflikte aus der Datei übernehmen", lambda: alle(True), "", "done_all",
+                      "Die Planung der Person, die die Datei geschickt hat, gilt")
+                knopf("Alle: meinen Stand behalten", lambda: alle(False), "leise", "undo")
         for bereich in ak.BEREICHE:
             xs = [p for p in punkte if p.aenderung.bereich == bereich.name and p.status != "schon_da"]
             if not xs:
@@ -852,8 +866,8 @@ async def _austausch_lesen(a, dateien) -> None:
                     if p.status == "konflikt":
                         if p.hier is not None:
                             ui.label("hier: " + ak.beschreibung(x.bereich, p.hier, x.schluessel)).classes("m-zweite")
-                        ui.checkbox("aus der Datei übernehmen", value=False,
-                                    on_change=lambda e, p=p: setattr(p, "uebernehmen", bool(e.value)))
+                        haken.append(ui.checkbox("aus der Datei übernehmen", value=p.uebernehmen,
+                                                 on_change=lambda e, p=p: setattr(p, "uebernehmen", bool(e.value))))
 
         async def los():
             if await a.aendern(ad.uebernehmen, punkte):

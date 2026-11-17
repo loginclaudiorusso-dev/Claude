@@ -98,7 +98,7 @@ def _export(ab: Ablage, programm: str) -> dict:
 
 
 def _import(ab: Ablage, inhalt: dict, konflikte_uebernehmen: bool = False):
-    punkte = ak.abgleichen(ak.datei_pruefen(inhalt), ak.stand(ab.lesen))
+    punkte = ak.abgleichen(ak.datei_pruefen(inhalt), ak.stand(ab.lesen), ak.basis_lesen(ab.lesen))
     for p in punkte:
         if p.status == "konflikt":
             p.uebernehmen = konflikte_uebernehmen

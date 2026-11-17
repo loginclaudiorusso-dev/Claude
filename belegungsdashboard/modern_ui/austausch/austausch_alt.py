@@ -30,7 +30,7 @@ class Vorschau(QDialog):
         lay.addWidget(QLabel(f"<b>{b.uebernehmen} werden übernommen · {b.schon_da} schon gleich · "
                              f"{b.konflikt} Konflikt(e)</b>"))
         if b.konflikt:
-            hinweis = QLabel("Konflikt = hier seit dem letzten Austausch anders geändert. Haken setzen, um den Eintrag aus "
+            hinweis = QLabel("Konflikt = hier anders als in der Datei, und nicht erkennbar, wer zuletzt geändert hat. Haken setzen, um den Eintrag aus "
                              "der Datei zu übernehmen; ohne Haken bleibt Ihr Stand und geht beim nächsten Export zurück.")
             hinweis.setWordWrap(True)
             lay.addWidget(hinweis)
@@ -57,12 +57,27 @@ class Vorschau(QDialog):
                 self.zeilen.append((z, p))
             gruppe.setExpanded(True)
         lay.addWidget(self.baum)
+        if b.konflikt:                                     # 1.21.1: alle Konflikte auf einmal
+            from PySide6.QtWidgets import QHBoxLayout, QPushButton
+
+            reihe = QHBoxLayout()
+            for text, wert in ((f"Alle {b.konflikt} Konflikte aus der Datei übernehmen", True), ("Alle: meinen Stand behalten", False)):
+                k = QPushButton(text)
+                k.clicked.connect(lambda _=False, w=wert: self._alle(w))
+                reihe.addWidget(k)
+            reihe.addStretch(1)
+            lay.addLayout(reihe)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
         knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
+
+    def _alle(self, wert: bool):
+        for z, p in self.zeilen:
+            if p.status == "konflikt":
+                z.setCheckState(0, Qt.Checked if wert else Qt.Unchecked)
 
     def accept(self):
         for z, p in self.zeilen:

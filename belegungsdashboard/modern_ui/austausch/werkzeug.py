@@ -54,7 +54,7 @@ def pruefen(ordner: Path, daten: bytes) -> tuple[list[ak.Punkt], dict]:
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ak.AustauschFehler("Die Datei lässt sich nicht lesen – ist es eine INNternat-Austauschdatei?") from exc
     liste = ak.datei_pruefen(inhalt)
-    return ak.abgleichen(liste, ak.stand(_lesen(ordner))), {k: inhalt.get(k) for k in ("von", "erstellt", "programm")}
+    return ak.abgleichen(liste, ak.stand(_lesen(ordner)), ak.basis_lesen(_lesen(ordner))), {k: inhalt.get(k) for k in ("von", "erstellt", "programm")}
 
 
 def uebernehmen(ordner: Path, punkte: list[ak.Punkt], jetzt: datetime | None = None) -> tuple[dict, Path]:

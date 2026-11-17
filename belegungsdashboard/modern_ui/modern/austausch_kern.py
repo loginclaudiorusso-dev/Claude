@@ -53,6 +53,7 @@ class Bereich:
     feld: str | None                 # Liste unter diesem Schlüssel; None = die Datei ist ein Wörterbuch Schlüssel → Eintrag
     schluessel: Callable[[Any], str] | None = None
     lokal: tuple[str, ...] = ()      # Felder, die nie übertragen werden
+    woerterbuch: bool = False        # 1.21.1: unter ``feld`` steht ein Wörterbuch Schlüssel → Eintrag (statt Liste)
 
 
 BEREICHE: tuple[Bereich, ...] = (
@@ -65,6 +66,11 @@ BEREICHE: tuple[Bereich, ...] = (
     Bereich("angaben", "Geschlecht und Tier (Zimmerplan)", "zimmer_personen.json", None),
     Bereich("uwt_auto", "UWT automatisch zugeteilt", "importe/uwt_auto_zugeteilt.json", "personen", lambda r: str(r)),
     Bereich("nichtanreise", "Nicht angereist", "modern_nichtanreise.json", None),
+    # 1.21.1: ohne UWT-Blöcke und Klassenübersicht sieht die andere Seite gespeicherte UWT-Zimmer nicht
+    Bereich("uwt", "UWT-Blöcke", "importe/uwt.json", "bloecke", lambda r: f"{r.get('klasse', '')}|{r.get('anreise', '')}",
+            ("datei", "importiert_am")),
+    Bereich("uwt_klassen", "UWT-Klassen und DZ-Liste", "importe/uwt_klassen.json", "klassen", woerterbuch=True),
+    Bereich("dz_einzeln", "Doppelzimmer einzeln (Anreisetage)", "importe/modern_dz_einzeln.json", None),
 )
 NACH_NAME = {b.name: b for b in BEREICHE}
 
@@ -86,6 +92,9 @@ def _ohne_lokal(b: Bereich, r: Any) -> Any:
 def eintraege(b: Bereich, roh: Any) -> dict[str, Any]:
     """Datei-Inhalt → {Schlüssel: Eintrag (ohne örtliche Felder)}. Doppelte Schlüssel bekommen „#2“, „#3“ …"""
     erg: dict[str, Any] = {}
+    if b.woerterbuch:
+        d = (roh or {}).get(b.feld, {}) if isinstance(roh, dict) else {}
+        return {str(k): _ohne_lokal(b, v) for k, v in d.items()} if isinstance(d, dict) else {}
     if b.feld is None:
         for k, v in (roh or {}).items() if isinstance(roh, dict) else []:
             erg[str(k)] = _ohne_lokal(b, v)
@@ -103,6 +112,10 @@ def eintraege(b: Bereich, roh: Any) -> dict[str, Any]:
 
 def zurueckschreiben(b: Bereich, roh: Any, neu: dict[str, Any]) -> Any:
     """{Schlüssel: Eintrag} → Datei-Inhalt. Reihenfolge der bestehenden Einträge bleibt; örtliche Felder bleiben."""
+    if b.woerterbuch:
+        erg = dict(roh) if isinstance(roh, dict) else {}
+        erg[b.feld] = dict(neu)
+        return erg
     if b.feld is None:
         return dict(neu)
     alt = eintraege(b, roh)
@@ -231,14 +244,18 @@ class Punkt:
     uebernehmen: bool = True         # Konflikt: Standard nein (eigenen behalten)
 
 
-def abgleichen(liste: list[Aenderung], st: dict[str, dict[str, Any]]) -> list[Punkt]:
+def abgleichen(liste: list[Aenderung], st: dict[str, dict[str, Any]], basis: dict | None = None) -> list[Punkt]:
+    """``basis`` (1.21.1) = gemeinsamer Stand HIER nach dem letzten Austausch. Wurde ein Eintrag hier seitdem nicht
+    geändert, gilt die Datei – auch beim „ganzen Stand“, der kein „vorher“ kennt. Konflikt nur, wenn beide geändert haben."""
     erg = []
     for a in liste:
         hier = st.get(a.bereich, {}).get(a.schluessel)
         p_hier = pruefwert(hier) if hier is not None else None
+        b_hier = (basis or {}).get(a.bereich, {})
+        hier_unveraendert = basis is not None and hier is not None and b_hier.get(a.schluessel) == p_hier
         if p_hier == a.nachher:
             erg.append(Punkt(a, "schon_da", hier, False))
-        elif p_hier == a.vorher and not (a.art == "stand" and hier is not None):
+        elif (p_hier == a.vorher and not (a.art == "stand" and hier is not None)) or hier_unveraendert:
             erg.append(Punkt(a, "uebernehmen", hier, True))
         else:
             erg.append(Punkt(a, "konflikt", hier, False))

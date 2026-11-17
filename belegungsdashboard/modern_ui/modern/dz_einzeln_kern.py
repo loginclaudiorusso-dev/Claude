@@ -14,14 +14,15 @@ from __future__ import annotations
 from belegung import speicher
 from belegung import zimmerplan as zp
 
-DATEI = "importe/modern_dz_einzeln.json"          # Liste der Anreisetage (ISO), an denen DZ einzeln vergeben werden
+DATEI = "importe/modern_dz_einzeln.json"          # {Anreisetag (ISO): True} – 1.21.1: Wörterbuch (Austausch je Tag)
 GRUPPE = "UWT"
 _ORIG: dict = {}
 
 
 def tage() -> set[str]:
     try:
-        return {str(t) for t in speicher.lesen(DATEI, [])}
+        roh = speicher.lesen(DATEI, {})
+        return {str(t) for t, an_ in roh.items() if an_} if isinstance(roh, dict) else {str(t) for t in roh}
     except Exception:                                   # noqa: BLE001 – beschädigte Datei: Schalter aus
         return set()
 
@@ -85,7 +86,7 @@ def setzen(kennung: str, wert: bool) -> str:
     erg: dict = {}
 
     def aktion():
-        speicher.schreiben(DATEI, sorted(t))
+        speicher.schreiben(DATEI, {k: True for k in sorted(t)})
         if wert and (raus := paare(zp.laden(), kennung)):
             zp.zuweisungen_entfernen(set(raus), "Doppelzimmer einzeln")
             erg["n"] = len(raus)
