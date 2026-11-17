@@ -499,6 +499,16 @@ def _berechnung_monat(a, pg, kap: int, i: int) -> list:
             erg.append(("reserve", {"belegung": z.erwartet, "kapazitaet": kap}, []))
     if kap:
         erg.append(("kapazitaet", {}, zu_zimmern))
+    if z.art != "ist":                                     # 1.23: genauer Rechenweg mit allen Zwischenwerten
+        try:
+            from . import rechenweg_kern as rw
+
+            schritte = rw.rechenweg((a.daten or {}).get("ds"), a.aw_standort, z.monat, pz.vertraege,
+                                    {"erwartet": z.erwartet, "lo80": z.lo80, "hi80": z.hi80, "lo95": z.lo95, "hi95": z.hi95})
+        except Exception:                                  # noqa: BLE001 – der Rechenweg ist Zusatz
+            schritte = []
+        if schritte:
+            erg.append(("rechenweg", {"schritte": schritte, "titel": ak.monat_text(z.monat)}, []))
     return erg
 
 
@@ -1345,7 +1355,7 @@ def zeichnen(a) -> None:
     par = lambda: a.aw_parallel and a.aw_standort == konfig.GESAMT  # noqa: E731
     def c(anim=False, phase="voll", **ueber):
         return {"pg": pg, "phase": phase, "parallel": par(), "sv": a.daten.get("sv"), "kap": zustand["kap"], "offset": zustand["offset"], "art": a.aw_chart,
-                            "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95 or not klassisch,
+                            "standort": a.aw_standort, "brutto": a.aw_brutto, "b95": a.aw_95,
                             "backtest": a.aw_backtest,    # 0.97: in jeder Darstellung, wenn eingeschaltet (Karte: dazu „Probe“)
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],

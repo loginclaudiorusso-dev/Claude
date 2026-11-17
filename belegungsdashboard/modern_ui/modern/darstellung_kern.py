@@ -60,7 +60,7 @@ STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "farbig"
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
-            "dg_anteil": "ring", "werkzeuge_oben": True}
+            "dg_anteil": "ring", "dg_anteil_zeit": "saeule100", "werkzeuge_oben": True}
 # 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
 # Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
 NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
@@ -130,7 +130,10 @@ def bereinigen(d: dict) -> dict:
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
     e["nav"] = d.get("nav") if d.get("nav") in NAVIGATION else "band"
-    e["dg_anteil"] = d.get("dg_anteil") if d.get("dg_anteil") in DG_ANTEILE else "ring"
+    alt = d.get("dg_anteil")                                    # bis 1.22 eine Einstellung für beide Diagramme
+    e["dg_anteil"] = alt if alt in ("ring", "kreis") else "ring"
+    zeit = d.get("dg_anteil_zeit") or (alt if alt in ("saeule100", "flaeche100") else None)
+    e["dg_anteil_zeit"] = zeit if zeit in ("saeule100", "flaeche100") else "saeule100"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
     e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
     for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung",

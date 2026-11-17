@@ -19,6 +19,7 @@ class Punkt:
     tipp: str = ""
     menue: list["Punkt"] = field(default_factory=list)      # Ausklappmenü; mit ``ziel`` zusammen: Split-Button
     farbe: str = ""                                          # Farbmuster statt Symbolfarbe (Menü „Farben“)
+    nur: tuple = ()                                          # 1.23: nur auf diesen (Seite, Ansicht) – leer: immer
 
 
 @dataclass
@@ -35,6 +36,7 @@ class Reiter:
     titel: str
     gruppen: list[Gruppe]
     kontext: tuple = ()                                      # nicht leer → nur auf diesen Seiten (Kontext-Registerkarte)
+    ohne: tuple = ()                                         # 1.23: (Seite, Ansicht), auf denen er trotzdem fehlt
 
 
 def S(seite: str, ansicht: str | None = None, **zustand) -> tuple:
@@ -159,9 +161,9 @@ def _einzeln(seite: str, ansichten: dict, keys: list[str] | None = None, gross: 
                   views[k]) for k in (keys or list(views)) if k in views]
 
 
-def _haken(text: str, key: str) -> Punkt:
+def _haken(text: str, key: str, nur: tuple = ()) -> Punkt:
     """Menüpunkt mit Häkchen (an/aus) – Zustand zeigt die Oberfläche."""
-    return Punkt(text, "haken", A(f"dg:{key}"), False)
+    return Punkt(text, "haken", A(f"dg:{key}"), False, nur=nur)
 
 
 # 0.69 – Regeln der Anordnung (nach zwei Reviews):
@@ -172,6 +174,29 @@ def _haken(text: str, key: str) -> Punkt:
 #  4. Kontext-Registerkarte nur für „Diagramm“; Filter bleiben in EINER Kopfzeile direkt über dem Inhalt.
 #  5. Gruppenpfeil ↘ öffnet den Dialog zur Gruppe (statt eigener Schaltfläche).
 KONTEXT_DIAGRAMM = ("auswertung", "steuerung")
+# 1.23: Seiten ohne einstellbare Diagramme bekommen keinen „Diagrammentwurf“ – eine Option, die nichts bewirkt, fehlt
+OHNE_DIAGRAMM = (("auswertung", "zimmer"), ("steuerung", "vorhaben"), ("steuerung", "grundlagen"))
+MIT_DIAGRAMMTYP = (("auswertung", "lage"), ("auswertung", "belegung"), ("auswertung", "prognose"), ("auswertung", "massnahmen"),
+                   ("steuerung", "zeitplan"), ("steuerung", "finanzen"))       # Cockpit hat eine eigene Gruppe „Diagramm“
+# Maßnahmen: die Säulen tragen ihre Werte immer – dort bewirkt „Datenbeschriftungen“ nichts
+# Überblick: Tageswerte (zu viele Punkte für lesbare Beschriftungen)
+MIT_WERTEN = tuple(x for x in MIT_DIAGRAMMTYP if x not in (("auswertung", "massnahmen"), ("auswertung", "lage"))) \
+    + (("steuerung", "cockpit"),)
+# Seiten mit reinen Säulen: Punkte/Glätten wirken dort erst, wenn der Diagrammtyp Linie oder Fläche ist (Cockpit: nie)
+NUR_LINIEN = {"dg_punkte": (("auswertung", "belegung"), ("auswertung", "massnahmen"), ("steuerung", "finanzen"),
+                            ("steuerung", "cockpit")),
+              "dg_glatt": (("auswertung", "belegung"),)}
+
+
+def linien_option_sichtbar(key: str, seite: str, ansicht: str | None, dg_typ: str) -> bool:
+    ort = (seite, ansicht)
+    if ort not in NUR_LINIEN.get(key, ()):
+        return True
+    return ort != ("steuerung", "cockpit") and dg_typ in ("linie", "flaeche")
+
+
+MIT_ANTEILEN = (("auswertung", "belegung"), ("auswertung", "massnahmen"))
+MIT_DARSTELLUNG = (("auswertung", "belegung"), ("auswertung", "prognose"), ("auswertung", "massnahmen"))
 
 
 def _v(ansichten: dict, seite: str, k: str, text: str | None = None, icon: str | None = None, gross: bool = True,
@@ -265,26 +290,30 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                             "Gesamtlinie mit UWTlern und Mietern (Trend & Prognose)"),
                       Punkt("Standorte einzeln", "stacked_line_chart", A("awt:aw_parallel"), False,
                             "Bei „Gesamt“: die drei Standorte nebeneinander")], nur=PROGNOSE),
-            Gruppe("Darstellung", [Punkt(t, i, A(f"dg_modus:{k}"), tipp=b_) for k, t, i, b_ in _dg_modi()]),
+            Gruppe("Darstellung", [Punkt(t, i, A(f"dg_modus:{k}"), tipp=b_) for k, t, i, b_ in _dg_modi()],
+                   nur=MIT_DARSTELLUNG),
             Gruppe("Typ", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
                                  "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
                                  "Säulen stellen alle Verläufe um",
-                                 [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()]),
+                                 [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()],
+                                 nur=MIT_DIAGRAMMTYP),
                            Punkt("Anteile", "donut_large", None, True,
-                            "Anteils-Diagramme (Belegung, Maßnahmen): Ring, Kreis, 100 %-Säulen oder 100 %-Fläche",
-                            [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()])]),
+                            "Anteils-Diagramme: links Ring oder Kreis (wie viel insgesamt), rechts 100 %-Säulen oder "
+                            "100 %-Fläche (wann) – beides lässt sich getrennt wählen",
+                            [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()],
+                            nur=MIT_ANTEILEN)]),
             Gruppe("Elemente", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
                                       [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
-                                       _haken("Datenbeschriftungen", "dg_werte"), _haken("Gitternetzlinien", "dg_gitter"),
+                                       _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN), _haken("Gitternetzlinien", "dg_gitter"),
                                        _haken("Animation", "dg_anim"),
-                                       Punkt("95 %-Band (Prognose, Klassisch)", "haken", A("awt:aw_95"), False),
+                                       Punkt("95 %-Band (Prognose)", "haken", A("awt:aw_95"), False, nur=PROGNOSE),
                                        Punkt("Backtest – frühere Vorhersagen (Prognose)", "haken", A("awt:aw_backtest"),
-                                             False)]),
+                                             False, nur=PROGNOSE)]),
                                 Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
                                       [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
                                        for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])],
                    starter=A("optionen:diagramme")),
-        ], kontext=KONTEXT_DIAGRAMM),
+        ], kontext=KONTEXT_DIAGRAMM, ohne=OHNE_DIAGRAMM),
     ]
 
 
@@ -347,8 +376,12 @@ def _zoom():
     return ZOOM_STUFEN
 
 
-def sichtbar(r: Reiter, seite: str) -> bool:
-    return not r.kontext or seite in r.kontext
+def sichtbar(r: Reiter, seite: str, ansicht: str | None = None) -> bool:
+    return (not r.kontext or seite in r.kontext) and (seite, ansicht) not in r.ohne
+
+
+def punkt_sichtbar(p: Punkt, seite: str, ansicht: str | None) -> bool:
+    return not p.nur or (seite, ansicht) in p.nur
 
 
 def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]]]:

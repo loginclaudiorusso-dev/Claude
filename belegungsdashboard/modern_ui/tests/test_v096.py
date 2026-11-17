@@ -147,7 +147,9 @@ def test_bildschirmfoto_in_statusleiste():
 
 def test_anteil_einstellung_bereinigt():
     assert dk.bereinigen({"dg_anteil": "quatsch"})["dg_anteil"] == "ring"
-    assert dk.bereinigen({"dg_anteil": "saeule100"})["dg_anteil"] == "saeule100"
+    alt = dk.bereinigen({"dg_anteil": "saeule100"})               # 1.23: alte Einstellung → getrennt (Ring + Säulen)
+    assert (alt["dg_anteil"], alt["dg_anteil_zeit"]) == ("ring", "saeule100")
+    assert dk.bereinigen({"dg_anteil": "kreis", "dg_anteil_zeit": "flaeche100"})["dg_anteil_zeit"] == "flaeche100"
 
 
 # ---- Anteile ------------------------------------------------------------------------------------------------------------

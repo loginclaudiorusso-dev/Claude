@@ -132,7 +132,7 @@ class Ansicht:
         from belegung import konfig
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 12   # 0.94: 12 Monate Standard
-        self.aw_95, self.aw_backtest = False, False          # 0.86: 95 %-Band nur auf Wunsch (aus 18 Fehlern kaum schätzbar)
+        self.aw_95, self.aw_backtest = True, False           # 1.23: 95 %-Band an (abschaltbar) – in jeder Darstellung gleich
         self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
         self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
@@ -972,7 +972,7 @@ class Ansicht:
             self.prompt_eingabe.set_value("")
             self.prompt, self._antwort = "", None
         diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_modus", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim",
-                    "dg_anteil")
+                    "dg_anteil", "dg_anteil_zeit")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
                       or any(alt.get(k) != self.design.get(k) for k in diagramm))
         if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \

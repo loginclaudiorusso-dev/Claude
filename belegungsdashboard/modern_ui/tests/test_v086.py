@@ -153,7 +153,7 @@ def test_namen_und_querverweise():
 def test_belegungsprognose_band_nur_12_monate():
     q = _q("seite_prognose.py")
     assert 'band("lo80"), band("hi80")' in q and "i >= fort_ab" in q and '36: "36M"' not in q
-    assert "self.aw_95, self.aw_backtest = False, False" in _q("oberflaeche.py")
+    assert "self.aw_95, self.aw_backtest = True, False" in _q("oberflaeche.py")       # 1.23: 95 % an, abschaltbar
 
 
 def test_besen_fuehrt_zur_liste_und_kachel_mit_bett_segmenten():

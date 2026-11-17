@@ -132,6 +132,9 @@ class Karte:
             bloecke = details(i) if details else [(kk.REIHE[n], {}, []) for n, _t in werte if n in kk.REIHE]
             gesehen = set()
             for schluessel, w, aktionen in bloecke or []:
+                if schluessel == "rechenweg":                   # 1.23: genauer Rechenweg
+                    diagramm_ui.rechenweg_block(w.get("schritte") or [], w.get("titel", ""))
+                    continue
                 if schluessel in gesehen or schluessel not in kk.KATALOG:
                     continue
                 gesehen.add(schluessel)

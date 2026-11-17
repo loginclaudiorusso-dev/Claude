@@ -109,8 +109,9 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         await a.design_setzen(dg_typ=name.split(":", 1)[1])
     elif name.startswith("dg_modus:"):                      # 0.96: Darstellung im Menüband
         await a.design_setzen(dg_modus=name.split(":", 1)[1])
-    elif name.startswith("dg_anteil:"):
-        await a.design_setzen(dg_anteil=name.split(":", 1)[1])
+    elif name.startswith("dg_anteil:"):                     # 1.23: Ring/Kreis und 100 %-Säulen/-Fläche getrennt
+        wert = name.split(":", 1)[1]
+        await (a.design_setzen(dg_anteil_zeit=wert) if wert in ("saeule100", "flaeche100") else a.design_setzen(dg_anteil=wert))
     elif name.startswith("aw:"):                            # 0.96: Filter der Prognose im Menüband
         key, wert = mb.aw_wert(name[3:])
         if key == "aw_chart" and wert != "trend":           # Ansichten gibt es nur bei „Trend & Prognose“
@@ -151,9 +152,18 @@ def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
     return 0, False
 
 
+def _ansicht(a) -> str:
+    return a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
+
+
 def _menue(a, punkte: list[mb.Punkt]) -> None:
     with ui.menu().props('class="m-ob-menue" anchor="bottom left" self="top left"'):
         for q in punkte:
+            if not mb.punkt_sichtbar(q, a.seite, _ansicht(a)):
+                continue
+            if q.ziel and q.ziel[0] == "aktion" and q.ziel[1].startswith("dg:") and not mb.linien_option_sichtbar(
+                    q.ziel[1][3:], a.seite, _ansicht(a), a.design.get("dg_typ", "auto")):
+                continue
             an = _menue_an(a, q)
             if q.icon == "haken":
                 icon = "check_box" if an else "check_box_outline_blank"
@@ -179,8 +189,10 @@ def _menue_an(a, q: mb.Punkt) -> bool:
             return getattr(a, key, None) == wert
         if z[1].startswith("awt:"):
             return bool(getattr(a, z[1][4:], False))
+        if z[1].startswith("dg_anteil:"):
+            return z[1][10:] in (a.design.get("dg_anteil"), a.design.get("dg_anteil_zeit", "saeule100"))
         for vor, key in (("layout:", "layout"), ("farbe:", "farbe"), ("dg_typ:", "dg_typ"), ("dg_legende:", "dg_legende"),
-                         ("dg_modus:", "dg_modus"), ("dg_anteil:", "dg_anteil")):
+                         ("dg_modus:", "dg_modus")):
             if z[1].startswith(vor):
                 return z[1][len(vor):] == a.design.get(key)
         return False
@@ -269,6 +281,8 @@ def _gruppe(a, g: mb.Gruppe) -> None:
                             _knopf(a, q)
                     klein.clear()
             for p in g.punkte:
+                if not mb.punkt_sichtbar(p, a.seite, _ansicht(a)):   # 1.23: Option ohne Wirkung hier → weg
+                    continue
                 if p.gross:
                     stapel()
                     _knopf(a, p)
@@ -323,7 +337,7 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
         tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))
     if tab != "seite":
         aktuell = next((r for r in alle if r.key == tab), alle[0])
-        if not mb.sichtbar(aktuell, a.seite) or (not _seite_im_reiter(aktuell, a.seite)
+        if not mb.sichtbar(aktuell, a.seite, _ansicht(a)) or (not _seite_im_reiter(aktuell, a.seite)
                                                   and getattr(a, "_ob_seite", None) != a.seite):
             tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
             aktuell = next((r for r in alle if r.key == tab), alle[0])
@@ -414,7 +428,7 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                 ui.label("Datei")
                 _menue(a, mb.DATEI)
             for r in alle:
-                if not mb.sichtbar(r, a.seite):
+                if not mb.sichtbar(r, a.seite, _ansicht(a)):
                     continue
                 hier = not r.kontext and r.key != tab and r.key == mb.reiter_von(a.seite, _ansichten(),
                                                                                   a.ansicht.get(a.seite))

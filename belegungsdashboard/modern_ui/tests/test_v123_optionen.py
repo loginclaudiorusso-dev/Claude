@@ -1,0 +1,46 @@
+"""1.23 – Optionen im Menüband nur dort, wo sie wirken; Anteile getrennt wählbar; Datenbeschriftung auch bei
+Diagrammen, die selbst „keine“ festlegen; 95-%-Band in jeder Darstellung schaltbar."""
+
+from modern import diagramm_stil as ds
+from modern import menueband as mb
+
+
+def _alle(reiter):
+    return {p.text: p for g in reiter.gruppen for p in g.punkte for p in [p] + p.menue}
+
+
+def test_diagrammentwurf_nur_auf_seiten_mit_diagrammen():
+    r = next(r for r in mb.reiter({}) if r.key == "diagramm")
+    assert mb.sichtbar(r, "auswertung", "prognose") and mb.sichtbar(r, "steuerung", "finanzen")
+    for s, a in (("auswertung", "zimmer"), ("steuerung", "vorhaben"), ("steuerung", "grundlagen"), ("heute", None)):
+        assert not mb.sichtbar(r, s, a)
+
+
+def test_optionen_je_seite():
+    r = next(r for r in mb.reiter({}) if r.key == "diagramm")
+    p = _alle(r)
+    assert mb.punkt_sichtbar(p["Anteile"], "auswertung", "massnahmen")
+    assert not mb.punkt_sichtbar(p["Anteile"], "auswertung", "prognose")
+    assert not mb.punkt_sichtbar(p["Diagrammtyp"], "steuerung", "cockpit")
+    assert mb.punkt_sichtbar(p["95 %-Band (Prognose)"], "auswertung", "prognose")
+    assert not mb.punkt_sichtbar(p["95 %-Band (Prognose)"], "auswertung", "belegung")
+    assert not mb.punkt_sichtbar(p["Datenbeschriftungen"], "auswertung", "massnahmen")
+    assert mb.punkt_sichtbar(p["Datenbeschriftungen"], "steuerung", "cockpit")
+    darst = next(g for g in r.gruppen if g.titel == "Darstellung")
+    assert mb.gruppe_sichtbar(darst, "auswertung", "belegung") and not mb.gruppe_sichtbar(darst, "auswertung", "lage")
+
+
+def test_datenbeschriftung_auch_bei_ausdruecklich_keiner():
+    o = {"xAxis": {"type": "category", "data": ["a", "b"]}, "yAxis": {"type": "value"},
+         "series": [{"name": "Wert", "type": "bar", "data": [1, 2], "label": {"show": False}},
+                    {"name": "fest", "type": "bar", "data": [1, 2], "label": {"show": False}, "m_fest": True}]}
+    n = ds.anwenden(o, {"dg_werte": True})
+    assert n["series"][0]["label"]["show"] is True and n["series"][1]["label"]["show"] is True     # auch feste Säulen
+
+
+def test_punkte_und_glaetten_nur_wo_linien():
+    assert not mb.linien_option_sichtbar("dg_punkte", "auswertung", "belegung", "auto")
+    assert mb.linien_option_sichtbar("dg_punkte", "auswertung", "belegung", "linie")
+    assert not mb.linien_option_sichtbar("dg_punkte", "steuerung", "cockpit", "linie")
+    assert mb.linien_option_sichtbar("dg_punkte", "auswertung", "prognose", "auto")
+    assert mb.linien_option_sichtbar("dg_glatt", "auswertung", "massnahmen", "auto")

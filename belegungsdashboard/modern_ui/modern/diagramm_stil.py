@@ -94,6 +94,13 @@ def anwenden(opt: dict, d: dict) -> dict:
         if se.get("type") == "line" and d.get("dg_glatt"):
             se["smooth"] = True
         if not datenreihe(se):
+            wertsaeule = (se.get("type") == "bar" and not str(se.get("name", "")).startswith("_") and bool(se.get("data"))
+                          and str(se.get("stack") or "") != "100")
+            if d.get("dg_werte") and wertsaeule and not (se.get("label") or {}).get("show") \
+                    and len(_werte(se)) <= WERTE_MAX:          # 1.23: auch Säulen (auch feste) bekommen Werte auf Wunsch
+                se["label"] = {"show": True, "position": "insideTop" if se.get("stack") else "top", "fontSize": 12,
+                               ":formatter": WERT_KOMMA_JS}
+                se["labelLayout"] = {"hideOverlap": True}
             continue
         gestrichelt = (se.get("lineStyle") or {}).get("type") == "dashed"          # Prognose
         if typ == "flaeche" and "areaStyle" not in se and rolle(se) not in ("vorjahr", "vorvorjahr"):
@@ -120,7 +127,9 @@ def anwenden(opt: dict, d: dict) -> dict:
                 se["symbol"] = "circle"
             se.setdefault("symbolSize", 5)
         if d.get("dg_werte") and len(_werte(se)) <= WERTE_MAX and "Backtest" not in str(se.get("name", "")) \
-                and "show" not in (se.get("label") or {}):   # 0.98: eigene Beschriftung (oder ausdrücklich keine) bleibt
+                and not (se.get("label") or {}).get("show"):
+            # 0.98: eigene Beschriftung bleibt; 1.23: „ausdrücklich keine“ wird auf Wunsch eingeblendet (sonst wirkte die
+            # Option bei vielen Diagrammen nicht)
             se["label"] = {"show": True, "position": "top", "fontSize": 12,      # Farbe: Textfarbe (lesbar)
                            ":formatter": WERT_KOMMA_JS}                          # 0.97: deutsch, eine Nachkommastelle
             se["labelLayout"] = {"hideOverlap": True}

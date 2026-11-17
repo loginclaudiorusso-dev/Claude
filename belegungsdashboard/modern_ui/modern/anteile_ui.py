@@ -14,8 +14,11 @@ ZEIT = ("saeule100", "flaeche100")
 
 
 def arten() -> tuple[str, str]:
-    art = (themes.AKTIV or {}).get("dg_anteil", "ring") if isinstance(themes.AKTIV, dict) else "ring"
-    return (art if art in RUND else "ring"), (art if art in ZEIT else "saeule100")
+    d = themes.AKTIV if isinstance(themes.AKTIV, dict) else {}
+    rund, zeit = d.get("dg_anteil", "ring"), d.get("dg_anteil_zeit", "saeule100")
+    if rund in ZEIT:                                            # alte Einstellung (eine für beide)
+        rund, zeit = "ring", rund
+    return (rund if rund in RUND else "ring"), (zeit if zeit in ZEIT else "saeule100")
 
 
 def zeigen(a, titel: str, an: ank.Anteile, farben, verlauf_text: str, mitte: str = "") -> None:
@@ -31,9 +34,11 @@ def zeigen(a, titel: str, an: ank.Anteile, farben, verlauf_text: str, mitte: str
         with ui.element("div").classes("m-anteile-kopf"):
             ui.label(titel).classes("m-btitel")
             if not menueband_ui.band_sichtbar(a):
-                aktiv = (themes.AKTIV or {}).get("dg_anteil", "ring")
-                segmente({k: tx for k, (tx, _i) in dk.DG_ANTEILE.items()}, aktiv,
+                rund, zeit = arten()
+                segmente({k: tx for k, (tx, _i) in dk.DG_ANTEILE.items() if k in RUND}, rund,
                          lambda v: a.design_setzen(dg_anteil=v))
+                segmente({k: tx for k, (tx, _i) in dk.DG_ANTEILE.items() if k in ZEIT}, zeit,
+                         lambda v: a.design_setzen(dg_anteil_zeit=v))
         ui.label(an.satz).classes("m-anteile-satz")
         with ui.element("div").classes("m-anteile-zwei"):
             with diagramm_karte.Karte(a, "Anteile insgesamt", an.fenster) as k:

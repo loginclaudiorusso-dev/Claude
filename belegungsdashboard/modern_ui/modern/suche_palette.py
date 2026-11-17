@@ -28,8 +28,11 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
 
         strittig = {x.person: x for x in k_.strittige(stand)}
         # 0.97: Zimmer HEUTE (nach Umzug) – vorher stand nach einem Umzug noch das alte Zimmer da
-        for t, umzug in suche_kern.korrigieren(suche.suchen(text, stand, heute=heute)[:40],
-                                               (getattr(stand.lage, "umzuege", None) or {}).values(), heute):
+        gefunden = suche_kern.nur_aktuell(suche_kern.korrigieren(suche.suchen(text, stand, heute=heute)[:40],
+                                                                  (getattr(stand.lage, "umzuege", None) or {}).values(), heute),
+                                           heute)
+        da = suche_kern.aktuelle_namen(gefunden, heute)
+        for t, umzug in gefunden:
             zusatz = " · ".join(x for x in (t.zimmer_text, umzug, t.massnahme, f"{t.von:%d.%m.%y}–{t.bis:%d.%m.%y}"
                                              if t.bis else f"ab {t.von:%d.%m.%y}", t.status(heute)) if x)
             if (x := strittig.get(t.person)) is not None and t.zimmer_id == x.geplant:
@@ -46,7 +49,7 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
             frueher = []
         schon = {(t[0], t[3].get("karte")) for t in erg}
         for h in frueher:
-            if (h.name, h.zimmer) not in schon:
+            if (h.name, h.zimmer) not in schon and not suche_kern.ist_aktuell(h.name, da):   # 1.23: wohnt jetzt woanders
                 erg.append((h.name, " · ".join(x for x in (f"früher in {h.kurz}", h.massnahme, h.zeitraum) if x),
                             "zimmer", {"karte": h.zimmer}))
     return erg

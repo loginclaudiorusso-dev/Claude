@@ -83,6 +83,45 @@ def korrigieren(treffer: list, umzuege, heute: date) -> list[tuple[object, str]]
     return out
 
 
+def _wer(t) -> tuple:
+    return tuple(sorted(_woerter(getattr(t, "name", ""))))
+
+
+def nur_aktuell(treffer: list[tuple[object, str]], heute: date) -> list[tuple[object, str]]:
+    """1.23: Nach einem Zimmerwechsel nur noch das neue Zimmer. Hat eine Person einen Aufenthalt heute oder in der
+    Zukunft, fallen ihre schon beendeten Teile in ANDEREN Zimmern weg (z. B. Umzug nur im Gebäudeplan, ohne
+    Umzugs-Eintrag) – das alte Zimmer steht dann als Hinweis „vorher in …“ am aktuellen Treffer."""
+    aktuell: dict[tuple, int] = {}
+    for i, (t, _h) in enumerate(treffer):
+        if getattr(t, "zimmer_id", "") and not getattr(t, "frei", False) and not getattr(t, "gesperrt", False) \
+                and (t.bis is None or t.bis >= heute):
+            aktuell.setdefault(_wer(t), i)
+    out: list[tuple[object, str]] = []
+    vorher: dict[int, list[str]] = {}
+    for i, (t, h) in enumerate(treffer):
+        j = aktuell.get(_wer(t))
+        if (j is not None and j != i and getattr(t, "zimmer_id", "") and not getattr(t, "frei", False)
+                and not getattr(t, "gesperrt", False) and t.bis is not None and t.bis < heute
+                and t.zimmer_id != treffer[j][0].zimmer_id):
+            vorher.setdefault(j, []).append(f"vorher in {_kurz(t.zimmer_id)} bis {t.bis:%d.%m.%Y}")
+            continue
+        out.append((t, h))
+    if vorher:
+        idx = {id(t): i for i, (t, _h) in enumerate(treffer)}
+        out = [(t, h if h else " · ".join(vorher.get(idx[id(t)], []))) for t, h in out]
+    return out
+
+
+def aktuelle_namen(treffer: list[tuple[object, str]], heute: date) -> set[tuple]:
+    """Personen mit Aufenthalt heute/zukünftig – deren frühere Zimmer gehören nicht als „früher in …“ in die Suche."""
+    return {_wer(t) for t, _h in treffer if getattr(t, "zimmer_id", "") and not getattr(t, "frei", False)
+            and (t.bis is None or t.bis >= heute)}
+
+
+def ist_aktuell(name: str, namen: set[tuple]) -> bool:
+    return tuple(sorted(_woerter(name))) in namen
+
+
 def zimmer_heute(lage, person: str, name: str, zimmer: str, von: date | None, bis: date | None, heute: date) -> str:
     """Kurzform für Listen: Zimmer-Kennung heute (nach Umzügen) – ``lage``: ``stand.lage``."""
     if not zimmer:

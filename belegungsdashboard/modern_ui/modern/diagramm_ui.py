@@ -87,11 +87,34 @@ def _geklickt(a, chart, args, details) -> None:
         bloecke = details(index) if details else [(kk.REIHE[n], {}, []) for n, _t in werte if n in kk.REIHE]
         gesehen = set()
         for schluessel, w, aktionen in bloecke:
+            if schluessel == "rechenweg":                       # 1.23
+                rechenweg_block(w.get("schritte") or [], w.get("titel", ""))
+                continue
             if schluessel in gesehen or schluessel not in kk.KATALOG:
                 continue
             gesehen.add(schluessel)
             block(schluessel, w, aktionen)
     a.panel(f"{stelle} · Werte und Berechnung", bauen)
+
+
+def rechenweg_block(schritte: list, titel: str = "") -> None:
+    """1.23: Rechenweg Schritt für Schritt – Formel, eingesetzte Zahlen, Zwischenwerte (Statistik)."""
+    if not schritte:
+        return
+    with ui.element("section").classes("m-fxk m-rw"):
+        with ui.element("div").classes("m-fxk-kopf"):
+            ui.html('<b class="m-fx-zeichen">ƒx</b>', sanitize=False)
+            ui.label("Rechenweg" + (f" · {titel}" if titel else "")).classes("m-name")
+        with ui.element("ol").classes("m-rw-liste"):
+            for s in schritte:
+                with ui.element("li"):
+                    ui.label(s.titel).classes("m-name")
+                    if s.formel:
+                        ui.label(s.formel).classes("m-zweite m-rw-formel")
+                    if s.rechnung:
+                        ui.label(s.rechnung).classes("m-rw-rechnung")
+                    for x in s.details:
+                        ui.label(x).classes("m-zweite m-rw-detail")
 
 
 def block(schluessel: str, werte: dict | None = None, aktionen: list | None = None) -> None:
@@ -128,6 +151,9 @@ def fx_kasten(eintraege: list) -> None:
             for schluessel, w, akt in eintraege:
                 if schluessel in kk.KATALOG:
                     block(schluessel, w, akt)
+        for schluessel, w, _akt in eintraege:          # 1.23: genauer Rechenweg (volle Breite)
+            if schluessel == "rechenweg":
+                rechenweg_block(w.get("schritte") or [], w.get("titel", ""))
 
 
 def zimmer_liste_panel(a, titel: str, zeilen: list[tuple[str, str, str]]) -> None:
@@ -168,6 +194,13 @@ CSS = r"""
 .m-chart.m-dg { cursor: pointer; }
 /* ƒx Berechnung */
 .m-fx { display: none; margin-top: 8px; }
+.m-rw { margin-top: 10px; }
+.m-rw-liste { margin: 6px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.m-rw-liste > li > * { white-space: normal; }
+.m-rw-formel { font-style: italic; }
+.m-rw-rechnung { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; background: var(--fl2, var(--fl));
+  border: 1px solid var(--rand); border-radius: 6px; padding: 6px 8px; margin: 4px 0; line-height: 1.5; }
+.m-rw-detail { padding-left: 2px; }
 .m-fx.offen { display: block; }
 .m-fx-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px; }
 .m-fxk { border: 1px solid var(--rand); border-radius: 8px; background: var(--fl); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
