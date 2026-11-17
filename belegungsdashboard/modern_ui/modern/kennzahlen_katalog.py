@@ -172,7 +172,7 @@ def werte_an(option: dict, index: int) -> list[tuple[str, str]]:
             roh = roh[-1] if roh else None
         stapel = se.get("stack")
         name = se.get("name") or ""
-        versteckt = (se.get("tooltip") or {}).get("show") is False or not name
+        versteckt = (se.get("tooltip") or {}).get("show") is False or not name or name.startswith("_")
         if stapel and versteckt:
             unten[stapel] = roh
             continue

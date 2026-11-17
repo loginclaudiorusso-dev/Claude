@@ -92,6 +92,23 @@ def _karten_stil(o: dict, c: dict) -> dict:
     stand = prog_ab = None
     if c["art"] == "trend" and c.get("status") and c.get("sm"):
         return o                                           # eigene Gestaltung (zwei Flächen), schon einheitlich
+    if c["art"] == "jahr" and c.get("vj_tage") is not None and c["vj_tage"].tage:
+        labels, si = jahr_achse(c["vj_tage"])
+        if si is not None and si + 1 < len(labels):
+            stand, prog_ab = labels[si], labels[si + 1]
+        o = diagramm_stil.einheitlich(o, _t(), stand, prog_ab)
+        for se in o["series"]:
+            if se.get("type") == "line":
+                se["connectNulls"] = True
+                if se.get("name") != "Aktuell (Prognose)":      # Linien enden vor dem Rand – sonst NaN-Position
+                    se.pop("endLabel", None)
+                else:                                          # Tageswerte: keine Punkte und Zahlen an jedem Tag
+                    se["showSymbol"] = False
+                    se["label"] = {**(se.get("label") or {}), "show": False}
+                if se.get("name") == "_tag":
+                    se.update({"symbol": "none", "showSymbol": False, "lineStyle": {"opacity": 0}, "label": {"show": False},
+                               "endLabel": {"show": False}})
+        return o
     if c["art"] == "jahr":
         vj = an.vorjahr(c.get("pg_lang") or c["pg"])
         labels = [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}" for m in vj.monate]
@@ -431,7 +448,8 @@ def blick_daten(pg, pg_lang, kap: int, stichtag):
     oben = {z.monat: z.hi80 for z in ak.szenario(pg, kap, 0) if z.art != "ist"}
     blick = bk.monate(vj.monate, vj.aktuell, vj.aktuell_ist, vj.vorjahr, stichtag, kap or None, pg.mae_1m,
                       [oben.get(m) for m in vj.monate])
-    alt = {i: [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}", ak.monat_text(m)] for i, m in enumerate(vj.monate)}
+    alt = {i: [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}", ak.monat_text(m), an.tag_text(m.replace(day=15))]
+           for i, m in enumerate(vj.monate)}
     return blick, alt
 
 
@@ -991,6 +1009,8 @@ def _reserve(o, t, c, zs, ort, zaehl, szen) -> dict:
 
 
 def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
+    if c.get("vj_tage") is not None and c["vj_tage"].tage:       # 1.22: tagesgenau, Prognose ab dem Stichtag
+        return _vorjahr_taeglich(o, t, c, ort, zaehl, szen)
     vj = an.vorjahr(c.get("pg_lang") or c["pg"])
     labels = [f"{ak.MONATE[m.month - 1]} {str(m.year)[2:]}" for m in vj.monate]
     o["xAxis"]["data"] = labels
@@ -1033,6 +1053,119 @@ def _vorjahr(o, t, c, ort, zaehl, szen) -> dict:
         " return `<b>${d.m}</b><br>${d.ist ? 'Ist' : 'Prognose'}: <b>${f1(d.a)}</b>"
         "${d.b ? '<br>80-%-Spanne: ' + f1(d.b[0]) + ' – ' + f1(d.b[1]) : ''}<br>Vorjahr (Ist): ${f1(d.v)}<br>"
         "Vorvorjahr (Ist): ${f1(d.vv)}<br><span style=\"opacity:.75\">Differenz zum Vorjahr: ${dl(d.a, d.v)}</span>`; }")
+    return o
+
+
+def jahr_achse(vt) -> tuple[list[str], int | None]:
+    """1.22: Beschriftungen der Tagesachse und Index des Stichtags (letzter Ist-Tag)."""
+    labels = [an.tag_text(d) for d in vt.tage]
+    si = max((i for i, d in enumerate(vt.tage) if d <= vt.stichtag and vt.ist[i] is not None), default=None)
+    return labels, si
+
+
+def _vorjahr_taeglich(o, t, c, ort, zaehl, szen) -> dict:
+    """1.22: Vorjahresvergleich je Tag. Ist bis zum Stichtag, danach Prognose – sie beginnt beim Ist-Wert des Stichtags
+    (Spanne 0) und läuft zu den Monatswerten der Prognose (80 % und 95 %). Vorjahr/Vorvorjahr am gleichen Wochentag."""
+    vt = c["vj_tage"]
+    vj = an.vorjahr(c.get("pg_lang") or c["pg"])
+    labels, si = jahr_achse(vt)
+    n = len(labels)
+    zs = ak.szenario(c["pg"], c["kap"], c["offset"])
+    pt = an.prognose_tage(vt, zs)
+    ersten = [i for i, d in enumerate(vt.tage) if d.day == 1]
+    monat_je_i = {i: f"{ak.MONATE[vt.tage[i].month - 1]} {str(vt.tage[i].year)[2:]}" for i in ersten}
+    o["xAxis"]["data"] = labels
+    o["xAxis"]["boundaryGap"] = False
+    o["xAxis"]["axisLabel"] = {**(o["xAxis"].get("axisLabel") or {}), ":interval": f"(i) => {json.dumps(ersten)}.includes(i)",
+                               ":formatter": f"(v, i) => ({json.dumps(monat_je_i)})[i] || ''", "hideOverlap": False}
+    o["xAxis"]["axisTick"] = {":interval": f"(i) => {json.dumps(ersten)}.includes(i)"}
+    stich = vt.stichtag
+    _titel(o, t, f"Vorjahresvergleich · {ort} · {zaehl}{szen}",
+           f"Belegte Plätze je Tag · Ist bis {stich:%d.%m.%Y}, danach Prognose · Vorjahr und Vorvorjahr am gleichen Wochentag")
+    r1 = lambda xs: [round(x, 1) if x is not None else None for x in xs]  # noqa: E731
+    ist = [round(v, 1) if v is not None and (si is None or i <= si) else None for i, v in enumerate(vt.ist)]
+    # Linien: Monatsmittel zur Monatsmitte (ruhig, vergleichbar); die Tageswerte stehen im Tooltip
+    idx = {d: i for i, d in enumerate(vt.tage)}
+    mitte = [idx.get(m.replace(day=15)) for m in vj.monate]
+    leer = lambda: [None] * n  # noqa: E731
+    l_vj, l_vvj, l_ist = leer(), leer(), leer()
+    for m, i_m, a_, ist_m, v_, vv_ in zip(vj.monate, mitte, vj.aktuell, vj.aktuell_ist, vj.vorjahr, vj.vorvorjahr):
+        if i_m is None:
+            continue
+        l_vj[i_m] = round(v_, 1) if v_ is not None else None
+        l_vvj[i_m] = round(vv_, 1) if vv_ is not None else None
+        if ist_m and a_ is not None and (si is None or i_m < si):
+            l_ist[i_m] = round(a_, 1)
+    if si is not None:
+        l_ist[si] = {"value": ist[si], "label": {"show": False}}   # Ist läuft bis zum Stichtag (Tageswert, Marke s. u.) …
+    # … dort beginnt die Prognose (Spanne 0); zwischen den Monatswerten linear – ruhig und ohne Lücken
+    l_prog, b = pt["erwartet"], {k: pt[k] for k in ("lo80", "hi80", "lo95", "hi95")}
+    breite = lambda lo, hi: [round(y - x, 1) if x is not None and y is not None else None for x, y in zip(lo, hi)]  # noqa: E731
+    linie = {"type": "line", "connectNulls": True, "symbolSize": 5, "m_fest": True}
+    reihen = []
+    if c.get("b95"):
+        reihen += [
+            {**linie, "name": "_u95", "rolle": "band95", "stack": "vj95", "data": b["lo95"], "symbol": "none", "silent": True,
+             "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
+            {**linie, "name": "95-%-Spanne", "rolle": "band95", "stack": "vj95", "data": breite(b["lo95"], b["hi95"]),
+             "symbol": "none", "silent": True, "lineStyle": {"opacity": 0}, "tooltip": {"show": False}}]
+    reihen += [
+        {**linie, "name": "_u80", "rolle": "band", "stack": "vj80", "data": b["lo80"], "symbol": "none", "silent": True,
+         "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
+        {**linie, "name": "80-%-Spanne", "rolle": "band", "stack": "vj80", "data": breite(b["lo80"], b["hi80"]), "symbol": "none",
+         "silent": True, "lineStyle": {"opacity": 0}, "areaStyle": {"color": _ds.band_flaeche(t)}, "tooltip": {"show": False}},
+        {**linie, "name": "Vorvorjahr (Ist)", "data": l_vvj, "symbol": "none", "color": t["text3"],
+         "lineStyle": {"color": t["text3"], "width": 1.2, "type": "dotted"}},
+        {**linie, "name": "Vorjahr (Ist)", "data": l_vj, "symbol": "circle", "color": VORJAHR_FARBE[not _ds.dunkel(t)],
+         "lineStyle": {"color": VORJAHR_FARBE[not _ds.dunkel(t)], "width": 2}},
+        {**linie, "name": "Aktuell (Ist)", "data": l_ist, "symbol": "circle", "color": t["text"], "lineStyle": {"color": t["text"], "width": 2.6}},
+        {**linie, "name": "Aktuell (Prognose)", "data": l_prog, "symbol": "none", "color": t["akzent"],
+         "lineStyle": {"color": t["akzent"], "width": 2.4, "type": [7, 5]}},
+        # unsichtbar, an jedem Tag: damit der Tooltip jeden Tag zeigt (Tageswerte stehen im Formatter)
+        {"type": "line", "name": "_tag", "rolle": "hilfe", "data": [ist[i] if ist[i] is not None else
+                                                                    (pt["erwartet"][i] if pt["erwartet"][i] is not None else vt.vorjahr[i])
+                                                                    for i in range(n)],
+         "symbol": "none", "showSymbol": False, "lineStyle": {"opacity": 0}, "silent": True, "m_fest": True, "z": 0},
+    ]
+    if si is not None:
+        reihen[-3]["markPoint"] = {"symbol": "circle", "symbolSize": 10, "silent": True,
+                                   "itemStyle": {"color": t["text"], "borderColor": "#fff", "borderWidth": 2},
+                                   "label": {"show": True, "position": "top", "distance": 8, "fontWeight": "bold", "fontSize": 13,
+                                             "color": t["text"], "formatter": f"{stich:%d.%m.}: {_z(ist[si])}"},
+                                   "data": [{"coord": [labels[si], ist[si]]}]}
+        if not c.get("karte"):                                  # Klassisch: Stichtag als senkrechte Linie
+            reihen[-3]["markLine"] = {"silent": True, "symbol": "none", "lineStyle": {"color": t["text2"], "type": [3, 3], "width": 1.2},
+                                      "label": {"formatter": f"Stichtag {stich:%d.%m.%Y}", "position": "end", "color": t["text2"]},
+                                      "data": [{"xAxis": labels[si]}]}
+    o["series"] = reihen
+    o["legend"]["data"] = [r["name"] for r in reihen if not r["name"].startswith("_")]
+    o["tooltip"]["valueFormatter"] = None
+    # Tooltip: der Tag (Ist oder Prognose mit Spannen), Vorjahr am gleichen Wochentag, dazu die Monatsmittel
+    mon = {}
+    for m, a_, i_, v_, vv_ in zip(vj.monate, vj.aktuell, vj.aktuell_ist, vj.vorjahr, vj.vorvorjahr):
+        mon[f"{m:%Y-%m}"] = {"n": f"{ak.MONATE[m.month - 1]} {m.year}", "a": a_, "ist": i_, "v": v_, "vv": vv_}
+    d = []
+    for i, tg in enumerate(vt.tage):
+        vd = tg - an.timedelta(days=an.VJ_TAGE)
+        d.append({"l": labels[i], "s": i == si, "i": ist[i], "p": pt["erwartet"][i] if (si is None or i > si) else None,
+                  "b8": [pt["lo80"][i], pt["hi80"][i]] if pt["lo80"][i] is not None and i != si else None,
+                  "b9": [pt["lo95"][i], pt["hi95"][i]] if c.get("b95") and pt["lo95"][i] is not None and i != si else None,
+                  "v": r1([vt.vorjahr[i]])[0], "vv": r1([vt.vorvorjahr[i]])[0], "vd": an.tag_text(vd), "m": f"{tg:%Y-%m}"})
+    o["tooltip"][":formatter"] = (
+        "(ps) => { const D = " + json.dumps(d) + "; const M = " + json.dumps(mon) + ";"
+        " const d = ps && ps.length ? D[ps[0].dataIndex] : null; if (!d) return '';"
+        " const f0 = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
+        " const f1 = v => v == null ? '–' : Number(v).toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 1});"
+        " let h = `<b>${d.l}</b>` + (d.s ? ' <span style=\"opacity:.7\">· Stichtag</span>' : '');"
+        " if (d.i != null) h += `<br>Belegt (Ist): <b>${f0(d.i)}</b>`;"
+        " else if (d.p != null) h += `<br>Prognose: <b>${f0(d.p)}</b>`"
+        "   + (d.b8 ? `<br>80-%-Spanne: ${f0(d.b8[0])} – ${f0(d.b8[1])}` : '') + (d.b9 ? `<br>95-%-Spanne: ${f0(d.b9[0])} – ${f0(d.b9[1])}` : '');"
+        " h += `<br>Vorjahr (${d.vd}): ${f0(d.v)}`; if (d.vv != null) h += `<br>Vorvorjahr: ${f0(d.vv)}`;"
+        " const a = d.i != null ? d.i : d.p;"
+        " if (a != null && d.v != null) h += `<br><span style=\"opacity:.75\">Differenz zum Vorjahr: ${a - d.v >= 0 ? '+' : '−'}${f0(Math.abs(a - d.v))}</span>`;"
+        " const m = M[d.m]; if (m) h += `<div style=\"opacity:.75;margin-top:6px\">Monat ${m.n} · Ø ${m.ist ? 'Ist' : 'erwartet'} ${f1(m.a)}`"
+        "   + ` · Vorjahr ${f1(m.v)}</div>`;"
+        " return h; }")
     return o
 
 
@@ -1153,6 +1286,11 @@ def _daten_rechnen(ds, stand, standort: str, brutto: bool, horizont: int, uwt: b
     d = {"pg": pg, "pg_lang": voll, "stichtag": ds.stichtag, "ds": ds, "gruppen": g,
          "gruppen_da": standort in an.GRUPPEN_STANDORTE,
          "sv": an.standort_vergleich(ds, brutto, horizont, gruppen_fn=gruppen_fuer)}
+    if voll:                                # 1.22: Tageswerte für den Vorjahresvergleich
+        try:
+            d["vj_tage"] = an.vorjahr_tage(ds, standort, brutto, an.vorjahr(voll).monate, g)
+        except Exception:                   # noqa: BLE001 – dann Monatswerte wie bisher
+            d["vj_tage"] = None
     if pg and g:                            # immer: „Nach Status“ schaltet ohne Neuladen um
         d["sm"] = an.status_monate(pg, g)
     if pg and g and standort == GOSLAR:
@@ -1211,6 +1349,7 @@ def zeichnen(a) -> None:
                             "backtest": a.aw_backtest,    # 0.97: in jeder Darstellung, wenn eingeschaltet (Karte: dazu „Probe“)
                             "schritt": a.aw_schritt if praes and a.aw_chart == "trend" and not a.aw_status and not par() else 4, "animation": anim,
                             "pg_lang": a.daten.get("pg_lang"), "stichtag": a.daten["stichtag"],
+                            "vj_tage": a.daten.get("vj_tage"),
                             "status": a.aw_status, "sm": a.daten.get("sm"), "kontingent": kontingent() if a.aw_uwt and a.aw_mieter else None,
                             "gruppen_text": a.daten["gruppen"].text() if a.daten.get("gruppen") else "",
                             "karte": not klassisch, **ueber}
@@ -1501,8 +1640,15 @@ def zeichnen(a) -> None:
                     vj_monate = an.vorjahr(c().get("pg_lang") or pg_).monate
                     zs_ = ak.szenario(pg_, kap_, 0)
 
+                    vt_ = a.daten.get("vj_tage")
+
                     def details(i: int):
-                        if a.aw_chart == "jahr":                 # Vorjahresvergleich: andere Monatsachse
+                        if a.aw_chart == "jahr" and vt_ is not None and vt_.tage:     # 1.22: Tag → sein Monat
+                            if not 0 <= i < len(vt_.tage):
+                                return []
+                            m_ = vt_.tage[i].replace(day=1)
+                            i = next((j for j, z in enumerate(zs_) if z.monat == m_), -1)
+                        elif a.aw_chart == "jahr":               # Vorjahresvergleich: andere Monatsachse
                             if not 0 <= i < len(vj_monate):
                                 return []
                             i = next((j for j, z in enumerate(zs_) if z.monat == vj_monate[i]), -1)
@@ -1748,7 +1894,7 @@ def _legende_text(art: str, szenario: bool = False) -> str:
                 "<span>Unter der Nulllinie: rechnerisch mehr Belegung als Plätze</span>")
     return ("<span><i class='l ist'></i>aktuell Ist</span><span><i class='l prog'></i>aktuell Prognose</span>"
             "<span><i class='l vj'></i>Vorjahr</span><span><i class='l vvj'></i>Vorvorjahr</span>"
-            "<span>Lücken = keine Daten für diesen Monat</span>")
+            "<span>Je Tag · Vorjahr am gleichen Wochentag · Prognose ab dem Stichtag · Lücken = keine Daten</span>")
 
 
 def _js_segmente(optionen: dict, aktiv, art: str) -> None:

@@ -339,6 +339,91 @@ def vorjahr(pg: ak.Prognose, zurueck: int = 6, vor: int = 6) -> Vorjahr:
                    [ist.get(_monat_minus(m, 24)) for m in monate])
 
 
+WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+VJ_TAGE = 364                          # Vorjahr am gleichen Wochentag (52 Wochen) – wie die Kachel „Aktuelle Belegung“
+
+
+def tag_text(d: date) -> str:
+    return f"{WOCHENTAGE[d.weekday()]} {d:%d.%m.%Y}"
+
+
+@dataclass
+class VjTage:
+    """1.22: Tageswerte für den Vorjahresvergleich – Ist bis zum Stichtag, Vorjahr/Vorvorjahr am gleichen Wochentag."""
+    tage: list[date]
+    ist: list[float | None]
+    vorjahr: list[float | None]
+    vorvorjahr: list[float | None]
+    stichtag: date
+
+
+def vorjahr_tage(ds, standort: str, brutto: bool, monate: list[date], g: "Gruppen | None" = None) -> VjTage | None:
+    """Belegte Plätze je Tag im Zeitraum ``monate`` (nur echte Ist-Werte; danach None) – mit derselben
+    UWT/Mieter-Korrektur wie die Monatswerte."""
+    import pandas as pd
+
+    if not monate:
+        return None
+    von = monate[0]
+    bis = (pd.Timestamp(monate[-1]) + pd.offsets.MonthEnd(0)).date()
+    tage = [von + timedelta(days=i) for i in range((bis - von).days + 1)]
+    stich = ds.stichtag
+    try:
+        erster = ds.erster_tag
+    except Exception:                                    # noqa: BLE001
+        erster = von - timedelta(days=3 * VJ_TAGE)
+
+    def korr(t: date) -> float:
+        return float((g.tag(t) or {}).get("delta", 0.0)) if g else 0.0
+
+    def reihe(versatz: int) -> list[float | None]:
+        a = max(von - timedelta(days=versatz), erster)
+        b = min(bis - timedelta(days=versatz), stich)
+        if a > b:
+            return [None] * len(tage)
+        try:
+            df = ds.verlauf(standort, a, b, brutto)
+        except Exception:                                # noqa: BLE001 – ohne Tageswerte bleibt die Lücke
+            return [None] * len(tage)
+        werte: dict[date, float] = {}
+        for ts, wert, ist in zip(df.index, df["wert"], df["ist"] if "ist" in df else [True] * len(df)):
+            t = ts.date() if hasattr(ts, "date") else ts
+            if bool(ist) and wert == wert:               # NaN überspringen
+                werte[t] = float(wert) + korr(t)
+        return [werte.get(t - timedelta(days=versatz)) for t in tage]
+
+    return VjTage(tage, reihe(0), reihe(VJ_TAGE), reihe(2 * VJ_TAGE), stich)
+
+
+def prognose_tage(vt: VjTage, zs: list) -> dict[str, list[float | None]]:
+    """Tagesprognose ab dem Stichtag: Stützstellen sind der Ist-Wert am Stichtag (Spanne 0) und die Monatsmitten der
+    vollen Prognosemonate (erwartet, 80 %, 95 %), dazwischen linear. Vor dem Stichtag None."""
+    import numpy as np
+
+    n = len(vt.tage)
+    leer = {k: [None] * n for k in ("erwartet", "lo80", "hi80", "lo95", "hi95")}
+    si = max((i for i, d in enumerate(vt.tage) if d <= vt.stichtag and vt.ist[i] is not None), default=None)
+    if si is None:
+        return leer
+    s0 = vt.ist[si]
+    anker = [(vt.tage[si], s0, s0, s0, s0, s0)]
+    for z in zs:
+        if z.art != "prognose":
+            continue
+        mitte = z.monat + timedelta(days=14)
+        if mitte > anker[-1][0]:
+            anker.append((mitte, z.erwartet, z.lo80, z.hi80, z.lo95, z.hi95))
+    if len(anker) < 2:
+        return leer
+    xs = np.array([a[0].toordinal() for a in anker], dtype=float)
+    spalten = [np.array([a[k] for a in anker], dtype=float) for k in range(1, 6)]
+    for i in range(si, n):
+        x = float(vt.tage[i].toordinal())
+        for k, sp in zip(("erwartet", "lo80", "hi80", "lo95", "hi95"), spalten):
+            leer[k][i] = round(float(np.interp(x, xs, sp)), 1)
+    return leer
+
+
 # ---------------------------------------------------------------------------------------
 # Export: kompakte Executive Summary (Druckansicht / PDF)
 # ---------------------------------------------------------------------------------------
