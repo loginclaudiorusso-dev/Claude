@@ -290,7 +290,7 @@ def _planung(a, d, art: str) -> None:
                  "Leitung.").classes("m-zweite").style("white-space:normal")
     from . import diagramm_ui
 
-    diagramm_ui.fx_kasten([("planwert", {}, []), ("sicher", {}, [])])
+    diagramm_ui.fx_kasten([("planwert", {}, []), ("sicher", {}, []), _rechenweg(d, art, k)])
     _fx_knopf()
 
 
@@ -356,7 +356,7 @@ def _leitung(a, d, art: str) -> None:
     from . import diagramm_ui
 
     diagramm_ui.fx_kasten([("planwert", {}, []), ("sicher", {}, []), ("abgangsquote", {}, []),
-                           ("uebergangsquote", {}, []), ("rueckblick", {}, [])])
+                           ("uebergangsquote", {}, []), ("rueckblick", {}, []), _rechenweg(d, art, 6)])
     _fx_knopf()
 
 
@@ -375,6 +375,22 @@ def _diagnose(erg, art: str) -> None:
             with ui.element("div").classes("m-zeile-flex"):
                 ui.label(t).classes("m-zweite")
                 ui.label(str(w)).classes("m-name").style("margin-left:auto")
+
+
+def _rechenweg(d, art: str, k: int) -> tuple:
+    """1.25: genauer Rechenweg der Simulation für den Monat ``k`` (Szenario „normal“)."""
+    from . import teilnehmer_rechenweg_kern as tr
+
+    erg = d["erg"]
+    e: bp.Ergebnis = erg["szenarien"]["basis"]
+    try:
+        faktor = float(((d.get("szen") or {}).get("basis") or {}).get("faktor") or 0)
+        schritte = tr.rechenweg(erg["modell"], e, art, k, faktor)
+    except Exception:                                   # noqa: BLE001 – der Rechenweg ist Zusatz
+        schritte = []
+    titel = f"{'Alle Maßnahmen' if art in (None, '', 'Alle') else bp.kurzname(art)} · {_m(e.monate[k])}" \
+        if 0 <= k < len(e.monate) else ""
+    return ("rechenweg", {"schritte": schritte, "titel": titel}, [])
 
 
 def _fx_knopf() -> None:
