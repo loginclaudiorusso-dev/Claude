@@ -12,7 +12,7 @@ from pathlib import Path
 from belegung import anreiseliste, einheitsliste, importe, laden, speicher, uwt
 from belegung import zimmerplan as zp
 
-from .kern import _schritt
+from .kern import _schritt, unter_sperre
 from .standort_kern import aktiv as standort, im_haupt
 
 
@@ -383,6 +383,7 @@ def gebaeudeplan_ablegen(pfad: Path, name: str) -> dict:
     return {"pfad": ziel.name, "geaendert": int(ziel.stat().st_mtime)}
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def zkl_importieren(pfad: Path) -> str:
     from belegung import zkl
 
@@ -399,6 +400,7 @@ def zkl_abgleich(alle: bool = False):
     return zkl.abgleich(stand, daten, alle=alle) if daten else []
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def zkl_umsetzen(gewaehlt_schluessel: set[str], alle: bool = False) -> str:
     from belegung import zkl
 

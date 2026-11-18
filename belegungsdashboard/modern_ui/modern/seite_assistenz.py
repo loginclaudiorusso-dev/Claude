@@ -11,7 +11,7 @@ from belegung import anreiseliste, assistenz, mails
 from belegung import termine as tm
 from belegung import zimmerplan as zp
 
-from .kern import _schritt
+from .kern import _schritt, unter_sperre
 from .ui_bausteine import attr, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
@@ -143,6 +143,7 @@ async def _rueck(a, eid: str) -> None:
 # Mails
 # =======================================================================================
 
+@unter_sperre                                  # 1.26: Stand erst in der Sperre laden (sonst Speichern auf altem Stand)
 def _mail_umsetzen(e, schritte, betreff, text, absender, treffer) -> str:
     stand = zp.laden()
     x = _schritt(f"Mail umgesetzt: {e.name or mails.ARTEN.get(e.art, e.art)}",
@@ -303,6 +304,7 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
             knopf("Verwerfen", lambda: ablegen("verworfen"), "leise")
 
 
+@unter_sperre                                  # 1.26: wie _mail_umsetzen
 def _buchungen_umsetzen(liste, schritte, betreff, text, absender) -> str:
     """1.09: alle Buchungen einer Mail in EINEM Schritt (Rückgängig nimmt alles zurück); je Buchung ein Posteingang."""
     from . import mail_kern

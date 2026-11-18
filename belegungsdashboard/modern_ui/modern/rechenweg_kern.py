@@ -83,7 +83,8 @@ def _reihe(ds, standort: str) -> _Reihe:
 
 def _horizont(r: _Reihe, monat: date, stichtag: date) -> tuple[int, int]:
     """(k = Index ab dem Stichtagsmonat, H = Monate nach dem letzten abgeschlossenen Monat)."""
-    erster = date(stichtag.year, stichtag.month, 1)
+    nach = stichtag.toordinal() + 1                     # 1.26: erster Prognosemonat = Monat nach dem Stichtag
+    erster = date.fromordinal(nach).replace(day=1)
     k = (monat.year - erster.year) * 12 + monat.month - erster.month
     versatz = 0 if (not r.monate or r.monate[-1] < erster) else 1
     return k, k + 1 + versatz
@@ -275,7 +276,7 @@ def _gesamt(ds, monat: date, vertraege: float, angezeigt: dict | None) -> list[S
         for g in gemeinsam:
             summe.setdefault(g[1], []).append(sum(m[g] for m in je_monat))
         band = P._band(summe)
-        erster = date(ds.stichtag.year, ds.stichtag.month, 1)
+        erster = date.fromordinal(ds.stichtag.toordinal() + 1).replace(day=1)       # 1.26: wie die Prognose
         H = (monat.year - erster.year) * 12 + monat.month - erster.month + 1
         B80 = band.breite(H)
         unab = float(np.sqrt(sum(b * b for b in b80s)))

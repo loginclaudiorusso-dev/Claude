@@ -38,7 +38,8 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
             if (x := strittig.get(t.person)) is not None and t.zimmer_id == x.geplant:
                 zusatz = f"⚠ strittig – Gebäudeplan: {kurz(x.gebucht)} · " + zusatz
             if t.zimmer_id:
-                erg.append((t.name, zusatz, "zimmer", {"karte": t.zimmer_id}))
+                erg.append((t.name, zusatz, "zimmer", {"karte": t.zimmer_id}
+                            | ({"sym": "meeting_room"} if getattr(t, "frei", False) else {})))
             else:
                 erg.append((t.name, zusatz, "anreisen", {"kennung": t.von.isoformat()}))
         from . import historie_kern as hk
@@ -53,6 +54,11 @@ def treffer(text: str, stand, heute: date) -> list[tuple[str, str, str, dict]]:
                 erg.append((h.name, " · ".join(x for x in (f"früher in {h.kurz}", h.massnahme, h.zeitraum) if x),
                             "zimmer", {"karte": h.zimmer}))
     return erg
+
+
+def symbol(ziel: dict) -> str:
+    """1.26: Freies Zimmer mit Zimmersymbol, Personen mit Personensymbol."""
+    return (ziel or {}).get("sym") or "person"
 
 
 def befehle(a, text: str) -> list[tuple[str, str, str, tuple]]:
@@ -153,7 +159,7 @@ def oeffnen(a) -> None:
             auswahl["text"] = text.strip()
             erg = [("befehl", t, z, i, ziel) for t, z, i, ziel in befehle(a, text)]
             leute = await run.io_bound(treffer, text, a.stand, a.heute) if len(text.strip()) >= 2 else []
-            erg += [("treffer", t, z, "person", ("seite", s, None, st))
+            erg += [("treffer", t, z, symbol(st), ("seite", s, None, st))
                     for t, z, s, st in leute if z != "Seite"][:12]            # Seiten stehen schon als Befehle oben
             mehrwortig = len(auswahl["text"].split()) >= 2
             if (auswahl["text"] and len(auswahl["text"]) >= 6 and not any(e[4][0] == "frage" for e in erg)

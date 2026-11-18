@@ -22,6 +22,8 @@ from pathlib import Path
 
 from belegung import zimmerplan as zp
 
+from .kern import unter_sperre
+
 TOLERANZ = timedelta(days=3)
 _ZIMMER = re.compile(r"(\d(?:\.\d)?)\s*-\s*([A-Za-z]?\d{2,4})")
 
@@ -166,6 +168,7 @@ def vergleichen(stand: zp.Planstand, eintraege: list[Eintrag]) -> list[Punkt]:
                                       p.e.anreise, p.e.name))
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def uebernehmen(punkte: list[Punkt]) -> str:
     """Eigene Planung auf das Schlüssel-Zimmer setzen – „fest“ und mit Vorrang vor dem Gebäudeplan. Ein Schritt."""
     from belegung import protokoll, speicher

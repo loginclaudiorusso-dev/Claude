@@ -10,6 +10,10 @@ from datetime import date, timedelta
 
 from belegung import konfig, speicher
 
+from . import prognose_fix_kern as _prognose_fix
+
+_prognose_fix.installieren()                   # 1.26: vor jedem Laden einer Prognose
+
 MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
 STANDORTE = {konfig.GESAMT: konfig.STANDORT_LABEL[konfig.GESAMT],
              **{s: konfig.STANDORT_LABEL[s] for s in konfig.STANDORTE}}

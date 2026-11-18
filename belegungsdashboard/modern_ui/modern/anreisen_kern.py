@@ -12,7 +12,7 @@ from belegung import umzug as um
 from belegung import zimmerplan as zp
 
 from . import suche_kern
-from .kern import GRUPPE_KURZ, WT, _schritt, kurz
+from .kern import GRUPPE_KURZ, WT, _schritt, kurz, unter_sperre
 
 ZEITRAEUME = {"heute": "Heute", "morgen": "Morgen", "woche": "Diese Woche", "naechste": "Nächste Woche"}
 
@@ -82,6 +82,7 @@ def eintragen_liste(stand: zp.Planstand, heute: date, tage: int = 14) -> list[EZ
             for z in eintragen.offen(stand.lage, heute, heute + timedelta(days=tage))]
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def eintragen_setzen(schluessel: list[str], an: bool, heute: date, tage: int = 14) -> str:
     stand = zp.laden()
     zs = [z for z in eintragen.offen(stand.lage, heute, heute + timedelta(days=tage)) if z.schluessel in set(schluessel)]
@@ -117,6 +118,7 @@ def anreise_druck(stand: zp.Planstand, kennung: str, art: str, titel: str) -> st
     return drucklisten.zimmerschilder_html(schilder) if art == "schilder" else drucklisten.schluesselliste_html(schilder, kopf)
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def anreise_zuruecknehmen(kennung: str) -> str:
     stand = zp.laden()
     personen = {b.schluessel for b in stand.bedarf if b.von.isoformat() == kennung and stand.zugewiesen(b.schluessel)}
@@ -135,6 +137,7 @@ def uwt_zuteilen(heute: date) -> str:
     return f"{len(erg)} UWT-Teilnehmende automatisch zugeteilt"
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def uwt_zuruecknehmen(heute: date) -> str:
     stand = zp.laden()
     personen = {b.schluessel for b in stand.bedarf if b.gruppe == "UWT" and b.von >= heute and stand.zugewiesen(b.schluessel)}
@@ -164,15 +167,31 @@ def optimieren_vorschlaege(heute: date):
     return [v for v in optimierung.vorschlaege(stand, heute) if not holt_weg(v)]
 
 
+def _vorschlag_schluessel(v) -> tuple:
+    return (v.art, tuple(v.personen), tuple(v.von_zimmer), tuple(v.nach_zimmer))
+
+
+@unter_sperre
 def optimieren_umsetzen(auswahl: list, heute: date) -> str:
+    """1.26: Laden, Prüfen und Speichern unter EINER Sperre – und jeder gewählte Vorschlag wird auf dem frischen Stand
+    neu gerechnet: nur, was dort noch genauso vorgeschlagen wird, wird umgesetzt (sonst übersprungen und gemeldet).
+    Vorher wurden Vorschläge gespeichert, die vielleicht vor Minuten auf einem anderen Stand berechnet waren."""
     from belegung import optimierung
 
     stand = zp.laden()
-    erg = _schritt("Optimierung", lambda: optimierung.umsetzen(stand, auswahl, heute), [tm.DATEI, um.DATEI])
+    frisch = {_vorschlag_schluessel(v): v for v in optimierung.vorschlaege(stand, heute)}
+    gueltig = [frisch[k] for k in (_vorschlag_schluessel(v) for v in auswahl) if k in frisch]
+    veraltet = len(auswahl) - len(gueltig)
+    erg = (_schritt("Optimierung", lambda: optimierung.umsetzen(stand, gueltig, heute), [tm.DATEI, um.DATEI])
+           if gueltig else (0, 0, 0))
     geaendert, aufgaben, tausche = erg
     teile = [f"{geaendert} Planungen geändert"] * bool(geaendert) + [f"{tausche} Tausche"] * bool(tausche) + \
         [f"{aufgaben} Aufgaben fürs Belegungssystem"] * bool(aufgaben)
-    return ", ".join(teile) or "Nichts geändert"
+    text = ", ".join(teile) or "Nichts geändert"
+    if veraltet:
+        text += (f" – {veraltet} Vorschlag/Vorschläge übersprungen: Der Stand hat sich inzwischen geändert (z. B. an "
+                 "einem anderen PC). Bitte die Vorschläge neu ansehen.")
+    return text
 
 
 # ---- Personen ---------------------------------------------------------------------------

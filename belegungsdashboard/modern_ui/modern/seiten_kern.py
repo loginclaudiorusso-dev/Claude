@@ -11,7 +11,7 @@ from belegung import speicher
 from belegung import reinigungsliste as rl
 from belegung import zimmerplan as zp
 
-from .kern import WT, _schritt, kurz, problemfaelle
+from .kern import WT, _schritt, kurz, problemfaelle, unter_sperre
 
 
 def tag_kurz(d: date) -> str:
@@ -202,6 +202,7 @@ def reinigung_zaehlen(zs: list[RZeile]) -> dict[str, int]:
             "erledigt": sum(1 for z in zs if z.erledigt)}
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def reinigung_setzen(schluessel: list[str], an: bool, von: date, bis: date) -> str:
     stand = zp.laden()
     rs = [r for r in _reinigungen(stand, von, bis) if rl.schluessel(r) in set(schluessel)]
@@ -214,6 +215,7 @@ def reinigung_setzen(schluessel: list[str], an: bool, von: date, bis: date) -> s
     return titel
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def reinigung_hinzu(zimmer_kurz: str, tag: date, grund: str) -> str:
     stand = zp.laden()
     z = next((z for z in stand.zimmer if z.kurz == zimmer_kurz.strip() or z.id == zimmer_kurz.strip()), None)

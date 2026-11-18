@@ -14,7 +14,7 @@ from pathlib import Path
 from nicegui import run, ui
 
 from . import seiten_kern as sk
-from .kern import kurz
+from .kern import kurz, unter_sperre
 from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
@@ -331,6 +331,7 @@ RG_SPALTEN = ("36px 70px minmax(80px, .8fr) 120px minmax(90px, 1fr) minmax(100px
               "minmax(100px, 1.2fr) 140px 36px")
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def facility_setzen(schluessel: str, an: bool) -> str:
     from belegung import eintragen
     from belegung import zimmerplan as zp
@@ -602,9 +603,29 @@ async def _rg_drucken(a) -> None:
     html_drucken(a, text, f"Reinigungsliste_{a.rg_von:%Y-%m-%d}")
 
 
+DRUCK_STUNDEN = 24
+
+
+def druck_ordner(jetzt: float | None = None) -> Path:
+    """1.26: Druckansichten in einem eigenen Unterordner von %TEMP% – Dateien älter als 24 Stunden werden dabei
+    gelöscht (sie enthalten Namen und gehören nicht dauerhaft auf den PC)."""
+    import time
+
+    ordner = Path(tempfile.gettempdir()) / "INNternat_Druck"
+    ordner.mkdir(parents=True, exist_ok=True)
+    grenze = (time.time() if jetzt is None else jetzt) - DRUCK_STUNDEN * 3600
+    for f in ordner.glob("*.html"):
+        try:
+            if f.stat().st_mtime < grenze:
+                f.unlink()
+        except OSError:
+            pass
+    return ordner
+
+
 def html_drucken(a, text: str, name: str) -> None:
     """Druckansicht im Standardbrowser öffnen (dort drucken oder als PDF speichern)."""
-    pfad = Path(tempfile.gettempdir()) / f"{name}.html"
+    pfad = druck_ordner() / f"{name}.html"
     if "</body>" in text:
         text = text.replace("</body>", "<script>window.print()</script></body>")
     else:
@@ -1213,7 +1234,7 @@ def _wochenblatt_panel(a) -> None:
 
             html = await run.io_bound(sk.wochenblatt, _d.fromisoformat(woche.value), bool(namen.value))
             mo = _d.fromisoformat(woche.value)
-            html_drucken(a, html, f"Wochenblatt_KW{mo.isocalendar()[1]}_{mo:%Y}")
+            html_drucken(a, html, f"Wochenblatt_KW{mo.isocalendar()[1]:02d}_{mo.isocalendar()[0]}")
 
         with ui.element("div").classes("m-paktionen"):
             knopf("Drucken / PDF", drucken, "primaer", "print")

@@ -34,8 +34,13 @@ if netz_kern.netzbetrieb():                       # .pyc nicht in den Netzwerkor
     sys.pycache_prefix = sys.pycache_prefix or str(LOKAL / "pycache")
 os.environ.setdefault("NICEGUI_STORAGE_PATH", str(LOKAL / "nicegui"))
 
-logging.basicConfig(filename=PROTOKOLL, level=logging.INFO, encoding="utf-8",
-                    format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+from logging.handlers import RotatingFileHandler  # noqa: E402
+
+try:                                              # 1.26: Protokoll rotieren (5 × 2 MB statt endlos wachsen)
+    _handler = [RotatingFileHandler(PROTOKOLL, maxBytes=2_000_000, backupCount=5, encoding="utf-8")]
+except OSError:
+    _handler = [logging.StreamHandler()]
+logging.basicConfig(handlers=_handler, level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 if sys.stdout is None or sys.stderr is None:      # pythonw.exe (ohne Konsole): Ausgaben ins Protokoll statt ins Leere
     _log = open(PROTOKOLL, "a", encoding="utf-8", buffering=1)  # noqa: SIM115
     sys.stdout = sys.stdout or _log

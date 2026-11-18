@@ -218,6 +218,12 @@ def eigene_sperre() -> bool:
     return (sperre_info() or {}).get("token") == _TOKEN
 
 
+def sperre_verloren() -> bool:
+    """1.26 (Fencing): Wir halten die Sperre laut Zähler, die Datei gehört aber nicht (mehr) uns – ein anderer PC hat
+    sie als „verwaist“ übernommen (z. B. weil dieser PC lange hing). Dann darf nicht mehr gespeichert werden."""
+    return _tiefe["n"] > 0 and not eigene_sperre()
+
+
 def sperre_info() -> dict | None:
     try:
         return json.loads(_sperre_pfad().read_text(encoding="utf-8"))
@@ -253,18 +259,22 @@ def _uebernehmen(p: Path, alt: float) -> bool:
     except OSError:
         return False                                   # schon von einem anderen PC übernommen
     try:
-        if _alter(weg) <= alt:                         # versehentlich eine lebende Sperre gegriffen → zurück
-            try:
-                os.rename(weg, p)
-            except OSError:
-                log.warning("Sperre konnte nicht zurückgelegt werden (anderer PC war schneller)")
-            return False
-        log.warning("Verwaiste Schreibsperre übernommen: %s", weg.read_text(encoding="utf-8", errors="replace")[:200])
-    finally:
+        lebend = _alter(weg) <= alt
+    except OSError:
+        lebend = True                                  # im Zweifel: nicht übernehmen
+    if lebend:                                         # versehentlich eine lebende Sperre gegriffen → zurück
         try:
-            weg.unlink(missing_ok=True)
+            os.rename(weg, p)
         except OSError:
-            pass
+            # 1.26: NICHT löschen – die Datei ist eine lebende Sperre. Liegen lassen; der Besitzer merkt beim
+            # Speichern (Fencing in kern._schritt), dass seine Sperre nicht mehr am Platz ist.
+            log.warning("Sperre konnte nicht zurückgelegt werden (anderer PC war schneller) – liegt als %s", weg.name)
+        return False
+    log.warning("Verwaiste Schreibsperre übernommen: %s", weg.read_text(encoding="utf-8", errors="replace")[:200])
+    try:
+        weg.unlink(missing_ok=True)                    # nur nach erfolgreicher Übernahme
+    except OSError:
+        pass
     return True
 
 

@@ -293,15 +293,22 @@ def kennzahlen(stand: zp.Planstand, tag: date) -> dict[str, int]:
 # Ändern – jeder Aufruf ist ein Schritt, den „Rückgängig“ zurücknimmt
 # ---------------------------------------------------------------------------------------
 
+VERLOREN = "Ein anderer PC hat inzwischen gespeichert – bitte neu laden und den Schritt wiederholen."
+
+
 def _schritt(titel: str, aktion: Callable[[], object], dateien: list[str] | None = None) -> object:
     """Alles oder nichts: bei einem Fehler wird der Stand davor zurückgeschrieben und der Fehler weitergereicht."""
     from . import netz_kern
 
     namen = aenderungen._dateien() + [n for n in (dateien or []) if n not in aenderungen._dateien()]
     with netz_kern.sperre():                  # 0.54: nie zwei PCs gleichzeitig (Netzwerkordner)
+        if netz_kern.sperre_verloren():
+            raise netz_kern.Besetzt(VERLOREN)
         vorher = aenderungen.schnappschuss(namen)
         try:
             erg = aktion()
+            if netz_kern.sperre_verloren():   # 1.26 Fencing: Sperre währenddessen an einen anderen PC verloren
+                raise netz_kern.Besetzt(VERLOREN)
         except Exception:
             for name, inhalt in vorher.items():
                 if aenderungen.schnappschuss([name])[name] != inhalt:
@@ -352,6 +359,22 @@ def strittig_text(s: Strittig) -> str:
             "dem Gebäudeplan“).")
 
 
+def unter_sperre(fn):
+    """0.90: Lesen, Prüfen UND Speichern unter derselben Schreibsperre. Sonst prüft PC A auf einem Stand, den PC B
+    gerade ändert (A wartet bis zu 15 s auf die Sperre und schreibt dann auf altem Stand → Doppelbelegung)."""
+    import functools
+
+    @functools.wraps(fn)
+    def mit(*args, **kwargs):
+        from . import netz_kern
+
+        with netz_kern.sperre():
+            return fn(*args, **kwargs)
+    mit.unter_sperre = True
+    return mit
+
+
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def strittig_klaeren(person: str, wahl: str) -> str:
     """``wahl``: „plan“ = Gebäudeplan stimmt (eigene Zuweisung auf dessen Zimmer setzen) | „planung“ = unsere Planung
     stimmt (gilt dann auch gegen den Gebäudeplan; das Zimmer im Gebäudeplan wird frei). Ein Rückgängig-Schritt."""
@@ -395,19 +418,6 @@ def _zuteilung(stand: zp.Planstand, schluessel: str, zimmer: str) -> zp.Zuteilun
     return zp.Zuteilung(b, stand.lage.zimmer[zimmer])
 
 
-def unter_sperre(fn):
-    """0.90: Lesen, Prüfen UND Speichern unter derselben Schreibsperre. Sonst prüft PC A auf einem Stand, den PC B
-    gerade ändert (A wartet bis zu 15 s auf die Sperre und schreibt dann auf altem Stand → Doppelbelegung)."""
-    import functools
-
-    @functools.wraps(fn)
-    def mit(*args, **kwargs):
-        from . import netz_kern
-
-        with netz_kern.sperre():
-            return fn(*args, **kwargs)
-    mit.unter_sperre = True
-    return mit
 
 
 @unter_sperre
@@ -659,6 +669,7 @@ def konflikte_loesen(heute: date | None = None) -> str:
     return ausweich_uebernehmen(fs, heute)
 
 
+@unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
 def reinigung_erledigt(dringend: bool, heute: date | None = None) -> str:
     from belegung import cockpit
 
@@ -1161,3 +1172,7 @@ _nichtanreise.nichtanreise_installieren()          # 0.90: Nichtanreise überste
 from . import dz_einzeln_kern as _dz_einzeln  # noqa: E402
 
 _dz_einzeln.installieren()                         # 1.21: Doppelzimmer je Anreise einzeln vergeben (DZ-Liste falsch)
+
+from . import prognose_fix_kern as _prognose_fix  # noqa: E402
+
+_prognose_fix.installieren()                       # 1.26: Prognose am Monatsletzten nicht um 2 Monate verschoben

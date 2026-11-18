@@ -618,8 +618,8 @@ def _frei_saeulen(a, t: Tag) -> None:
     hoch = max([w[2] for w in wochen] + [1])
     with ui.element("section").classes("m-hz-karte"):
         with ui.element("div").classes("m-hz-ab"):
-            ui.label("Freie Zimmer nach Planung").classes("m-hz-ktitel")
-            l_ = ui.label("12 Wochen").classes("m-link")
+            ui.label(f"Freie Zimmer nach Planung – nächste {len(wochen)} Wochen").classes("m-hz-ktitel")
+            l_ = ui.label("alle 12 Wochen").classes("m-link")
             l_.on("click", lambda: a.oeffnen("auswertung", ansicht="zimmer"))
         with ui.element("div").classes("m-hz-kopf"):
             ui.label(str(tief[2])).classes("m-hz-gross " + STUFE.get(tief[5], "ok"))
