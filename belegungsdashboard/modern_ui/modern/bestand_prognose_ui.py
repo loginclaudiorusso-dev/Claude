@@ -160,6 +160,13 @@ def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
                    "itemStyle": {"color": t["akzent"], "opacity": .45, "borderColor": t["akzent"], "borderWidth": 1.5,
                                  "borderType": "dashed", "borderRadius": [3, 3, 0, 0]},
                    "label": {"show": True, "position": "top", "fontSize": 12, ":formatter": "(p) => Math.round(p.value)"}}]
+        bek = [None] * n_ist + ([round(float(v), 1) for v in f.bekannt[1:M + 1]] if zu and f.bekannt is not None else [None] * M)
+        if zu and any(v for v in bek if v):         # 1.24: davon schon fest angemeldet – kräftig im hellen Balken
+            reihen.append({"name": "davon fest angemeldet", "type": "bar", "data": [v if v else None for v in bek],
+                           "barMaxWidth": 26, "barGap": "-100%", "z": 3,
+                           "itemStyle": {"color": t["akzent"], "borderRadius": [3, 3, 0, 0]},
+                           "label": {"show": True, "position": "insideBottom", "fontSize": 11, "color": "#fff",
+                                     ":formatter": "(p) => Math.round(p.value)"}})
         if leitung:
             reihen += [{"name": "_lo", "type": "line", "data": lo, "stack": "b", "symbol": "none", "silent": True,
                         "lineStyle": {"opacity": 0}, "tooltip": {"show": False}},
@@ -170,9 +177,10 @@ def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
         for r_ in reihen:                        # 1.20: Zählwerte je Monat bleiben Säulen – kein Umstellen, kein Glätten
             r_["m_fest"] = True
         opt = {"animation": False, "grid": {"left": 44, "right": 20, "top": 40, "bottom": 30},
-               "legend": {"top": 0, "data": ["Ist", "erwartet"] + ([{"name": "sehr wahrscheinlich (8 von 10)",
-                                                                       "icon": "roundRect"}] if leitung else [])},
-               "tooltip": {"trigger": "axis"},
+               "legend": {"top": 0, "data": ["Ist", "erwartet"]
+                          + (["davon fest angemeldet"] if any(r_["name"] == "davon fest angemeldet" for r_ in reihen) else [])
+                          + ([{"name": "sehr wahrscheinlich (8 von 10)", "icon": "roundRect"}] if leitung else [])},
+               "tooltip": {"trigger": "axis", ":formatter": _fluss_tooltip(x, hist, prog, bek, lo, br, wort, leitung)},
                "xAxis": {"type": "category", "data": x, "axisLabel": {"fontSize": 13}},
                "yAxis": {"type": "value", "minInterval": 1, "axisLabel": {"fontSize": 13}},
                "series": reihen}
@@ -207,6 +215,31 @@ def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
                             ui.label(_z(med)).classes("m-name")
                             if zu and bek >= .5:
                                 ui.label(f"{_z(bek)} fest angemeldet").classes("m-zweite")
+
+
+def _fluss_tooltip(x, hist, prog, bek, lo, br, wort: str, leitung: bool) -> str:
+    """1.24: je Monat – Ist, bzw. künftig „angemeldet + erwartet = gesamt“ (und die Spanne)."""
+    import json
+
+    d = []
+    for i, m in enumerate(x):
+        if hist[i] is not None:
+            d.append({"m": m, "ist": hist[i]})
+        elif prog[i] is not None:
+            an = bek[i] or 0.0
+            d.append({"m": m, "an": an, "rest": max(0.0, prog[i] - an), "g": max(prog[i], an),
+                      "lo": lo[i], "hi": (lo[i] + br[i]) if lo[i] is not None and br[i] is not None else None})
+        else:
+            d.append({"m": m})
+    return ("(ps) => { const D = " + json.dumps(d, ensure_ascii=False) + "; const d = D[ps[0].dataIndex]; if (!d) return '';"
+            " const f = v => v == null ? '–' : Math.round(v).toLocaleString('de-DE');"
+            f" let h = `<b>${{d.m}}</b>`; if (d.ist != null) return h + `<br>Ist: <b>${{f(d.ist)}}</b> {wort}`;"
+            " if (d.g == null) return h;"
+            " h += `<br>${f(d.an)} fest angemeldet + ${f(d.rest)} erwartet = <b>${f(d.g)}</b>`;"
+            + (" if (d.lo != null) h += `<br>sehr wahrscheinlich ${f(d.lo)} bis ${f(d.hi)}`;" if leitung else "")
+            + " h += `<div style=\"opacity:.7;font-size:11.5px;margin-top:4px\">fest angemeldet = künftige Tage im"
+            " Maßnahmen-Pivot (Mittel) · erwartet = aus Assessment/Vorbereitung und Erfahrung der letzten 3 Jahre</div>`;"
+            " return h; }")
 
 
 # ---- Planung: klare Ansage -------------------------------------------------------------------------------------------

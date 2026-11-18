@@ -41,7 +41,7 @@ body.ob-seite-an .m-kz:has(.m-bg-rechts) .m-kz-luft { display: none !important; 
 .m-mn-fuss { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 12px;
   border-top: 1px solid var(--rand); }
 """
-KURZ = {"lang": "Haupt", "vorbereitung": "Vorb.", "ibtz": "IBTZ", "uebrige": "übrige", "ohne": "ohne Zimmer"}
+KURZ = {"lang": "Haupt", "rvl": "RVL", "rvt": "RVT", "ibtz": "IBTZ", "uebrige": "übrige", "ohne": "ohne Zimmer"}
 FARBEN_EXTRA = ["#9b6bd6", "#c2a14a", "#4fb3bf", "#d67fa6", "#7a8f3a", "#b5654a", "#5c7fb8", "#8c8c8c"]
 EIN_DIAGRAMM_BIS = 5
 
@@ -444,9 +444,11 @@ def _tooltip(reihen: dict, farben: list[str]) -> str:
             " if (x.a == 'ist') { h += zl('Ist (Neuanmeldungen)', f(x.i));"
             "   if (x.r != null) h += zl('Rückwärtstest: damals geschätzt', f(x.r) + (x.b ? ` (80 %: ${f(x.b[0])}–${f(x.b[1])})` : ''));"
             "   if (x.m8 != null) h += zl('Ist im Band?', x.m8 ? '✓ im 80-%-Band' : (x.m9 ? '✓ im 95-%-Band' : '✗ außerhalb')); }"
-            " else { if (x.a == 'laufend') h += zl('schon begonnen', f(x.i));"
-            "   if (x.g) h += zl('schon gebucht', f(x.g));"
-            "   h += zl(x.p ? 'eigene Planung' : 'erwartet', f(x.e));"
+            " else { const an = (x.a == 'laufend' ? (x.i || 0) : 0) + (x.g || 0);"
+            "   if (x.p) h += zl('eigene Planung', f(x.e));"
+            "   else h += zl('angemeldet + erwartet', `${f(an)} + ${f(Math.max(0, x.e - an))} = ${f(x.e)}`);"
+            "   h += `<div style=\"opacity:.7;font-size:11.5px\">angemeldet = schon gebucht bzw. begonnen (Pivot) · erwartet = "
+            "Nachbuchung nach den Vorjahren</div>`;"
             "   if (!x.p) { h += zl('80 %-Band', f(x.l8) + ' – ' + f(x.h8)); h += zl('95 %-Band', f(x.l9) + ' – ' + f(x.h9)); } } }"
             " return h; }")
 
@@ -532,6 +534,10 @@ def _raster(a, reihen: dict, gleiche_skala: bool, pivot: dict | None = None) -> 
             serien = [{"name": "Ist", "rolle": "balken_ist", "type": "bar", "data": [w if k < h else None for k, w in enumerate(werte)]},
                       {"name": "erwartet", "rolle": "balken_prognose", "type": "bar",
                        "data": [w if k >= h else None for k, w in enumerate(werte)]},
+                      # 1.24: davon schon angemeldet (gebucht bzw. begonnen) – kräftig im hellen Balken der Erwartung
+                      {"name": "davon angemeldet", "rolle": "balken_ist", "type": "bar",
+                       "data": [round(_angemeldet(z), 1) if k >= h and not z.geplant and _angemeldet(z) else None
+                                for k, z in enumerate(r.zeilen)]},
                       {**band, "data": [round(z.klein, 1) if k >= h else None for k, z in enumerate(r.zeilen)]},
                       {**{k_: v for k_, v in band.items() if k_ != "tooltip"}, "name": "80-%-Spanne",
                        "data": [round(z.gross - z.klein, 1) if k >= h else None for k, z in enumerate(r.zeilen)],
@@ -552,6 +558,11 @@ def _raster(a, reihen: dict, gleiche_skala: bool, pivot: dict | None = None) -> 
                 with diagramm_karte.Karte(a, fam, f"12 Mon. {_z(r.letzte12)} · nächstes Jahr ≈ {_z(r.naechstes_jahr)} · "
                                                   f"Datenstand {stand:%d.%m.%Y}", blick, klein=True) as k:
                     k.anbinden(k.chart(opt))
+
+
+def _angemeldet(z) -> float:
+    """1.24: schon angemeldet – gebucht (Pivot) bzw. im laufenden Kurs schon begonnen."""
+    return float((z.ist or 0) if z.art == "laufend" else 0) + float(z.gebucht or 0)
 
 
 def _raster_klassisch(reihen: dict, gleiche_skala: bool) -> None:
@@ -692,8 +703,8 @@ def _plan_tabelle(a, d) -> None:
                                 ui.label("–")
                                 continue
                             spalten[i].append(z)
-                            wo = " · eigene Planung" if z.geplant else (f" · {_z(z.ist + z.gebucht)} schon gebucht/begonnen"
-                                                                         if z.ist + z.gebucht else "")
+                            wo = " · eigene Planung" if z.geplant else (
+                                f" · {_z(z.ist + z.gebucht)} angemeldet + {_z(max(0, z.erwartet - z.ist - z.gebucht))} erwartet")
                             el = ui.label(f"{_z(z.erwartet)} ({_z(getattr(z, lo_a))}–{_z(getattr(z, hi_a))})").classes("m-mono")
                             el.props(f'title="{mk.hj_text(h)}: erwartet {_z(z.erwartet)} · 80 %: {_z(z.klein)}–'
                                      f'{_z(z.gross)} · 95 %: {_z(z.klein95)}–{_z(z.gross95)}{wo}"')

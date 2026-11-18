@@ -25,7 +25,7 @@ from datetime import date, datetime, timedelta
 from belegung import speicher
 
 DATEI = f"{speicher.IMPORT_ORDNER}/modern_massnahmen.json"
-GRUPPEN = {"lang": "Hauptmaßnahmen", "vorbereitung": "RVL / RVT", "ibtz": "IBTZ", "uebrige": "Übrige (Assessment, EMR, Info …)",
+GRUPPEN = {"lang": "Hauptmaßnahmen", "rvl": "RVL", "rvt": "RVT", "ibtz": "IBTZ", "uebrige": "Übrige (Assessment, EMR, Info …)",
            "ohne": "ohne Zimmer"}
 _KURS = re.compile(r"^[A-Z]{2}\s+\S")
 _TAG = re.compile(r"^\d{2}\.\d{2}\.\d{4}$")
@@ -281,8 +281,10 @@ def standard_gruppe(fam: str, dauer: int) -> str:
     f = fam.upper()
     if "VIRTUELL" in f:
         return "ohne"
-    if re.search(r"\b(RVL|RVT)\b", f):
-        return "vorbereitung"
+    if re.search(r"\bRVT\b", f):                  # 1.24: RVL und RVT getrennt (vorher eine Gruppe „RVL / RVT“)
+        return "rvt"
+    if re.search(r"\bRVL\b", f):
+        return "rvl"
     if re.search(r"\bIBTZ\b", f):
         return "ibtz"
     return "lang" if dauer >= LANG_TAGE else "uebrige"
@@ -295,7 +297,13 @@ def gruppen(daten: dict | None = None) -> dict[str, str]:
     dauer: dict[str, list[int]] = {}
     for k, v in ((roh.get("pivot") or {}).get("kurse") or {}).items():
         dauer.setdefault(familie(k), []).append(int(v.get("dauer") or 0))
-    return {f: eigen.get(f) or standard_gruppe(f, int(stt.median(d))) for f, d in dauer.items()}
+    erg = {}
+    for f, d in dauer.items():
+        g = eigen.get(f) or standard_gruppe(f, int(stt.median(d)))
+        if g == "vorbereitung":                    # gespeicherte Zuordnung bis 1.23 → RVT, wenn es RVT ist, sonst RVL
+            g = "rvt" if re.search(r"\bRVT\b", f.upper()) else "rvl"
+        erg[f] = g
+    return erg
 
 
 def zuordnung_schritt(fam: str, gruppe: str) -> str:
@@ -799,7 +807,7 @@ def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, f
     am = am or (lambda k, t: k.am(t))
     erg = []
     for fam in sorted({k.familie for k in ks}):
-        if not alle and gr.get(fam) not in ("lang", "vorbereitung", "ibtz"):
+        if not alle and gr.get(fam) not in ("lang", "rvl", "rvt", "ibtz"):
             continue
         eigene = [k for k in ks if k.familie == fam]
         n_neu = [e for e in neu if e.familie == fam]
