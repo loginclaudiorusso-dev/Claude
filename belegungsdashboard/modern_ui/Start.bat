@@ -45,4 +45,9 @@ if errorlevel 1 (
     copy /y requirements.txt ".venv\requirements.installiert" >nul
 )
 
+rem 1.27: Python-Version pruefen, Doppelstart verhindern, Startfehler anzeigen
+".venv\Scripts\python.exe" start_pruefen.py vorher %*
+if errorlevel 3 exit /b 1
+if errorlevel 2 exit /b 0
 start "" ".venv\Scripts\pythonw.exe" app.py %*
+".venv\Scripts\python.exe" start_pruefen.py nachher

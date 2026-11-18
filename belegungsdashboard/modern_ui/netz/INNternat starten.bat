@@ -108,4 +108,11 @@ if /i "%~1"=="--konsole" (
     pause
     exit /b
 )
+rem 1.27: Python-Version pruefen und Doppelstart verhindern (schon offen: Fenster zeigen statt zweites starten)
+set "PY=%PYW:pythonw.exe=python.exe%"
+"%PY%" "%PROG%\modern_ui\start_pruefen.py" vorher %*
+if errorlevel 3 exit /b 1
+if errorlevel 2 exit /b 0
 start "" /D "%INNTERNAT_LOKAL%" "%PYW%" "%PROG%\modern_ui\app.py" %*
+rem 1.27: Auf das Lebenszeichen warten - scheitert der Start, erscheint die Fehlermeldung mit dem Protokoll
+"%PY%" "%PROG%\modern_ui\start_pruefen.py" nachher

@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.26.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.27.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -22,6 +22,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - RVL und RVT getrennte Gruppen; künftige Neuanmeldungen/Zugänge als „angemeldet + erwartet = gesamt“ (1.24)
 - Teilnehmer-Prognose: ƒx-Rechenweg der Simulation (Verbleibskurve, Angemeldete, Übergänge, Erfahrung, Median/Spanne) (1.25)
 - Prüfbericht: Prognose bei Stichtag am Monatsende korrigiert, Mehrplatz-Sperre mit Fencing, Optimieren prüft auf frischem Stand, Druckdateien und Protokoll aufgeräumt (1.26)
+- Sicherer Start: kein Doppelstart auf demselben PC, Prüfung der Python-Version, Startfehler als Meldungsfenster mit Protokollauszug (1.27)
 - Mails mit mehreren Gästehaus-Vormerkungen: je Zeile eine Buchung, fest/vorgemerkt, Zimmer gemeinsam vorgeschlagen (1.09)
 - Maßnahmen-Auswahl wird übernommen, eigene Skala als Standard (1.08)
 - Kontext-Reiter Maßnahmen einheitlich: Gruppe Ansicht links, Filter als flache Felder, Pflege & Wechsel direkt dahinter, Symbole mit zweitem Zeichen (1.07)

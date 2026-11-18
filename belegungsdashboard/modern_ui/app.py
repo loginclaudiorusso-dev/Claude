@@ -21,6 +21,7 @@ sys.path.insert(0, str(HIER))
 sys.path.insert(0, str(HIER.parent))          # Hauptprogramm (belegung) – wird nur benutzt, nicht verändert
 
 from modern import netz_kern  # noqa: E402 – rein, ohne NiceGUI
+from modern import start_kern  # noqa: E402 – 1.27: Lebenszeichen und Doppelstart (rein)
 
 # 0.54: Alles, was nur diesen PC betrifft, liegt lokal (%LOCALAPPDATA%\INNternat) – im Netzwerkordner würden sich
 # 8 PCs Protokoll, Zwischenspeicher und NiceGUI-Ablage teilen. Ohne Netzwerkstart bleibt das Protokoll, wo es war.
@@ -52,6 +53,7 @@ if KONSOLE:
 
 def _abbruch(t, e, tb) -> None:
     logging.getLogger("start").critical("Abbruch", exc_info=(t, e, tb))
+    start_kern.schreiben(LOKAL, "fehler", fehler=start_kern.fehler_text(e))   # 1.27: die Startdatei zeigt es an
     if KONSOLE:
         import traceback
 
@@ -59,6 +61,12 @@ def _abbruch(t, e, tb) -> None:
 
 
 sys.excepthook = _abbruch
+
+if start_kern.lebt(start_kern.lesen(LOKAL)) and "--konsole" not in sys.argv:
+    # 1.27: zweiter Start auf diesem PC (z. B. Doppelklick zweimal schnell) – die Startdatei hat es schon gemeldet
+    logging.getLogger("start").info("INNternat läuft auf diesem PC schon – zweiter Start beendet")
+    sys.exit(0)
+start_kern.schreiben(LOKAL, "startet")
 
 from nicegui import app, ui  # noqa: E402
 
@@ -92,6 +100,28 @@ def _beenden_wenn_zu() -> None:
     app.on_disconnect(pruefen)
 
 
+def _lebenszeichen(port: int | None) -> None:
+    """1.27: Alle 10 s „bereit“ in laeuft.json – die Startdatei erkennt daran Start, Doppelstart und Absturz."""
+    import threading
+
+    from modern import __version__
+
+    stop = threading.Event()
+
+    def schlagen() -> None:
+        while True:
+            start_kern.schreiben(LOKAL, "bereit", port=port, version=__version__)
+            if stop.wait(start_kern.TAKT):
+                return
+
+    app.on_startup(lambda: threading.Thread(target=schlagen, name="innternat-lebt", daemon=True).start())
+
+    def aus() -> None:
+        stop.set()
+        start_kern.entfernen(LOKAL)
+    app.on_shutdown(aus)
+
+
 def main() -> None:
     # 0.85: INNTERNAT_BROWSER (Installationspaket mit eigenem Python): gleich das Edge-Fenster – das eigene Fenster
     # (pywebview/.NET) darf von Netzlaufwerken oft nicht starten.
@@ -109,11 +139,13 @@ def main() -> None:
     if nativ:
         if minimiert:
             app.native.window_args["minimized"] = True
+        _lebenszeichen(None)
         ui.run(native=True, window_size=(1440, 900), **einstellungen)
     else:
         port = _freier_port()
         app.on_startup(lambda: _fenster_oeffnen(f"http://127.0.0.1:{port}/", minimiert))
         _beenden_wenn_zu()
+        _lebenszeichen(port)
         ui.run(port=port, show=False, **einstellungen)
 
 
