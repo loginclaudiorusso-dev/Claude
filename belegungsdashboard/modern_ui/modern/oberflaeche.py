@@ -1997,6 +1997,15 @@ async def _melde_takt() -> None:
 app.on_startup(_melde_takt)
 
 
+async def _qr_takt() -> None:
+    from . import qr_ui
+
+    await qr_ui.takt()
+
+
+app.on_startup(_qr_takt)                       # 1.28: Meldungen per QR-Code einlesen und melden
+
+
 _START = {"gefragt": False}                    # Standort einmal je Programmstart abfragen (nicht bei jedem Neuladen)
 
 

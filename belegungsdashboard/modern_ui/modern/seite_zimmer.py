@@ -28,6 +28,9 @@ def daten(a) -> None:
         return
     if ansicht == "maengel":
         a.daten = zk.maengel_liste(a.stand, a.heute)
+        from . import qr_ui
+
+        qr_ui.daten(a)                     # 1.28: Meldungen per QR-Code
         return
     if ansicht == "aenderungen":
         from . import aenderungen_kern as ak
@@ -1064,6 +1067,9 @@ def _maengel(a) -> None:
                    a.dz_filter, lambda k: a.setzen(dz_filter=None if k == a.dz_filter else k, laden=False))
         a.status_info = f"{sum(len(z.maengel) for z in zs)} offene Mängel in {len(zs)} Zimmern"
         _mangel_menue(a)
+        from . import qr_ui
+
+        qr_ui.knopf_leiste(a)
         from .seite_daten import _hochladen
 
         _hochladen(a, "Erledigte aus FM-Liste", ".xlsx", lambda f: _fm_zurueck(a, f), art="leise")
@@ -1075,6 +1081,7 @@ def _maengel(a) -> None:
         knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "primaer", "content_copy")
     sp = "116px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
     with a.inhalt:
+        qr_ui.bereich(a)
         if not zs:
             leer("Keine offenen Mängel – alle Zimmer in Ordnung.")
             return

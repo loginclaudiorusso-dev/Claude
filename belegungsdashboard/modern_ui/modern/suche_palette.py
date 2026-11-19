@@ -114,6 +114,10 @@ async def ausfuehren(a, ziel: tuple) -> None:
             from .seiten import _wochenblatt_panel
 
             _wochenblatt_panel(a)
+        elif name == "qr":
+            from . import qr_ui
+
+            qr_ui.fenster(a)
     elif art == "frage":
         await a.oeffnen("assistenz", "fragen", as_frage_neu=ziel[1])
     elif art == "auftrag":

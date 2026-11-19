@@ -83,6 +83,8 @@ EXTRA = [
                                                                                        "mietvertrag neu"), "Anreisen → Mieter"),
     ("Wochenblatt drucken", "print", ("panel", "reinigung", "liste", "wochenblatt"), ("aushang", "hausmeister", "wochenplan"),
      "Zimmer & Haus → Reinigung"),
+    ("QR-Codes am Zimmer (Meldung per Handy)", "qr_code_2", ("panel", "zimmer", "maengel", "qr"),
+     ("qr", "qr-code", "etikett", "aufkleber", "forms", "umfrage", "scannen"), "Zimmer & Haus → Defekte Zimmer"),
     ("Notfallliste drucken", "emergency", ("panel", "zimmer", "uebersicht", "notfall"),
      ("notfall", "evakuierung", "feuer", "brand", "feueralarm", "sammelplatz", "wer ist im haus", "anwesend"),
      "Zimmer & Haus → Übersicht"),

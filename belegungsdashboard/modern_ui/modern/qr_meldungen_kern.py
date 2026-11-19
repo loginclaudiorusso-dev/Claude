@@ -1,0 +1,446 @@
+"""1.28: Meldungen per QR-Code (Microsoft Forms, anonym) – einlesen, zuordnen, als Mangel übernehmen. Rein, ohne NiceGUI.
+
+Ablauf
+------
+1. In Forms ein Formular „Mangel melden“ (anonym: „Jeder kann antworten“) mit den Fragen *Zimmer*, *Art* und
+   *Beschreibung*. Über „… → Vorausgefüllte URL abrufen“ bei *Zimmer* den Platzhalter ``ZIMMER`` eintragen und den Link
+   kopieren. Diesen Link in INNternat einfügen (gilt für alle PCs). Je Zimmer ersetzt INNternat ``ZIMMER`` durch die
+   Zimmernummer – jedes Etikett öffnet das Formular mit schon eingetragenem Zimmer.
+2. Die Antworten speichert Forms in einer Excel-Datei auf OneDrive/SharePoint („In Excel öffnen“). Mit OneDrive
+   synchronisiert liegt sie als normale Datei auf dem PC; ihren Pfad trägt man auf diesem PC ein (je PC, weil der
+   OneDrive-Pfad je Benutzer anders ist – es reicht EIN PC).
+3. INNternat liest die Datei alle paar Minuten (nur, wenn sie sich geändert hat), merkt sich jede Antwort genau einmal
+   (Forms-ID + Startzeit) und legt sie als „neu“ im Datenordner ab – alle PCs sehen dieselben Meldungen.
+4. Eine Meldung wird NIE von selbst zum Mangel (den QR-Code kann jeder scannen): „Übernehmen“ legt den Mangel an
+   (Art vorgeschlagen, änderbar; Rückgängig wie immer), „Verwerfen“ blendet sie aus.
+
+Gespeichert in ``importe/modern_qr_meldungen.json``: ``{"link": str, "meldungen": [{…}]}``.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import tempfile
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
+from pathlib import Path
+from urllib.parse import quote
+
+from belegung import maengel as mg
+from belegung import speicher
+
+DATEI = "importe/modern_qr_meldungen.json"
+PLATZHALTER = "ZIMMER"
+EINSTELLUNG_DATEI = "qr_antwortdatei"            # je PC (netz_kern.persoenlich)
+TAKT_MINUTEN = 5
+DRINGEND = mg.STUFE_DRINGEND
+
+# Art aus Freitext vorschlagen: (Mangelart, Muster) – Reihenfolge zählt (Rauchmelder vor Geruch/Rauch …)
+ART_MUSTER = [
+    ("rauchmelder", r"rauchmelder|brandmelder|piept"),
+    ("schimmel", r"schimmel|feucht|stockflecken"),
+    ("ungeziefer", r"ungeziefer|wanze|kakerlak|schabe|käfer|maus|mäuse|ratte|motte|ameise"),
+    ("heizung", r"heizung|heizkörper|thermostat|kalt im zimmer|zu kalt|heizt"),
+    ("abfluss", r"abfluss|verstopf|läuft nicht ab"),
+    ("wasser", r"wasserhahn|tropft|undicht|\bleck|kein warmes wasser|\bwasser\b"),
+    ("elektrik", r"licht|lampe|steckdose|strom|sicherung|birne|leuchte|kabel"),
+    ("bad", r"dusche|toilette|\bwc\b|klo|spülung|waschbecken|\bbad\b|badezimmer"),
+    ("fenster", r"fenster|rollo|jalousie|rollladen|vorhang|gardine"),
+    ("tuer", r"tür|schloss|schlüssel|klinke|karte geht nicht"),
+    ("matratze", r"matratze"),
+    ("moebel", r"möbel|schrank|tisch|stuhl|bett|regal|schublade|sessel"),
+    ("geruch", r"geruch|riecht|stinkt|rauch"),
+    ("wand", r"\bwand\b|wände|tapete|loch in|\bputz\b"),
+    ("boden_dreckig", r"(teppich|boden)\w*\W+(\w+\W+){0,3}(dreck|schmutz|fleck)|(dreck|schmutz|fleck)\w*\W+(\w+\W+){0,3}(teppich|boden)"),
+    ("boden_kaputt", r"teppich|boden|fliese|laminat"),
+    ("grundreinigung", r"reinig|dreck|schmutz|sauber|putzen|staub|müll"),
+]
+
+SPALTEN = {
+    "id": ("id",),
+    "start": ("startzeit", "start time", "starttime"),
+    "ende": ("fertigstellungszeit", "completion time", "abschlusszeit"),
+    "zimmer": ("zimmer", "raum", "room", "zimmernummer"),
+    "art": ("art", "kategorie", "was ist", "worum", "thema", "category", "type"),
+    "text": ("beschreib", "was ist passiert", "nachricht", "hinweis", "bemerk", "details", "kommentar", "description",
+             "text"),
+}
+
+
+@dataclass
+class Meldung:
+    id: str
+    zeit: str                    # ISO (Fertigstellungszeit, sonst Startzeit)
+    zimmer_text: str             # wie eingegeben
+    zimmer: str                  # Zimmer-ID, leer = nicht erkannt
+    art_text: str
+    text: str
+    art: str                     # vorgeschlagene Mangelart (Katalog)
+    status: str = "neu"          # neu | uebernommen | verworfen
+    erledigt: str = ""           # ISO-Datum
+    hinweis: str = ""
+
+    @property
+    def dringend(self) -> bool:
+        return self.art in DRINGEND
+
+    @property
+    def zeit_text(self) -> str:
+        try:
+            return f"{datetime.fromisoformat(self.zeit):%d.%m. %H:%M}"
+        except ValueError:
+            return self.zeit
+
+
+# ---- Speicher ----------------------------------------------------------------------------------------------------
+
+def _lesen() -> dict:
+    try:
+        d = speicher.lesen(DATEI, {})
+    except Exception:                                   # noqa: BLE001 – beschädigt: leer anfangen, nicht abstürzen
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+
+def _schreiben(d: dict) -> None:
+    speicher.schreiben(DATEI, d)
+
+
+def link() -> str:
+    return str(_lesen().get("link") or "")
+
+
+def link_setzen(wert: str) -> str:
+    wert = (wert or "").strip()
+    if wert and not re.match(r"^https://", wert, re.I):
+        raise ValueError("Bitte den vollständigen Forms-Link einfügen (beginnt mit https://).")
+    from .kern import _schritt
+
+    def aktion():
+        d = _lesen()
+        d["link"] = wert
+        _schreiben(d)
+    _schritt("QR-Formular-Link", aktion, [DATEI])
+    if not wert:
+        return "Formular-Link entfernt"
+    return ("Formular-Link gespeichert – jedes Etikett trägt seine Zimmernummer" if PLATZHALTER in wert else
+            f"Formular-Link gespeichert – ohne Platzhalter {PLATZHALTER}: alle Etiketten öffnen dasselbe Formular, das "
+            "Zimmer wird dort eingetragen")
+
+
+def meldungen(status: str | None = None) -> list[Meldung]:
+    erg = []
+    for x in _lesen().get("meldungen") or []:
+        try:
+            m = Meldung(**{k: x.get(k, "") for k in Meldung.__dataclass_fields__})
+        except TypeError:
+            continue
+        if status is None or m.status == status:
+            erg.append(m)
+    return sorted(erg, key=lambda m: m.zeit, reverse=True)
+
+
+def neue() -> list[Meldung]:
+    return meldungen("neu")
+
+
+# ---- QR-Link je Zimmer ---------------------------------------------------------------------------------------------
+
+def zimmer_link(vorlage: str, kurz: str) -> str:
+    """Link für ein Zimmer: Platzhalter ``ZIMMER`` durch die (URL-kodierte) Zimmernummer ersetzen."""
+    return vorlage.replace(PLATZHALTER, quote(kurz, safe="")) if PLATZHALTER in vorlage else vorlage
+
+
+# ---- Einlesen ------------------------------------------------------------------------------------------------------
+
+def _norm(s) -> str:
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+
+
+def spalten_finden(kopf: list) -> dict[str, int]:
+    """Spalten der Forms-Datei erkennen (deutsch/englisch). Fragen dürfen etwas anders heißen („Zimmernummer“ …)."""
+    k = [_norm(x) for x in kopf]
+    erg: dict[str, int] = {}
+    for feld in ("id", "start", "ende"):
+        for i, t in enumerate(k):
+            if any(t == s or t.startswith(s) for s in SPALTEN[feld]) and feld not in erg:
+                erg[feld] = i
+    fest = set(erg.values()) | {i for i, t in enumerate(k) if t in ("e-mail", "email", "name", "zeitpunkt der letzten änderung",
+                                                                     "last modified time")}
+    for feld in ("zimmer", "text", "art"):
+        for i, t in enumerate(k):
+            if i in fest or i in erg.values():
+                continue
+            if any(re.search(rf"(^|\W){re.escape(s)}", t) for s in SPALTEN[feld]):
+                erg[feld] = i
+                break
+    rest = [i for i, t in enumerate(k) if t and i not in fest and i not in erg.values()]
+    if "text" not in erg and rest:                      # Fragen heißen anders: letzte freie Frage = Beschreibung
+        erg["text"] = rest.pop()
+    if "art" not in erg and rest:
+        erg["art"] = rest[0]
+    return erg
+
+
+def _zeit(x) -> str:
+    if isinstance(x, datetime):
+        return x.isoformat(timespec="minutes")
+    if isinstance(x, date):
+        return datetime(x.year, x.month, x.day).isoformat(timespec="minutes")
+    t = str(x or "").strip()
+    for f in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%m/%d/%y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(t, f).isoformat(timespec="minutes")
+        except ValueError:
+            pass
+    return t
+
+
+@dataclass
+class Roh:
+    id: str
+    zeit: str
+    zimmer_text: str
+    art_text: str
+    text: str
+
+
+@dataclass
+class Ergebnis:
+    zeilen: list[Roh] = field(default_factory=list)
+    fehler: str = ""
+
+
+def lesen_xlsx(pfad: Path) -> Ergebnis:
+    """Antworten aus der Forms-Excel-Datei. Erst kopieren: OneDrive/Excel halten die Datei oft geöffnet."""
+    from openpyxl import load_workbook
+
+    pfad = Path(pfad)
+    if not pfad.exists():
+        return Ergebnis(fehler=f"Antwortdatei nicht gefunden: {pfad}")
+    with tempfile.TemporaryDirectory(prefix="innternat_qr_") as tmp:
+        kopie = Path(tmp) / "antworten.xlsx"
+        try:
+            shutil.copy2(pfad, kopie)
+            wb = load_workbook(kopie, read_only=True, data_only=True)
+        except Exception as exc:                        # noqa: BLE001 – gesperrt, halb synchronisiert, kein Excel …
+            return Ergebnis(fehler=f"Antwortdatei nicht lesbar: {exc}")
+        try:
+            zeilen = list(wb.worksheets[0].iter_rows(values_only=True))
+        finally:
+            wb.close()
+    if not zeilen:
+        return Ergebnis(fehler="Die Antwortdatei ist leer.")
+    sp = spalten_finden(list(zeilen[0]))
+    if "zimmer" not in sp:
+        return Ergebnis(fehler="In der Antwortdatei fehlt eine Spalte „Zimmer“ – die Frage im Formular muss das Wort "
+                               "„Zimmer“ enthalten.")
+    if "id" not in sp:
+        return Ergebnis(fehler="In der Antwortdatei fehlt die Spalte „ID“ – ist das die Antwortdatei von Forms?")
+
+    def wert(z, feld):
+        i = sp.get(feld)
+        return z[i] if i is not None and i < len(z) else None
+    erg = Ergebnis()
+    for z in zeilen[1:]:
+        if z is None or all(v in (None, "") for v in z):
+            continue
+        rid = str(wert(z, "id") or "").strip()
+        if not rid:
+            continue
+        zeit = _zeit(wert(z, "ende") or wert(z, "start"))
+        erg.zeilen.append(Roh(f"{rid}|{_zeit(wert(z, 'start'))}", zeit, str(wert(z, "zimmer") or "").strip(),
+                              str(wert(z, "art") or "").strip(), str(wert(z, "text") or "").strip()))
+    return erg
+
+
+def art_vorschlag(*texte: str) -> str:
+    t = " ".join(texte).lower()
+    for art, muster in ART_MUSTER:
+        if re.search(muster, t):
+            return art
+    return "sonstiges"
+
+
+ZIMMER_IM_TEXT = re.compile(r"(?:GS[- ]?)?\d(?:\.\d)?\s*[- /]?\s*[A-Z]?\d{2,4}[A-Z]?", re.I)
+
+
+def zimmer_finden(text: str, aus_text) -> str:
+    """Zimmer-ID aus der Eingabe („2-408“, „Zimmer 2408“, „2/408“ …). ``aus_text`` = kern._zimmer_aus_text mit Stand."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    if zid := aus_text(text):
+        return zid
+    for m in ZIMMER_IM_TEXT.finditer(text):
+        if zid := aus_text(m.group(0)):
+            return zid
+    nur = re.sub(r"\D", "", text)                       # „2408“ → „2-408“
+    if 4 <= len(nur) <= 5 and (zid := aus_text(f"{nur[0]}-{nur[1:]}")):
+        return zid
+    return ""
+
+
+def zusammenfuehren(d: dict, zeilen: list[Roh], aus_text) -> list[Meldung]:
+    """Neue Antworten in den gespeicherten Stand übernehmen (je ID genau einmal). Gibt die neuen Meldungen zurück."""
+    bekannt = {x.get("id") for x in d.get("meldungen") or []}
+    neu = []
+    for r in zeilen:
+        if r.id in bekannt:
+            continue
+        bekannt.add(r.id)
+        m = Meldung(r.id, r.zeit, r.zimmer_text[:60], zimmer_finden(r.zimmer_text, aus_text), r.art_text[:80],
+                    r.text[:1000], art_vorschlag(r.art_text, r.text))
+        neu.append(m)
+    if neu:
+        d.setdefault("meldungen", []).extend(asdict(m) for m in neu)
+    return neu
+
+
+def antwortdatei() -> str:
+    from .netz_kern import persoenlich
+
+    return str(persoenlich(EINSTELLUNG_DATEI, "", je_standort=True) or "")
+
+
+def antwortdatei_setzen(pfad: str) -> str:
+    from .netz_kern import persoenlich_setzen
+
+    pfad = (pfad or "").strip().strip('"')
+    if pfad and not pfad.lower().endswith(".xlsx"):
+        raise ValueError("Bitte den Pfad der Excel-Datei (.xlsx) mit den Forms-Antworten angeben.")
+    if pfad and not Path(pfad).exists():
+        raise ValueError(f"Die Datei gibt es auf diesem PC nicht: {pfad}")
+    persoenlich_setzen(EINSTELLUNG_DATEI, pfad, je_standort=True)
+    return "Antwortdatei gespeichert – sie wird alle paar Minuten gelesen" if pfad else "Antwortdatei entfernt"
+
+
+_STAND = {"mtime": None, "pfad": ""}
+
+
+def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung], str]:
+    """Antwortdatei lesen und neue Meldungen ablegen (unter der Schreibsperre – mehrere PCs können einlesen).
+    Liest nur, wenn sich die Datei seit dem letzten Mal geändert hat (außer ``immer``). (neue, Fehlertext)."""
+    from belegung import zimmerplan as zp
+
+    from . import netz_kern
+    from .kern import _zimmer_aus_text
+
+    pfad = pfad if pfad is not None else antwortdatei()
+    if not pfad:
+        return [], ""
+    try:
+        mt = Path(pfad).stat().st_mtime
+    except OSError:
+        return [], f"Antwortdatei nicht gefunden: {pfad}"
+    if not immer and _STAND["pfad"] == pfad and _STAND["mtime"] == mt:
+        return [], ""
+    erg = lesen_xlsx(Path(pfad))
+    if erg.fehler:
+        return [], erg.fehler
+    with netz_kern.sperre():
+        stand = zp.laden()
+        d = _lesen()
+        neu = zusammenfuehren(d, erg.zeilen, lambda t: _zimmer_aus_text(stand, t))
+        if neu:
+            _schreiben(d)
+    _STAND.update(mtime=mt, pfad=pfad)
+    return neu, ""
+
+
+# ---- Erledigen ------------------------------------------------------------------------------------------------------
+
+def _finden(d: dict, mid: str) -> dict:
+    for x in d.get("meldungen") or []:
+        if x.get("id") == mid:
+            return x
+    raise ValueError("Diese Meldung gibt es nicht mehr – bitte neu laden.")
+
+
+def uebernehmen(mid: str, art: str, zimmer: str, heute: date | None = None) -> str:
+    """Meldung als Mangel anlegen (ein Schritt, ein Rückgängig)."""
+    from .kern import _schritt, kurz
+
+    heute = heute or date.today()
+    if art not in mg.NAMEN:
+        raise ValueError("Bitte eine Mangelart wählen.")
+    if not zimmer:
+        raise ValueError("Bitte zuerst das Zimmer wählen – die Eingabe im Formular wurde nicht erkannt.")
+    erg = {}
+
+    def aktion():
+        d = _lesen()
+        x = _finden(d, mid)
+        if x.get("status") != "neu":
+            raise ValueError("Diese Meldung wurde schon bearbeitet.")
+        notiz = f"QR-Meldung {Meldung(**{k: x.get(k, '') for k in Meldung.__dataclass_fields__}).zeit_text}: " \
+                f"{x.get('text') or x.get('art_text') or ''}".strip()
+        neu = mg.setzen(zimmer, art, True, heute=heute, notiz=notiz[:300])
+        x.update(status="uebernommen", erledigt=heute.isoformat(), zimmer=zimmer, art=art,
+                 hinweis="" if neu else "Mangel war schon offen")
+        erg["neu"] = neu
+        _schreiben(d)
+    _schritt("QR-Meldung übernommen", aktion, [DATEI, mg.DATEI])
+    text = f"{mg.NAMEN.get(art, art)} in {kurz(zimmer)}"
+    return f"Mangel angelegt: {text}" if erg.get("neu") else f"{text} war schon offen – Meldung erledigt"
+
+
+def verwerfen(mid: str, heute: date | None = None) -> str:
+    from .kern import _schritt
+
+    heute = heute or date.today()
+
+    def aktion():
+        d = _lesen()
+        x = _finden(d, mid)
+        x.update(status="verworfen", erledigt=heute.isoformat())
+        _schreiben(d)
+    _schritt("QR-Meldung verworfen", aktion, [DATEI])
+    return "Meldung verworfen"
+
+
+# ---- Windows-Meldung (je PC einmal) ----------------------------------------------------------------------------------
+
+def noch_nicht_gemeldet() -> list[Meldung]:
+    """Neue Meldungen, die DIESER PC noch nicht als Windows-Meldung gezeigt hat (merkt sie sich danach)."""
+    from .netz_kern import persoenlich, persoenlich_setzen
+
+    gezeigt = set(persoenlich("qr_gemeldet", []) or [])
+    offen = neue()
+    rest = [m for m in offen if m.id not in gezeigt]
+    if rest:
+        persoenlich_setzen("qr_gemeldet", sorted(gezeigt & {m.id for m in offen} | {m.id for m in rest}))
+    return rest
+
+
+def kurztext(m: Meldung, kurz=lambda z: z.removeprefix("GS-")) -> str:
+    wo = kurz(m.zimmer) if m.zimmer else (m.zimmer_text or "Zimmer ?")
+    was = m.text or m.art_text or mg.NAMEN.get(m.art, m.art)
+    return f"{wo}: {was[:80]}"
+
+
+# ---- Etiketten (Druckbogen) ---------------------------------------------------------------------------------------
+
+def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Etwas kaputt?",
+                   zeile: str = "Hier scannen und melden – anonym") -> str:
+    """Druckbogen A4: 3 × 4 Etiketten je Seite (Zimmernummer, QR-Code, Hinweis). ``zimmer`` = [(ID, kurz)]."""
+    from html import escape
+
+    from .qr_kern import svg
+
+    if not vorlage:
+        raise ValueError("Zuerst den Forms-Link eintragen.")
+    karten = []
+    for _zid, kurz in zimmer:
+        url = zimmer_link(vorlage, kurz)
+        karten.append(f'<div class="e"><div class="n">{escape(kurz)}</div>{svg(url, modul=1)}'
+                      f'<div class="t">{escape(titel)}</div><div class="z">{escape(zeile)}</div></div>')
+    return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>QR-Etiketten</title><style>"
+            "@page{size:A4;margin:10mm}body{font-family:Segoe UI,Arial,sans-serif;margin:0}"
+            ".b{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm}"
+            ".e{border:0.3mm dashed #999;border-radius:3mm;padding:4mm;text-align:center;break-inside:avoid;"
+            "height:62mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center}"
+            ".e svg{width:36mm;height:36mm}.n{font-size:16pt;font-weight:700;margin-bottom:1mm}"
+            ".t{font-size:11pt;font-weight:600;margin-top:1mm}.z{font-size:8pt;color:#444}"
+            f"</style><body><div class='b'>{''.join(karten)}</div></body></html>")

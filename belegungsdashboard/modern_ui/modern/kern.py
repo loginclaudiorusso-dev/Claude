@@ -835,11 +835,30 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                             "; ".join(f"{x.name}: Planung {kurz(x.geplant)}, Gebäudeplan {kurz(x.gebucht)}" for x in sts[:2])
                             + (" …" if len(sts) > 2 else "") + " – bis zur Klärung wird das geplante Zimmer niemandem angeboten",
                             Aktion("strittig", "Klären")))
+    if "qr" not in weg and (k := qr_karte()) is not None:          # 1.28: Meldungen per QR-Code
+        erg.insert(len([x for x in erg if x.stufe == "dringend"]) if k.stufe == "dringend" else len(erg), k)
     if stand is not None and "allergie" not in weg:
         k = allergie_karte(stand, heute)
         if k is not None:
             erg.insert(0 if k.stufe == "dringend" else len([x for x in erg if x.stufe == "dringend"]), k)
     return erg
+
+
+def qr_karte() -> Karte | None:
+    """1.28: Neue Meldungen per QR-Code – dringend, wenn eine davon eine dringende Mangelart betrifft."""
+    from . import qr_meldungen_kern as qm
+
+    try:
+        ms = qm.neue()
+    except Exception:                          # noqa: BLE001 – Zusatz
+        return None
+    if not ms:
+        return None
+    return Karte("qr", "dringend" if any(m.dringend for m in ms) else "bald",
+                 f"{len(ms)} neue Meldung{'en' if len(ms) > 1 else ''} per QR-Code",
+                 "; ".join(qm.kurztext(m, kurz) for m in ms[:3]) + (" …" if len(ms) > 3 else "")
+                 + " – prüfen und als Mangel übernehmen",
+                 zweite=Aktion("qr", "Prüfen", "zimmer/maengel"))
 
 
 def allergie_karte(stand: zp.Planstand, heute: date) -> Karte | None:
