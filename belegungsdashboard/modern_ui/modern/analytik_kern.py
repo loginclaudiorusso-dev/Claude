@@ -577,7 +577,7 @@ def mit_gruppen(pg: ak.Prognose, g: Gruppen) -> ak.Prognose:
     zeilen = []
     for z in pg.zeilen:
         d = g.monat(z.monat)["delta"]
-        f = lambda x: None if x is None else max(x + d, 0.0)  # noqa: E731
+        f = lambda x: None if x is None else max(x + d, 0.0)  # noqa: B023, E731
         zeilen.append(replace(z, erwartet=f(z.erwartet), lo80=f(z.lo80), hi80=f(z.hi80), lo95=f(z.lo95), hi95=f(z.hi95),
                               gesichert=f(z.gesichert), ist=f(z.ist), vertraege=z.vertraege + d))
     return replace(pg, zeilen=zeilen)

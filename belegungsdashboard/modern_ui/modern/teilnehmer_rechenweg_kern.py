@@ -127,7 +127,7 @@ def rechenweg(md: bp.Modell, e: bp.Ergebnis, art: str | None, k: int, faktor_pro
     mon = [e.monate[i] for i in range(1, k + 1)]
     lam = [float(raten[m.month - 1]) * faktor for m in mon]
     lo_j, hi_j = np.exp(-bp.JAHR_STREUUNG ** 2 / 2 - Z80 * bp.JAHR_STREUUNG), np.exp(-bp.JAHR_STREUUNG ** 2 / 2 + Z80 * bp.JAHR_STREUUNG)
-    det = [f"Rate je Kalendermonat (Ø je Jahr, ohne Wechsler aus Vorstufen): "
+    det = ["Rate je Kalendermonat (Ø je Jahr, ohne Wechsler aus Vorstufen): "
            + ", ".join(f"{MONATE[m.month - 1]} {_z(r_)}" for m, r_ in zip(mon, lam))]
     kap = {a: md.kappe[a] for a in arten if a in md.kappe}
     if kap:

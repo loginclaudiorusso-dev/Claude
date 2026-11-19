@@ -221,7 +221,7 @@ def _nach_planung_block(a, np_) -> None:
         with ui.element("div").classes("m-np"):
             for t in ("Woche", "jetzt", "nach Planung", "EMR", "Doppel"):
                 ui.label(t).classes("m-zweite")
-            for text, jetzt, frei, emr, doppel, stufe, je in np_.wochen[:5]:
+            for text, jetzt, frei, emr, doppel, _stufe, je in np_.wochen[:5]:
                 ui.label(text).classes("m-ptext")
                 ui.label(str(jetzt)).classes("m-mono")
                 ui.label(str(frei)).classes(f"m-pille {STUFE[je['gesamt']]}")
@@ -740,7 +740,7 @@ def _frei_block(a, t: Tag) -> None:
                 "m-tz-meta")
             knopf("Alle 12 Wochen", lambda: a.oeffnen("auswertung", ansicht="zimmer"), "leise")
         with ui.element("div").classes("m-tz-wochen"):
-            for text, jetzt, frei, emr, doppel, stufe, je in wochen:
+            for text, _jetzt, frei, emr, doppel, stufe, je in wochen:
                 st = STUFE[stufe]
                 with ui.element("div").classes(f"m-tz-woche {st}"):
                     with ui.element("div").classes("m-tz-wkopf"):

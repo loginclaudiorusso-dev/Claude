@@ -27,7 +27,6 @@ def test_schritte_und_summe(lauf):
                      "Übergänge aus Assessment und Vorbereitung", "Weitere Zugänge aus der Erfahrung", "Simulation",
                      "Ergebnis"]
     sim = sch[5].rechnung
-    mittel = _zahl(sim.split("= ")[1].split(" ·")[0].split(" ")[-1]) if False else None
     teile = sim.split("Mittel = ")[1].split(" · ")[0]
     summe = _zahl(teile.split(" = ")[-1])
     assert abs(summe - float(e.zerlegung[:, e.zeile(VW), 6].sum())) < 0.06

@@ -2,7 +2,7 @@
 Einheitspreise aus dem Angebot, nicht prüfbare Monate, Kampagnen, Kernbestand, Strategien mit Alterung,
 Entscheidungsvorlage mit Kurzfassung. Erfundene Daten und Beträge."""
 
-from datetime import date, timedelta
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -31,7 +31,6 @@ def _zimmer(st, haus, etage, n=None):
 
 
 def test_klassen_bau_und_moebel_getrennt(leer):
-    from belegung import zimmerplan as zp
     from modern import renovierung_kern as rk
 
     z = SimpleNamespace(renoviert="", id="x")

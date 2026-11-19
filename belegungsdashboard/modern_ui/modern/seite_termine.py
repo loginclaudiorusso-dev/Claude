@@ -6,7 +6,7 @@ from __future__ import annotations
 import calendar
 from datetime import date, timedelta
 
-from nicegui import run, ui
+from nicegui import ui
 
 from belegung import termine as tm
 

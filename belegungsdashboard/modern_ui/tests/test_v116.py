@@ -2,7 +2,6 @@
 
 import calendar
 from datetime import date
-from types import SimpleNamespace as NS
 
 from modern import cockpit_kern as ck
 from modern import renovierung_kern as rk

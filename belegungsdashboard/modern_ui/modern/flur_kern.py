@@ -165,7 +165,7 @@ def raster(stand: zp.Planstand, start: date, wochen: int = 8) -> list[Flur]:
                         rt = reinigungstag(bis)
                         wellen.update(w.nr for w in welle_von[zid] if w.von <= rt <= w.bis)
             def zimmer_mit(art):
-                return len({a.zimmer for a in f.aufenthalte if a.art == art and a.von <= so and a.bis >= mo})
+                return len({a.zimmer for a in f.aufenthalte if a.art == art and a.von <= so and a.bis >= mo})  # noqa: B023 – im selben Durchlauf aufgerufen
             f.zellen.append(Zelle(mo, sorted(wellen), len(belegt), zimmer_mit("kurz"), zimmer_mit("mieter")))
         erg.append(f)
     return erg

@@ -12,7 +12,7 @@ from belegung import termine as tm
 from belegung import zimmerplan as zp
 
 from .kern import _schritt, unter_sperre
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"auftraege": "Aufträge", "mails": "Mails", "fragen": "Fragen & Zahlen"}

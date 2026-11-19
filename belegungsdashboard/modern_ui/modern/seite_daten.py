@@ -17,7 +17,7 @@ from belegung import importe, konfig
 from . import daten_kern as dk
 from . import standort_kern
 from . import seiten
-from .ui_bausteine import knopf, leer
+from .ui_bausteine import knopf
 from .standort_kern import kurz as zkurz
 
 UPLOAD = Path(tempfile.gettempdir()) / "belegung_uploads"

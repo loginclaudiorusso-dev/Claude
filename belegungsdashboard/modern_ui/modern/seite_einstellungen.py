@@ -13,7 +13,7 @@ from belegung import zimmerplan as zp
 
 from . import seiten_kern as sk
 from .kern import _schritt
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Sicherung & Verlauf"}

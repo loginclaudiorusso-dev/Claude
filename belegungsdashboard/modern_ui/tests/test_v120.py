@@ -4,7 +4,6 @@ Zählwerte je Monat bleiben Säulen (kein Umstellen, kein Glätten)."""
 import inspect
 from datetime import date, timedelta
 
-import numpy as np
 
 from modern import bestand_kern as bk
 from modern import bestand_prognose as bp

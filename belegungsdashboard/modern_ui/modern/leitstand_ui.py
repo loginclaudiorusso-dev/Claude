@@ -18,7 +18,7 @@ Corporate Design (PT Sans, Petrol/Orange); CSS nur unter ``body.leitstand``.
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from nicegui import app, run, ui
 

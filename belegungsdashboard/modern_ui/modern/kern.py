@@ -192,12 +192,12 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
         gesehen: set[str] = set()
 
         def dazu(zid: str, art: str, text: str | None = None) -> None:
-            if zid in gesehen or zid not in stand.lage.zimmer:
+            if zid in gesehen or zid not in stand.lage.zimmer:  # noqa: B023 – im selben Durchlauf aufgerufen
                 return
-            gesehen.add(zid)
+            gesehen.add(zid)  # noqa: B023 – im selben Durchlauf aufgerufen
             z = stand.lage.zimmer[zid]
-            zusatz = {"vorschlag": " · passt", "aktuell": (" · " + grund) if status == "handeln" and stufe == "krit" else ""}
-            opts.append(Option(zid, text or (_bezeichnung(z) + zusatz.get(art, "")), art))
+            zusatz = {"vorschlag": " · passt", "aktuell": (" · " + grund) if status == "handeln" and stufe == "krit" else ""}  # noqa: B023 – im selben Durchlauf aufgerufen
+            opts.append(Option(zid, text or (_bezeichnung(z) + zusatz.get(art, "")), art))  # noqa: B023 – im selben Durchlauf aufgerufen
 
         if vorschlag:
             dazu(vorschlag, "vorschlag")

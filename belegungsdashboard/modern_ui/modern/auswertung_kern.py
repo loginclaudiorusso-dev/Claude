@@ -438,7 +438,7 @@ def jahresvergleich(pg: Prognose) -> dict[int, tuple[list, list]]:
             ist[z.monat.month - 1] = round(z.ist, 1)
         else:
             prog[z.monat.month - 1] = round(z.erwartet, 1)
-    for jahr, (ist, prog) in erg.items():           # Prognose an den letzten Ist-Monat anschließen
+    for _jahr, (ist, prog) in erg.items():           # Prognose an den letzten Ist-Monat anschließen
         letzte = max((i for i, v in enumerate(ist) if v is not None), default=None)
         if letzte is not None and letzte + 1 < 12 and prog[letzte + 1] is not None:
             prog[letzte] = ist[letzte]

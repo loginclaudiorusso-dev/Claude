@@ -813,7 +813,7 @@ def familien_tabelle(ks: list[Kurs], neu: list[Neu], gr: dict, stichtag: date, f
         n_neu = [e for e in neu if e.familie == fam]
 
         def wert(t: date) -> float:
-            return (sum(am(k, t) for k in eigene) + sum(e.am(t) for e in n_neu)) * faktor(fam)
+            return (sum(am(k, t) for k in eigene) + sum(e.am(t) for e in n_neu)) * faktor(fam)  # noqa: B023 – im selben Durchlauf aufgerufen
         kuenftig = sorted([(k.start, "gebucht") for k in eigene if k.start > stichtag]
                           + [(e.start, "geplant" if e.herkunft == "geplant" else "erwartet") for e in n_neu
                              if e.herkunft != "Nachbuchung"])
@@ -867,10 +867,10 @@ def rueckwaertstest(daten: dict | None = None, jahre: list[int] | None = None, v
 
         def damals(k: Kurs, t: date) -> float:
             """Bestand am Stichtag × Verbleib – bis zum (damals geplanten) Kursende; der spätere Verlauf ist unbekannt."""
-            if t <= st or not k.am(t):
+            if t <= st or not k.am(t):  # noqa: B023 – im selben Durchlauf aufgerufen
                 return float(k.am(t))
-            a, a0 = (t - k.start).days, (st - k.start).days
-            return float(k.am(st)) * verbleib_faktor(kurven.get(k.familie), a, a0)
+            a, a0 = (t - k.start).days, (st - k.start).days  # noqa: B023 – im selben Durchlauf aufgerufen
+            return float(k.am(st)) * verbleib_faktor(kurven.get(k.familie), a, a0)  # noqa: B023 – im selben Durchlauf aufgerufen
 
         zeilen = []
         for m in _monate(c, 12):
@@ -1461,7 +1461,7 @@ def neuanmeldungen(daten: dict | None, stichtag: date, familien: list[str] | Non
         heute = stichtag
 
         def neu_zw(a: date, b: date) -> float:
-            return float(sum(neu_im_kurs(k) for k in alle_eigene if a < k.start <= b))
+            return float(sum(neu_im_kurs(k) for k in alle_eigene if a < k.start <= b))  # noqa: B023 – im selben Durchlauf aufgerufen
         letzte, vorige = neu_zw(heute - timedelta(days=365), heute), neu_zw(heute - timedelta(days=730), heute - timedelta(days=365))
         volle = [neu_zw(date(heute.year - j - 1, 12, 31), date(heute.year - j, 12, 31)) for j in range(1, 4)]
         naechst = sum(z.erwartet for z in zeilen if z.hj[0] == heute.year + 1)
@@ -1554,7 +1554,7 @@ def monatlich(daten: dict | None, stichtag: date, reihen: dict, monate_zurueck: 
             bekannt = sum(ist) + sum(gebucht)
 
             def verteilt(gesamt: float, i: int) -> float:
-                return ist[i] + gebucht[i] + max(0.0, gesamt - bekannt) * anteil[i]
+                return ist[i] + gebucht[i] + max(0.0, gesamt - bekannt) * anteil[i]  # noqa: B023 – im selben Durchlauf aufgerufen
             for i, m in enumerate(ms):
                 if _monat_ende(m) < ab:
                     continue

@@ -4,7 +4,6 @@ Nur erfundene Kurse und Zahlen."""
 import random
 from datetime import date
 
-import pytest
 
 from modern import massnahmen_kern as mk
 

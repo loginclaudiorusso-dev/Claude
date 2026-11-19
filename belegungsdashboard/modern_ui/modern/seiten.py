@@ -14,7 +14,7 @@ from pathlib import Path
 from nicegui import run, ui
 
 from . import seiten_kern as sk
-from .kern import kurz, unter_sperre
+from .kern import unter_sperre
 from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
@@ -1109,7 +1109,7 @@ def _engpass_heatmap(a, aw) -> None:
             ui.label("")
             for w in aw.wochen:
                 ui.label(w.kw.split(" · ")[0]).classes("m-heat-kw")
-            for schluessel, name, art, wert in zeilen:
+            for _schluessel, name, art, wert in zeilen:
                 ui.label(name).classes("m-heat-name")
                 for w in aw.wochen:
                     st = w.stufen.get(art, "ok") if art else "ok"

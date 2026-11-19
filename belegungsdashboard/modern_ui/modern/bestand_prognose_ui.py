@@ -14,7 +14,6 @@ from nicegui import run, ui
 from . import bestand_kern as bk
 from . import bestand_prognose as bp
 from . import massnahmen_kern as mk
-from .arbeitsflaeche import mehrzahl
 from .ui_bausteine import attr, badge, knopf, leer, segmente
 
 MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]

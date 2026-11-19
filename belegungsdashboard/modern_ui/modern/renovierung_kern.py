@@ -25,7 +25,6 @@ Rein, ohne NiceGUI.
 
 from __future__ import annotations
 
-import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -1362,7 +1361,7 @@ def strategien(fl: list[Flur], p: dict, start_jahr: int, heute: date, jahre: int
     def lauf(schl, titel, erkl, faktor: float | None, res: set | None = None, zusatz: str = "") -> Strategie:
         s = Strategie(schl, titel, erkl, bestand=bestand_ - sum(len(f.zimmer) for f in fl if f.schluessel in (res or set())),
                       a_start=a0, zusatz=zusatz)
-        for i, j in enumerate(range(start_jahr, start_jahr + jahre)):
+        for _i, j in enumerate(range(start_jahr, start_jahr + jahre)):
             stichtag = date(j, 1, 1) if j > heute.year else heute
             fl_j = _altern(fl, stichtag, p, offen, noten)
             for f in fl_j:                                   # erneuerte Zimmer: frisch

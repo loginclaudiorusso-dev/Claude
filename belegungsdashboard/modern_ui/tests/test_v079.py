@@ -29,7 +29,7 @@ def _daten(n=160, seed=3):
     """Erfundene Historie: Assessments, davon 60 % nach 2 Monaten in eine Hauptmaßnahme (24 Monate, 20 % vorzeitig)."""
     rnd = random.Random(seed)
     auf, p = [], 0
-    for i in range(n):
+    for _i in range(n):
         p += 1
         s = date(2022, 1, 1) + timedelta(days=rnd.randint(0, (L - date(2022, 1, 1)).days - 10))
         auf.append(bk.Aufenthalt(p, f"GS ASS PS {s:%y%m%d}", s, min(L, s + timedelta(days=41)), 42, 12, 0))

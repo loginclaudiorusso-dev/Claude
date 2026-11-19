@@ -677,7 +677,7 @@ class Ansicht:
             jetzt = set(self.dock_seiten())
             schalter = {}
             gruppe = None
-            for k, text, icon, g in register.NAV:
+            for k, text, _icon, g in register.NAV:
                 if (g or "Start") != gruppe:
                     gruppe = g or "Start"
                     ui.label(gruppe).classes("m-mgruppe")

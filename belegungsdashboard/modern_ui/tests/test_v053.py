@@ -61,7 +61,6 @@ def test_verplantes_zusatzzimmer_nicht_loeschen(leer):
 
 
 def test_zimmer_id_je_standort():
-    from modern import standort_kern as sk
     from modern import zimmer_zusatz_kern as zz
 
     assert zz.zimmer_id("2", "201") == "GS-2-201" and zz.etage_vorschlag("E05") == "E" and zz.etage_vorschlag("312") == "3"

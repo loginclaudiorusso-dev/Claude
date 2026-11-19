@@ -112,7 +112,7 @@ def test_diagramm_optionen_drei_modi_und_feste_achse():
         o = sp.option({**basis, "art": "trend", "schritt": schritt})
         achsen.append((o["yAxis"]["min"], o["yAxis"]["max"]))
         namen = {s["name"]: s for s in o["series"]}
-        hat = lambda n: any(v is not None for v in namen[n]["data"])  # noqa: E731
+        hat = lambda n: any(v is not None for v in namen[n]["data"])  # noqa: B023, E731
         assert hat("Ist") and hat("Prognose (erwartet)") == (schritt >= 2) and hat("80 %-Band") == (schritt >= 3)
         assert hat("Kapazität") == (schritt >= 4)
     assert len(set(achsen)) == 1                                                     # Aufbau ohne Achsensprung

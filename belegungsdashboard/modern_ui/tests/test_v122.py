@@ -2,7 +2,6 @@
 95-%-Band wie im Trend. Erfundene Zahlen."""
 
 from datetime import date, timedelta
-from types import SimpleNamespace as NS
 
 import pandas as pd
 

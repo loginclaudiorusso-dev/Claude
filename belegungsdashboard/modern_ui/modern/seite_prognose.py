@@ -1099,7 +1099,7 @@ def _vorjahr_taeglich(o, t, c, ort, zaehl, szen) -> dict:
     mitte = [idx.get(m.replace(day=15)) for m in vj.monate]
     leer = lambda: [None] * n  # noqa: E731
     l_vj, l_vvj, l_ist = leer(), leer(), leer()
-    for m, i_m, a_, ist_m, v_, vv_ in zip(vj.monate, mitte, vj.aktuell, vj.aktuell_ist, vj.vorjahr, vj.vorvorjahr):
+    for _m, i_m, a_, ist_m, v_, vv_ in zip(vj.monate, mitte, vj.aktuell, vj.aktuell_ist, vj.vorjahr, vj.vorvorjahr):
         if i_m is None:
             continue
         l_vj[i_m] = round(v_, 1) if v_ is not None else None

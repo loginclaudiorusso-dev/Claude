@@ -1,0 +1,8 @@
+# Statische Prüfung der neuen Oberfläche: ruff check (Pyflakes F, Bugbear B) – 1.29.
+# Aufruf im Ordner modern_ui:  ruff check .
+[lint]
+select = ["F", "B"]
+ignore = [
+    "B905",   # zip() ohne strict=: bewusst – strict=True würde dort, wo Listen verschieden lang sein dürfen
+              # (Diagramm-Reihen, Monatslisten), das Verhalten ändern. Kein Fehler, nur eine Stilregel.
+]

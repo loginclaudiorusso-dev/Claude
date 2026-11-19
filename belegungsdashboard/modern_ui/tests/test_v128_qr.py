@@ -89,7 +89,7 @@ def decodieren(m):
                 bl.append(cw[k])
                 k += 1
     pruef = [[] for _ in laengen]
-    for i in range(n_ecc):
+    for _ in range(n_ecc):
         for p in pruef:
             p.append(cw[k])
             k += 1
