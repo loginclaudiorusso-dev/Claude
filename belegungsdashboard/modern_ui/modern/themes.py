@@ -12,28 +12,8 @@ from __future__ import annotations
 
 from .stil import T as _ORIGINAL
 
-LAYOUTS = {
-    "original": ("Original-Zustand", "Bisheriges Design und Layout – exakt wie vorher", "restart_alt"),
-    "office": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen und Ausklappmenüs – vertraut wie Word "
-                                        "und Excel", "view_agenda"),
-    "grid": ("Classic Enterprise Grid", "Einklappbare Seitenleiste, hohe Datendichte, volle Funktion", "view_sidebar"),
-    "canvas": ("AI-Canvas & Prompt", "Zentrale Eingabe (Strg+K, /) filtert live – Antworten als Karten", "auto_awesome"),
-    "showcase": ("Showcase", "Schwebendes Dock oben, großzügige Karten, viel Weißraum, Glas", "dashboard"),
-}
-THEMES = {
-    "innternat": ("INNternat", "Türkis-Grau wie das Logo – ruhig, klar, hell und dunkel", "dunkel"),
-    "original": ("Original", "Die Farben des bisherigen Designs", "dunkel"),
-    "inn": ("inn-tegrativ", "Corporate Deep Blue #183861 – ruhig und seriös", "hell"),
-    "linear": ("Linear Monochrome", "Graustufen, messerscharfe Kanten, hohe Dichte", "dunkel"),
-    "obsidian": ("Executive Obsidian", "Dunkler Obsidian mit Bronze- und Champagner-Akzenten", "dunkel"),
-    "nordic": ("Soft Nordic", "Augenschonend: warme Slate- und Sandtöne", "hell"),
-}
-ALT = {"corporate": "inn", "bento": "obsidian", "editorial": "nordic"}      # Namen aus 0.8
-STANDARD = {"layout": "original", "theme": "original", "modus": "dunkel", "dichte": "normal", "schmal": False,
-            "vollbild": False, "notiz": "", "dock": None, "dock_fest": True}
-from . import darstellung_kern as _dk  # noqa: E402 – 0.66: Farben, Zoom, Schrift, Diagrammstil
-
-STANDARD.update(_dk.STANDARD)
+from . import darstellung_kern as _dk  # noqa: E402 – 0.66: Farbrechnung
+from .darstellung_modell import ALT, LAYOUTS, STANDARD, THEMES, bereinigen  # noqa: E402,F401 – 1.29: ein Modell
 
 # ---------------------------------------------------------------------------------------
 # Paletten (je Theme hell/dunkel) – nur Farben
@@ -173,35 +153,6 @@ def modi(theme: str) -> list[str]:
     return [m for (t, m) in P if t == theme]
 
 
-def bereinigen(d: dict | None) -> dict:
-    """Gespeicherten Zustand prüfen und ältere Namen (0.8) übernehmen. Unbekanntes → Original-Zustand."""
-    d = dict(d or {})
-    erg = dict(STANDARD)
-    if "layout" not in d and d.get("theme") not in (None, "original"):       # Stand 0.8: theme + nav
-        d["layout"] = {"oben": "showcase"}.get(d.get("nav"), "grid")
-        d["schmal"] = d.get("nav") == "schmal"
-    theme = ALT.get(d.get("theme"), d.get("theme"))
-    erg["layout"] = d.get("layout") if d.get("layout") in LAYOUTS else "original"
-    erg["theme"] = theme if theme in THEMES else "original"
-    if erg["layout"] == "original":
-        erg["theme"] = "original"
-    erg["modus"] = d.get("modus") if d.get("modus") in modi(erg["theme"]) else THEMES[erg["theme"]][2]
-    erg["dichte"] = d.get("dichte") if d.get("dichte") in ("kompakt", "komfort") else "normal"   # 0.74: + Komfort
-    erg["schmal"] = bool(d.get("schmal"))
-    erg["vollbild"] = bool(d.get("vollbild"))
-    erg["notiz"] = str(d.get("notiz") or "")[:5000]
-    dock = d.get("dock")                    # Showcase: angeheftete Bereiche im Dock (None = Standard)
-    erg["dock"] = [str(x) for x in dock][:14] if isinstance(dock, list) else None
-    erg["dock_fest"] = d.get("dock_fest", True) is not False
-    erg.update(_dk.bereinigen(d))
-    # 0.72: Helligkeit (hell | gedämpft | dunkel) und der bisherige Modus (hell | dunkel) bleiben stimmig. Ältere
-    # Einstellungen ohne Helligkeit übernehmen den Modus – wer dunkel hatte, bleibt dunkel.
-    # Der Modus entscheidet „hell oder nicht“, die Helligkeit verfeinert „nicht hell“ zu gedämpft oder dunkel.
-    if "helligkeit" not in d or (erg["modus"] == "dunkel" and erg["helligkeit"] == "hell"):
-        erg["helligkeit"] = "dunkel" if erg["modus"] == "dunkel" else "hell"
-    elif erg["modus"] == "hell" and erg["helligkeit"] != "hell" and "hell" in modi(erg["theme"]):
-        erg["helligkeit"] = "hell"
-    return erg
 
 
 def farben(d: dict | str) -> dict:
