@@ -774,7 +774,9 @@ def _gruppe(b) -> str:
 
 
 def _geschlecht(b) -> str:
-    return (b.grund if b.person else "") or zp.geschlecht_raten(b.name)
+    from .belegung_felder import geschlecht       # 1.29: „grund“ trägt bei eigenen Planungen das Geschlecht
+
+    return geschlecht(b)
 
 
 def _ausweichen(stand: zp.Planstand, fe: Fenster, personen: list, ohne: set[str]) -> None:
