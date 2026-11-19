@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from modern import cockpit_kern as ck
-from test_v116 import _bedarf, _karte
+from test_steuerung_v116_cockpit import _bedarf, _karte
 
 
 def test_abweichung_klingt_ab_und_spanne_waechst_wieder():

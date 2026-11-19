@@ -8,7 +8,7 @@ from modern import bestand_kern as bk
 from modern import bestand_prognose as bp
 from modern import massnahmen_kern as mk
 
-from test_v079 import L, T, _daten
+from test_teilnehmer_v079_simulation import L, T, _daten
 
 
 def _sim():

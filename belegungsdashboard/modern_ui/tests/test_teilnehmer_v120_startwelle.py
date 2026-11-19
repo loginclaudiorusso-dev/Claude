@@ -71,7 +71,7 @@ def test_zaehlwerte_bleiben_saeulen():
 # ---- 1.20b: Cockpit-Diagramm „Freie Betten“ + Klartext-Tooltip + Einstellungen ----
 
 from modern import cockpit_kern as ck  # noqa: E402
-from test_v116 import _bedarf, _karte  # noqa: E402
+from test_steuerung_v116_cockpit import _bedarf, _karte  # noqa: E402
 
 
 def _reihe(o, name):

@@ -3,7 +3,7 @@
 import inspect
 
 from modern import cockpit_kern as ck
-from test_v116 import _bedarf, _karte
+from test_steuerung_v116_cockpit import _bedarf, _karte
 
 
 def test_vorschau_dazu_und_weg():

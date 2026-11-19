@@ -6,7 +6,7 @@ import pytest
 
 from modern import bestand_prognose as bp
 from modern import teilnehmer_rechenweg_kern as tr
-from test_v120 import ASS, VW, L, T, _faelle
+from test_teilnehmer_v120_startwelle import ASS, VW, L, T, _faelle
 
 
 @pytest.fixture(scope="module")

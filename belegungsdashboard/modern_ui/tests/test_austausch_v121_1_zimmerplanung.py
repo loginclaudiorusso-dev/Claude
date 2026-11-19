@@ -5,7 +5,7 @@ import inspect
 from datetime import datetime
 
 from modern import austausch_kern as ak
-from test_v105 import START, Ablage, _export, _gleich, _import
+from test_teilnehmer_v105_monat_austausch import START, Ablage, _export, _gleich, _import
 
 Z = "zimmer_zuweisungen.json"
 

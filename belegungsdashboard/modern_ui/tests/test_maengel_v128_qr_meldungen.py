@@ -157,7 +157,7 @@ def test_link_und_antwortdatei_pruefen(stand, tmp_path):
 
 
 def test_etiketten_druckbogen():
-    from tests.test_v128_qr import decodieren
+    from tests.test_maengel_v128_qr_code import decodieren
     import re
 
     from modern import qr_kern
