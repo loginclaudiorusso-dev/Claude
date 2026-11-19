@@ -125,7 +125,9 @@ def test_archiv(tmp_path, monkeypatch):
     for _ in range(2):
         assert mk.archivieren({"bis": "2026-11-01"}, [[1, "GS CNC 2601", "2026-01-01", "2026-11-01", 300, 80, 0, 0]])
     assert len(mk.archiv_staende()) == 1                                      # ein Stand je Tag
-    monkeypatch.setattr(mk, "ARCHIV_MAX", 1)
+    from modern import massnahmen_import as mi                                 # 1.29: Archiv liegt dort
+
+    monkeypatch.setattr(mi, "ARCHIV_MAX", 1)
     (tmp_path / mk.ARCHIV_ORDNER / "bestand_2020-01-01.json").write_text("{}", encoding="utf-8")
     mk.archivieren({}, [])
     assert len(mk.archiv_staende()) == 1
