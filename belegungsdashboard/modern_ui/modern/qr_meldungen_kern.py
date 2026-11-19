@@ -11,7 +11,11 @@ Ablauf
    OneDrive-Pfad je Benutzer anders ist – es reicht EIN PC).
 3. INNternat liest die Datei alle paar Minuten (nur, wenn sie sich geändert hat), merkt sich jede Antwort genau einmal
    (Forms-ID + Startzeit) und legt sie als „neu“ im Datenordner ab – alle PCs sehen dieselben Meldungen.
-4. Eine Meldung wird NIE von selbst zum Mangel (den QR-Code kann jeder scannen): „Übernehmen“ legt den Mangel an
+4. 1.30 – Prüfcode: Eine vierte Frage „Code (bitte nicht ändern)“, beim vorausgefüllten Link mit ``CODE``. Jedes
+   Etikett trägt neben der Zimmernummer einen 5-stelligen Code (HMAC aus Zimmer-ID und einem Geheimwert im Datenordner).
+   Ändert ein Gast die Zimmernummer, erkennt INNternat am Code das Etikett, schlägt dieses Zimmer vor und markiert die
+   Meldung. Forms kann vorausgefüllte Felder nicht sperren – der Code macht Änderungen sichtbar.
+5. Eine Meldung wird NIE von selbst zum Mangel (den QR-Code kann jeder scannen): „Übernehmen“ legt den Mangel an
    (Art vorgeschlagen, änderbar; Rückgängig wie immer), „Verwerfen“ blendet sie aus.
 
 Gespeichert in ``importe/modern_qr_meldungen.json``: ``{"link": str, "meldungen": [{…}]}``.
@@ -19,7 +23,10 @@ Gespeichert in ``importe/modern_qr_meldungen.json``: ``{"link": str, "meldungen"
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import re
+import secrets
 import shutil
 import tempfile
 from dataclasses import asdict, dataclass, field
@@ -32,6 +39,9 @@ from belegung import speicher
 
 DATEI = "importe/modern_qr_meldungen.json"
 PLATZHALTER = "ZIMMER"
+CODE_PLATZHALTER = "CODE"
+CODE_ZEICHEN = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # ohne 0/O und 1/I – nicht zu verwechseln
+CODE_LAENGE = 5
 EINSTELLUNG_DATEI = "qr_antwortdatei"            # je PC (netz_kern.persoenlich)
 TAKT_MINUTEN = 5
 DRINGEND = mg.STUFE_DRINGEND
@@ -62,6 +72,7 @@ SPALTEN = {
     "start": ("startzeit", "start time", "starttime"),
     "ende": ("fertigstellungszeit", "completion time", "abschlusszeit"),
     "zimmer": ("zimmer", "raum", "room", "zimmernummer"),
+    "code": ("code", "prüfcode", "pruefcode"),
     "art": ("art", "kategorie", "was ist", "worum", "thema", "category", "type"),
     "text": ("beschreib", "was ist passiert", "nachricht", "hinweis", "bemerk", "details", "kommentar", "description",
              "text"),
@@ -80,6 +91,8 @@ class Meldung:
     status: str = "neu"          # neu | uebernommen | verworfen
     erledigt: str = ""           # ISO-Datum
     hinweis: str = ""
+    code: str = ""               # 1.30: Prüfcode aus dem Formular
+    etikett: str = ""            # 1.30: Zimmer-ID laut Prüfcode (vom Etikett)
 
     @property
     def dringend(self) -> bool:
@@ -124,7 +137,10 @@ def link_setzen(wert: str) -> str:
     _schritt("QR-Formular-Link", aktion, [DATEI])
     if not wert:
         return "Formular-Link entfernt"
-    return ("Formular-Link gespeichert – jedes Etikett trägt seine Zimmernummer" if PLATZHALTER in wert else
+    if PLATZHALTER in wert and CODE_PLATZHALTER in wert:
+        return "Formular-Link gespeichert – jedes Etikett trägt Zimmernummer und Prüfcode"
+    return ("Formular-Link gespeichert – jedes Etikett trägt seine Zimmernummer (ohne Prüfcode: im Formular die Frage "
+            f"„Code“ mit {CODE_PLATZHALTER} vorausfüllen)" if PLATZHALTER in wert else
             f"Formular-Link gespeichert – ohne Platzhalter {PLATZHALTER}: alle Etiketten öffnen dasselbe Formular, das "
             "Zimmer wird dort eingetragen")
 
@@ -147,9 +163,54 @@ def neue() -> list[Meldung]:
 
 # ---- QR-Link je Zimmer ---------------------------------------------------------------------------------------------
 
-def zimmer_link(vorlage: str, kurz: str) -> str:
-    """Link für ein Zimmer: Platzhalter ``ZIMMER`` durch die (URL-kodierte) Zimmernummer ersetzen."""
-    return vorlage.replace(PLATZHALTER, quote(kurz, safe="")) if PLATZHALTER in vorlage else vorlage
+def zimmer_link(vorlage: str, kurz: str, code: str = "") -> str:
+    """Link für ein Zimmer: ``ZIMMER`` durch die (URL-kodierte) Zimmernummer, ``CODE`` durch den Prüfcode ersetzen."""
+    erg = vorlage.replace(PLATZHALTER, quote(kurz, safe="")) if PLATZHALTER in vorlage else vorlage
+    return erg.replace(CODE_PLATZHALTER, code) if code and CODE_PLATZHALTER in erg else erg
+
+
+# ---- 1.30: Prüfcode ----------------------------------------------------------------------------------------------
+
+def code_fuer(zid: str, geheim: str) -> str:
+    """5 Zeichen, fest je Zimmer und Installation; ohne den Geheimwert nicht zu erraten."""
+    h = hmac.new(geheim.encode(), zid.encode(), hashlib.sha256).digest()
+    n = int.from_bytes(h[:8], "big")
+    return "".join(CODE_ZEICHEN[(n >> (5 * i)) & 31] for i in range(CODE_LAENGE))
+
+
+def code_norm(text) -> str:
+    """Wie eingegeben → vergleichbar (Groß-/Kleinschreibung und Leer-/Sonderzeichen egal)."""
+    return re.sub(r"[^0-9A-Za-z]", "", str(text or "")).upper()
+
+
+def code_tabelle(zids, geheim: str) -> dict[str, str]:
+    """Code → Zimmer-ID. Kommt ein Code doppelt vor (sehr selten), gilt er für keines der Zimmer."""
+    erg: dict[str, str] = {}
+    doppelt = set()
+    for zid in zids:
+        c = code_fuer(zid, geheim)
+        if c in erg:
+            doppelt.add(c)
+        erg[c] = zid
+    return {c: z for c, z in erg.items() if c not in doppelt}
+
+
+def geheim_lesen(d: dict | None = None) -> str:
+    return str((d if d is not None else _lesen()).get("geheim") or "")
+
+
+def geheim() -> str:
+    """Geheimwert der Installation (Datenordner, alle PCs gleich) – beim ersten Druck angelegt."""
+    if g := geheim_lesen():
+        return g
+    from . import netz_kern
+
+    with netz_kern.sperre():
+        d = _lesen()
+        if not d.get("geheim"):
+            d["geheim"] = secrets.token_hex(16)
+            _schreiben(d)
+        return d["geheim"]
 
 
 # ---- Einlesen ------------------------------------------------------------------------------------------------------
@@ -168,7 +229,7 @@ def spalten_finden(kopf: list) -> dict[str, int]:
                 erg[feld] = i
     fest = set(erg.values()) | {i for i, t in enumerate(k) if t in ("e-mail", "email", "name", "zeitpunkt der letzten änderung",
                                                                      "last modified time")}
-    for feld in ("zimmer", "text", "art"):
+    for feld in ("zimmer", "code", "text", "art"):
         for i, t in enumerate(k):
             if i in fest or i in erg.values():
                 continue
@@ -204,6 +265,7 @@ class Roh:
     zimmer_text: str
     art_text: str
     text: str
+    code: str = ""
 
 
 @dataclass
@@ -251,7 +313,8 @@ def lesen_xlsx(pfad: Path) -> Ergebnis:
             continue
         zeit = _zeit(wert(z, "ende") or wert(z, "start"))
         erg.zeilen.append(Roh(f"{rid}|{_zeit(wert(z, 'start'))}", zeit, str(wert(z, "zimmer") or "").strip(),
-                              str(wert(z, "art") or "").strip(), str(wert(z, "text") or "").strip()))
+                              str(wert(z, "art") or "").strip(), str(wert(z, "text") or "").strip(),
+                              str(wert(z, "code") or "").strip()))
     return erg
 
 
@@ -282,7 +345,23 @@ def zimmer_finden(text: str, aus_text) -> str:
     return ""
 
 
-def zusammenfuehren(d: dict, zeilen: list[Roh], aus_text) -> list[Meldung]:
+def pruefen(zimmer_text: str, zimmer: str, code: str, codes: dict[str, str] | None, erwartet: bool,
+            kurz=lambda z: z.removeprefix("GS-")) -> tuple[str, str, str]:
+    """1.30: Zimmer gegen den Prüfcode prüfen → (Zimmer-ID, Etikett-ID, Hinweis). Der Code gewinnt: er stammt vom
+    Etikett, die Zimmernummer kann der Gast überschrieben haben."""
+    c = code_norm(code)
+    if not c or codes is None:
+        return zimmer, "", ("ohne Prüfcode – Zimmer bitte prüfen" if erwartet and codes is not None else "")
+    etikett = codes.get(c, "")
+    if not etikett:
+        return zimmer, "", f"Prüfcode „{code}“ unbekannt – Zimmer bitte genau prüfen"
+    if zimmer != etikett:
+        return etikett, etikett, (f"Zimmer im Formular geändert („{zimmer_text or 'leer'}“) – Etikett war {kurz(etikett)}")
+    return zimmer, etikett, ""
+
+
+def zusammenfuehren(d: dict, zeilen: list[Roh], aus_text, codes: dict[str, str] | None = None,
+                    code_erwartet: bool = False, kurz=lambda z: z.removeprefix("GS-")) -> list[Meldung]:
     """Neue Antworten in den gespeicherten Stand übernehmen (je ID genau einmal). Gibt die neuen Meldungen zurück."""
     bekannt = {x.get("id") for x in d.get("meldungen") or []}
     neu = []
@@ -290,8 +369,10 @@ def zusammenfuehren(d: dict, zeilen: list[Roh], aus_text) -> list[Meldung]:
         if r.id in bekannt:
             continue
         bekannt.add(r.id)
-        m = Meldung(r.id, r.zeit, r.zimmer_text[:60], zimmer_finden(r.zimmer_text, aus_text), r.art_text[:80],
-                    r.text[:1000], art_vorschlag(r.art_text, r.text))
+        zid, etikett, hinweis = pruefen(r.zimmer_text, zimmer_finden(r.zimmer_text, aus_text), r.code, codes,
+                                        code_erwartet, kurz)
+        m = Meldung(r.id, r.zeit, r.zimmer_text[:60], zid, r.art_text[:80], r.text[:1000],
+                    art_vorschlag(r.art_text, r.text), hinweis=hinweis, code=code_norm(r.code)[:12], etikett=etikett)
         neu.append(m)
     if neu:
         d.setdefault("meldungen", []).extend(asdict(m) for m in neu)
@@ -325,7 +406,7 @@ def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung
     from belegung import zimmerplan as zp
 
     from . import netz_kern
-    from .kern import _zimmer_aus_text
+    from .kern import _zimmer_aus_text, kurz
 
     pfad = pfad if pfad is not None else antwortdatei()
     if not pfad:
@@ -342,7 +423,10 @@ def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung
     with netz_kern.sperre():
         stand = zp.laden()
         d = _lesen()
-        neu = zusammenfuehren(d, erg.zeilen, lambda t: _zimmer_aus_text(stand, t))
+        g = geheim_lesen(d)
+        codes = code_tabelle([z.id for z in stand.zimmer], g) if g else None
+        neu = zusammenfuehren(d, erg.zeilen, lambda t: _zimmer_aus_text(stand, t), codes,
+                              CODE_PLATZHALTER in str(d.get("link") or ""), kurz)
         if neu:
             _schreiben(d)
     _STAND.update(mtime=mt, pfad=pfad)
@@ -431,9 +515,10 @@ def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Et
 
     if not vorlage:
         raise ValueError("Zuerst den Forms-Link eintragen.")
+    g = geheim() if CODE_PLATZHALTER in vorlage else ""
     karten = []
-    for _zid, kurz in zimmer:
-        url = zimmer_link(vorlage, kurz)
+    for zid, kurz in zimmer:
+        url = zimmer_link(vorlage, kurz, code_fuer(zid, g) if g else "")
         karten.append(f'<div class="e"><div class="n">{escape(kurz)}</div>{svg(url, modul=1)}'
                       f'<div class="t">{escape(titel)}</div><div class="z">{escape(zeile)}</div></div>')
     return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>QR-Etiketten</title><style>"

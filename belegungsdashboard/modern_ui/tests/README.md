@@ -57,6 +57,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 ## maengel – Mängel und Meldungen per QR-Code
 
 - `test_maengel_v128_qr_code.py` – 1.28 – QR-Codes: jeder erzeugte Code wird mit einem UNABHÄNGIGEN Decoder zurückgelesen (eigene GF-Rechnung,
+- `test_maengel_v130_pruefcode.py` – 1.30 – Prüfcode auf dem QR-Etikett: zeigt, ob ein Gast die vorausgefüllte Zimmernummer geändert hat.
 - `test_maengel_v128_qr_meldungen.py` – 1.28 – Meldungen per QR-Code (Forms, anonym): einlesen, Zimmer erkennen, übernehmen, verwerfen. Erfundene Daten.
 
 ## mieter – Mieter und Mietverträge
@@ -74,6 +75,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_netz_v090_haertung.py` – 0.90 – Review-Härtung: Prüfen und Speichern unter derselben Sperre, Sperre mit Besitzer und Server-Uhr,
 - `test_netz_v126_fencing.py` – 1.26 – Schreibsperre: lebende Sperre nie löschen, Fencing beim Speichern. Simulierte Sperrdateien.
 - `test_netz_v126_sperre.py` – 1.26 – Lesen, Prüfen und Speichern unter EINER Schreibsperre (Mehrplatz). Erfundene Daten.
+- `test_netz_v129_1_fensterprozess.py` – 1.29.1 – Fensterprozess (pywebview) hält sich nicht für einen Doppelstart.
 - `test_netz_v127_start.py` – 1.27 – Start absichern: Lebenszeichen, Doppelstart, Python-Version, Fehleranzeige.
 
 ## prognose – Belegungsprognose, Analytik, Rechenweg

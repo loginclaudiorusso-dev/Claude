@@ -37,10 +37,11 @@ def bereich(a) -> None:
         with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
             ui.label(m.zeit_text).classes("m-mono")
             wahl = {"zimmer": m.zimmer, "art": m.art}
-            if m.zimmer:
+            if m.zimmer and not m.hinweis:
                 ui.label(zkurz(m.zimmer)).classes("m-name")
-            else:
-                s = ui.select(zimmer, value=None, with_input=True, label=f"„{m.zimmer_text or '?'}“ – Zimmer wählen") \
+            else:                          # nicht erkannt oder Prüfcode-Hinweis: Zimmer wählbar (Vorschlag vorbelegt)
+                titel = "laut Etikett" if m.etikett and m.zimmer == m.etikett else f"„{m.zimmer_text or '?'}“ – Zimmer wählen"
+                s = ui.select(zimmer, value=m.zimmer if m.zimmer in zimmer else None, with_input=True, label=titel) \
                     .classes("m-feld").props(POPUP)
                 s.on_value_change(lambda e, w=wahl: w.update(zimmer=e.value or ""))
             with ui.element("div"):
@@ -48,6 +49,10 @@ def bereich(a) -> None:
                 ui.label(text).classes("m-ptext" + (" m-warn" if m.dringend else ""))
                 if m.art_text and m.text:
                     ui.label(m.art_text).classes("m-zweite")
+                if m.hinweis:                  # 1.30: Prüfcode – Zimmer geändert, Code unbekannt oder fehlt
+                    with ui.element("div").style("display:flex;gap:4px;align-items:center"):
+                        ui.icon("warning_amber").classes("m-warn")
+                        ui.label(m.hinweis).classes("m-zweite m-warn").style("white-space:normal")
             art = ui.select(arten, value=m.art).classes("m-feld").props(POPUP)
             art.on_value_change(lambda e, w=wahl: w.update(art=e.value))
             with ui.element("div").style("display:flex;gap:6px;align-items:center"):
@@ -70,9 +75,12 @@ def fenster(a) -> None:
                  "zum Prüfen. Ein Mangel entsteht erst, wenn Sie „Übernehmen“ klicken.").classes("m-ptext")
 
         ui.label("1 · Formular-Link (gilt für alle PCs)").classes("m-abschnitt")
-        ui.label(f"In Forms: Formular öffnen → „…“ → „Vorausgefüllte URL abrufen“ → bei „Zimmer“ {qm.PLATZHALTER} "
-                 "eintragen → „Vorausgefüllten Link abrufen“ → Kopieren und hier einfügen.").classes("m-ptext")
-        link = ui.input(value=qm.link(), label="Vorausgefüllter Link mit ZIMMER").classes("m-feld w-full").props(
+        ui.label(f"In Forms: Formular öffnen → „…“ → „Vorausgefüllte URL abrufen“ → bei „Zimmer“ {qm.PLATZHALTER} und bei "
+                 f"„Code (bitte nicht ändern)“ {qm.CODE_PLATZHALTER} eintragen → „Vorausgefüllten Link abrufen“ → Kopieren "
+                 "und hier einfügen. Der Code zeigt später, ob jemand die Zimmernummer geändert hat.").classes("m-ptext")
+        if (l_ := qm.link()) and qm.CODE_PLATZHALTER not in l_:
+            ui.label("Der gespeicherte Link enthält noch keinen Prüfcode (CODE).").classes("m-zweite m-warn")
+        link = ui.input(value=qm.link(), label="Vorausgefüllter Link mit ZIMMER und CODE").classes("m-feld w-full").props(
             "dense outlined dark")
         knopf("Link speichern", lambda: a.aendern(qm.link_setzen, link.value or ""), "", "link")
 
