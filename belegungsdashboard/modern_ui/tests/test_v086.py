@@ -148,12 +148,12 @@ def test_namen_und_querverweise():
     assert '"prognose": "Belegungs\\u00adprognose"' in _q("seite_auswertung.py")
     assert '"prognose": "Teilnehmer-Prognose"' in _q("seite_massnahmen.py")
     assert 'a.oeffnen("auswertung", ansicht="prognose")' in _q("bestand_prognose_ui.py")
-    assert 'ansicht="massnahmen", mn_ansicht="prognose"' in _q("seite_prognose.py")
+    assert 'ansicht="massnahmen", mn_ansicht="prognose"' in (_q("seite_prognose.py") + _q("prognose_diagramm.py"))
     assert "schon da oder angemeldet" in _q("bestand_prognose_ui.py") and '"Davon bekannt"' in _q("kennzahlen_katalog.py")
 
 
 def test_belegungsprognose_band_nur_12_monate():
-    q = _q("seite_prognose.py")
+    q = (_q("seite_prognose.py") + _q("prognose_diagramm.py"))
     assert 'band("lo80"), band("hi80")' in q and "i >= fort_ab" in q and '36: "36M"' not in q
     assert "self.aw_95, self.aw_backtest = True, False" in _q("oberflaeche.py")       # 1.23: 95 % an, abschaltbar
 

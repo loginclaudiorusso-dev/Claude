@@ -147,7 +147,7 @@ def test_karte_und_ansichten():
     assert "@container (max-width: 760px)" in css and ".m-dk.voll" in css and "minmax(0, 3fr) minmax(240px, 300px)" in css
     assert "<span>Größe ziehen" not in js                                             # Hinweistext entfällt
     assert "_tagesverlauf_karte" in q("seite_auswertung.py") and "diagramm_karte.Karte" in q("seite_massnahmen.py")
-    assert "diagramm_karte.Karte" in q("seite_prognose.py") and "m-xg-fuss\" + (\"\" if klassisch else \" m-weg\")" in q("seite_prognose.py")
+    assert "diagramm_karte.Karte" in (q("seite_prognose.py") + q("prognose_diagramm.py")) and "m-xg-fuss\" + (\"\" if klassisch else \" m-weg\")" in (q("seite_prognose.py") + q("prognose_diagramm.py"))
 
 
 # ---- inkl. UWTler und Mieter -------------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def test_vertragsgrenze_und_gruppensaetze():
 def test_status_karte_zwei_flaechen():
     from modern import seite_prognose as sp
 
-    q = (MOD / "seite_prognose.py").read_text(encoding="utf-8")
+    q = (MOD / "seite_prognose.py").read_text(encoding="utf-8") + (MOD / "prognose_diagramm.py").read_text(encoding="utf-8")
     assert "def _status_karte" in q and '"axisPointer"' in q and '"link": [{"xAxisIndex": "all"}]' in q
     assert "inkl. UWTler und Mieter" in q and "_js_schalter(" in q and "noch keine Verträge" in q
     z = sp.zoom([f"M{i}" for i in range(48)], 24)

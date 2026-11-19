@@ -44,7 +44,7 @@ def test_dg_modus_einstellung():
 
 
 def test_modus_verdrahtet():
-    prog = (MOD / "seite_prognose.py").read_text(encoding="utf-8")
+    prog = (MOD / "seite_prognose.py").read_text(encoding="utf-8") + (MOD / "prognose_diagramm.py").read_text(encoding="utf-8")
     assert 'klassisch = praes or km == "klassisch"' in prog and "def _einfach(" in prog
     assert "diagramm_karte.modus_wahl(a)" in prog
     for datei in ("seite_massnahmen.py", "seite_auswertung.py"):
