@@ -23,6 +23,13 @@ sys.path.insert(0, str(HIER.parent))          # Hauptprogramm (belegung) – wir
 from modern import netz_kern  # noqa: E402 – rein, ohne NiceGUI
 from modern import start_kern  # noqa: E402 – 1.27: Lebenszeichen und Doppelstart (rein)
 
+# 1.29.1: Das eigene Fenster (pywebview) läuft unter Windows in einem Kindprozess, der diese Datei erneut lädt
+# („__mp_main__“). Lebenszeichen und Doppelstart-Prüfung gelten NUR für den Hauptprozess – sonst hält sich das
+# Fenster für einen zweiten Start und beendet sich sofort (kein Fenster, Meldung nach 90 Sekunden).
+import multiprocessing  # noqa: E402
+
+HAUPTPROZESS = multiprocessing.current_process().name == "MainProcess"
+
 # 0.54: Alles, was nur diesen PC betrifft, liegt lokal (%LOCALAPPDATA%\INNternat) – im Netzwerkordner würden sich
 # 8 PCs Protokoll, Zwischenspeicher und NiceGUI-Ablage teilen. Ohne Netzwerkstart bleibt das Protokoll, wo es war.
 LOKAL = netz_kern.lokal_ordner()
@@ -53,7 +60,8 @@ if KONSOLE:
 
 def _abbruch(t, e, tb) -> None:
     logging.getLogger("start").critical("Abbruch", exc_info=(t, e, tb))
-    start_kern.schreiben(LOKAL, "fehler", fehler=start_kern.fehler_text(e))   # 1.27: die Startdatei zeigt es an
+    if HAUPTPROZESS:
+        start_kern.schreiben(LOKAL, "fehler", fehler=start_kern.fehler_text(e))   # 1.27: die Startdatei zeigt es an
     if KONSOLE:
         import traceback
 
@@ -62,11 +70,12 @@ def _abbruch(t, e, tb) -> None:
 
 sys.excepthook = _abbruch
 
-if start_kern.lebt(start_kern.lesen(LOKAL)) and "--konsole" not in sys.argv:
+if HAUPTPROZESS and start_kern.lebt(start_kern.lesen(LOKAL)) and "--konsole" not in sys.argv:
     # 1.27: zweiter Start auf diesem PC (z. B. Doppelklick zweimal schnell) – die Startdatei hat es schon gemeldet
     logging.getLogger("start").info("INNternat läuft auf diesem PC schon – zweiter Start beendet")
     sys.exit(0)
-start_kern.schreiben(LOKAL, "startet")
+if HAUPTPROZESS:
+    start_kern.schreiben(LOKAL, "startet")
 
 from nicegui import app, ui  # noqa: E402
 

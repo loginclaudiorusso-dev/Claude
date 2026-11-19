@@ -141,7 +141,10 @@ async def takt() -> None:
     await asyncio.sleep(40)
     while True:
         try:
-            _, fehler = await run.io_bound(qm.einlesen)
+            erg = await run.io_bound(qm.einlesen)
+            if erg is None:                # 1.29.1: Programm wird gerade beendet
+                return
+            _, fehler = erg
             if fehler:
                 log.warning("QR-Meldungen: %s", fehler)
             if await run.io_bound(melder.an):

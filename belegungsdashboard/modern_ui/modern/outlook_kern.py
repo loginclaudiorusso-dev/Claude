@@ -333,7 +333,10 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
             ui.label("Lädt …").classes("m-zweite")
 
     async def _laden(neu: bool = False) -> None:
-        mails, fehler = await run.io_bound(vorschau, neu, anzahl)
+        erg = await run.io_bound(vorschau, neu, anzahl)
+        if erg is None:                    # 1.29.1: Programm wird gerade beendet (NiceGUI liefert dann None)
+            return
+        mails, fehler = erg
         inhalt.clear()
         with inhalt:
             if fehler:
