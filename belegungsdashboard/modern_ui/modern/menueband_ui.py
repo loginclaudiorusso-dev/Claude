@@ -82,6 +82,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         kurz = await a.standort_fragen()
         if kurz:
             await a.standort_wechseln(kurz)
+    elif name == "konto":                                   # 1.33: Konto, Abmelden, Benutzer verwalten
+        from . import benutzer_ui
+
+        benutzer_ui.konto_panel(a)
     elif name == "hilfe":
         from . import hilfe_ui
 
@@ -457,6 +461,15 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
             ui.label(getattr(a.stand_anzeige, "text", "")).classes("m-ob-status-m")   # Datenstand – ohne Doppel-Zähler
             a._ob_info = ui.label(getattr(a, "status_info", "")).classes("m-ob-status-m m-ob-info")  # 0.74: Zahlen der Ansicht
             ui.element("div").style("flex:1")
+            from . import benutzer_kern
+
+            if wer := benutzer_kern.anzeige():          # 1.33: angemeldet als … (Klick → Konto)
+                kb = ui.element("button").classes("m-ob-zk m-ob-konto")
+                attr(kb, title="Angemeldet – Klick: Konto, Passwort ändern, Abmelden", aria_label=f"Angemeldet als {wer}")
+                with kb:
+                    ui.icon("account_circle")
+                    ui.label(wer)
+                kb.on("click", lambda: ausfuehren(a, ("aktion", "konto")))
             ui.label(f"Version {__version__}")
             with ui.element("div").classes("m-ob-zoom"):    # wie in Word/Excel: Ansicht-Schalter und Zoom unten rechts
                 an = {"dichte": a.design.get("dichte") == "kompakt", "vollbild": bool(a.design.get("vollbild")),
@@ -690,6 +703,7 @@ body.lay-office .m-tz-zahl-k.null .m-tz-zahl { color: var(--text3) !important; }
   border-radius: 3px; color: var(--ob-text2) !important; font-size: 12px !important; }
 .m-ob-zk .q-icon { font-size: 15px; }
 .m-ob-zk:hover { background: var(--ob-hover) !important; }
+.m-ob-konto { gap: 4px; margin-right: 10px; }
 .m-ob-zk.an { background: var(--ob-an) !important; color: var(--ob-akzent) !important; }
 .m-ob-strich { display: none; }
 .m-ob-zoom > .m-ob-zk:nth-child(3) { margin-right: 10px; }

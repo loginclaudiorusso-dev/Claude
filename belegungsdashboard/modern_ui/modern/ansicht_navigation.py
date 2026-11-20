@@ -14,6 +14,14 @@ log = logging.getLogger("modern.oberflaeche")      # derselbe Name wie vorher im
 LOGO_DATEI = "INNternat_Logo.png"
 
 
+def _erlaubte() -> list:
+    """1.33: Standorte, die das angemeldete Konto sehen darf (ohne Konten: alle)."""
+    from . import benutzer_kern as bk
+
+    erl = bk.erlaubte_standorte()
+    return [(k, s) for k, s in standort_kern.STANDORTE.items() if k in erl]
+
+
 def _logo() -> str:
     """Logo als data-URI, wenn ``INNternat_Logo.png`` im INNternat-Ordner (oder in ``modern_ui``) liegt – sonst "".
     Das Logo wird unverändert gezeigt und nicht ins Programm eingebaut (es gehört nicht ins Repository)."""
@@ -60,7 +68,7 @@ class NavigationMixin:
         aktiv = standort_kern.aktiv()
         with ui.menu().props('dark class="m-menue"'):
             ui.label("Standort wechseln").classes("m-mgruppe")
-            for k, s in standort_kern.STANDORTE.items():
+            for k, s in _erlaubte():
                 with ui.menu_item(on_click=lambda k=k: self.standort_wechseln(k)).classes("m-mpunkt"):
                     ui.icon("check" if k == aktiv.kurz else "").classes("m-mhaken" + (" an" if k == aktiv.kurz else ""))
                     ui.label(s.name)
@@ -68,7 +76,7 @@ class NavigationMixin:
                 "white-space:normal; max-width:240px; padding: 4px 12px 8px")
 
     async def standort_wechseln(self, kurz: str) -> None:
-        if kurz == standort_kern.aktiv().kurz:
+        if kurz == standort_kern.aktiv().kurz or kurz not in dict(_erlaubte()):
             return
         await run.io_bound(standort_kern.waehlen, kurz)
         ui.navigate.reload()                   # alles frisch aus dem Ordner des neuen Standorts
@@ -76,13 +84,18 @@ class NavigationMixin:
     async def standort_fragen(self) -> str:
         """Beim Start: Welcher Standort? Der zuletzt gewählte ist vorausgewählt (Enter)."""
         gemerkt = standort_kern.gemerkt()
+        erlaubt = dict(_erlaubte())
+        if len(erlaubt) == 1:                  # 1.33: nur ein Standort freigegeben → nicht fragen
+            return next(iter(erlaubt))
+        if gemerkt not in erlaubt:
+            gemerkt = next(iter(erlaubt))
         with ui.dialog().props("persistent") as dlg, ui.element("div").classes("m-frage m-standortwahl"):
             attr(dlg, role="dialog", aria_label="Standort wählen")
             ui.label("Welcher Standort?").classes("m-titel")
             ui.label("Zimmer, Anreisen, Reinigung und alles Weitere gelten für den gewählten Standort. Auswertung und "
                      "Prognose zeigen immer alle drei.").classes("m-ptext")
             with ui.element("div").classes("m-standorte"):
-                for k, s in standort_kern.STANDORTE.items():
+                for k, s in erlaubt.items():
                     b = ui.element("button").classes("m-standort-k" + (" an" if k == gemerkt else ""))
                     if k == gemerkt:
                         attr(b, autofocus="")

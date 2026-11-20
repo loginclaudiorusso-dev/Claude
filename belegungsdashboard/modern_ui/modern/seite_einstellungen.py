@@ -16,7 +16,8 @@ from .kern import _schritt
 from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
 
-ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Sicherung & Verlauf"}
+ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Sicherung & Verlauf",
+             "benutzer": "Benutzer"}
 ZAHLEN = {   # Einstellung → (Text, Standard, min, max)
     "zimmer_puffer": ("Tage zwischen Abreise und nächster Belegung (1 = nicht am Abreisetag)", 1, 0, 7),
     "facility_monate": ("Facility-Check nach einem Aufenthalt ab … Monaten (Elektrik, Fenster)", 6, 1, 36),
@@ -33,6 +34,10 @@ def daten(a) -> None:
         a.daten = {"zahlen": {k: int(e.get(k, s) or s) for k, (_t, s, _a, _b) in ZAHLEN.items()},
                    "bool": sk.einstellungen(), "termine": tm.einstellungen(), "grenzen": eintragen.grenzen(),
                    "ki": e.get("ki", {})}
+    elif ansicht == "benutzer":                    # 1.33
+        from . import benutzer_ui
+
+        benutzer_ui.daten(a)
     elif ansicht == "stammdaten":
         a.daten = {"zimmer": [z for z in a.stand.zimmer]}
     else:
@@ -43,6 +48,11 @@ def zeichnen(a) -> None:
     ansicht = a.ansicht_von("einstellungen", "allgemein")
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("einstellungen", ansicht=v), ansicht=True)
+    if ansicht == "benutzer":
+        from . import benutzer_ui
+
+        benutzer_ui.zeichnen(a)
+        return
     {"allgemein": _allgemein, "stammdaten": _stammdaten, "sicherung": _sicherung}[ansicht](a)
 
 

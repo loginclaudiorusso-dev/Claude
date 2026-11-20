@@ -1147,14 +1147,35 @@ _START = {"gefragt": False}                    # Standort einmal je Programmstar
 
 @ui.page("/")
 async def startseite() -> None:
+    from . import benutzer_kern as bk
+
     erster = not _START["gefragt"]
-    if erster:
-        await run.io_bound(standort_kern.waehlen, standort_kern.gemerkt(), False)
+    erlaubt = bk.erlaubte_standorte()                    # 1.33: nur die Standorte des angemeldeten Kontos
+    if erster or standort_kern.aktiv().kurz not in erlaubt:
+        g = standort_kern.gemerkt()
+        await run.io_bound(standort_kern.waehlen, g if g in erlaubt else erlaubt[0], False)
     ui.page_title(f"Belegung – {standort_kern.aktiv().name}")
     from . import leitstand_ui
 
     a = (leitstand_ui.Leitstand if await run.io_bound(leitstand_ui.an) else Ansicht)()   # 0.62: je PC gemerkt
     a.aufbauen()
+    try:
+        anmelden = bk.aktuell() is None and await run.io_bound(bk.eingerichtet)   # 1.33: Anmeldung
+    except ValueError as exc:                            # Benutzerdatei beschädigt: nicht ohne Anmeldung weiter
+        await ui.context.client.connected()
+        with ui.dialog().props("persistent") as dlg, ui.element("div").classes("m-frage"):
+            ui.label("Anmeldung nicht möglich").classes("m-titel")
+            ui.label(str(exc)).classes("m-ptext")
+        dlg.open()
+        return
+    if anmelden:
+        from . import benutzer_ui
+
+        await ui.context.client.connected()
+        await benutzer_ui.anmelden(windows_erlaubt=not _START.pop("manuell", False))
+        if not erster or standort_kern.aktiv().kurz not in bk.erlaubte_standorte():
+            ui.navigate.reload()                         # mit Name und Standorten des Kontos neu aufbauen
+            return
     if erster:
         await ui.context.client.connected()
         _START["gefragt"] = True

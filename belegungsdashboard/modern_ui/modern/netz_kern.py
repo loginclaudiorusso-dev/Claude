@@ -74,6 +74,10 @@ def benutzer() -> str:
 
 
 def wer() -> str:
+    from . import benutzer_kern                        # 1.33: angemeldetes INNternat-Konto vor dem Windows-Namen
+
+    if name := benutzer_kern.anzeige():
+        return f"{name} an {rechner()}"
     b = benutzer()
     return f"{b} an {rechner()}" if b else rechner()
 

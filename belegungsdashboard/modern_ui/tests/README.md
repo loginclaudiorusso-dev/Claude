@@ -79,6 +79,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_netz_v126_sperre.py` – 1.26 – Lesen, Prüfen und Speichern unter EINER Schreibsperre (Mehrplatz). Erfundene Daten.
 - `test_netz_v129_1_fensterprozess.py` – 1.29.1 – Fensterprozess (pywebview) hält sich nicht für einen Doppelstart.
 - `test_netz_v127_start.py` – 1.27 – Start absichern: Lebenszeichen, Doppelstart, Python-Version, Fehleranzeige.
+- `test_netz_v133_benutzer.py` – 1.33 – Benutzerkonten: Anmelden, Rollen, Standorte, Schutz vor Aussperren
 
 ## prognose – Belegungsprognose, Analytik, Rechenweg
 

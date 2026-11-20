@@ -36,6 +36,25 @@ Mehrere PCs gleichzeitig
   (gespeichert unter %LOCALAPPDATA%\INNternat, ebenso Protokoll und Python-Umgebung).
 - Beim ersten Start des Tages sichert genau ein PC die Daten (Daten\Sicherungen, 30 Stände je Standort).
 
+Benutzer und Anmeldung (ab 1.33)
+--------------------------------
+- Alle arbeiten mit DIESER einen Installation; jede Person meldet sich mit ihrem Konto an.
+- Einrichten: Einstellungen -> Benutzer -> "Ersten Administrator anlegen". Bis dahin läuft INNternat
+  ohne Anmeldung wie bisher.
+- Danach legt der Administrator dort die Mitarbeitenden an: Name, Anmeldename, Rolle, Standorte.
+  * Empfohlen: das Windows-Konto der Person eintragen - dann meldet INNternat sie automatisch an,
+    ohne eigenes Passwort.
+  * Sonst ein Startpasswort vergeben (persönlich übergeben). Es muss beim ersten Anmelden geändert werden.
+- Mitarbeitende sehen nur ihre freigegebenen Standorte. Administratoren sehen alle Standorte und
+  verwalten die Benutzer.
+- Abmelden, Passwort ändern: unten rechts auf den eigenen Namen klicken (oder Datei -> Konto).
+- Administrator-Passwort vergessen: eine leere Datei ADMIN_ZURUECKSETZEN.txt in den Ordner "Daten"
+  legen. Beim nächsten Start darf unter Einstellungen -> Benutzer ein neuer Administrator angelegt
+  werden; die Datei wird danach entfernt.
+- Wichtig: Die Anmeldung schützt das Programm, nicht die Dateien. Wer den Ordner "Daten" im Explorer
+  öffnen kann, kann die Dateien lesen. Deshalb den Netzwerkordner nur für die INNternat-Nutzer
+  freigeben (IT).
+
 Update einspielen
 -----------------
 1. INNternat auf allen PCs schließen.

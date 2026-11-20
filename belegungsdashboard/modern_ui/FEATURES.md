@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.32.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.33.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -29,6 +29,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - QR-Meldungen mit Prüfcode: erkennt, wenn ein Gast die Zimmernummer im Formular ändert, und nimmt das Zimmer vom Etikett (1.30)
 - QR-Meldungen als eigener Unterpunkt mit Fenster rechts je Meldung und Prüfanzeige „Verbindung prüfen“ (1.31)
 - QR-Meldungen über Power Automate: je Antwort eine Mail mit festem Aufbau in einen eigenen Outlook-Ordner, INNternat liest ihn (1.32)
+- Eine Installation für alle: Anmeldung mit Benutzerkonten (Windows-Konto oder Passwort), Rollen Administrator/Mitarbeiter, Standorte je Konto, Benutzerverwaltung (1.33)
 - Mails mit mehreren Gästehaus-Vormerkungen: je Zeile eine Buchung, fest/vorgemerkt, Zimmer gemeinsam vorgeschlagen (1.09)
 - Maßnahmen-Auswahl wird übernommen, eigene Skala als Standard (1.08)
 - Kontext-Reiter Maßnahmen einheitlich: Gruppe Ansicht links, Filter als flache Felder, Pflege & Wechsel direkt dahinter, Symbole mit zweitem Zeichen (1.07)
