@@ -12,7 +12,7 @@ from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
-             "maengel": "Defekte Zimmer", "aenderungen": "Änderungen"}
+             "maengel": "Defekte Zimmer", "qr": "QR-Meldungen", "aenderungen": "Änderungen"}
 # 0.41: „Renovierung“ ist nach Steuerung → Renovierung umgezogen (strategisch, selten genutzt).
 
 
@@ -31,6 +31,11 @@ def daten(a) -> None:
         from . import qr_ui
 
         qr_ui.daten(a)                     # 1.28: Meldungen per QR-Code
+        return
+    if ansicht == "qr":                    # 1.31: Meldungen per QR-Code als eigener Unterpunkt
+        from . import qr_ui
+
+        qr_ui.ansicht_daten(a)
         return
     if ansicht == "aenderungen":
         from . import aenderungen_kern as ak
@@ -60,6 +65,10 @@ def zeichnen(a) -> None:
         _uebersicht(a)
     elif ansicht == "maengel":
         _maengel(a)
+    elif ansicht == "qr":
+        from . import qr_ui
+
+        qr_ui.ansicht_zeichnen(a)
     elif ansicht == "aenderungen":
         _aenderungen(a)
     elif ansicht == "zeitstrahl":

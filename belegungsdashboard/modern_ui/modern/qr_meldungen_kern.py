@@ -397,7 +397,7 @@ def antwortdatei_setzen(pfad: str) -> str:
     return "Antwortdatei gespeichert – sie wird alle paar Minuten gelesen" if pfad else "Antwortdatei entfernt"
 
 
-_STAND = {"mtime": None, "pfad": ""}
+_STAND = {"mtime": None, "pfad": "", "gelesen": None, "fehler": "", "neu": 0}   # 1.31: letztes Einlesen (je PC)
 
 
 def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung], str]:
@@ -418,6 +418,7 @@ def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung
     if not immer and _STAND["pfad"] == pfad and _STAND["mtime"] == mt:
         return [], ""
     erg = lesen_xlsx(Path(pfad))
+    _STAND.update(gelesen=datetime.now(), fehler=erg.fehler, neu=0)
     if erg.fehler:
         return [], erg.fehler
     with netz_kern.sperre():
@@ -429,7 +430,7 @@ def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung
                               CODE_PLATZHALTER in str(d.get("link") or ""), kurz)
         if neu:
             _schreiben(d)
-    _STAND.update(mtime=mt, pfad=pfad)
+    _STAND.update(mtime=mt, pfad=pfad, neu=len(neu))
     return neu, ""
 
 
@@ -529,3 +530,95 @@ def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Et
             ".e svg{width:36mm;height:36mm}.n{font-size:16pt;font-weight:700;margin-bottom:1mm}"
             ".t{font-size:11pt;font-weight:600;margin-top:1mm}.z{font-size:8pt;color:#444}"
             f"</style><body><div class='b'>{''.join(karten)}</div></body></html>")
+
+
+# ---- 1.31: Prüfanzeige – warum kommt eine Meldung nicht an? -----------------------------------------------------
+
+@dataclass
+class Punkt:
+    stufe: str                   # ok | warn | krit | info
+    titel: str
+    text: str
+
+
+def _alter(sek: float) -> str:
+    if sek < 90:
+        return "gerade eben"
+    if sek < 3600:
+        return f"vor {int(sek // 60)} Min."
+    if sek < 2 * 86400:
+        return f"vor {int(sek // 3600)} Std."
+    return f"vor {int(sek // 86400)} Tagen"
+
+
+def diagnose(jetzt: datetime | None = None) -> list[Punkt]:
+    """Alles, woran das Einlesen scheitern kann – in der Reihenfolge, in der man es prüft. Liest die Antwortdatei
+    (nur lesen, nichts wird übernommen)."""
+    jetzt = jetzt or datetime.now()
+    erg: list[Punkt] = []
+    d = _lesen()
+    l_ = str(d.get("link") or "")
+    if not l_:
+        erg.append(Punkt("krit", "Formular-Link", "Noch kein Link gespeichert – ohne Link gibt es keine Etiketten."))
+    elif PLATZHALTER not in l_:
+        erg.append(Punkt("warn", "Formular-Link", f"Gespeichert, aber ohne {PLATZHALTER}: alle Etiketten öffnen dasselbe "
+                                                  "Formular, das Zimmer muss der Gast selbst eintragen."))
+    elif CODE_PLATZHALTER not in l_:
+        erg.append(Punkt("warn", "Formular-Link", f"Mit {PLATZHALTER}, aber ohne {CODE_PLATZHALTER} – geänderte "
+                                                  "Zimmernummern fallen nicht auf."))
+    else:
+        erg.append(Punkt("ok", "Formular-Link", f"Gespeichert, mit {PLATZHALTER} und {CODE_PLATZHALTER}."))
+    pfad = antwortdatei()
+    if not pfad:
+        erg.append(Punkt("krit", "Antwortdatei", "Auf DIESEM PC ist keine Antwortdatei eingetragen. Eingelesen wird nur "
+                                                 "auf PCs, auf denen die Excel-Datei aus OneDrive eingetragen ist."))
+        return erg
+    p = Path(pfad)
+    teile = {t.lower() for t in p.parts}
+    if not p.exists():
+        erg.append(Punkt("krit", "Antwortdatei", f"Die Datei gibt es auf diesem PC nicht: {pfad}"))
+        return erg
+    if "downloads" in teile:
+        erg.append(Punkt("krit", "Antwortdatei", "Die Datei liegt im Ordner Downloads – das ist eine einmalige KOPIE der "
+                                                 "Antworten, sie bekommt keine neuen. Bitte die Arbeitsmappe aus OneDrive "
+                                                 "nehmen (Forms → Antworten → In Excel öffnen → Datei in OneDrive)."))
+    elif not any("onedrive" in t or "sharepoint" in t for t in teile):
+        erg.append(Punkt("warn", "Antwortdatei", "Die Datei liegt nicht in einem OneDrive-Ordner. Nur die mit dem Formular "
+                                                 "verbundene Arbeitsmappe in OneDrive wird bei neuen Antworten ergänzt."))
+    else:
+        erg.append(Punkt("ok", "Antwortdatei", pfad))
+    try:
+        st = p.stat()
+        erg.append(Punkt("info", "Zuletzt geändert", f"{datetime.fromtimestamp(st.st_mtime):%d.%m.%Y %H:%M} "
+                                                     f"({_alter((jetzt - datetime.fromtimestamp(st.st_mtime)).total_seconds())}) "
+                                                     "– kommt eine neue Antwort, muss sich diese Zeit ändern (OneDrive "
+                                                     "lädt meist binnen 1–5 Minuten nach)."))
+    except OSError:
+        pass
+    inhalt = lesen_xlsx(p)
+    if inhalt.fehler:
+        erg.append(Punkt("krit", "Inhalt", inhalt.fehler))
+    else:
+        bekannt = {x.get("id") for x in d.get("meldungen") or []}
+        neu = [r for r in inhalt.zeilen if r.id not in bekannt]
+        letzte = max((r.zeit for r in inhalt.zeilen), default="")
+        try:
+            letzte_t = f"{datetime.fromisoformat(letzte):%d.%m.%Y %H:%M}" if letzte else "–"
+        except ValueError:
+            letzte_t = letzte
+        if not inhalt.zeilen:
+            erg.append(Punkt("warn", "Inhalt", "Die Datei enthält noch keine Antworten. Ist eine Testantwort abgeschickt, "
+                                               "aber hier nicht zu sehen, ist es nicht die mit dem Formular verbundene Datei "
+                                               "oder OneDrive hat sie noch nicht geladen."))
+        else:
+            erg.append(Punkt("ok" if not neu else "warn", "Inhalt",
+                             f"{len(inhalt.zeilen)} Antwort(en) in der Datei, neueste vom {letzte_t}; "
+                             + (f"{len(neu)} noch nicht eingelesen – „Jetzt einlesen“ klicken." if neu else
+                                "alle eingelesen.")))
+    if _STAND.get("gelesen"):
+        t = _STAND["gelesen"]
+        erg.append(Punkt("krit" if _STAND.get("fehler") else "info", "Letztes Einlesen",
+                         f"{t:%d.%m. %H:%M} – " + (_STAND["fehler"] or f"{_STAND.get('neu', 0)} neue Meldung(en)")))
+    else:
+        erg.append(Punkt("info", "Letztes Einlesen", f"seit dem Start noch nicht – automatisch alle {TAKT_MINUTEN} Minuten"))
+    return erg

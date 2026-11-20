@@ -69,6 +69,7 @@ SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutu
     ("zimmer", "liste"): ("table", TEAL),
     ("zimmer", "karten"): ("content_view_gallery", BLAU),
     ("zimmer", "maengel"): ("wrench", AMBER),
+    ("zimmer", "qr"): ("qr_code", BLAU),
     ("zimmer", "aenderungen"): ("history", BASIS),
     ("reinigung", "liste"): ("broom", BLAU),
     ("reinigung", "last"): ("calendar_arrow_right", BASIS),   # 1.13: Vorschau statt Woche
@@ -121,7 +122,7 @@ def symbol(p: "Punkt") -> tuple[str, str]:
 ICONS = {   # Symbole der Unteransichten – leicht erkennbar, wie in Office
     "anreisen": {"zuteilen": "meeting_room", "personen": "groups", "abreisen": "luggage", "eintragen": "domain"},
     "zimmer": {"uebersicht": "grid_view", "karten": "map", "zeitstrahl": "align_horizontal_left", "liste": "table_chart",
-               "maengel": "build", "aenderungen": "history"},
+               "maengel": "build", "qr": "qr_code_2", "aenderungen": "history"},
     "reinigung": {"liste": "checklist", "last": "date_range", "facility": "fact_check"},
     "termine": {"liste": "view_list", "monat": "calendar_month"},
     "assistenz": {"auftraege": "assignment", "mails": "mail", "fragen": "help_center"},
@@ -274,7 +275,9 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
             Gruppe("Zimmer", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
                               v("zimmer", "karten")]),                    # 0.99: vier gleich große Ansichten
             Gruppe("Betrieb", [v("reinigung", "liste", "Reinigung", "cleaning_services", tipp="Reinigungsliste"),
-                               v("zimmer", "maengel", icon="warning_amber"),
+                               # 1.31: Mängel als Split – oben „Defekte Zimmer“, im Pfeil auch „QR-Meldungen“
+                               _split("zimmer", ansichten, "Defekte Zimmer", "warning_amber", ["maengel", "qr"],
+                                      "Defekte Zimmer – im Pfeil: QR-Meldungen (per Handy gemeldet)", standard="maengel"),
                                v("reinigung", "last", gross=False), v("reinigung", "facility", gross=False)]),
         ]),
         Reiter("auswertung", "Auswertung", auswertung),
@@ -398,7 +401,7 @@ def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]
                          v("anreisen", "eintragen", "RIOS-Daten"), Punkt("Mieter", "key", S("mieter"), False)]),
            ("Zimmer und Haus", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
                                 Punkt("Reinigung", "cleaning_services", S("reinigung", "liste"), False),
-                                v("zimmer", "maengel", "Mängel und Prüfungen")]),
+                                v("zimmer", "maengel", "Mängel und Prüfungen"), v("zimmer", "qr", "QR-Meldungen")]),
            ("Auswertung", [v("auswertung", "prognose", "Belegung und Prognose"), v("auswertung", "massnahmen"),
                            v("auswertung", "zimmer", "Engpässe")]
             + ([Punkt("Steuerung", "query_stats", S("steuerung"), False)] if leitung else [])),

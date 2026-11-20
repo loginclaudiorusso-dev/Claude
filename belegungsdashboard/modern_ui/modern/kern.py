@@ -858,7 +858,7 @@ def qr_karte() -> Karte | None:
                  f"{len(ms)} neue Meldung{'en' if len(ms) > 1 else ''} per QR-Code",
                  "; ".join(qm.kurztext(m, kurz) for m in ms[:3]) + (" …" if len(ms) > 3 else "")
                  + " – prüfen und als Mangel übernehmen",
-                 zweite=Aktion("qr", "Prüfen", "zimmer/maengel"))
+                 zweite=Aktion("qr", "Prüfen", "zimmer/qr"))
 
 
 def allergie_karte(stand: zp.Planstand, heute: date) -> Karte | None:

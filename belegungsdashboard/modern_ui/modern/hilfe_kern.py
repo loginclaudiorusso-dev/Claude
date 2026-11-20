@@ -64,6 +64,8 @@ ANSICHT = {
                                 "zeigt Eintrag für Eintrag (Tasten 1–6 kopieren ein Feld, E erledigt, N nächster)."],
     ("zimmer", "zeitstrahl"): ["Belegung über mehrere Wochen; gesperrt ist grau, Konflikte sind rot umrandet."],
     ("zimmer", "maengel"): ["Zimmer mit offenen Mängeln – FM-Auftrag per Mail oder Mängelbericht drucken."],
+    ("zimmer", "qr"): ["Meldungen, die Gäste per QR-Code am Zimmer abgeschickt haben – oben „Verbindung prüfen“, "
+                       "Klick auf eine Meldung öffnet rechts Zimmerinfo, Übernehmen und Verwerfen."],
     ("zimmer", "aenderungen"): ["Was im Zeitraum geändert wurde – Zuteilungen, Umzüge, Auszüge, Mängel – auch als Excel."],
     ("auswertung", "massnahmen"): ["Neuanmeldungen je Startwelle (Winter/Sommer) und Maßnahme, mit Prognose und Spanne."],
     ("auswertung", "prognose"): ["Taste P startet die Präsentation (← → Schritt für Schritt, Esc beendet)."],

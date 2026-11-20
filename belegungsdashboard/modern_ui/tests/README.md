@@ -57,6 +57,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 ## maengel – Mängel und Meldungen per QR-Code
 
 - `test_maengel_v128_qr_code.py` – 1.28 – QR-Codes: jeder erzeugte Code wird mit einem UNABHÄNGIGEN Decoder zurückgelesen (eigene GF-Rechnung,
+- `test_maengel_v131_pruefanzeige.py` – 1.31 – Prüfanzeige „Verbindung prüfen“: warum kommt eine QR-Meldung nicht an?
 - `test_maengel_v130_pruefcode.py` – 1.30 – Prüfcode auf dem QR-Etikett: zeigt, ob ein Gast die vorausgefüllte Zimmernummer geändert hat.
 - `test_maengel_v128_qr_meldungen.py` – 1.28 – Meldungen per QR-Code (Forms, anonym): einlesen, Zimmer erkennen, übernehmen, verwerfen. Erfundene Daten.
 
