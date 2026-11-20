@@ -71,7 +71,7 @@ async def _jetzt_einlesen(a) -> None:
     if fehler:
         a.toast(fehler, fehler=True)
     else:
-        a.toast(f"{len(neu)} neue Meldung(en) eingelesen" if neu else "Keine neuen Meldungen in der Antwortdatei",
+        a.toast(f"{len(neu)} neue Meldung(en) eingelesen" if neu else "Keine neuen Meldungen",
                 rueck=False)
     await a.laden()
 
@@ -89,8 +89,8 @@ def ansicht_zeichnen(a) -> None:
                    filt, lambda k: a.setzen(qr_filter=k, laden=False))
         a.status_info = f"{n['neu']} neue Meldung(en) per QR-Code"
         knopf("Einrichten & Etiketten", lambda: fenster(a), "leise", "settings",
-              "Formular-Link, Antwortdatei auf diesem PC, Etiketten drucken")
-        knopf("Jetzt einlesen", lambda: _jetzt_einlesen(a), "primaer", "sync", "Antwortdatei sofort lesen")
+              "Formular-Link, Eingang (Outlook oder Excel) auf diesem PC, Etiketten drucken")
+        knopf("Jetzt einlesen", lambda: _jetzt_einlesen(a), "primaer", "sync", "Outlook-Ordner bzw. Antwortdatei sofort lesen")
     with a.inhalt:
         _pruefanzeige(diag)
         zeigen = [m for m in alle if m.status == filt]
@@ -219,7 +219,7 @@ def fenster(a) -> None:
     """Einrichten und Drucken – drei Schritte."""
     def bauen():
         ui.label("Gäste melden Mängel anonym per Handy: QR-Code am Zimmer → Microsoft-Forms-Formular mit "
-                 "eingetragener Zimmernummer → INNternat liest die Antworten alle paar Minuten ein und zeigt sie hier "
+                 "eingetragener Zimmernummer → Power Automate schickt die Antwort als Mail → INNternat liest sie alle paar Minuten ein und zeigt sie hier "
                  "zum Prüfen. Ein Mangel entsteht erst, wenn Sie „Übernehmen“ klicken.").classes("m-ptext")
 
         ui.label("1 · Formular-Link (gilt für alle PCs)").classes("m-abschnitt")
@@ -232,9 +232,21 @@ def fenster(a) -> None:
             "dense outlined dark")
         knopf("Link speichern", lambda: a.aendern(qm.link_setzen, link.value or ""), "", "link")
 
-        ui.label("2 · Antwortdatei auf diesem PC").classes("m-abschnitt")
-        ui.label("In Forms: „Antworten“ → „In Excel öffnen“. Die Datei liegt in OneDrive; im Explorer mit Umschalt + "
-                 "Rechtsklick → „Als Pfad kopieren“ und hier einfügen. Es reicht ein PC.").classes("m-ptext")
+        ui.label("2 · Eingang auf diesem PC").classes("m-abschnitt")
+        ui.label("Empfohlen: Power Automate schickt je Antwort eine Mail mit festem Aufbau; eine Outlook-Regel legt sie "
+                 "in einen eigenen Ordner (z. B. „QR-Meldungen“). Hier den Ordner eintragen – Schreibweise wie bei der "
+                 "Outlook-Vorschau, z. B. „Posteingang/QR-Meldungen“ oder „Internatsdienst/Posteingang/QR-Meldungen“. "
+                 "INNternat liest diesen Ordner nur (nichts wird verschoben oder gelöscht). Es reicht ein PC mit Outlook.") \
+            .classes("m-ptext")
+        ordner = ui.input(value=qm.outlook_ordner(), label="Outlook-Ordner für QR-Mails").classes("m-feld w-full").props(
+            "dense outlined dark")
+
+        async def ordner_speichern():
+            a.toast(await run.io_bound(qm.outlook_ordner_setzen, ordner.value or ""), rueck=False)
+        knopf("Ordner speichern", ordner_speichern, "", "save")
+        ui.label("Alternativ: die Forms-Excel-Datei (Forms → „Antworten“ → „In Excel öffnen“; Datei in OneDrive, im "
+                 "Explorer Umschalt + Rechtsklick → „Als Pfad kopieren“). Achtung: die Datei auf dem PC wird nur "
+                 "aktualisiert, wenn OneDrive sie synchronisiert.").classes("m-ptext")
         datei = ui.input(value=qm.antwortdatei(), label="Pfad der Excel-Datei (.xlsx)").classes("m-feld w-full").props(
             "dense outlined dark")
 

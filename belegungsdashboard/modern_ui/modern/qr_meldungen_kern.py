@@ -400,38 +400,66 @@ def antwortdatei_setzen(pfad: str) -> str:
 _STAND = {"mtime": None, "pfad": "", "gelesen": None, "fehler": "", "neu": 0}   # 1.31: letztes Einlesen (je PC)
 
 
-def einlesen(pfad: str | None = None, immer: bool = False) -> tuple[list[Meldung], str]:
-    """Antwortdatei lesen und neue Meldungen ablegen (unter der Schreibsperre – mehrere PCs können einlesen).
-    Liest nur, wenn sich die Datei seit dem letzten Mal geändert hat (außer ``immer``). (neue, Fehlertext)."""
+def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = None) -> tuple[list[Meldung], str]:
+    """Neue Antworten holen und ablegen (unter der Schreibsperre – mehrere PCs können einlesen). Zwei Quellen, je PC:
+    die Forms-Excel-Datei (nur wenn sie sich geändert hat, außer ``immer``) und – 1.32 – der Outlook-Ordner, in den
+    Power Automate je Antwort eine Mail legt. (neue, Fehlertext)."""
     from belegung import zimmerplan as zp
 
     from . import netz_kern
     from .kern import _zimmer_aus_text, kurz
 
     pfad = pfad if pfad is not None else antwortdatei()
-    if not pfad:
+    ordner = ordner if ordner is not None else outlook_ordner()
+    if not pfad and not ordner:
         return [], ""
-    try:
-        mt = Path(pfad).stat().st_mtime
-    except OSError:
-        return [], f"Antwortdatei nicht gefunden: {pfad}"
-    if not immer and _STAND["pfad"] == pfad and _STAND["mtime"] == mt:
+    zeilen: list[Roh] = []
+    fehler: list[str] = []
+    gelesen = False
+    mt = None
+    xlsx_ok = False
+    if pfad:
+        try:
+            mt = Path(pfad).stat().st_mtime
+        except OSError:
+            if not ordner:
+                return [], f"Antwortdatei nicht gefunden: {pfad}"
+            fehler.append(f"Antwortdatei nicht gefunden: {pfad}")
+        else:
+            if immer or _STAND["pfad"] != pfad or _STAND["mtime"] != mt:
+                erg = lesen_xlsx(Path(pfad))
+                gelesen = True
+                if erg.fehler:
+                    fehler.append(erg.fehler)
+                else:
+                    zeilen += erg.zeilen
+                    xlsx_ok = True
+    if ordner:
+        erg = outlook_lesen(ordner)
+        gelesen = True
+        if erg.fehler:
+            fehler.append(erg.fehler)
+        zeilen += erg.zeilen
+    if not gelesen:
         return [], ""
-    erg = lesen_xlsx(Path(pfad))
-    _STAND.update(gelesen=datetime.now(), fehler=erg.fehler, neu=0)
-    if erg.fehler:
-        return [], erg.fehler
-    with netz_kern.sperre():
-        stand = zp.laden()
-        d = _lesen()
-        g = geheim_lesen(d)
-        codes = code_tabelle([z.id for z in stand.zimmer], g) if g else None
-        neu = zusammenfuehren(d, erg.zeilen, lambda t: _zimmer_aus_text(stand, t), codes,
-                              CODE_PLATZHALTER in str(d.get("link") or ""), kurz)
-        if neu:
-            _schreiben(d)
-    _STAND.update(mtime=mt, pfad=pfad, neu=len(neu))
-    return neu, ""
+    text = " · ".join(fehler)
+    _STAND.update(gelesen=datetime.now(), fehler=text, neu=0)
+    bekannt = {x.get("id") for x in _lesen().get("meldungen") or []}
+    neu: list[Meldung] = []
+    if any(r.id not in bekannt for r in zeilen):        # nur dann die Sperre holen
+        with netz_kern.sperre():
+            stand = zp.laden()
+            d = _lesen()
+            g = geheim_lesen(d)
+            codes = code_tabelle([z.id for z in stand.zimmer], g) if g else None
+            neu = zusammenfuehren(d, zeilen, lambda t: _zimmer_aus_text(stand, t), codes,
+                                  CODE_PLATZHALTER in str(d.get("link") or ""), kurz)
+            if neu:
+                _schreiben(d)
+    if xlsx_ok:
+        _STAND.update(mtime=mt, pfad=pfad)
+    _STAND.update(neu=len(neu))
+    return neu, text
 
 
 # ---- Erledigen ------------------------------------------------------------------------------------------------------
@@ -568,10 +596,18 @@ def diagnose(jetzt: datetime | None = None) -> list[Punkt]:
                                                   "Zimmernummern fallen nicht auf."))
     else:
         erg.append(Punkt("ok", "Formular-Link", f"Gespeichert, mit {PLATZHALTER} und {CODE_PLATZHALTER}."))
+    ordner = outlook_ordner()
+    if ordner:
+        erg += _diagnose_outlook(ordner, d)
     pfad = antwortdatei()
     if not pfad:
-        erg.append(Punkt("krit", "Antwortdatei", "Auf DIESEM PC ist keine Antwortdatei eingetragen. Eingelesen wird nur "
-                                                 "auf PCs, auf denen die Excel-Datei aus OneDrive eingetragen ist."))
+        if ordner:
+            erg.append(Punkt("info", "Antwortdatei", "Nicht nötig – die Meldungen kommen per Power Automate über Outlook."))
+            erg.append(_letztes_einlesen())
+        else:
+            erg.append(Punkt("krit", "Antwortdatei", "Auf DIESEM PC ist weder ein Outlook-Ordner (Power Automate) noch "
+                                                     "eine Antwortdatei eingetragen. Eingelesen wird nur auf PCs, auf "
+                                                     "denen eins von beiden eingetragen ist."))
         return erg
     p = Path(pfad)
     teile = {t.lower() for t in p.parts}
@@ -615,10 +651,155 @@ def diagnose(jetzt: datetime | None = None) -> list[Punkt]:
                              f"{len(inhalt.zeilen)} Antwort(en) in der Datei, neueste vom {letzte_t}; "
                              + (f"{len(neu)} noch nicht eingelesen – „Jetzt einlesen“ klicken." if neu else
                                 "alle eingelesen.")))
+    erg.append(_letztes_einlesen())
+    return erg
+
+
+def _letztes_einlesen() -> Punkt:
     if _STAND.get("gelesen"):
         t = _STAND["gelesen"]
-        erg.append(Punkt("krit" if _STAND.get("fehler") else "info", "Letztes Einlesen",
-                         f"{t:%d.%m. %H:%M} – " + (_STAND["fehler"] or f"{_STAND.get('neu', 0)} neue Meldung(en)")))
-    else:
-        erg.append(Punkt("info", "Letztes Einlesen", f"seit dem Start noch nicht – automatisch alle {TAKT_MINUTEN} Minuten"))
+        return Punkt("krit" if _STAND.get("fehler") else "info", "Letztes Einlesen",
+                     f"{t:%d.%m. %H:%M} – " + (_STAND["fehler"] or f"{_STAND.get('neu', 0)} neue Meldung(en)"))
+    return Punkt("info", "Letztes Einlesen", f"seit dem Start noch nicht – automatisch alle {TAKT_MINUTEN} Minuten")
+
+
+def _diagnose_outlook(ordner: str, d: dict) -> list[Punkt]:
+    """1.32: Outlook-Ordner lesbar? Wie viele QR-Mails, wie viele davon noch nicht eingelesen?"""
+    inhalt = outlook_lesen(ordner)
+    if inhalt.fehler:
+        return [Punkt("krit", "Outlook-Ordner", inhalt.fehler)]
+    erg = [Punkt("ok", "Outlook-Ordner", ordner)]
+    if not inhalt.zeilen:
+        erg.append(Punkt("warn", "QR-Mails", "Im Ordner liegt noch keine QR-Mail. Ist eine Testantwort abgeschickt: in "
+                                             "Power Automate unter „Ausführungsverlauf“ nachsehen, ob der Flow gelaufen "
+                                             "ist, und ob die Outlook-Regel die Mail in diesen Ordner verschiebt."))
+        return erg
+    bekannt = {x.get("id") for x in d.get("meldungen") or []}
+    neu = [r for r in inhalt.zeilen if r.id not in bekannt]
+    letzte = max(r.zeit for r in inhalt.zeilen)
+    try:
+        letzte = f"{datetime.fromisoformat(letzte):%d.%m.%Y %H:%M}"
+    except ValueError:
+        pass
+    erg.append(Punkt("ok" if not neu else "warn", "QR-Mails",
+                     f"{len(inhalt.zeilen)} QR-Mail(s) im Ordner, neueste vom {letzte}; "
+                     + (f"{len(neu)} noch nicht eingelesen – „Jetzt einlesen“ klicken." if neu else "alle eingelesen.")))
     return erg
+
+
+# ---- 1.32: Quelle Outlook – Power Automate schickt je Forms-Antwort eine Mail mit festem Aufbau ------------------
+#
+# Betreff:  INNternat-QR | <Zimmer> | <Code>
+# Text:     INNTERNAT-QR
+#           ID: <Antwort-ID>
+#           Zeit: <Übermittlungszeit>
+#           Zimmer: <Zimmer>
+#           Code: <Code>
+#           Art: <Art des Problems>
+#           Beschreibung: <Beschreibung – darf mehrzeilig sein>
+#           ENDE
+# Eine Outlook-Regel verschiebt diese Mails in einen eigenen Ordner; INNternat liest NUR diesen Ordner (nichts wird
+# verschoben, gelöscht oder als gelesen markiert). Das ist ein festes Format – keine unscharfe Mail-Erkennung.
+
+MAIL_KENNUNG = "INNTERNAT-QR"
+EINSTELLUNG_OUTLOOK = "qr_outlook_ordner"          # je PC (Outlook-Profil), z. B. „Internatsdienst/Posteingang/QR-Meldungen“
+MAIL_FELDER = {"id": "id", "zeit": "zeit", "zimmer": "zimmer", "code": "code", "art": "art", "beschreibung": "text"}
+
+
+def mail_parsen(betreff: str, text: str, eintrag: str = "", empfangen: datetime | None = None) -> Roh | None:
+    """Eine Power-Automate-Mail → Roh (None, wenn es keine ist). Robust gegen Leerzeilen, Groß/klein, HTML-Reste."""
+    t = re.sub(r"<[^>]+>", "\n", str(text or "")).replace("\r", "")
+    t = re.sub(r"&nbsp;", " ", t)
+    if MAIL_KENNUNG not in t.upper() and MAIL_KENNUNG not in str(betreff or "").upper():
+        return None
+    werte: dict[str, str] = {}
+    feld = None
+    for zeile in t.split("\n"):
+        z = zeile.strip()
+        if z.upper() == "ENDE":
+            break
+        m = re.match(r"^(ID|Zeit|Zimmer|Code|Art|Beschreibung)\s*:\s*(.*)$", z, re.I)
+        if m:
+            feld = MAIL_FELDER[m.group(1).lower()]
+            werte[feld] = m.group(2).strip()
+        elif feld == "text" and z:                      # Beschreibung über mehrere Zeilen
+            werte["text"] = (werte.get("text", "") + "\n" + z).strip()
+    if "zimmer" not in werte and "text" not in werte:
+        return None
+    rid = werte.get("id") or eintrag
+    if not rid:
+        return None
+    zeit = _pa_zeit(werte.get("zeit") or "") or (empfangen or datetime.now()).isoformat(timespec="minutes")
+    return Roh(f"pa|{rid}", zeit, werte.get("zimmer", ""), werte.get("art", ""), werte.get("text", ""),
+               werte.get("code", ""))
+
+
+def _pa_zeit(t: str) -> str:
+    """Übermittlungszeit aus Power Automate: ISO in UTC („2026-11-19T07:01:23.1234567Z“) → Ortszeit; sonst die
+    üblichen Formate (auch „11/19/2026 8:01:23 AM“). "" wenn nicht lesbar."""
+    t = (t or "").strip()
+    m = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$", t)
+    if m:
+        try:
+            x = datetime.fromisoformat(m.group(1) + ("+00:00" if m.group(2) == "Z" else (m.group(2) or "")))
+        except ValueError:
+            return ""
+        if x.tzinfo is not None:
+            x = x.astimezone().replace(tzinfo=None)
+        return x.isoformat(timespec="minutes")
+    for f in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p"):
+        try:
+            return datetime.strptime(t, f).isoformat(timespec="minutes")
+        except ValueError:
+            pass
+    z = _zeit(t)
+    return z if re.match(r"^\d{4}-\d{2}-\d{2}T", z) else ""
+
+
+def outlook_ordner() -> str:
+    from .netz_kern import persoenlich
+
+    return str(persoenlich(EINSTELLUNG_OUTLOOK, "", je_standort=True) or "")
+
+
+def outlook_ordner_setzen(pfad: str) -> str:
+    from .netz_kern import persoenlich_setzen
+
+    pfad = (pfad or "").strip().strip('"')
+    persoenlich_setzen(EINSTELLUNG_OUTLOOK, pfad, je_standort=True)
+    return f"Outlook-Ordner für QR-Meldungen: {pfad}" if pfad else "Outlook-Ordner für QR-Meldungen entfernt"
+
+
+def outlook_lesen(pfad: str, anzahl: int = 300) -> Ergebnis:
+    """Die neuesten Mails des Ordners lesen (nur lesen) und die Power-Automate-Mails herausziehen."""
+    from . import outlook_kern as ok
+
+    try:
+        pythoncom, ol = ok._outlook("Outlook ist nicht geöffnet – QR-Meldungen kommen, sobald Outlook läuft.")
+    except ValueError as exc:
+        return Ergebnis(fehler=str(exc))
+    erg = Ergebnis()
+    try:
+        ns = ol.GetNamespace("MAPI")
+        try:
+            f = ok._ordner_finden(ns, pfad)
+        except ValueError as exc:
+            return Ergebnis(fehler=f"Outlook-Ordner: {exc}")
+        items = f.Items
+        items.Sort("[ReceivedTime]", True)
+        m, n = items.GetFirst(), 0
+        while m is not None and n < anzahl:
+            n += 1
+            try:
+                if int(getattr(m, "Class", 0) or 0) == 43:
+                    rt = m.ReceivedTime
+                    r = mail_parsen(str(m.Subject or ""), str(m.Body or ""), str(getattr(m, "EntryID", "") or ""),
+                                    datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute))
+                    if r is not None:
+                        erg.zeilen.append(r)
+            except Exception:                           # noqa: BLE001 – eine kaputte Mail stoppt das Einlesen nicht
+                pass
+            m = items.GetNext()
+        return erg
+    finally:
+        pythoncom.CoUninitialize()
