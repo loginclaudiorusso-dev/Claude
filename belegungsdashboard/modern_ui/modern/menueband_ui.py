@@ -76,6 +76,14 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         kurz = await a.standort_fragen()
         if kurz:
             await a.standort_wechseln(kurz)
+    elif name == "nachricht_neu":                           # 1.36: Nachrichten im Programm
+        from .seite_heute import nachricht_neu
+
+        nachricht_neu(a)
+    elif name == "fm_mail":                                 # 1.36: Mail an FM (Outlook-Entwurf)
+        from .seite_heute import fm_mail
+
+        fm_mail(a)
     elif name == "konto":                                   # 1.33: Konto, Abmelden, Benutzer verwalten
         from . import benutzer_ui
 
@@ -200,7 +208,9 @@ def _av(a):
 
 
 def _heute(a) -> str:
-    return getattr(a, "heute_ansicht", "zentrale") if getattr(a, "heute_ansicht", "zentrale") == "postfach" else "zentrale"
+    from .seite_heute import ansicht
+
+    return ansicht(a)
 
 
 def _knopf(a, p: mb.Punkt) -> None:

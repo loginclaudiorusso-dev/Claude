@@ -39,7 +39,7 @@ def test_aktiv_und_reiter_von():
     zeit = next(p for x, p in _alle(r) if x.key == "zimmer" and p.text == "Zeitstrahl")
     assert mb.aktiv(zeit, "zimmer", lambda s: "zeitstrahl")
     assert not mb.aktiv(zeit, "zimmer", lambda s: "liste")
-    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Aufgaben")
+    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Posteingang")          # 1.36: „Aufgaben“ heißt Posteingang
     assert mb.aktiv(pf, "heute", lambda s: "", "postfach") and not mb.aktiv(pf, "heute", lambda s: "", "zentrale")
     assert mb.reiter_von("auswertung", ANS) == "auswertung"
     assert mb.reiter_von("einstellungen", ANS, "stammdaten") == "verwalten"

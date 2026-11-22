@@ -102,6 +102,10 @@ def daten(a) -> None:
         a.daten.np = nach_planung(a.stand, a.heute, 12)
     except Exception:                          # noqa: BLE001 – Anzeige darf Heute nie blockieren
         a.daten.np = None
+    from . import nachrichten_kern as nk          # 1.36: Nachrichten im Programm
+
+    a.daten.nachrichten = nk.offene()
+    a.daten.ich = nk.ich()
 
 
 MONATE_LANG = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
@@ -294,8 +298,11 @@ ANSICHTEN = {"zentrale": "Tageszentrale", "postfach": "Postfach"}    # 0.64: „
 
 
 def ansicht(a) -> str:
-    v = getattr(a, "heute_ansicht", "zentrale")
-    return v if v in ANSICHTEN else "zentrale"            # gemerkte „uebersicht“ → Tageszentrale
+    v = getattr(a, "heute_ansicht", STANDARD)
+    return v if v in ANSICHTEN else STANDARD             # gemerkte „uebersicht“ → Standard
+
+
+STANDARD = "postfach"                                     # 1.36: Startseite wie Outlook – Liste links, Lesespalte rechts
 
 
 def postfach_an(a) -> bool:
@@ -342,7 +349,12 @@ def auswahl(a) -> str:
     nächste nach (wie im Posteingang)."""
     ids = [k.id for k in a.karten]
     alt = getattr(a, "pf_auswahl", None)
+    if alt is None:                                   # 1.36: Start mit dem Überblick (Auslastung, Zahlen des Tages)
+        return UEBERBLICK
     if alt in ids or alt == UEBERBLICK:
+        return alt
+    nachr = [f"nachricht:{n.id}" for n in getattr(getattr(a, "daten", None), "nachrichten", []) or []]
+    if alt in nachr:
         return alt
     reihe = getattr(a, "pf_reihe", [])
     if alt in reihe:                                  # erledigt → die nächste in der alten Reihenfolge
@@ -369,7 +381,7 @@ def _postfach(a, t: Tag) -> None:
         fuellen()
 
     def schritt(richtung: int) -> None:
-        reihe = [UEBERBLICK] + [k.id for k in a.karten]
+        reihe = [UEBERBLICK] + [f"nachricht:{n.id}" for n in getattr(t, "nachrichten", [])] + [k.id for k in a.karten]
         i = reihe.index(a.pf_auswahl) if a.pf_auswahl in reihe else 0
         zeigen(reihe[max(0, min(len(reihe) - 1, i + richtung))])
 
@@ -379,6 +391,7 @@ def _postfach(a, t: Tag) -> None:
         liste.clear()
         detail.clear()
         with liste:
+            _liste_kopf(a, t, zeigen)
             if not a.karten:
                 ui.label("Keine Aufgaben – alles erledigt.").classes("m-pf-leer")
             for stufe, titel in STUFEN_PF:
@@ -401,6 +414,9 @@ def _postfach(a, t: Tag) -> None:
                 with ui.element("div").classes("m-pf-ueberblick"):
                     _tagesblock(a, t)
                 return
+            if str(a.pf_auswahl).startswith("nachricht:"):
+                _nachricht_lesen(a, t, a.pf_auswahl.split(":", 1)[1], fuellen)
+                return
             k = next(k for k in a.karten if k.id == a.pf_auswahl)
             with ui.element("div").classes("m-pf-dkopf"):
                 ui.icon(_symbol(k.id)).classes(f"m-pf-symbol {k.stufe}")
@@ -414,6 +430,7 @@ def _postfach(a, t: Tag) -> None:
                 tasten["l"] = lambda k=k: a._karte_loesen(k)
             a.tasten = (lambda kid=k.id: a.seite == "heute" and postfach_an(a) and getattr(a, "pf_auswahl", None) == kid,
                         tasten)
+            _anleitung(a, k)                          # 1.36: „Was ist zu tun?“ – damit jeder weiß, was gemeint ist
             ui.label("Tasten: ↑ ↓ Aufgabe wählen" + (" · L lösen" if k.aktion else "") + " · S später").classes(
                 "m-tasten-hinweis")
             if getattr(k, "fall", None) is not None:          # 0.91: ein Fall → Vergleich geplant ↔ Vorschlag
@@ -434,6 +451,154 @@ def _postfach(a, t: Tag) -> None:
             _danach(a, k)
 
     fuellen()
+
+
+# ---- 1.36: Überblick, Nachrichten und „Was ist zu tun?“ im Postfach ------------------------------------------------
+
+def _liste_kopf(a, t: Tag, zeigen) -> None:
+    """Oben in der Liste: der Überblick (Auslastung, Zahlen des Tages) und die Nachrichten am Standort."""
+    heute_w = next((w for w in t.woche if w["tag"] == a.heute), None)
+    an = heute_w["an"] if heute_w else 0
+    frei = t.frei_heute if hasattr(t, "frei_heute") else None
+    z = ui.element("button").classes("m-pf-zeile info m-pf-ueberblick-zeile" + (" an" if a.pf_auswahl == UEBERBLICK else ""))
+    with z:
+        ui.icon("insights").classes("m-pf-symbol info")
+        with ui.element("div").classes("m-pf-text"):
+            ui.label("Überblick heute").classes("m-pf-titel")
+            ui.label(f"{an} Anreise{'n' if an != 1 else ''} · Auslastung und freie Zimmer"
+                     + (f" · {frei} frei" if frei is not None else "")).classes("m-pf-unter")
+    z.on("click", lambda: zeigen(UEBERBLICK))
+    ns = getattr(t, "nachrichten", []) or []
+    ich = getattr(t, "ich", "")
+    neu = sum(1 for n in ns if n.ungelesen_fuer(ich))
+    with ui.element("div").classes("m-pf-gruppe-zeile"):
+        ui.label(f"Nachrichten · {len(ns)}" + (f" ({neu} neu)" if neu else "")).classes("m-pf-gruppe info")
+        knopf("Neu", lambda: nachricht_neu(a), "leise", "edit", "Neue Nachricht an alle am Standort")
+    for n in ns[:12]:
+        kid = f"nachricht:{n.id}"
+        z = ui.element("button").classes("m-pf-zeile info" + (" an" if a.pf_auswahl == kid else "")
+                                         + (" m-pf-neu" if n.ungelesen_fuer(ich) else ""))
+        attr(z, title=n.betreff)
+        with z:
+            ui.icon("forum").classes("m-pf-symbol info")
+            with ui.element("div").classes("m-pf-text"):
+                ui.label(n.betreff).classes("m-pf-titel")
+                letzte = n.antworten[-1] if n.antworten else n
+                ui.label(f"{letzte.von} · {_zeit_kurz(letzte.zeit)} · {letzte.text[:70]}").classes("m-pf-unter")
+        z.on("click", lambda kid=kid: zeigen(kid))
+
+
+def _zeit_kurz(iso: str) -> str:
+    from datetime import datetime
+
+    try:
+        d = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return ""
+    return f"{d:%H:%M}" if d.date() == date.today() else f"{d:%d.%m. %H:%M}"
+
+
+def _nachricht_lesen(a, t: Tag, nid: str, fuellen) -> None:
+    from nicegui import run
+
+    from . import nachrichten_kern as nk
+
+    n = next((x for x in getattr(t, "nachrichten", []) if x.id == nid), None)
+    if n is None:
+        ui.label("Diese Nachricht gibt es nicht mehr.").classes("m-ptext")
+        return
+    if n.ungelesen_fuer(getattr(t, "ich", "")):
+        ui.timer(0.5, lambda: run.io_bound(nk.gelesen, nid), once=True)
+    ui.label(n.betreff).classes("m-pf-dtitel")
+    with ui.element("div").classes("m-pf-verlauf"):
+        for x in [n] + n.antworten:
+            with ui.element("div").classes("m-pf-msg"):
+                ui.label(f"{x.von} · {_zeit_kurz(x.zeit)}").classes("m-zweite")
+                ui.label(x.text).classes("m-ptext").style("white-space:pre-wrap")
+    feld = ui.textarea(placeholder="Antworten …").props("outlined autogrow dense").classes("w-full m-feld")
+
+    async def antworten():
+        if await a.aendern(nk.antworten, nid, feld.value or ""):
+            a.pf_auswahl = f"nachricht:{nid}"
+
+    async def erledigt():
+        if await a.aendern(nk.erledigen, nid, True):
+            a.pf_auswahl = UEBERBLICK
+    with ui.element("div").classes("m-paktionen"):
+        knopf("Antworten", antworten, "primaer", "send")
+        knopf("Erledigt", erledigt, "", "done", "Aus der Liste nehmen (bleibt 90 Tage im Archiv)")
+
+
+def nachricht_neu(a) -> None:
+    from . import nachrichten_kern as nk
+
+    def bauen():
+        ui.label("Eine kurze Nachricht an alle am Standort – erscheint auf der Startseite aller PCs (ohne Outlook).") \
+            .classes("m-ptext")
+        betreff = ui.input("Betreff").classes("m-feld w-full").props("dense outlined dark")
+        text = ui.textarea("Nachricht").classes("m-feld w-full").props("dense outlined dark autogrow")
+
+        async def los():
+            if await a.aendern(nk.schreiben, betreff.value or "", text.value or ""):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Senden", los, "primaer", "send")
+            knopf("Abbrechen", a.panel_zu, "leise")
+    a.panel("Neue Nachricht", bauen)
+
+
+def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
+    """1.36: Mail an FM – Entwurf in Outlook (zum Prüfen und Senden), sonst Standard-Mailprogramm."""
+    from nicegui import run
+
+    from . import benutzer_kern
+    from . import fm_mail_kern as fk
+
+    betreff0, text0 = fk.vorlage(zimmer, art, notiz, benutzer_kern.anzeige())
+
+    def bauen():
+        ui.label("Öffnet die Mail in Outlook – dort prüfen und auf „Senden“ klicken.").classes("m-ptext")
+        an = ui.input("An (FM)", value=fk.adresse()).classes("m-feld w-full").props("dense outlined dark")
+        betreff = ui.input("Betreff", value=betreff0).classes("m-feld w-full").props("dense outlined dark")
+        text = ui.textarea("Text", value=text0).classes("m-feld w-full").props("dense outlined dark autogrow")
+
+        async def los():
+            if (an.value or "").strip() != fk.adresse():
+                try:
+                    await run.io_bound(fk.adresse_setzen, an.value or "")
+                except ValueError as exc:
+                    a.toast(str(exc), fehler=True)
+                    return
+            fehler = await run.io_bound(fk.entwurf, an.value or "", betreff.value or "", text.value or "")
+            if fehler and fk.adresse():
+                ui.navigate.to(fk.mailto(an.value or "", betreff.value or "", text.value or ""))
+                a.toast(f"{fehler} Geöffnet im Standard-Mailprogramm.", rueck=False)
+            elif fehler:
+                a.toast(fehler, fehler=True)
+                return
+            else:
+                a.toast("Mail in Outlook geöffnet – bitte prüfen und senden", rueck=False)
+            a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("In Outlook öffnen", los, "primaer", "mail")
+            knopf("Abbrechen", a.panel_zu, "leise")
+        ui.label("Die FM-Adresse wird für den Standort gemerkt (gilt für alle PCs).").classes("m-zweite")
+    a.panel("Mail an FM", bauen)
+
+
+def _anleitung(a, k) -> None:
+    from .kern import anleitung
+
+    text = anleitung(k.id)
+    if not text:
+        return
+    with ui.element("div").classes("m-pf-anleitung"):
+        ui.icon("lightbulb").classes("m-pf-anl-symbol")
+        with ui.element("div"):
+            ui.label("Was ist zu tun?").classes("m-name")
+            ui.label(text).classes("m-ptext")
+    if k.id.split(":")[0].split("_")[0] in ("fm", "maengel", "unbewohnbar", "facility", "qr"):
+        knopf("Mail an FM …", lambda: fm_mail(a), "leise", "mail", "Mail an das Facility-Management (Outlook)")
 
 
 def _fall_vergleich(a, k) -> None:
@@ -743,6 +908,16 @@ def outlook_block(a) -> None:
 
 # 0.91: Heute als eine Seite (Entwurf „Heute neu gedacht“) – ruhige Karten, ein Blickfang, graue Chips
 CSS = r"""
+/* 1.36: Startseite wie Outlook – „Was ist zu tun?“, Nachrichten */
+.m-pf-anleitung { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 10px 0 6px;
+  border-radius: var(--r, 6px); background: color-mix(in srgb, var(--akzent) 8%, transparent);
+  border-left: 3px solid var(--akzent); }
+.m-pf-anleitung .m-pf-anl-symbol { color: var(--akzent); font-size: 20px; margin-top: 2px; }
+.m-pf-gruppe-zeile { display: flex; align-items: center; justify-content: space-between; }
+.m-pf-zeile.m-pf-neu .m-pf-titel { font-weight: 700; }
+.m-pf-verlauf { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 10px; }
+.m-pf-msg { padding: 8px 12px; border-radius: var(--r, 6px); background: var(--fl2, rgba(0,0,0,.04)); }
+.m-pf-verlauf + .q-textarea textarea { min-height: 60px !important; max-height: 220px; }
 .m-hz { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr); gap: 18px; align-items: start;
   margin: 4px 20px 24px; }
 @media (max-width: 1100px) { .m-hz { grid-template-columns: minmax(0, 1fr); } }

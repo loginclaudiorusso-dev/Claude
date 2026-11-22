@@ -871,7 +871,7 @@ def allergie_karte(stand: zp.Planstand, heute: date) -> Karte | None:
     if not faelle:
         return None
     if not falsch:
-        return Karte("allergie", "info", f"{len(faelle)} Allergiker – alle auf der {hk.ALLERGIE_TEXT}",
+        return Karte("allergie", "info", f"{len(faelle)} Allergiker – alle auf der {hk.ALLERGIE_TEXT} oder geprüft",
                      ", ".join(f"{f.name} ({f.anreise:%d.%m.}, {kurz(f.zimmer)})" for f in faelle[:3])
                      + (" …" if len(faelle) > 3 else ""),
                      zweite=Aktion(f"zeigen:{faelle[0].anreise.isoformat()}", "Ansehen", faelle[0].anreise.isoformat()))
@@ -958,6 +958,39 @@ SYMBOL = {"fm": "key_off", "anreise": "flight_land", "konflikte": "warning", "un
           "reinigung": "cleaning_services", "abreisen": "flight_takeoff", "facility": "electrical_services",
           "maengel": "build", "engpass": "trending_down", "termin": "event", "mail": "mail", "posteingang": "mail",
           "mieterende": "key", "gebaeudeplan": "description", "umzug": "swap_horiz", "n": "campaign"}
+
+
+# 1.36: „Was ist zu tun?“ – ein kurzer Satz je Aufgabentyp in der Lesespalte der Startseite
+ANLEITUNG = {
+    "anreise": "Für diese Anreise fehlen noch Zimmer. Die Vorschläge prüfen und mit einem Klick übernehmen – oder "
+               "einzelne Personen unter Anreisen → Zuteilen von Hand umsetzen.",
+    "konflikte": "Geplante Zimmer passen nicht mehr (z. B. belegt, gesperrt, Mangel). Für jeden Fall das vorgeschlagene "
+                 "Ausweichzimmer übernehmen oder ein anderes wählen.",
+    "unbewohnbar": "In diesen Zimmern ist ein Mangel offen, der das Zimmer sperrt. Die betroffenen Personen umplanen; "
+                   "ist der Mangel behoben, unter Defekte Zimmer „behoben“ setzen.",
+    "fm": "Für diese Zimmer braucht es das Facility-Management (Schlüssel, Schloss, Reparatur). Auftrag an FM geben "
+          "und nach Erledigung abhaken.",
+    "strittig": "Gebäudeplan und Planung sagen Verschiedenes. Je Person entscheiden, welche Angabe stimmt.",
+    "allergie": "Allergiker gehören auf die Allergiker-Etage. Zimmer dort zuteilen – oder, wenn es schon stimmt bzw. "
+                "bewusst anders ist, „Passt so“ wählen. Dann verschwindet die Meldung für alle.",
+    "qr": "Gäste haben per QR-Code etwas gemeldet. Prüfen und als Mangel übernehmen oder verwerfen.",
+    "eintragen": "Belegungen sind geplant, aber noch nicht im Gebäudeplan eingetragen. Im Gebäudeplan nachtragen.",
+    "reinigung": "Diese Zimmer müssen vor dem nächsten Einzug gereinigt werden. Reinigung beauftragen und abhaken.",
+    "abreisen": "Heute bzw. bald reisen Personen ab. Schlüssel zurücknehmen, Zimmer zur Reinigung geben.",
+    "facility": "Nach einem langen Aufenthalt Elektrik prüfen und Fenster warten lassen. Auftrag geben und abhaken.",
+    "maengel": "Offene Mängel in Zimmern. Behebung beauftragen (z. B. Mail an FM) und erledigte Mängel abhaken.",
+    "engpass": "In diesen Wochen wird es knapp. Unter Auswertung → Engpässe sehen, welche Gruppen betroffen sind, "
+               "und früh umplanen.",
+    "termin": "Ein Termin oder eine Wiedervorlage ist fällig. Erledigen oder verschieben.",
+    "mail": "Eine Mail im Postfach betrifft eine Anreise oder Abreise. Lesen und übernehmen.",
+    "mieterende": "Ein Mietvertrag läuft aus. Verlängern oder Auszug planen.",
+    "gebaeudeplan": "Im Ordner liegt ein neuer Gebäudeplan. Importieren, damit die Belegung aktuell ist.",
+    "umzug": "Ein Umzug steht an. Neues Zimmer vorbereiten und den Umzug bestätigen.",
+}
+
+
+def anleitung(kid: str) -> str:
+    return ANLEITUNG.get(kid.split(":")[0].split("_")[0], "")
 
 
 def symbol(kid: str) -> str:
@@ -1188,3 +1221,7 @@ _dz_einzeln.installieren()                         # 1.21: Doppelzimmer je Anrei
 from . import prognose_fix_kern as _prognose_fix  # noqa: E402
 
 _prognose_fix.installieren()                       # 1.26: Prognose am Monatsletzten nicht um 2 Monate verschoben
+
+from . import leistung_kern as _leistung  # noqa: E402
+
+_leistung.installieren()                           # 1.36: schneller (Zimmer-Vergleich, nach_planung nur einmal je Stand)

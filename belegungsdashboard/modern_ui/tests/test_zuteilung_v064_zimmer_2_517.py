@@ -48,8 +48,8 @@ def test_heute_nur_noch_tageszentrale_und_postfach():
     from modern import seite_heute as sh
 
     assert set(sh.ANSICHTEN) == {"zentrale", "postfach"}
-    assert sh.ansicht(SimpleNamespace(heute_ansicht="uebersicht")) == "zentrale"      # gemerkte alte Ansicht
-    assert sh.ansicht(SimpleNamespace()) == "zentrale"
+    assert sh.ansicht(SimpleNamespace(heute_ansicht="uebersicht")) == "postfach"      # 1.36: Start wie Outlook
+    assert sh.ansicht(SimpleNamespace()) == "postfach"
     assert sh.postfach_an(SimpleNamespace(heute_ansicht="postfach"))
     assert not hasattr(sh, "_feed")
 

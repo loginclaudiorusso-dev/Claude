@@ -115,8 +115,9 @@ class AllergieFall:
     schluessel: str
     name: str
     anreise: date
-    zimmer: str        # Zimmer-ID (gespeichert) oder ""
-    auf_etage: bool
+    zimmer: str        # Zimmer-ID (gespeichert bzw. laut Gebäudeplan bewohnt) oder ""
+    auf_etage: bool    # auf der Etage – oder von Hand als „passt so“ bestätigt
+    bestaetigt: bool = False
 
 
 def allergie_faelle(stand, heute: date, tage: int = 21) -> list[AllergieFall]:
@@ -125,10 +126,74 @@ def allergie_faelle(stand, heute: date, tage: int = 21) -> list[AllergieFall]:
     from datetime import timedelta
 
     erg = []
+    ok_liste = bestaetigt()
     for b in stand.bedarf:
         if not allergiker(b.bemerkung) or b.bis < heute or b.von > heute + timedelta(days=tage):
             continue
         zw = stand.zugewiesen(b.schluessel) or {}
         zid = zw.get("zimmer", "") or ""
-        erg.append(AllergieFall(b.schluessel, b.name, b.von, zid, auf_allergie_etage(stand.lage.zimmer.get(zid))))
+        wohnt = wohnt_in(stand, b, heute)            # 1.36: tatsächliches Zimmer (Gebäudeplan/Zimmerbelegung) gilt
+        if wohnt and (not zid or not auf_allergie_etage(stand.lage.zimmer.get(zid))):
+            zid = wohnt
+        etage = auf_allergie_etage(stand.lage.zimmer.get(zid))
+        hand = not etage and b.schluessel in ok_liste
+        erg.append(AllergieFall(b.schluessel, b.name, b.von, zid, etage or hand, hand))
     return sorted(erg, key=lambda f: (f.anreise, f.name))
+
+
+def wohnt_in(stand, b, heute: date) -> str:
+    """1.36: In welchem Zimmer ist die Person laut Gebäudeplan bzw. Zimmerbelegung wirklich (belegt) – ab heute bzw.
+    ab der Anreise? Erst über die Kennung, sonst über den Namen (alle Namensteile gleich). "" = nicht gefunden.
+    Damit meldet „Allergiker nicht auf der Etage“ niemanden, der längst im richtigen Zimmer wohnt, aber nur noch im
+    Gebäudeplan steht (die Zuteilung entfällt, sobald der Gebäudeplan die Buchung kennt)."""
+    from belegung.zimmerplan import _namenswoerter
+
+    tag = max(b.von, heute)
+    woerter = _namenswoerter(b.name or "")
+    treffer = ""
+    for zid, bs in stand.lage.belegungen.items():
+        for x in bs:
+            if x.art not in ("belegt", "geplant") or not (x.von <= tag <= x.bis or x.von <= b.bis and b.von <= x.bis):
+                continue
+            if x.person and x.person == b.schluessel:
+                return zid
+            if woerter and x.name and _namenswoerter(x.name) == woerter and x.art == "belegt":
+                treffer = treffer or zid
+    return treffer
+
+
+# ---- 1.36: „Passt so“ – von Hand bestätigt (gilt für alle PCs am Standort) ------------------------------------------
+
+BESTAETIGT = "importe/modern_allergie_ok.json"
+
+
+def bestaetigt() -> set[str]:
+    from belegung import speicher
+
+    try:
+        d = speicher.lesen(BESTAETIGT, {})
+    except Exception:                                  # noqa: BLE001 – beschädigt: nichts bestätigt
+        return set()
+    return set((d or {}).get("personen", {})) if isinstance(d, dict) else set()
+
+
+def bestaetigen(schluessel: str, name: str = "", an: bool = True) -> str:
+    """Fall als geprüft markieren („passt so“) – oder zurücknehmen. Ein Schritt mit Rückgängig."""
+    from datetime import datetime
+
+    from belegung import speicher
+
+    from .kern import _schritt
+    from .netz_kern import wer
+
+    def aktion():
+        d = speicher.lesen(BESTAETIGT, {}) or {}
+        p = dict(d.get("personen", {}))
+        if an:
+            p[schluessel] = {"name": name, "von": wer(), "am": datetime.now().isoformat(timespec="minutes")}
+        else:
+            p.pop(schluessel, None)
+        speicher.schreiben(BESTAETIGT, {"personen": p})
+    _schritt("Allergiker geprüft" if an else "Allergiker-Prüfung zurückgenommen", aktion, [BESTAETIGT])
+    return (f"{name or 'Person'}: als geprüft markiert – die Meldung verschwindet für alle" if an
+            else "Prüfung zurückgenommen")

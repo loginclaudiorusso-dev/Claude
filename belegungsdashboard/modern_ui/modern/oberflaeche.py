@@ -31,6 +31,7 @@ def knopf_zahlen(karten, ungelesen: int) -> dict:
 log = logging.getLogger(__name__)
 
 TOAST_S = 6
+WIEDER_S = 60               # 1.36: so lange gilt ein voll geladener Stand beim reinen Seitenwechsel
 PRUEF_S = 30                # so oft wird geprüft, ob das Hauptprogramm etwas gespeichert hat
 STUFEN = [("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info")]
 AMPEL = {"dringend": "krit", "bald": "warn", "info": "ok"}
@@ -126,7 +127,23 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
     # ---- Daten ---------------------------------------------------------------------------
 
-    def _laden(self) -> None:
+    def _laden(self, voll: bool = True) -> None:
+        """Daten laden. 1.36: ``voll=False`` (Seitenwechsel): Zimmerplan, Aufgaben und Zähler nur neu, wenn sich Dateien
+        geändert haben, der Tag gewechselt hat oder der letzte volle Stand älter als ``WIEDER_S`` ist – sonst nur die
+        Daten der Seite. Nach jeder Änderung wird weiter voll geladen."""
+        import time
+
+        stempel = _stempel()
+        if (not voll and self.stand is not None and stempel == getattr(self, "stempel", None)
+                and self.heute == date.today() and time.monotonic() - getattr(self, "_voll_um", 0.0) < WIEDER_S):
+            self._seite_laden()
+            return
+        self._voll_laden()
+        self._voll_um = time.monotonic()
+        self._seite_laden()
+        self.stempel = stempel
+
+    def _voll_laden(self) -> None:
         from belegung import zimmerplan as zp
 
         self.heute = date.today()
@@ -154,6 +171,8 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             self.neu_liste, self.ungelesen = kern.neuigkeiten()
         except Exception:                      # noqa: BLE001
             self.neu_liste, self.ungelesen = [], 0
+
+    def _seite_laden(self) -> None:
         if self.seite == "anreisen" and self.ansicht_von("anreisen", "zuteilen") != "zuteilen":
             seite_anreisen.daten(self)
         elif self.seite == "anreisen":
@@ -172,11 +191,10 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                 self.np = None
         else:
             register.SEITEN[self.seite][0](self)
-        self.stempel = _stempel()
 
-    async def laden(self, zeichnen: bool = True) -> None:
+    async def laden(self, zeichnen: bool = True, voll: bool = True) -> None:
         try:
-            await run.io_bound(self._laden)
+            await run.io_bound(self._laden, voll)
             self.fehler = ""
         except Exception as exc:              # noqa: BLE001 – Fehler sichtbar machen statt leerer Seite
             log.exception("Laden fehlgeschlagen")
@@ -276,7 +294,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.seite, self.daten = seite, None
         self.panel_zu()
         self.zeichnen()                        # sofort umschalten („Lädt …“), dann Daten
-        await self.laden()
+        await self.laden(voll=False)           # 1.36: Seitenwechsel – Zimmerplan nur neu, wenn sich etwas geändert hat
         if karte:
             from . import seite_zimmer
 
@@ -715,7 +733,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             await self.laden()
             return False
         await self.laden()
-        self.toast(text)
+        self.toast(text, rueck=not getattr(aktion, "ohne_rueckgaengig", False))   # 1.36: z. B. Nachrichten
         return True
 
     async def _zimmer_gewaehlt(self, z: kern.Zeile, zimmer: str | None) -> None:

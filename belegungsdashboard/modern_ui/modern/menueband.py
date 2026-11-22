@@ -84,6 +84,7 @@ SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutu
     ("einstellungen", "stammdaten"): ("document_edit", BASIS),
 }
 AKTION_SYMBOLE: dict[str, tuple] = {   # Aktionsname (Präfix) → (Fluent-Symbol, Farbe)
+    "nachricht_neu": ("people_team", VIOLETT), "fm_mail": ("send", BLAU),      # 1.36
     "aw:aw_chart=trend": ("arrow_trending_lines", BLAU), "aw:aw_chart=reserve": ("battery_charge", GRUEN),
     "aw:aw_chart=jahr": ("arrow_swap", AMBER), "awt:aw_status": ("people_add", TEAL),
     "awt:aw_parallel": ("layout_column_three", TEAL), "aw:aw_brutto=false": ("person", BLAU),
@@ -106,7 +107,7 @@ def symbol(p: "Punkt") -> tuple[str, str]:
     if z and z[0] == "seite":
         _s, seite, ansicht, zustand = z
         if seite == "heute":
-            ansicht = (zustand or {}).get("heute_ansicht", "zentrale")
+            ansicht = (zustand or {}).get("heute_ansicht", "postfach")
         if (seite, ansicht) in SYMBOLE:
             return SYMBOLE[(seite, ansicht)]
         if (seite, None) in SYMBOLE:
@@ -259,10 +260,15 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                                     standard="cockpit")]))
     return [
         Reiter("start", "Start", [
-            Gruppe("Heute", [Punkt("Tages­übersicht", "wb_twilight", S("heute", heute_ansicht="zentrale"),
-                                   tipp="Kennzahlen und offene Aufgaben des Tages"),
-                             Punkt("Aufgaben", "task_alt", S("heute", heute_ansicht="postfach"),
-                                   tipp="Alle Aufgaben mit ihren Fällen bearbeiten (Postfach)")]),
+            Gruppe("Heute", [Punkt("Posteingang", "task_alt", S("heute", heute_ansicht="postfach"),
+                                   tipp="Startseite wie Outlook: Überblick, Nachrichten und Aufgaben – rechts lesen und "
+                                        "erledigen"),
+                             Punkt("Tages­übersicht", "wb_twilight", S("heute", heute_ansicht="zentrale"),
+                                   tipp="Kennzahlen und offene Aufgaben des Tages auf einen Blick")]),
+            Gruppe("Nachrichten", [Punkt("Nachricht", "forum", A("nachricht_neu"), True,
+                                         "Neue Nachricht an alle am Standort – Pfeil: Mail an FM",
+                                         [Punkt("Mail an FM …", "mail", A("fm_mail"), False,
+                                                "Mail an das Facility-Management als Outlook-Entwurf")])]),
             Gruppe("Termine", [v("termine", "liste", "Termine", "calendar_today", tipp="Termine und Wiedervorlagen als Liste"),
                                v("termine", "monat", "Kalender", "calendar_month", tipp="Termine im Monatskalender")]),
             Gruppe("Assistenz", _einzeln("assistenz", ansichten, gross=False)),
@@ -391,7 +397,7 @@ def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]
         t = text or (ansichten.get(seite) or {}).get(k, k)
         return Punkt(t.replace("\u00ad", ""), icon or ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), False)
 
-    erg = [("", [Punkt("Heute", "today", S("heute", heute_ansicht="zentrale"), False),
+    erg = [("", [Punkt("Heute", "today", S("heute", heute_ansicht="postfach"), False),
                  Punkt("Termine", "event", S("termine"), False),
                  Punkt("Assistenz", "auto_awesome", S("assistenz"), False)]),
            ("Anreisen", [v("anreisen", "zuteilen"), v("anreisen", "personen"), v("anreisen", "abreisen"),
@@ -417,7 +423,7 @@ def leiste_aktiv(eintraege: list[tuple[str, list[Punkt]]], seite: str, ansicht_v
     return genau or next((p for p in alle if p.ziel and p.ziel[1] == seite), None)
 
 
-def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") -> bool:
+def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "postfach") -> bool:
     """Ist die Schaltfläche die gerade offene Seite/Ansicht? ``ansicht_von(seite)`` liefert die aktuelle Unteransicht.
     Split-Button: aktiv, wenn seine Standardansicht oder eine Ansicht aus dem Pfeil offen ist."""
     if p.menue and any(aktiv(m, seite, ansicht_von, heute_ansicht) for m in p.menue):
@@ -426,7 +432,7 @@ def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "zentrale") ->
         return False
     _s, s, ans, zustand = p.ziel
     if s == "heute":
-        return zustand.get("heute_ansicht", "zentrale") == heute_ansicht
+        return zustand.get("heute_ansicht", "postfach") == heute_ansicht
     return ans is None or ans == ansicht_von(s)
 
 

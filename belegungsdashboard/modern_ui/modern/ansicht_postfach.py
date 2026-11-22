@@ -197,7 +197,10 @@ class PostfachMixin:
 
         def bauen():
             ui.label(f"{len(fs)} Allergiker in den nächsten 3 Wochen · {hk.ALLERGIE_TEXT}").classes("m-ptext")
-            sp = "minmax(160px, 1.4fr) 110px 110px 150px 110px"
+            ui.label("Was tun? Allergiker gehören auf die Allergiker-Etage. Stimmt das Zimmer schon (z. B. eingezogen, "
+                     "aber noch nicht im Gebäudeplan) oder ist es bewusst anders: „Passt so“ – dann verschwindet die "
+                     "Meldung für alle. Sonst über „Zur Anreise“ ein Zimmer auf der Etage zuteilen.").classes("m-ptext")
+            sp = "minmax(160px, 1.4fr) 100px 90px 170px 220px"
             with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
                 for t in ("Person", "Anreise", "Zimmer", "Etage", ""):
                     ui.label(t)
@@ -206,11 +209,24 @@ class PostfachMixin:
                     ui.label(f.name).classes("m-name")
                     ui.label(f"{f.anreise:%d.%m.%Y}").classes("m-mono")
                     ui.label(kern.kurz(f.zimmer) if f.zimmer else "noch ohne").classes("m-mono")
-                    ui.label("auf der Etage ✓" if f.auf_etage else "nicht auf der Etage").classes(
-                        "m-zweite" if f.auf_etage else "m-zweite m-warn")
-                    knopf("Zur Anreise", lambda f=f: self._zeigen(f.anreise.isoformat()), "leise")
+                    ui.label("passt so (bestätigt)" if f.bestaetigt else "auf der Etage ✓" if f.auf_etage
+                             else "nicht auf der Etage").classes("m-zweite" if f.auf_etage else "m-zweite m-warn")
+                    with ui.element("div").classes("m-zeile-flex").style("gap:6px"):
+                        knopf("Zur Anreise", lambda f=f: self._zeigen(f.anreise.isoformat()), "leise")
+                        if not f.auf_etage:
+                            knopf("Passt so", lambda f=f: self._allergie_ok(f, True), "", "check",
+                                  "Zimmer stimmt bzw. ist bewusst so – Meldung für alle ausblenden")
+                        elif f.bestaetigt:
+                            knopf("Zurücknehmen", lambda f=f: self._allergie_ok(f, False), "leise", "undo")
 
         self.panel("Allergiker", bauen, breit=True)
+
+    async def _allergie_ok(self, f, an: bool) -> None:
+        from . import hinweise_kern as hk
+
+        if await self.aendern(hk.bestaetigen, f.schluessel, f.name, an):
+            if getattr(self, "panel_def", None) is not None:
+                await self._allergie_panel()
 
     async def _strittig_panel(self) -> None:
         """Eigene Planung ↔ Gebäudeplan: je Person entscheiden, was stimmt (Rückgängig je Entscheidung)."""

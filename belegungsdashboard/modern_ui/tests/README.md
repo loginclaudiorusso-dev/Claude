@@ -17,6 +17,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_assistenz_v102_postfach.py` – 1.02 – Postfach auf „Aufgaben“ mit Öffnen in Outlook, Standorte im Menüband in einer Reihe. Nur erfundene Daten.
 - `test_assistenz_v104_mail_erkennung.py` – 1.04 – Mail-Erkennung nachgeschärft, Outlook-Erkennung robuster, Maßnahmen-Auswahl im Menüband.
 - `test_assistenz_v109_gaestehaus.py` – 1.09 – mehrere Gästehaus-Vormerkungen in einer Mail. Nur erfundene Namen, Orte und Anschriften.
+- `test_assistenz_v136_nachrichten.py` – 1.36 – Nachrichten im Programm, Mail an FM, „Was ist zu tun?“
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 
@@ -81,6 +82,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_netz_v127_start.py` – 1.27 – Start absichern: Lebenszeichen, Doppelstart, Python-Version, Fehleranzeige.
 - `test_netz_v133_benutzer.py` – 1.33 – Benutzerkonten: Anmelden, Rollen, Standorte, Schutz vor Aussperren
 - `test_netz_v135_umzug.py` – 1.35 – Umzug in den einen Netzwerkordner: ersetzen mit Sicherung, Konten bleiben, Ordner finden
+- `test_netz_v136_leistung.py` – 1.36 – schneller: Zimmer-Vergleich, nach Planung einmal je Stand, Seitenwechsel ohne Neuladen
 
 ## prognose – Belegungsprognose, Analytik, Rechenweg
 
@@ -175,3 +177,4 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_zuteilung_v064_zimmer_2_517.py` – 0.64: Zimmer 2-517 fest im Programm; Heute entschlackt. Erfundene Daten.
 - `test_zuteilung_v121_dz_einzeln.py` – 1.21 – Doppelzimmer einzeln vergeben (je Anreise per Knopfdruck), wenn die DZ-Liste nicht stimmt. Erfundene Daten.
 - `test_zuteilung_v129_geschlecht.py` – 1.29 – Geschlecht einer Belegung an EINER Stelle lesen (Feld „grund“ des Hauptprogramms). Erfundene Namen.
+- `test_zuteilung_v136_allergie_wohnt.py` – 1.36 – Allergiker: Zimmer laut Gebäudeplan zählt, „Passt so“ für alle
