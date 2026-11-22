@@ -787,6 +787,8 @@ def _karte(a, k: zk.Karte) -> None:
             sw = ui.switch("unbewohnbar", value=unbew).props("dense color=red-4")
             sw.on_value_change(lambda e, art=art: _nach(a, zk.unbewohnbar_setzen, k.zimmer, art, e.value, zimmer=k.zimmer))
             knopf("behoben", lambda art=art: _nach(a, zk.mangel_setzen, k.zimmer, art, False, zimmer=k.zimmer), "leise", "check")
+            knopf("FM", lambda name=name: _fm_mangel(a, k.zimmer, name, getattr(k, "hinweis", "") or ""), "leise", "mail",
+                  "Mail an FM zu diesem Mangel (Outlook-Entwurf zum Prüfen und Senden)")   # 1.37
     neu = ui.select({art: name for art, name in mg.KATALOG if art not in offen}, label="Mangel melden …").classes(
         "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
     neu.on_value_change(lambda e: _nach(a, zk.mangel_setzen, k.zimmer, e.value, True, zimmer=k.zimmer) if e.value else None)
@@ -1087,6 +1089,7 @@ def _maengel(a) -> None:
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("FM-Bericht drucken", lambda: _fm(a, "druck"))
                 ui.menu_item("FM-Liste als Excel", lambda: _fm(a, "excel"))
+                ui.menu_item("Alle offenen Mängel per Outlook an FM …", lambda: _fm_alle(a))
         knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "primaer", "content_copy")
     sp = "116px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
     with a.inhalt:
@@ -1120,6 +1123,8 @@ def _maengel(a) -> None:
                                 ui.label(f"seit {seit:%d.%m.}").classes("m-zweite")
                                 knopf("", lambda z=z, art=art: a.aendern(zk.mangel_setzen, z.zimmer, art, False), "leise", "check",
                                       "Behoben")
+                                knopf("", lambda z=z, name=name, notiz=notiz: _fm_mangel(a, z.zimmer, name, notiz or ""),
+                                      "leise", "mail", "Mail an FM zu diesem Mangel")
                     ui.label(z.heute).classes("m-zweite")
                     ui.label(f"{z.naechste:%d.%m.%Y}" if z.naechste else "–").classes("m-mono" + (" m-warn" if z.naechste and
                                                                                                   (z.naechste - a.heute).days <= 7 else ""))
@@ -1262,3 +1267,19 @@ def _zimmer_neu(a) -> None:
     from .seite_einstellungen import zimmer_neu_panel
 
     zimmer_neu_panel(a)
+
+
+def _fm_mangel(a, zimmer: str, mangel: str, notiz: str = "") -> None:
+    """1.37: Mail an FM direkt am Mangel – Zimmer, Mangelart und Notiz sind vorausgefüllt."""
+    from .seite_heute import fm_mail
+    from .standort_kern import kurz as zkurz
+
+    fm_mail(a, zkurz(zimmer), mangel, notiz)
+
+
+async def _fm_alle(a) -> None:
+    """1.37: alle offenen Mängel als eine Mail an FM (Outlook-Entwurf)."""
+    from .seite_heute import fm_mail
+
+    text = await run.io_bound(zk.fm_mailtext, a.stand)
+    fm_mail(a, "", "offene Mängel", text)

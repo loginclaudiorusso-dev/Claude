@@ -439,12 +439,55 @@ def _schluessel(name: str, je_standort: bool) -> str:
     return f"{standort_kern.aktiv().kurz}:{name}"
 
 
+# 1.37: Diese Werte gehören zur PERSON (angemeldetes Konto) und reisen mit, wenn sie an einem anderen PC arbeitet.
+# Alles andere bleibt am PC (z. B. Pfad der Forms-Antwortdatei, Outlook-Ordner, schon gezeigte Windows-Meldungen).
+JE_PERSON = frozenset({"design", "spaeter", "gezeigt", "willkommen_gesehen", "standort"})
+
+
+def _person_datei() -> Path | None:
+    from . import benutzer_kern
+
+    k = benutzer_kern.aktuell()
+    if k is None or name_unsicher(k.kennung):
+        return None
+    return basis() / "importe" / "personen" / f"{k.kennung}.json"
+
+
+def name_unsicher(kennung: str) -> bool:
+    return not kennung or any(c in kennung for c in "/\\:*?\"<>|") or kennung.startswith(".")
+
+
+def _person_lesen(p: Path) -> dict:
+    try:
+        d = json.loads(text_lesen(p))
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _person_schreiben(p: Path, d: dict) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=p.name, suffix=".tmp", dir=p.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=2)
+        ersetzen(tmp, p)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def persoenlich(name: str, standard=None, je_standort: bool = True, gemeinsam: str = "modern_ui.json"):
     """Persönlicher Wert dieses PCs. Fehlt er noch, wird er einmalig aus der gemeinsamen Datei übernommen
-    (so bleibt die bisherige Einstellung nach dem Umzug erhalten)."""
+    (so bleibt die bisherige Einstellung nach dem Umzug erhalten). 1.37: Werte aus ``JE_PERSON`` gehören bei
+    Anmeldung zum Konto (Datenordner ``importe/personen``); fehlt dort etwas, gilt der bisherige Wert dieses PCs."""
     from belegung import speicher
 
     k = _schluessel(name, je_standort)
+    if name in JE_PERSON and (pd := _person_datei()) is not None:
+        d = _person_lesen(pd)
+        if k in d:
+            return d[k]
     with _lokal_lock:
         d = lokal_lesen()
         if k in d:
@@ -471,6 +514,14 @@ def persoenlich(name: str, standard=None, je_standort: bool = True, gemeinsam: s
 
 def persoenlich_setzen(name: str, wert, je_standort: bool = True) -> None:
     k = _schluessel(name, je_standort)
+    if name in JE_PERSON and (pd := _person_datei()) is not None:
+        try:
+            d = _person_lesen(pd)
+            d[k] = wert
+            _person_schreiben(pd, d)
+            return
+        except OSError as exc:                 # Netz weg: dann wenigstens an diesem PC merken
+            log.warning("Persönliche Einstellung nicht im Datenordner gespeichert: %s", exc)
     with _lokal_lock:
         d = lokal_lesen()
         d[k] = wert

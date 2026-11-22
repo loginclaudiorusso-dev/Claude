@@ -83,6 +83,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_netz_v133_benutzer.py` – 1.33 – Benutzerkonten: Anmelden, Rollen, Standorte, Schutz vor Aussperren
 - `test_netz_v135_umzug.py` – 1.35 – Umzug in den einen Netzwerkordner: ersetzen mit Sicherung, Konten bleiben, Ordner finden
 - `test_netz_v136_leistung.py` – 1.36 – schneller: Zimmer-Vergleich, nach Planung einmal je Stand, Seitenwechsel ohne Neuladen
+- `test_netz_v137_je_person.py` – 1.37 – persönliche Einstellungen je Person (angemeldet) statt je PC
 
 ## prognose – Belegungsprognose, Analytik, Rechenweg
 

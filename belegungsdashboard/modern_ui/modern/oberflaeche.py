@@ -242,6 +242,34 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         await self.laden()
         self._datenstand(extern=True)
         await self._fremd_melden()
+        await self._nachrichten_melden()
+
+    async def _nachrichten_melden(self) -> None:
+        """1.37: Neue Nachricht eines anderen → Hinweis im Programm und Windows-Meldung (je Nachricht einmal)."""
+        from . import melder
+        from . import nachrichten_kern as nk
+
+        try:
+            ich = nk.ich()
+            neu = [n for n in await run.io_bound(nk.offene) if n.ungelesen_fuer(ich)]
+        except Exception:                      # noqa: BLE001 – Hinweis ist Komfort
+            return
+        gemeldet = getattr(self, "_nachr_gemeldet", None)
+        self._nachr_gemeldet = {(n.id, n.letzte) for n in neu}
+        if gemeldet is None:                   # erster Blick: was schon da war, steht ohnehin in der Liste
+            return
+        frisch = [n for n in neu if (n.id, n.letzte) not in gemeldet]
+        if not frisch:
+            return
+        n = frisch[0]
+        von = n.antworten[-1].von if n.antworten else n.von
+        text = f"{von}: {n.betreff}" + (f" (+{len(frisch) - 1} weitere)" if len(frisch) > 1 else "")
+        self.toast(f"Neue Nachricht – {text}", rueck=False, dauer=12)
+        try:
+            if await run.io_bound(melder.an):
+                melder.windows_zeigen("INNternat – neue Nachricht", text)
+        except Exception:                      # noqa: BLE001
+            pass
 
     async def _fremd_melden(self) -> None:
         """0.54: Hat ein anderer PC gespeichert, kurz zeigen, was und von wem."""
@@ -1060,9 +1088,8 @@ async def startseite() -> None:
 
         await ui.context.client.connected()
         await benutzer_ui.anmelden(windows_erlaubt=not _START.pop("manuell", False))
-        if not erster or standort_kern.aktiv().kurz not in bk.erlaubte_standorte():
-            ui.navigate.reload()                         # mit Name und Standorten des Kontos neu aufbauen
-            return
+        ui.navigate.reload()                             # mit Name, Standorten und Darstellung (1.37) des Kontos neu
+        return
     if erster:
         await ui.context.client.connected()
         _START["gefragt"] = True
@@ -1096,6 +1123,7 @@ async def startseite() -> None:
     # neue Dateien in „UWT“/„Listen“ (wie das Hauptprogramm) – mit Bericht, was sich dadurch geändert hat
     eingelesen, aenderungen = await run.io_bound(daten_kern.ordner_importieren_bericht)
     await a.laden()
+    await a._nachrichten_melden()              # 1.37: Stand merken – ab jetzt werden neue Nachrichten gemeldet
     if eingelesen:
         from .seite_daten import eingelesen_melden
 

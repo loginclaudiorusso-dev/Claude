@@ -98,7 +98,7 @@ def gemerkt() -> str:
     """Zuletzt gewählter Standort – seit 0.54 je PC (bisherige gemeinsame Wahl wird beim ersten Mal übernommen)."""
     from . import netz_kern
 
-    k = netz_kern.lokal_lesen().get("standort")
+    k = netz_kern.persoenlich("standort", None, je_standort=False, gemeinsam="__keine__.json")   # 1.37: je Person
     if k is None:
         try:
             k = json.loads((_BASIS() / _WAHL).read_text(encoding="utf-8")).get("standort", STANDARD)
