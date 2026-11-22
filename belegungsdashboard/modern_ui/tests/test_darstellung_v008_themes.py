@@ -22,12 +22,13 @@ def _selektoren(css: str) -> list[str]:
     return [s for s in erg if s]
 
 
-def test_original_ohne_klassen_und_alles_gebunden():
+def test_immer_menueband_und_alles_gebunden():
     from modern import themes
 
-    assert themes.klassen({}) == [] and themes.klassen({"layout": "original", "theme": "obsidian"}) == []
-    k = themes.klassen({"layout": "canvas", "theme": "nordic"})
-    assert {"pro", "lay-canvas", "th-nordic", "mod-hell", "hell", "nav-schmal"} <= set(k)
+    # 1.34: es gibt nur noch das Menüband (Office) im Theme INNternat – frühere Layouts werden dorthin übernommen
+    for alt in ({}, {"layout": "original", "theme": "obsidian"}, {"layout": "canvas", "theme": "nordic"}):
+        k = themes.klassen(alt)
+        assert {"pro", "lay-office", "th-innternat"} <= set(k) and "nav-schmal" not in k
     erlaubt = (".m-prompt-zeile", ".m-topnav", ".m-navklapp", ".m-cv-start")   # nur „ausblenden“
     for sel in _selektoren(themes.CSS):
         if "m-tb" in sel or sel.startswith("from") or sel == "to":
@@ -36,38 +37,26 @@ def test_original_ohne_klassen_und_alles_gebunden():
                 or "html:has(body." in sel or sel in erlaubt), sel
 
 
-def test_fuenf_themes_drei_layouts_und_farben():
-    from modern import themes
-    from modern.stil import T
-
-    assert list(themes.THEMES) == ["innternat", "original", "inn", "linear", "obsidian", "nordic"]
-    assert list(themes.LAYOUTS) == ["original", "office", "grid", "canvas", "showcase"]
-    assert {k: v for k, v in themes.farben({}).items() if k in T} == dict(T)
-    for t in ("innternat", "inn", "linear", "obsidian", "nordic"):
-        assert set(themes.modi(t)) == {"hell", "dunkel"}
-        assert themes.farben({"layout": "grid", "theme": t}) != themes.farben({})
-
-
 def test_alter_stand_und_unbekanntes():
     from modern import themes
 
     d = themes.bereinigen({"theme": "corporate", "nav": "oben"})          # Stand 0.8
-    assert (d["layout"], d["theme"], d["modus"]) == ("showcase", "inn", "hell")
-    assert themes.bereinigen({"layout": "quer", "theme": "x"})["layout"] == "original"
-    assert themes.bereinigen({"layout": "grid", "theme": "linear", "modus": "lila"})["modus"] == "dunkel"
+    assert (d["layout"], d["theme"], d["modus"]) == ("office", "innternat", "hell")
+    assert themes.bereinigen({"layout": "quer", "theme": "x"})["layout"] == "office"
+    assert themes.bereinigen({"layout": "grid", "theme": "linear", "modus": "dunkel"})["helligkeit"] == "dunkel"
 
 
 def test_design_wird_gespeichert(tmp_path, monkeypatch):
     from modern import kern
 
     monkeypatch.setenv("BELEGUNG_DATEN", str(tmp_path))
-    d = kern.design_lesen()                   # 0.38: einmalig die neue INNternat-Darstellung …
-    assert (d["layout"], d["theme"], d["modus"]) == ("grid", "innternat", "dunkel")
-    kern.design_setzen({"layout": "original"})
-    assert kern.design_lesen()["layout"] == "original"      # … „Original-Zustand“ bleibt danach erhalten
-    kern.design_setzen({"layout": "showcase", "theme": "obsidian", "dichte": "kompakt", "notiz": "Rückruf"})
     d = kern.design_lesen()
-    assert (d["layout"], d["theme"], d["modus"], d["dichte"], d["notiz"]) == ("showcase", "obsidian", "dunkel", "kompakt", "Rückruf")
+    assert (d["layout"], d["theme"]) == ("office", "innternat")
+    kern.design_setzen({"layout": "showcase", "theme": "obsidian", "dichte": "kompakt", "notiz": "Rückruf",
+                        "helligkeit": "gedaempft"})
+    d = kern.design_lesen()
+    assert (d["layout"], d["theme"], d["helligkeit"], d["dichte"], d["notiz"]) == \
+        ("office", "innternat", "gedaempft", "kompakt", "Rückruf")
 
 
 def test_canvas_versteht_saetze():

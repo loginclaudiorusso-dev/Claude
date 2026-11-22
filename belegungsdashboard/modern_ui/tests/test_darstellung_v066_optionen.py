@@ -43,7 +43,7 @@ def test_themes_stil_und_klassen():
     assert "--akzent: #6B3FA0" in themes.stil(d) and "band-gross" in themes.klassen(d)
     assert themes.farben(d)["akzent"] != themes.farben({**d, "farbe": "petrol"})["akzent"]
     original = themes.bereinigen({"layout": "original", "farbe": "rot", "zoom": 90})
-    assert themes.stil(original) == "--m-zoom: 0.90;"                    # Original: nur der Zoom
+    assert original["layout"] == "office" and "--akzent: #B3261E" in themes.stil(original)   # 1.34: Original → Menüband
 
 
 def _opt():

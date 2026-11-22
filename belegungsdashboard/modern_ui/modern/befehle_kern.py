@@ -75,7 +75,6 @@ WORTE = {
     "zoom:+": ("größer", "vergrößern", "zoom"),
     "zoom:-": ("kleiner", "verkleinern", "zoom"),
     "zoom:100": ("normal", "100", "zoom zurücksetzen"),
-    "leitstand": ("workbench", "leitstand"),
 }
 
 # Aktionen, die nicht im Band stehen: (Titel, Symbol, Ziel, Suchwörter, Bereich)
@@ -150,7 +149,6 @@ def katalog(ansichten: dict, leitung: bool = True) -> list[Befehl]:
                 titel = {"zoom:100": "Zoom 100 %", "zoom:+": "Vergrößern (Zoom)", "zoom:-": "Verkleinern (Zoom)"}.get(
                     p.ziel[1], p.text)
                 dazu(titel, p.icon or "crop_free", p.ziel, bereich, worte)
-    dazu("Leitstand-Workbench", "view_quilt", ("aktion", "leitstand"), "Strg+Umschalt+L", WORTE["leitstand"])
     for titel, icon, ziel, worte, bereich in EXTRA:
         dazu(titel, icon, ziel, bereich, worte)
     return erg

@@ -74,10 +74,6 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         await a.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal")
     elif name == "vollbild":
         await a.vollbild_umschalten()
-    elif name == "leitstand":
-        from . import leitstand_ui
-
-        await leitstand_ui.umschalten(a)
     elif name == "standort":
         kurz = await a.standort_fragen()
         if kurz:

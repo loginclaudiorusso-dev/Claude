@@ -114,16 +114,8 @@ def _haken(text: str, an: bool, bei) -> None:
 
 
 def _farben(a, d: dict, setzen) -> None:
-    office = d["layout"] == "office"
-    if d["layout"] == "original":
-        with ui.element("div").classes("m-opt-hinweis"):
-            ui.label("Farben und Schrift gibt es in den weiteren Darstellungen. Am vertrautesten ist das Menüband.")
-            knopf("Menüband einschalten", lambda: setzen(layout="office"), "primaer", "view_agenda")
+    office = True                              # 1.34: es gibt nur noch das Menüband
     if office:
-        _titel("Navigation", "Menüband: Registerkarten oben wie in Word und Excel (Standard). Seitenleiste: alle "
-               "Bereiche links immer sichtbar. Titel- und Statusleiste bleiben in beiden gleich (je PC gemerkt).")
-        _wahl({k: t for k, (t, _b) in dk.NAVIGATION.items()}, d.get("nav", "band"),
-              lambda x: setzen(nav=x))
         _titel("Vorlagen", "Ein Klick setzt Farbe, Helligkeit, Färbung und Titelleiste passend zusammen – danach lässt "
                "sich alles einzeln weiter anpassen. Die Statusfarben (frei, belegt, geplant …) bleiben immer gleich.")
         aktiv = dk.vorlage_von(d)
@@ -213,18 +205,20 @@ def _anzeige(a, d: dict, setzen) -> None:
         _titel("Knöpfe", "Gilt für alle Knöpfe und Chips gleichzeitig. Die Hauptaktion bleibt in jedem Stil erkennbar.")
         _wahl(dk.KNOPFSTILE, d.get("knopfstil", "klar"), lambda x: setzen(knopfstil=x),
               {"klar": "smart_button", "weich": "blur_on", "kontur": "crop_square", "kraeftig": "radio_button_checked"})
-        _titel("Symbole", "Eine Symbolfamilie in drei Stilen – alle im Programm enthalten, auch ohne Internet.")
+        _titel("Symbole im Menüband", "Zwei Varianten – die bisherigen zweifarbigen oder farbige, realistischere "
+               "(Microsoft Fluent, im Programm enthalten, auch ohne Internet).")
+        from . import symbole as sy
+
         with ui.element("div").classes("m-opt-wahl"):
-            for k, text in dk.SYMBOLSTILE.items():
-                an = d.get("symbolstil", "linie") == k
+            for k, (text, tipp) in dk.SYMBOLE.items():
+                an = d.get("symbole", "fluent") == k
                 b = ui.element("button").classes("m-opt-chip m-opt-sym" + (" an" if an else ""))
-                attr(b, aria_pressed=str(an).lower())
+                attr(b, aria_pressed=str(an).lower(), title=tipp)
                 with b:
-                    for s in ("person", "bed", "apartment", "warning", "event"):
-                        stil = f"font-family:'{dk.SYMBOL_SCHRIFT[k]}';font-style:normal;font-size:18px;font-feature-settings:'liga'"
-                        ui.html(f'<i style="{stil}">{s}</i>', sanitize=False)
+                    for name, farbe in sy.VORSCHAU:
+                        ui.html(sy.html(name, farbe, True, variante=k), sanitize=False)
                     ui.label(text)
-                b.on("click", lambda k=k: setzen(symbolstil=k))
+                b.on("click", lambda k=k: setzen(symbole=k))
         _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
         _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
         _titel("Werkzeuge der Seite", "„Im Menüband“: Filter und Knöpfe jeder Seite stehen in einer eigenen "
@@ -257,15 +251,6 @@ def _diagramme(a, d: dict, setzen) -> None:
 
 
 def _oberflaeche(a, d: dict, setzen) -> None:
-    from .menueband import LAYOUT_NAMEN
-
-    _titel("Aufbau der Oberfläche", "Das Menüband ist für den Alltag gedacht. Die anderen Aufbauten sind Alternativen.")
-    _wahl(LAYOUT_NAMEN, d["layout"], lambda k: setzen(layout=k))
-    with ui.element("div").classes("m-opt-zeile"):
-        from . import leitstand_ui
-
-        knopf("Zur Leitstand-Workbench wechseln", lambda: leitstand_ui.umschalten(a), "", "view_quilt")
-        ui.label("Strg+Umschalt+L wechselt hin und zurück.").classes("m-opt-unter")
     _titel("Bereiche", "Was nicht gebraucht wird, verschwindet aus dem Menüband – nur auf diesem PC.")
     _haken("Leitung anzeigen (Steuerung: Renovierung, Zeitplan, Finanzen)", d["leitung"], lambda x: setzen(leitung=x))
 

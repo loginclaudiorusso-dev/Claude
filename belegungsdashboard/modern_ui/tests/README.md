@@ -30,7 +30,6 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 ## darstellung – Themes, Farben, Menüband, Symbole, Diagrammstil, Leitstand
 
 - `test_darstellung_v008_themes.py` – 0.8: Designs – „original“ bleibt unberührt, alles Neue ist an body.pro / body.th-… gebunden.
-- `test_darstellung_v062_leitstand.py` – 0.62: Leitstand-Workbench – umschaltbar je PC, gleiche Fachlogik. Ohne Browser: Einstellung, Klickregeln, Rahmen.
 - `test_darstellung_v065_menueband.py` – 0.65: Menüband wie in Office, sachliche Überschriften, Leitstand ohne Fachjargon. Ohne echte Daten.
 - `test_darstellung_v066_optionen.py` – 0.66: Darstellungs-Optionen wie in Office – Farben, eigene Akzentfarbe, Zoom, Schrift, Diagrammtyp. Erfundene Werte.
 - `test_darstellung_v067_menueband_aufgeraeumt.py` – 0.67: Menüband aufgeräumt – jeder Befehl an einer Stelle, Split-Buttons, Kontext-Registerkarte „Diagramm“.
@@ -48,6 +47,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_darstellung_v113_symbole.py` – 1.13 – Symbole aus einem Guss: jedes verwendete Fluent-Symbol liegt vollständig vor (groß/klein, Kontur/Fläche),
 - `test_darstellung_v123_optionen.py` – 1.23 – Optionen im Menüband nur dort, wo sie wirken; Anteile getrennt wählbar; Datenbeschriftung auch bei
 - `test_darstellung_v129_ein_modell.py` – 1.29 – Ein Einstellungsmodell für die Darstellung (vorher themes.py + darstellung_kern.py getrennt).
+- `test_darstellung_v134_eine_oberflaeche.py` – 1.34 – nur noch das Menüband; Symbole klar oder farbig
 
 ## export – Exporte (Excel, Änderungen, FM-Liste)
 

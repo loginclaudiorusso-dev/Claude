@@ -24,9 +24,9 @@ def test_modi_passen_zu_den_paletten():
 def test_pruefung_ist_stabil_und_startzustand_dokumentiert():
     start = dm.bereinigen({})
     assert dm.bereinigen(start) == start == dm.START                     # zweimal prüfen ändert nichts mehr
-    # Startzustand (unverändert seit 1.0): Original-Layout, nur dunkel – die Helligkeit folgt dem Theme
+    # 1.34: Startzustand Menüband, INNternat, hell (bis 1.33: Original-Layout, dunkel)
     assert (start["layout"], start["theme"], start["modus"], start["helligkeit"], start["nav"]) == \
-        ("original", "original", "dunkel", "dunkel", "band")
+        ("office", "innternat", "hell", "hell", "band")
 
 
 def test_beschaedigte_versionsangabe_stuerzt_nicht_ab():

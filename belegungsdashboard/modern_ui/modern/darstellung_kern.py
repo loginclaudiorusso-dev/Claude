@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from .darstellung_modell import (  # noqa: F401 – 1.29: Kataloge, Standard und Prüfung liegen im Modell
     DG_ANTEILE, DG_LEGENDE, DG_MODI, DG_TYPEN, FAERBUNG, FARBSCHEMATA, FELDER, HELLIGKEIT, KNOPFSTILE, NAVIGATION,
-    SCHRIFTEN, SYMBOL_SCHRIFT, SYMBOLSTILE, TITELLEISTE, VORLAGEN, ZOOM_MAX, ZOOM_MIN, ZOOM_STUFEN, hex_ok,
+    SCHRIFTEN, SYMBOL_SCHRIFT, SYMBOLE, SYMBOLSTILE, TITELLEISTE, VORLAGEN, ZOOM_MAX, ZOOM_MIN, ZOOM_STUFEN, hex_ok,
     vorlage_von,
 )
 from .darstellung_modell import FARB_STANDARD as STANDARD  # noqa: E402,F401

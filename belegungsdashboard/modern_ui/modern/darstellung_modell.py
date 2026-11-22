@@ -42,7 +42,11 @@ ALT = {"corporate": "inn", "bento": "obsidian", "editorial": "nordic"}      # Na
 MODI = {"innternat": ("dunkel", "hell"), "original": ("dunkel",), "inn": ("hell", "dunkel"), "linear": ("dunkel", "hell"),
         "obsidian": ("dunkel", "hell"), "nordic": ("hell", "dunkel")}
 DICHTEN = ("normal", "kompakt", "komfort")
-_AUFBAU_STANDARD = {"layout": "original", "theme": "original", "modus": "dunkel", "dichte": "normal", "schmal": False,
+# 1.34: nur noch EINE Oberfläche – das Menüband (Office) im Theme INNternat. Die übrigen Layouts und Themes bleiben
+# als Namen bekannt (ältere Einstellungen werden übernommen), sind aber nicht mehr wählbar.
+LAYOUT = "office"
+THEME = "innternat"
+_AUFBAU_STANDARD = {"layout": LAYOUT, "theme": THEME, "modus": "hell", "dichte": "normal", "schmal": False,
             "vollbild": False, "notiz": "", "dock": None, "dock_fest": True}
 
 # =======================================================================================================
@@ -98,7 +102,10 @@ FARB_STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "fa
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
-            "dg_anteil": "ring", "dg_anteil_zeit": "saeule100", "werkzeuge_oben": True}
+            "dg_anteil": "ring", "dg_anteil_zeit": "saeule100", "werkzeuge_oben": True, "symbole": "fluent"}
+# 1.34: zwei Symbol-Varianten im Menüband – die bisherigen (Fluent, zweifarbig) oder farbige, realistischere
+SYMBOLE = {"fluent": ("Klar (zweifarbig)", "Die bisherigen Symbole: feine Kontur mit zarter Bedeutungsfarbe"),
+           "farbig": ("Farbig (realistischer)", "Vollfarbige Symbole mit Verlauf und Tiefe, wie in Microsoft 365")}
 # 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
 # Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
 NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
@@ -188,13 +195,14 @@ def farben_bereinigen(d: dict) -> dict:
         e["dg_typ"] = "auto"
     e["dg_legende"] = d.get("dg_legende") if d.get("dg_legende") in DG_LEGENDE else "oben"
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
-    e["nav"] = d.get("nav") if d.get("nav") in NAVIGATION else "band"
+    e["nav"] = "band"                                           # 1.34: Seitenleiste entfällt
+    e["symbole"] = d.get("symbole") if d.get("symbole") in SYMBOLE else "fluent"
     alt = d.get("dg_anteil")                                    # bis 1.22 eine Einstellung für beide Diagramme
     e["dg_anteil"] = alt if alt in ("ring", "kreis") else "ring"
     zeit = d.get("dg_anteil_zeit") or (alt if alt in ("saeule100", "flaeche100") else None)
     e["dg_anteil_zeit"] = zeit if zeit in ("saeule100", "flaeche100") else "saeule100"
     e["knopfstil"] = d.get("knopfstil") if d.get("knopfstil") in KNOPFSTILE else "klar"
-    e["symbolstil"] = d.get("symbolstil") if d.get("symbolstil") in SYMBOLSTILE else "linie"
+    e["symbolstil"] = "linie"                                   # 1.34: nicht mehr wählbar
     for k in ("band_gross", "band_zu", "kontrast", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_anim", "leitung",
               "werkzeuge_oben"):
         if k in d:
@@ -204,36 +212,20 @@ def farben_bereinigen(d: dict) -> dict:
 
 
 def bereinigen(d: dict | None) -> dict:
-    """Gespeicherten Zustand prüfen und ältere Namen (0.8) übernehmen. Unbekanntes → Original-Zustand."""
+    """Gespeicherten Zustand prüfen. 1.34: Layout und Theme sind fest (Menüband, INNternat); Hell/Gedämpft/Dunkel
+    bleibt wählbar. Wer bisher dunkel arbeitete (Modus dunkel ohne Helligkeit), bleibt dunkel."""
     d = dict(d or {})
     erg = dict(STANDARD)
-    if "layout" not in d and d.get("theme") not in (None, "original"):       # Stand 0.8: theme + nav
-        d["layout"] = {"oben": "showcase"}.get(d.get("nav"), "grid")
-        d["schmal"] = d.get("nav") == "schmal"
-    theme = ALT.get(d.get("theme"), d.get("theme"))
-    erg["layout"] = d.get("layout") if d.get("layout") in LAYOUTS else "original"
-    erg["theme"] = theme if theme in THEMES else "original"
-    if erg["layout"] == "original":
-        erg["theme"] = "original"
-    erg["modus"] = d.get("modus") if d.get("modus") in modi(erg["theme"]) else THEMES[erg["theme"]][2]
     erg["dichte"] = d.get("dichte") if d.get("dichte") in ("kompakt", "komfort") else "normal"   # 0.74: + Komfort
-    erg["schmal"] = bool(d.get("schmal"))
     erg["vollbild"] = bool(d.get("vollbild"))
     erg["notiz"] = str(d.get("notiz") or "")[:5000]
-    dock = d.get("dock")                    # Showcase: angeheftete Bereiche im Dock (None = Standard)
-    erg["dock"] = [str(x) for x in dock][:14] if isinstance(dock, list) else None
-    erg["dock_fest"] = d.get("dock_fest", True) is not False
     erg.update(farben_bereinigen(d))
-    # 0.72: Helligkeit (hell | gedämpft | dunkel) und der bisherige Modus (hell | dunkel) bleiben stimmig. Ältere
-    # Einstellungen ohne Helligkeit übernehmen den Modus – wer dunkel hatte, bleibt dunkel.
-    # Der Modus entscheidet „hell oder nicht“, die Helligkeit verfeinert „nicht hell“ zu gedämpft oder dunkel.
-    if "helligkeit" not in d or (erg["modus"] == "dunkel" and erg["helligkeit"] == "hell"):
-        erg["helligkeit"] = "dunkel" if erg["modus"] == "dunkel" else "hell"
-    elif erg["modus"] == "hell" and erg["helligkeit"] != "hell" and "hell" in modi(erg["theme"]):
-        erg["helligkeit"] = "hell"
+    if "helligkeit" not in d:
+        erg["helligkeit"] = "dunkel" if d.get("modus") == "dunkel" and d.get("layout") not in (None, "original") else "hell"
+    erg["modus"] = "hell" if erg["helligkeit"] == "hell" else "dunkel"
+    erg["layout"], erg["theme"], erg["schmal"], erg["dock"], erg["dock_fest"] = LAYOUT, THEME, False, None, True
     return erg
 
 
-# Was beim allerersten Start wirklich gilt (STANDARD durch die Prüfung): Original-Layout, dunkel. Die Tabelle STANDARD
-# nennt „helligkeit: hell“ – das gilt erst, wenn ein Layout mit hellem Theme gewählt ist (Helligkeit folgt dem Modus).
+# Was beim allerersten Start gilt: Menüband, INNternat, hell (1.34 – vorher Original-Layout, dunkel).
 START = bereinigen({})

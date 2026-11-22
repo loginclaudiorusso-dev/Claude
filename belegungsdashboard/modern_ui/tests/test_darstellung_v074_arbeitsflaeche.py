@@ -62,7 +62,7 @@ def test_dichte_komfort_und_band_zu():
     assert d["dichte"] == "komfort" and d["band_zu"] is True
     k = themes.klassen(d)
     assert "dichte-komfort" in k and "band-zu" in k
-    assert "band-zu" not in themes.klassen(themes.bereinigen({"layout": "grid", "theme": "innternat", "band_zu": True}))
+    assert "band-zu" in themes.klassen(themes.bereinigen({"layout": "grid", "theme": "innternat", "band_zu": True}))  # 1.34: immer Menüband
     assert themes.bereinigen({"dichte": "quatsch"})["dichte"] == "normal"
     assert dk.bereinigen({})["band_zu"] is False
 

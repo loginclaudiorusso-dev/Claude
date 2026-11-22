@@ -65,9 +65,10 @@ def test_vorlagen_und_stile():
     d = themes.bereinigen({"layout": "office", "theme": "innternat", "knopfstil": "kontur", "symbolstil": "rund",
                            "kontrast": True})
     k = themes.klassen(d)
-    assert "knopf-kontur" in k and "sym-rund" in k and "kontrast" in k
+    assert "knopf-kontur" in k and "sym-rund" not in k and "kontrast" in k          # 1.34: Symbolstil nicht mehr wählbar
     assert dk.bereinigen({"knopfstil": "glanz", "symbolstil": "emoji"})["knopfstil"] == "klar"
     assert dk.bereinigen({"symbolstil": "emoji"})["symbolstil"] == "linie"
+    assert dk.bereinigen({"symbolstil": "rund"})["symbolstil"] == "linie"
     for kl in ("knopf-weich", "knopf-kontur", "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast"):
         assert kl in themes.ALLE_KLASSEN
 

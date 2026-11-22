@@ -65,5 +65,5 @@ def test_werkzeuge_oben_einstellung_und_klasse():
     d = themes.bereinigen({"layout": "office", "theme": "innternat"})
     assert "ob-oben" in themes.klassen(d)
     assert "ob-oben" not in themes.klassen({**d, "werkzeuge_oben": False})
-    assert "ob-oben" not in themes.klassen({**d, "nav": "leiste"})
+    assert "ob-oben" in themes.klassen(themes.bereinigen({**d, "nav": "leiste"}))     # 1.34: keine Seitenleiste mehr
     assert "ob-oben" in themes.ALLE_KLASSEN

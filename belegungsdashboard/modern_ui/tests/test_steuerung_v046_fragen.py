@@ -66,8 +66,8 @@ def test_design_dock_und_anheften_bleiben_gespeichert():
     from modern import themes
 
     d = themes.bereinigen({"layout": "showcase", "theme": "inn", "dock": ["heute", "steuerung"], "dock_fest": False})
-    assert d["dock"] == ["heute", "steuerung"] and d["dock_fest"] is False
-    assert "dock-auto" in themes.klassen(d) and "dock-auto" not in themes.klassen({**d, "dock_fest": True})
+    assert d["layout"] == "office" and d["dock"] is None                 # 1.34: Showcase entfällt → Menüband
+    assert "dock-auto" not in themes.klassen(d)
     assert themes.bereinigen({})["dock"] is None and themes.bereinigen({})["dock_fest"] is True
     assert "m-nav:hover" in themes.CSS and "subgrid" in __import__("modern.stil", fromlist=["CSS"]).CSS
 

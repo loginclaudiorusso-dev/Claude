@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.33.0)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.34.0)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -30,6 +30,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - QR-Meldungen als eigener Unterpunkt mit Fenster rechts je Meldung und Prüfanzeige „Verbindung prüfen“ (1.31)
 - QR-Meldungen über Power Automate: je Antwort eine Mail mit festem Aufbau in einen eigenen Outlook-Ordner, INNternat liest ihn (1.32)
 - Eine Installation für alle: Anmeldung mit Benutzerkonten (Windows-Konto oder Passwort), Rollen Administrator/Mitarbeiter, Standorte je Konto, Benutzerverwaltung (1.33)
+- Eine Oberfläche: nur noch das Menüband, Symbole wahlweise klar (zweifarbig) oder farbig (realistischer); Leitstand und weitere Layouts entfernt (1.34)
 - Mails mit mehreren Gästehaus-Vormerkungen: je Zeile eine Buchung, fest/vorgemerkt, Zimmer gemeinsam vorgeschlagen (1.09)
 - Maßnahmen-Auswahl wird übernommen, eigene Skala als Standard (1.08)
 - Kontext-Reiter Maßnahmen einheitlich: Gruppe Ansicht links, Filter als flache Felder, Pflege & Wechsel direkt dahinter, Symbole mit zweitem Zeichen (1.07)
@@ -224,12 +225,12 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Alle Listen per Klick auf die Spaltenüberschrift sortierbar (Datum, Zahl, Zimmer natürlich), auch per Tastatur (Tab, Enter)
 - Kleinschrift mit Kontrast ≥ 4,5:1 (WCAG)
 - Zähler an den Menüpunkten (Heute: nur Dringendes), ungelesene Neuigkeiten als Punkt am Aufgaben-Knopf
-- Showcase-Dock: Standort, angeheftete Bereiche (anpassbar), je Gruppe ein Menü, Suche, hell/dunkel; anheften oder automatisch ausblenden (fährt beim Darüberfahren herein, Strg+B)
+- (bis 1.33) Showcase-Dock: Standort, angeheftete Bereiche (anpassbar), je Gruppe ein Menü, Suche, hell/dunkel; anheften oder automatisch ausblenden (fährt beim Darüberfahren herein, Strg+B)
 - Seitenleiste wie in Office: einklappen, beim Darüberfahren klappt sie über dem Inhalt auf, „Leiste anheften“ hält sie offen (Strg+B)
 - Tabellenvorlage: Kopfzeile und Zeilen teilen ein Spaltenraster – nichts verrutscht
 - Auslastung in der Zimmerliste ohne Gästezimmer (die Gästeetage läuft unabhängig vom Tagesgeschäft)
-- Leitstand-Workbench: zweite Oberfläche (je PC, Strg+Umschalt+L) – 4 Bereiche (Disposition, Verwaltung, Auswertung, Bau & Budget), Live-Suche, Gebäude-Matrix mit Klick-Zuteilung, Details-Spalte (klappt leer weg), Tastenleiste, Corporate Design
-- Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 6 Themes (INNternat, Original, inn-tegrativ, Linear Monochrome, Executive Obsidian, Soft Nordic), hell/dunkel, Dichte
+- (bis 1.33) Leitstand-Workbench: zweite Oberfläche (je PC, Strg+Umschalt+L) – 4 Bereiche (Disposition, Verwaltung, Auswertung, Bau & Budget), Live-Suche, Gebäude-Matrix mit Klick-Zuteilung, Details-Spalte (klappt leer weg), Tastenleiste, Corporate Design
+- (bis 1.33, seit 1.34 nur Menüband) Standard „Original“; unter „Weitere Darstellungen“: 4 Layouts (Original, Enterprise Grid, AI-Canvas, Showcase-Dock) × 6 Themes (INNternat, Original, inn-tegrativ, Linear Monochrome, Executive Obsidian, Soft Nordic), hell/dunkel, Dichte
 - Haptik: Knöpfe geben beim Drücken nach, Arbeitsbalken beim Speichern, einrastende Bestätigung
 - Arbeitet parallel zum bisherigen Programm auf denselben Daten; lädt automatisch neu, wenn dort gespeichert wird
 

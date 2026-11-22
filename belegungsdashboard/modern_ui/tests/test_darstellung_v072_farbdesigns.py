@@ -42,7 +42,7 @@ def test_helligkeit_und_modus_stimmig():
     assert alt["helligkeit"] == "dunkel" and alt["modus"] == "dunkel"
     g = themes.bereinigen({"layout": "office", "theme": "innternat", "modus": "dunkel", "helligkeit": "gedaempft"})
     assert g["helligkeit"] == "gedaempft" and "mod-dunkel" in themes.klassen(g) and "--bg" in themes.stil(g)
-    zurueck = themes.bereinigen({**g, "modus": "hell"})                                  # alter Schalter auf hell
-    assert zurueck["helligkeit"] == "hell"
+    zurueck = themes.bereinigen({**g, "modus": "hell"})                  # 1.34: die Helligkeit entscheidet, der Modus folgt
+    assert zurueck["helligkeit"] == "gedaempft" and zurueck["modus"] == "dunkel"
     assert [dk.naechste_helligkeit(h) for h in ("hell", "gedaempft", "dunkel")] == ["gedaempft", "dunkel", "hell"]
     assert dk.bereinigen({"faerbung": "bunt", "helligkeit": "grau"}) | {} and dk.bereinigen({})["faerbung"] == "akzent"

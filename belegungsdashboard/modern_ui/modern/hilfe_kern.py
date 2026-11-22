@@ -90,7 +90,6 @@ TASTEN = [
     ("F1", "Hilfe zur aktuellen Seite"), ("A", "Aufgaben-Center ein/aus"), ("Esc", "Panel oder Dialog schließen"),
     ("↑ ↓", "Aufgabe im Postfach wählen"), ("L · S", "Aufgabe lösen · auf später legen (Postfach)"),
     ("1–6 · E · N", "Abtipp-Modus: Feld kopieren · erledigt · nächster"), ("P", "Präsentation der Prognose"),
-    ("Strg+Umschalt+L", "Zur Leitstand-Workbench und zurück"),
 ]
 
 

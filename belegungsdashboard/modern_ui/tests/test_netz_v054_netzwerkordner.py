@@ -194,7 +194,7 @@ def test_design_je_pc_und_uebernahme(ordner, tmp_path):
     assert d["modus"] == "hell"                       # übernommen
     lokal = netz_kern.lokal_lesen()
     assert lokal["design"]["modus"] == "hell"
-    kern.design_setzen({**d, "modus": "dunkel"})
+    kern.design_setzen({**d, "helligkeit": "dunkel"})              # 1.34: die Helligkeit entscheidet
     assert kern.design_lesen()["modus"] == "dunkel"
     assert speicher.lesen(kern.ZUSTAND, {})["design"]["modus"] == "hell"   # gemeinsame Datei unberührt
 

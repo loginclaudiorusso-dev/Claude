@@ -114,11 +114,57 @@ def aus_material(icon: str, ersatz: tuple = ("more_horizontal", BASIS)) -> tuple
     return (icon, BASIS) if vorhanden(icon) else ersatz
 
 
+# 1.34: zweite Variante „farbig“ – vollfarbige Fluent-Symbole (Microsoft, MIT, Ordner ``symbole/farbig``). Gleicher
+# Name wie die zweifarbige Fassung, sonst das nächstliegende Motiv; ohne passendes farbiges Motiv bleibt es zweifarbig.
+FARBIG_ORDNER = ORDNER / "farbig"
+FARBIG_ERSATZ = {
+    "add": "add_circle", "archive": "document_folder", "arrow_clockwise": "arrow_sync",
+    "arrow_download": "arrow_square_down", "arrow_reset": "arrow_clockwise_dashes", "arrow_swap": "arrow_sync",
+    "arrow_trending": "arrow_trending_lines", "arrow_undo": "history", "battery_charge": "gauge",
+    "bed": "building_home", "bookmark_add": "bookmark", "calculator": "receipt", "calendar_add": "calendar_edit",
+    "calendar_arrow_counterclockwise": "calendar_sync", "calendar_arrow_right": "calendar_clock",
+    "calendar_date": "calendar", "calendar_day": "calendar", "calendar_ltr": "calendar",
+    "calendar_month": "calendar", "calendar_today": "calendar_checkmark",
+    "calendar_week_numbers": "calendar_data_bar", "checkbox_checked": "checkbox", "checkmark": "checkmark_circle",
+    "checkmark_circle_square": "checkmark_circle", "checkmark_starburst": "ribbon_star",
+    "clipboard_checkmark": "clipboard_task", "clipboard_task_list_ltr": "clipboard_task", "cloud_archive": "cloud",
+    "conference_room": "people_team", "content_view_gallery": "content_view", "copy": "document_add",
+    "data_bar_vertical": "data_bar_vertical_ascending", "dismiss": "dismiss_circle",
+    "document_checkmark": "clipboard_task", "document_pdf": "document_text", "door": "building_home",
+    "door_arrow_right": "people_home", "eye": "search_visual", "folder_arrow_right": "document_folder",
+    "gantt_chart": "chart_multiple", "grid": "apps", "hat_graduation": "certificate", "home_checkmark": "home",
+    "info": "question_circle", "key": "person_key", "layer": "board", "layout_column_three": "board",
+    "list": "list_bar", "location": "location_ripple", "money": "coin_multiple", "new": "add_starburst",
+    "open": "arrow_square", "person_alert": "person_warning", "person_arrow_right": "person_available",
+    "person_question_mark": "person_tentative", "play": "fast_forward_circle", "prohibited": "dismiss_circle",
+    "qr_code": "scan_type", "search": "search_visual", "share": "share_ios", "slide_play": "video",
+    "sparkle": "bot_sparkle", "table_arrow_up": "table", "tag": "ribbon",
+    "task_list_square_ltr": "text_bullet_list_square", "tasks_app": "clipboard_task",
+    "weather_sunny": "weather_sunny_low", "wrench_settings": "wrench_screwdriver",
+}
+VARIANTE = {"art": "fluent"}          # gilt im ganzen Programm (ein Prozess = eine Person); setzt die Oberfläche
+VORSCHAU = (("calendar", BLAU), ("people", BLAU), ("building_multiple", BLAU), ("warning", AMBER), ("wrench", AMBER))
+
+
+@lru_cache(maxsize=None)
+def farbig(name: str, stufe: str = "g") -> str:
+    """SVG-Text der farbigen Fassung ("" = gibt es nicht)."""
+    p = FARBIG_ORDNER / f"{FARBIG_ERSATZ.get(name, name)}.{stufe}.svg"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
 def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", overlay: str = "",
-         ofarbe: str = "") -> str:
+         ofarbe: str = "", variante: str | None = None) -> str:
     """Duotone-Symbol als HTML. ``farbe``: Bedeutungsfarbe (Hex) oder leer. 1.07: ``overlay`` = kleines zweites Symbol
-    unten rechts (z. B. Trend-Pfeil, Filter, Wechsel-Pfeil) in ``ofarbe``."""
+    unten rechts (z. B. Trend-Pfeil, Filter, Wechsel-Pfeil) in ``ofarbe``. 1.34: ``variante`` „farbig“ → vollfarbige
+    Fassung, wenn es sie gibt (ohne Angabe gilt ``VARIANTE``)."""
     farbe = FARBEN.get(farbe, farbe)
+    if (variante or VARIANTE["art"]) == "farbig" and (bunt := farbig(name, "g" if gross else "k")):
+        inhalt = f'<span class="m-sym-c">{bunt}</span>'
+        if overlay and gross:
+            of = FARBEN.get(ofarbe, ofarbe) or BLAU
+            inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
+        return f'<span class="m-sym {"gross" if gross else "klein"} farbig {klasse}" aria-hidden="true">{inhalt}</span>'
     if gross:
         flaeche = (f'<span class="m-sym-f" style="color:{_html.escape(farbe)}">{svg(name, "g", "f")}</span>'
                    if farbe else "")

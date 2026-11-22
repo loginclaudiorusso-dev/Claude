@@ -65,7 +65,6 @@ def test_layout_office_bekannt():
 def test_sachliche_ueberschriften():
     from pathlib import Path
 
-    from modern import leitstand_ui as ls
     from modern import seite_heute as sh
 
     assert sh.untertitel(2, 3) == "2 dringende Aufgaben, 3 weitere offen."
@@ -74,6 +73,3 @@ def test_sachliche_ueberschriften():
     assert sh.untertitel(0, 0) == "Keine offenen Aufgaben."
     quelle = Path(sh.__file__).read_text(encoding="utf-8")
     assert "Der Tag im Griff" not in quelle and "Nichts kann schiefgehen" not in quelle
-    assert [t for _n, t, _i in ls.BUEHNEN.values()] == ["Disposition", "Verwaltung", "Auswertung", "Bau & Budget"]
-    texte = " ".join(w for _t, w in ls.KUERZEL)
-    assert "Bühne" not in texte and "Inspektor" not in texte and "Omnibar" not in texte

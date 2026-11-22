@@ -68,8 +68,11 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         try:
             self.design = kern.design_lesen()
         except Exception:                      # noqa: BLE001 – im Zweifel der Original-Zustand
-            self.design = dict(themes.STANDARD)
+            self.design = themes.bereinigen({})
         themes.AKTIV = self.design
+        from . import symbole as _sy
+
+        _sy.VARIANTE["art"] = self.design.get("symbole", "fluent")
         self.prompt = ""                       # AI-Canvas: aktuelle Eingabe
         self._antwort = None
         self.filter = "alle"
@@ -374,10 +377,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                     self.stand_anzeige = ui.label("").classes("m-datenstand m-kopf-doppelt")   # Menüband: Statusleiste
                     knopf("", self.rueckgaengig, "leise", "undo", "Letzte Änderung zurücknehmen (Strg+Z)").classes(
                         "m-kopf-doppelt")                            # im Menüband steht beides schon oben
-                    from . import leitstand_ui
-
-                    knopf("", lambda: leitstand_ui.umschalten(self), "leise", "view_quilt",
-                          "Zur Leitstand-Workbench wechseln (Strg+Umschalt+L)").classes("m-kopf-doppelt")
                     self.glocke = ui.element("span")                 # 0.64: Neuigkeiten stecken im Aufgaben-Knopf
                     self.glocke.set_visibility(False)
                     self.aufgaben_knopf = ui.element("button").classes("m-knopf m-glocke m-kopf-doppelt")
@@ -506,29 +505,15 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         """Layout/Theme/Hell-Dunkel/Dichte/schmale Leiste sofort umschalten – nur Klassen am <body>, nichts wird neu
         geladen (keine Eingabe geht verloren). Diagramme und Canvas werden neu gezeichnet."""
         alt = dict(self.design)
-        neu = {**self.design, **aenderung}
-        if "theme" in aenderung and aenderung.get("layout") != "original":
-            if neu["layout"] == "original":
-                neu["layout"] = "grid"             # ein Theme gibt es nur in den neuen Layouts
-            if "modus" not in aenderung:
-                neu["modus"] = themes.THEMES[aenderung["theme"]][2]
-        if "layout" in aenderung and aenderung["layout"] != "original" and alt["layout"] == "original" and "theme" not in aenderung:
-            neu["theme"] = "original"
-        if aenderung.get("layout") == "office" and "theme" not in aenderung:     # 0.65: Menüband hell wie Office
-            neu["theme"], neu["modus"] = "innternat", "hell"
-        if aenderung.get("layout") == "original":
-            neu["theme"] = "original"
-            if alt["vollbild"] and "vollbild" in aenderung and not aenderung["vollbild"]:
-                if not self._vollbild_nativ(False):
-                    ui.run_javascript("document.fullscreenElement && document.exitFullscreen()")
-        if "helligkeit" in aenderung:                                          # 0.72: Helligkeit → passender Modus
-            soll = "hell" if aenderung["helligkeit"] == "hell" else "dunkel"
-            if soll in themes.modi(neu.get("theme", "innternat")):
-                neu["modus"] = soll
-        elif neu.get("modus") != alt.get("modus"):                              # alter Hell/Dunkel-Schalter
-            neu["helligkeit"] = "hell" if neu["modus"] == "hell" else "dunkel"
+        neu = {**self.design, **aenderung}            # 1.34: Layout und Theme sind fest – die Prüfung setzt sie
+        if alt["vollbild"] and "vollbild" in aenderung and not aenderung["vollbild"]:
+            if not self._vollbild_nativ(False):
+                ui.run_javascript("document.fullscreenElement && document.exitFullscreen()")
         self.design = themes.bereinigen(neu)
         themes.AKTIV = self.design
+        from . import symbole as _sy
+
+        _sy.VARIANTE["art"] = self.design.get("symbole", "fluent")           # 1.34: Symbole klar | farbig
         self.body.classes(remove=" ".join(themes.ALLE_KLASSEN))
         if themes.klassen(self.design):
             self.body.classes(add=" ".join(themes.klassen(self.design)))
@@ -541,7 +526,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                     "dg_anteil", "dg_anteil_zeit")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
                       or any(alt.get(k) != self.design.get(k) for k in diagramm))
-        if alt["layout"] != self.design["layout"] or (farben_neu and self.seite in ("auswertung", "steuerung")) \
+        if alt.get("symbole") != self.design.get("symbole") or (farben_neu and self.seite in ("auswertung", "steuerung")) \
                 or self.seite == "einstellungen":
             self.zeichnen()
         else:
@@ -918,11 +903,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
     async def _taste(self, e) -> None:
         if not e.action.keydown:
             return
-        if e.modifiers.ctrl and e.modifiers.shift and e.key.name.lower() == "l":   # 0.62: Leitstand ⇄ klassisch
-            from . import leitstand_ui
-
-            await leitstand_ui.umschalten(self)
-            return
         if e.modifiers.ctrl and e.modifiers.shift and e.key.name.lower() == "f":   # 0.96: Bildschirmfoto
             from . import menueband_ui
 
@@ -1155,9 +1135,7 @@ async def startseite() -> None:
         g = standort_kern.gemerkt()
         await run.io_bound(standort_kern.waehlen, g if g in erlaubt else erlaubt[0], False)
     ui.page_title(f"Belegung – {standort_kern.aktiv().name}")
-    from . import leitstand_ui
-
-    a = (leitstand_ui.Leitstand if await run.io_bound(leitstand_ui.an) else Ansicht)()   # 0.62: je PC gemerkt
+    a = Ansicht()                                        # 1.34: nur noch das Menüband (Leitstand entfällt)
     a.aufbauen()
     try:
         anmelden = bk.aktuell() is None and await run.io_bound(bk.eingerichtet)   # 1.33: Anmeldung

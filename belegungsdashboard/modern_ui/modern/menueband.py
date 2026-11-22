@@ -328,7 +328,6 @@ DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten
     Punkt("Exportieren …", "ios_share", A("exportieren"), False),
     Punkt("Importieren", "upload_file", S("daten"), False),
     Punkt("Informationen & Sicherung", "backup", S("einstellungen", "sicherung"), False),
-    Punkt("Seitenleiste statt Menüband", "view_sidebar", A("nav:leiste"), False),          # 0.91 – Option
     Punkt("Konto", "account_circle", A("konto"), False, "Angemeldet als …, Passwort ändern, Abmelden, Benutzer verwalten"),  # 1.33
     Punkt("Optionen", "settings", A("optionen"), False),
 ]
