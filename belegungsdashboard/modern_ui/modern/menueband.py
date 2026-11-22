@@ -260,18 +260,27 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                                     standard="cockpit")]))
     return [
         Reiter("start", "Start", [
+            # 1.38: Start aufgeräumt – Heute · Kommunikation · Termine · Assistenz (je Befehl genau eine Stelle)
             Gruppe("Heute", [Punkt("Posteingang", "task_alt", S("heute", heute_ansicht="postfach"),
                                    tipp="Startseite wie Outlook: Überblick, Nachrichten und Aufgaben – rechts lesen und "
                                         "erledigen"),
                              Punkt("Tages­übersicht", "wb_twilight", S("heute", heute_ansicht="zentrale"),
                                    tipp="Kennzahlen und offene Aufgaben des Tages auf einen Blick")]),
-            Gruppe("Nachrichten", [Punkt("Nachricht", "forum", A("nachricht_neu"), True,
-                                         "Neue Nachricht an alle am Standort – Pfeil: Mail an FM",
-                                         [Punkt("Mail an FM …", "mail", A("fm_mail"), False,
-                                                "Mail an das Facility-Management als Outlook-Entwurf")])]),
-            Gruppe("Termine", [v("termine", "liste", "Termine", "calendar_today", tipp="Termine und Wiedervorlagen als Liste"),
-                               v("termine", "monat", "Kalender", "calendar_month", tipp="Termine im Monatskalender")]),
-            Gruppe("Assistenz", _einzeln("assistenz", ansichten, gross=False)),
+            Gruppe("Kommunikation", [Punkt("Nachricht", "forum", A("nachricht_neu"), True,
+                                           "Neue Nachricht an alle am Standort – Pfeil: Mail an FM",
+                                           [Punkt("Mail an FM …", "mail", A("fm_mail"), False,
+                                                  "Mail an das Facility-Management – über Ihr Outlook")]),
+                                     Punkt("Mails auswerten", "mail", S("assistenz", "mails"), True,
+                                           "Mails aus Outlook lesen und Anreisen, Abreisen oder Änderungen daraus "
+                                           "übernehmen")]),
+            Gruppe("Termine", [Punkt("Termine", "calendar_today", S("termine", "liste"), True,
+                                     "Termine und Wiedervorlagen – Pfeil: Monatskalender",
+                                     [Punkt("Kalender", "calendar_month", S("termine", "monat"), False,
+                                            "Termine im Monatskalender")])]),
+            Gruppe("Assistenz", [Punkt("Aufträge", "assignment", S("assistenz", "auftraege"), True,
+                                       "Aufträge an die Assistenz (z. B. „alle EMR vom 26.11. einplanen“)"),
+                                 Punkt("Fragen & Zahlen", "help_center", S("assistenz", "fragen"), True,
+                                       "Fragen zu Belegung und Zahlen stellen")]),
         ]),
         Reiter("anreisen", "Anreisen", [
             Gruppe("Anreisen", _einzeln("anreisen", ansichten)),

@@ -8,8 +8,8 @@ from modern import menueband as mb
 def test_arbeitsbereiche_als_reiter():
     rs = {r.key: r for r in mb.reiter({"anreisen": {"zuteilen": "Zuteilen", "abreisen": "Abreisen"}})}
     assert list(rs) == ["start", "anreisen", "zimmer", "auswertung", "verwalten", "diagramm"]
-    start = [p.text for g in rs["start"].gruppen for p in g.punkte]
-    assert {"Termine", "Kalender"} <= set(start)                          # „Termine & Post“ ist in Start aufgegangen
+    start = [q.text for g in rs["start"].gruppen for p in g.punkte for q in [p] + p.menue]
+    assert {"Termine", "Kalender"} <= set(start)                          # 1.38: Kalender im Pfeil an „Termine“
     anreisen = [p.ziel for g in rs["anreisen"].gruppen for p in g.punkte]
     assert ("seite", "anreisen", "abreisen", {}) in anreisen             # Abreisen sichtbar, nicht im Pfeil
     assert not any(p.menue for g in rs["anreisen"].gruppen for p in g.punkte)

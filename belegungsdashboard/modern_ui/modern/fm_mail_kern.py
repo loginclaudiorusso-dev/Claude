@@ -1,4 +1,4 @@
-"""1.36: Mail an FM (Facility-Management) – als Outlook-Entwurf zum Prüfen und Absenden.
+"""1.36: Mail an FM (Facility-Management) – als Outlook-Entwurf zum Prüfen und Absenden; 1.38 auch direkt senden.
 
 * Die FM-Adresse wird je Standort gespeichert (Programm-Einstellung ``fm_mail``, für alle PCs gleich).
 * ``entwurf`` legt im laufenden klassischen Outlook eine neue Mail an und zeigt sie an – gesendet wird erst, wenn man
@@ -73,3 +73,29 @@ def vorlage(zimmer: str = "", art: str = "", notiz: str = "", absender: str = ""
         zeilen += ["", notiz]
     zeilen += ["", "Vielen Dank!", absender or ""]
     return betreff, "\n".join(zeilen).rstrip() + "\n"
+
+
+def senden(an: str, betreff: str, text: str) -> str:
+    """1.38: Mail direkt über das laufende Outlook senden (Absender = eigenes Konto, Kopie in „Gesendete Elemente“).
+    Rückgabe "" = gesendet, sonst Grund. Outlook wird nie selbst gestartet."""
+    from . import outlook_kern as ok
+
+    if not (an or "").strip():
+        return "Bitte zuerst die FM-Adresse eintragen."
+    if not (betreff or "").strip() or not (text or "").strip():
+        return "Bitte Betreff und Text ausfüllen."
+    try:
+        pythoncom, ol = ok._outlook("Outlook ist nicht geöffnet – bitte Outlook starten und noch einmal senden.")
+    except ValueError as exc:
+        return str(exc)
+    try:
+        m = ol.CreateItem(0)
+        m.To = an
+        m.Subject = betreff
+        m.Body = text
+        m.Send()
+        return ""
+    except Exception as exc:                       # noqa: BLE001
+        return f"Outlook konnte die Mail nicht senden: {exc}"
+    finally:
+        pythoncom.CoUninitialize()

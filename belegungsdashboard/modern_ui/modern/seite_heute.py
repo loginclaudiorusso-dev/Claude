@@ -311,11 +311,10 @@ def postfach_an(a) -> bool:
 
 def _umschalter(a) -> None:
     """0.91: Übersicht → Chips des Tages rechts im Kopf; gewählte Aufgabe → „Zurück zur Übersicht“."""
+    if postfach_an(a):                       # 1.38: keine eigene Registerkarte „Heute“ – Tagesübersicht steht in Start
+        return
     with a.werkzeuge:
-        if postfach_an(a):
-            knopf("Zurück zur Übersicht", lambda: a.setzen(heute_ansicht="zentrale", laden=False), "", "",
-                  "Zurück zur Tagesübersicht")
-        elif isinstance(getattr(a, "daten", None), Tag):
+        if isinstance(getattr(a, "daten", None), Tag):
             _chips(a, a.daten)
 
 
@@ -557,18 +556,34 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
     betreff0, text0 = fk.vorlage(zimmer, art, notiz, benutzer_kern.anzeige())
 
     def bauen():
-        ui.label("Öffnet die Mail in Outlook – dort prüfen und auf „Senden“ klicken.").classes("m-ptext")
+        ui.label("Gesendet wird über Ihr Outlook (Ihr Konto, die Mail steht danach in „Gesendete Elemente“). "
+                 "„In Outlook öffnen“ zeigt sie vorher noch in Outlook an.").classes("m-ptext")
         an = ui.input("An (FM)", value=fk.adresse()).classes("m-feld w-full").props("dense outlined dark")
         betreff = ui.input("Betreff", value=betreff0).classes("m-feld w-full").props("dense outlined dark")
         text = ui.textarea("Text", value=text0).classes("m-feld w-full").props("dense outlined dark autogrow")
 
-        async def los():
+        async def merken() -> bool:
             if (an.value or "").strip() != fk.adresse():
                 try:
                     await run.io_bound(fk.adresse_setzen, an.value or "")
                 except ValueError as exc:
                     a.toast(str(exc), fehler=True)
-                    return
+                    return False
+            return True
+
+        async def senden():                    # 1.38: direkt über das eigene Outlook senden (landet in „Gesendet“)
+            if not await merken():
+                return
+            fehler = await run.io_bound(fk.senden, an.value or "", betreff.value or "", text.value or "")
+            if fehler:
+                a.toast(fehler, fehler=True)
+                return
+            a.toast("Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“", rueck=False)
+            a.panel_zu()
+
+        async def los():
+            if not await merken():
+                return
             fehler = await run.io_bound(fk.entwurf, an.value or "", betreff.value or "", text.value or "")
             if fehler and fk.adresse():
                 ui.navigate.to(fk.mailto(an.value or "", betreff.value or "", text.value or ""))
@@ -580,7 +595,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
                 a.toast("Mail in Outlook geöffnet – bitte prüfen und senden", rueck=False)
             a.panel_zu()
         with ui.element("div").classes("m-paktionen"):
-            knopf("In Outlook öffnen", los, "primaer", "mail")
+            knopf("Senden", senden, "primaer", "send", "Direkt über Ihr Outlook senden")
+            knopf("In Outlook öffnen", los, "", "open_in_new", "Erst in Outlook ansehen, dort senden")
             knopf("Abbrechen", a.panel_zu, "leise")
         ui.label("Die FM-Adresse wird für den Standort gemerkt (gilt für alle PCs).").classes("m-zweite")
     a.panel("Mail an FM", bauen)
