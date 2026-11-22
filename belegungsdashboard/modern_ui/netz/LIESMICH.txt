@@ -36,6 +36,21 @@ Mehrere PCs gleichzeitig
   (gespeichert unter %LOCALAPPDATA%\INNternat, ebenso Protokoll und Python-Umgebung).
 - Beim ersten Start des Tages sichert genau ein PC die Daten (Daten\Sicherungen, 30 Stände je Standort).
 
+Umzug: EIN Ordner für alle (ab 1.35)
+------------------------------------
+Dieser Netzwerkordner ist die einzige Installation. Alle arbeiten hier, Updates kommen nur hierher.
+1. Auf EINEM PC INNternat aus diesem Ordner starten.
+2. Einstellungen -> Sicherung & Verlauf -> "Daten aus bisherigem Ordner übernehmen ...".
+   Als bisherigen Ordner den Ordner angeben, in dem bisher gearbeitet wurde (der mit den aktuellen Daten).
+   Es geht auch der Ordner mit "Start.bat" oder eine frühere Test-Installation - INNternat findet die Daten.
+   "Prüfen" zeigt, was kopiert wird.
+3. Liegen hier schon Daten (z. B. vom ersten Start), "Vorhandene Daten ersetzen" anhaken. Sie werden vorher
+   gesichert (Daten\Sicherungen, "vor Übernahme"); die Benutzerkonten bleiben.
+4. "Übernehmen", INNternat schließen und neu starten.
+5. Alte Installationen nicht mehr benutzen: auf jedem PC die alten Desktop-Verknüpfungen (z. B. "INNternat Test")
+   löschen und den Autostart-Eintrag entfernen (Win+R -> shell:startup -> alte INNternat-Verknüpfungen löschen).
+   Die alten Ordner bleiben unverändert als Sicherung liegen.
+
 Benutzer und Anmeldung (ab 1.33)
 --------------------------------
 - Alle arbeiten mit DIESER einen Installation; jede Person meldet sich mit ihrem Konto an.
@@ -55,8 +70,9 @@ Benutzer und Anmeldung (ab 1.33)
   öffnen kann, kann die Dateien lesen. Deshalb den Netzwerkordner nur für die INNternat-Nutzer
   freigeben (IT).
 
-Update einspielen
------------------
+Update einspielen (nur hier, in diesem Ordner)
+----------------------------------------------
+Immer das Paket "INNternat.zip" verwenden (nicht das Test-Paket - das legt eine getrennte Test-Installation an).
 1. INNternat auf allen PCs schließen.
 2. Den Ordner "Programm" löschen (NICHT "Daten").
 3. Das neue Zip in denselben Ordner entpacken.

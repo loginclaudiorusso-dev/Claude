@@ -46,8 +46,7 @@ def test_historie_nicht_fuer_aktuelle_bewohner():
 def test_palette_nutzt_filter():
     import inspect
 
-    from modern import canvas_kern, suche_palette
+    from modern import suche_palette
 
     q = inspect.getsource(suche_palette.treffer)
     assert "nur_aktuell" in q and "ist_aktuell" in q
-    assert "nur_aktuell" in inspect.getsource(canvas_kern)

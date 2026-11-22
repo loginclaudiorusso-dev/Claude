@@ -69,7 +69,7 @@ def test_design_dock_und_anheften_bleiben_gespeichert():
     assert d["layout"] == "office" and d["dock"] is None                 # 1.34: Showcase entfällt → Menüband
     assert "dock-auto" not in themes.klassen(d)
     assert themes.bereinigen({})["dock"] is None and themes.bereinigen({})["dock_fest"] is True
-    assert "m-nav:hover" in themes.CSS and "subgrid" in __import__("modern.stil", fromlist=["CSS"]).CSS
+    assert "subgrid" in __import__("modern.stil", fromlist=["CSS"]).CSS          # 1.35: Seitenleiste entfernt
 
 
 def test_optimierer_nimmt_bei_gleichem_bedarf_die_guenstigere(leer):

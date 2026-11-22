@@ -80,6 +80,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_netz_v129_1_fensterprozess.py` – 1.29.1 – Fensterprozess (pywebview) hält sich nicht für einen Doppelstart.
 - `test_netz_v127_start.py` – 1.27 – Start absichern: Lebenszeichen, Doppelstart, Python-Version, Fehleranzeige.
 - `test_netz_v133_benutzer.py` – 1.33 – Benutzerkonten: Anmelden, Rollen, Standorte, Schutz vor Aussperren
+- `test_netz_v135_umzug.py` – 1.35 – Umzug in den einen Netzwerkordner: ersetzen mit Sicherung, Konten bleiben, Ordner finden
 
 ## prognose – Belegungsprognose, Analytik, Rechenweg
 

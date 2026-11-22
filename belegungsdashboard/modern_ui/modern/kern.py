@@ -1028,19 +1028,12 @@ def neue_personen(stand: zp.Planstand, heute: date | None = None, tage: int = NE
 # ---------------------------------------------------------------------------------------
 
 def design_lesen() -> dict:
-    """Layout, Theme, Hell/Dunkel, Dichte, schmale Leiste, Vollbild, Notiz – geprüft (Unbekanntes → Original)."""
-    from .netz_kern import persoenlich, persoenlich_setzen
+    """Darstellung dieses PCs – geprüft (1.35: immer Menüband; neue PCs hell)."""
+    from .netz_kern import persoenlich
     from .themes import bereinigen
 
     # 0.54: je PC (persönlich), gilt für alle Standorte; beim ersten Mal aus der gemeinsamen Datei übernommen
     d = persoenlich("design", None, je_standort=False)
-    if not persoenlich("design_038", False, je_standort=False):   # einmalig: neue INNternat-Darstellung
-        d = {**(d or {}), "layout": "grid", "theme": "innternat", "modus": "dunkel", "schmal": False}
-        try:
-            persoenlich_setzen("design", d, je_standort=False)
-            persoenlich_setzen("design_038", True, je_standort=False)
-        except OSError:
-            pass
     return bereinigen(d or {})
 
 

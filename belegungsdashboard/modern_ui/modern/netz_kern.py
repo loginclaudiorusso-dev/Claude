@@ -533,7 +533,9 @@ def ist_programmteil(rel: Path) -> bool:
 # Hilfsdateien – zählen nicht als „Daten vorhanden“: Sie entstehen schon beim ersten Start von selbst (Reinigungs-
 # Abgleich, Zimmerhistorie, Neu-Markierung …), bevor jemand die Daten übernehmen konnte.
 NEBENSACHE = {LETZTE, "modern_ui.json", "modern_ui_neu.json", "modern_standort.json", "reinigung_erledigt.json",
-              "modern_zimmerhistorie.json"}
+              "modern_zimmerhistorie.json", "modern_benutzer.json"}
+# 1.35: Was im neuen Ordner schon eingerichtet ist und beim Übernehmen bleibt (die Konten aus 1.33)
+BEHALTEN = (Path("importe") / "modern_benutzer.json",)
 
 
 def hat_daten(ordner: Path) -> bool:
@@ -552,6 +554,7 @@ class Uebernahme:
     bytes: int = 0
     probleme: list[str] = field(default_factory=list)
     standorte: list[str] = field(default_factory=list)
+    vorhanden: bool = False                                 # 1.35: im neuen Ordner liegen schon Daten
 
     @property
     def ok(self) -> bool:
@@ -564,7 +567,7 @@ class Uebernahme:
         return s + (f" · Standorte: {', '.join(self.standorte)}" if self.standorte else "")
 
 
-def uebernahme_pruefen(quelle: str | Path, ziel: Path | None = None) -> Uebernahme:
+def uebernahme_pruefen(quelle: str | Path, ziel: Path | None = None, ersetzen: bool = False) -> Uebernahme:
     q = Path(str(quelle).strip().strip('"'))
     ziel = ziel or basis()
     u = Uebernahme(q)
@@ -577,6 +580,17 @@ def uebernahme_pruefen(quelle: str | Path, ziel: Path | None = None) -> Uebernah
     try:
         if q.resolve() == ziel.resolve() or ziel.resolve() in q.resolve().parents or q.resolve() in ziel.resolve().parents:
             u.probleme.append("Das ist der neue Datenordner selbst (oder liegt darin) – bitte den bisherigen Ordner wählen.")
+            return u
+    except OSError:
+        pass
+    if not hat_daten(q):                       # 1.35: auch der Ordner darüber (modern_ui) bzw. „Daten“ darunter
+        for kandidat in (q / "Daten", q.parent, q.parent.parent):
+            if kandidat != q and hat_daten(kandidat):
+                q = u.quelle = kandidat
+                break
+    try:
+        if q.resolve() == ziel.resolve():
+            u.probleme.append("Das ist der neue Datenordner selbst – bitte den bisherigen Ordner wählen.")
             return u
     except OSError:
         pass
@@ -598,24 +612,42 @@ def uebernahme_pruefen(quelle: str | Path, ziel: Path | None = None) -> Uebernah
                 pass
     u.dateien.sort()
     u.standorte = ["Goslar"] + [k for k in ("BP", "WE") if hat_daten(q / "Standorte" / k)]
-    if hat_daten(ziel):
-        u.probleme.append("Im neuen Datenordner liegen schon Daten. Übernehmen geht nur in einen leeren Datenordner – "
-                          "sonst würden aktuelle Daten überschrieben.")
+    u.vorhanden = hat_daten(ziel) or any(hat_daten(o) for o in _standort_ordner_von(ziel))
+    if u.vorhanden and not ersetzen:
+        u.probleme.append("Im neuen Datenordner liegen schon Daten. Sollen sie durch die Daten aus dem bisherigen Ordner "
+                          "ersetzt werden, bitte „Vorhandene Daten ersetzen“ anhaken – sie werden vorher gesichert.")
     return u
 
 
-def uebernehmen(quelle: str | Path, ziel: Path | None = None) -> str:
-    """Daten kopieren (der alte Ordner bleibt unverändert). Gespeicherte Pfade zur Pivot-Datei werden umgestellt."""
+def _standort_ordner_von(basis_: Path) -> list[Path]:
+    return [o for o in (basis_ / "Standorte").glob("*") if o.is_dir()] if (basis_ / "Standorte").is_dir() else []
+
+
+def uebernehmen(quelle: str | Path, ziel: Path | None = None, ersetzen: bool = False) -> str:
+    """Daten kopieren (der alte Ordner bleibt unverändert). Gespeicherte Pfade zur Pivot-Datei werden umgestellt.
+    1.35: ``ersetzen`` – vorhandene Daten im neuen Ordner werden vorher gesichert und ersetzt; die Benutzerkonten des
+    neuen Ordners bleiben."""
     ziel = ziel or basis()
     with sperre(warten=30):
-        u = uebernahme_pruefen(quelle, ziel)
+        u = uebernahme_pruefen(quelle, ziel, ersetzen)
         if not u.ok:
             raise ValueError(" ".join(u.probleme) or "Nichts zu übernehmen.")
-        if any(ziel.glob("*.json")) or any((ziel / "importe").glob("*.json")):
-            from belegung import datensicherung   # Hilfsdateien des ersten Starts vorher sichern – nichts geht verloren
+        from belegung import datensicherung   # Vorhandenes vorher sichern – nichts geht verloren
 
-            datensicherung.sichern("vor Übernahme", ziel)
+        for o in [ziel] + _standort_ordner_von(ziel):
+            if any(o.glob("*.json")) or any((o / "importe").glob("*.json")):
+                datensicherung.sichern("vor Übernahme", o)
+        if ersetzen:                           # Arbeitsdaten des neuen Ordners, die es in der Quelle nicht gibt, weg
+            neu = set(u.dateien)
+            for o in [ziel] + _standort_ordner_von(ziel):
+                for p in list(o.glob("*.json")) + list((o / "importe").glob("*.json")):
+                    rel = p.relative_to(ziel)
+                    if rel not in neu and rel not in BEHALTEN:
+                        p.unlink()
+        behalten = {rel for rel in BEHALTEN if (ziel / rel).exists()}
         for rel in u.dateien:
+            if rel in behalten:
+                continue
             (ziel / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(u.quelle / rel, ziel / rel)
         _pfade_umstellen(u.quelle, ziel)

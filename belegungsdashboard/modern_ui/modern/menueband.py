@@ -320,9 +320,6 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
     ]
 
 
-LAYOUT_NAMEN = {"office": "Menüband (wie Office)", "original": "Original-Zustand", "grid": "Classic Enterprise Grid",
-                "showcase": "Showcase", "canvas": "AI-Canvas & Prompt"}
-
 DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten, Programm
     Punkt("Drucken … (Strg+P)", "print", A("drucken"), False),
     Punkt("Exportieren …", "ios_share", A("exportieren"), False),

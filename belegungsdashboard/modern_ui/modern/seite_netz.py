@@ -17,13 +17,16 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
         ui.label("Neuer Datenordner – Daten übernehmen?" if beim_start else "Daten aus dem bisherigen Ordner übernehmen"
                  ).classes("m-titel")
         ui.label(f"Datenordner: {netz_kern.basis()}").classes("m-zweite m-netz-pfad")
-        ui.label("Hier liegen noch keine Daten. Geben Sie den Ordner an, in dem INNternat bisher lag (dort, wo "
+        ui.label(("Hier liegen noch keine Daten. " if beim_start else "") + "Geben Sie den Ordner an, in dem INNternat bisher lag (dort, wo "
                  "„Start.bat“ liegt). Kopiert werden nur die Daten – Planung, Listen, Gebäudeplan, Vorlagen, Sicherungen, "
                  "alle Standorte. Der bisherige Ordner bleibt unverändert.").classes("m-ptext")
         ein = ui.input("Bisheriger Ordner", placeholder=r"z. B. C:\Belegung oder \\server\freigabe\Belegung"
                        ).props("outlined dense clearable").classes("w-full")
         ui.label("Tipp: im Explorer den Ordner öffnen, oben in die Adresszeile klicken, kopieren und hier einfügen."
                  ).classes("m-zweite")
+        ersetzen = ui.checkbox("Vorhandene Daten im neuen Ordner ersetzen (werden vorher gesichert; Benutzerkonten "
+                               "bleiben)", value=False)
+        ersetzen.set_visibility(netz_kern.hat_daten(netz_kern.basis()))     # 1.35: nur wenn dort schon etwas liegt
         ergebnis = ui.element("div").classes("m-netz-erg")
         with ui.element("div").classes("m-netz-knoepfe"):
             knopf("Ohne Daten beginnen" if beim_start else "Abbrechen", lambda: dlg.submit(False))
@@ -32,7 +35,9 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
             los.props("disabled")
 
         async def pruefen() -> None:
-            u = await run.io_bound(netz_kern.uebernahme_pruefen, ein.value or "")
+            u = await run.io_bound(netz_kern.uebernahme_pruefen, ein.value or "", None, bool(ersetzen.value))
+            if u.vorhanden:
+                ersetzen.set_visibility(True)
             zustand["u"] = u
             ergebnis.clear()
             with ergebnis:
@@ -56,7 +61,7 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
                 return
             los.props("disabled")
             try:
-                text = await run.io_bound(netz_kern.uebernehmen, u.quelle)
+                text = await run.io_bound(netz_kern.uebernehmen, u.quelle, None, bool(ersetzen.value))
             except (ValueError, OSError) as exc:
                 ergebnis.clear()
                 with ergebnis:
@@ -70,6 +75,7 @@ async def uebernahme_dialog(a, beim_start: bool = False) -> bool:
 
         pruefen_k.on("click", pruefen)
         ein.on("keydown.enter", pruefen)
+        ersetzen.on_value_change(lambda _e: pruefen())
         los.on("click", uebernehmen)
     dlg.open()
     return bool(await dlg)

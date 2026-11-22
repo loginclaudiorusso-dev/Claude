@@ -44,14 +44,6 @@ body { font-family: var(--schrift); font-size: 13.5px; letter-spacing: -0.005em;
 
 /* Rahmen */
 .m-app { display: flex; height: 100vh; width: 100%; overflow: hidden; }
-.m-nav { width: 216px; flex: none; background: var(--fl); border-right: 1px solid var(--rand); display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; }
-.m-marke { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-weight: 600; }
-.m-logo { width: 22px; height: 22px; border-radius: 6px; background: var(--akzent); color: var(--akzent-text); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
-.m-navpunkt { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r); color: var(--text2); cursor: default; }
-.m-navpunkt.aktiv { background: var(--fl2); color: var(--text); }
-.m-navpunkt .material-icons { font-size: 17px; }
-.m-navgruppe { font-size: 11px; color: var(--text3); padding: 14px 8px 4px; }
-.m-navfuss { margin-top: auto; font-size: 11.5px; color: var(--text3); padding: 8px; line-height: 1.5; }
 .m-haupt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .m-kopf { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--rand); min-height: 54px; }
 .m-titel { font-size: 15px; font-weight: 600; }
@@ -156,10 +148,7 @@ for _k, _v in T.items():
 
 CSS += """
 /* Navigation als Knöpfe */
-.m-navliste { display: flex; flex-direction: column; gap: 2px; }
-button.m-navpunkt { font: inherit; border: 0; background: transparent; text-align: left; width: 100%; cursor: pointer; }
-button.m-navpunkt:hover { background: var(--fl2); color: var(--text); }
-button.m-navpunkt:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+
 /* 0.37.1: bei schmalem Fenster umbrechen statt unsichtbar abschneiden (sonst fehlen z. B. „Änderungen“) */
 .m-werkzeuge { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; flex-wrap: wrap; }
 .m-werkzeuge .m-segm { flex-wrap: wrap; }
@@ -509,10 +498,7 @@ CSS += """
 .m-ue-filter .m-knopf { margin-left: auto; }
 
 /* Navigation: aktiver Punkt mit Akzentleiste */
-.m-navpunkt { position: relative; height: 34px; border-radius: 8px; }
-.m-navpunkt.aktiv { background: linear-gradient(90deg, rgba(124,140,255,.16), rgba(124,140,255,.03)); color: var(--text); }
-.m-navpunkt.aktiv::before { content: ""; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--akzent); }
-.m-navpunkt.aktiv .material-icons { color: var(--akzent); }
+
 """
 
 CSS += """
@@ -532,14 +518,11 @@ html, body, .q-layout, .q-page-container { background:
   background-attachment: fixed !important; }
 
 /* Glasflächen: Navigation, Kopf, Leiste, Blöcke */
-.m-nav { background: var(--glas2); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border-right: 1px solid var(--glasrand); }
+
 .m-kopf, .m-leiste { background: rgba(17,24,39,.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--glasrand); }
 .m-block { background: var(--glas2); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glasrand); border-radius: var(--r2); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-.m-logo { background: linear-gradient(135deg, var(--violett), var(--indigo)); color: #fff; border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(99,102,241,.4); }
 .m-popup { background: rgba(17,24,39,.92) !important; backdrop-filter: blur(18px); border-color: var(--glasrand); border-radius: 12px !important; }
 
 /* Slide-over: gleitet von rechts über den Inhalt, Hintergrund wird abgedunkelt und weichgezeichnet */
@@ -601,11 +584,6 @@ html, body, .q-layout, .q-page-container { background:
 .m-knopf.gruen { color: #86EFAC; border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.14); }
 .m-knopf.gruen:hover { background: rgba(34,197,94,.24); border-color: rgba(34,197,94,.6); }
 .m-toast .m-knopf { color: inherit; background: transparent; border-color: rgba(0,0,0,.25); box-shadow: none; }
-.m-navpunkt { cursor: pointer; transition: background .15s, color .15s; }
-.m-navpunkt:hover { background: rgba(255,255,255,.05); color: var(--text); }
-.m-navpunkt.aktiv { background: linear-gradient(90deg, rgba(147,51,234,.22), rgba(79,70,229,.05)); }
-.m-navpunkt.aktiv::before { background: linear-gradient(180deg, var(--violett), var(--indigo)); }
-.m-navpunkt.aktiv .material-icons { color: #A5B4FC; }
 .m-segm { background: rgba(0,0,0,.30); border-color: var(--glasrand); border-radius: 12px; }
 .m-segm button { cursor: pointer; border-radius: 9px; }
 .m-segm button.an { background: linear-gradient(90deg, rgba(147,51,234,.35), rgba(79,70,229,.35));
@@ -807,7 +785,7 @@ CSS += """
 .m-xm { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
 @media (max-width: 1100px) { .m-xv-raster { grid-template-columns: 1fr; } }
 /* Präsentationsmodus: nur Inhalt – Navigation, Kopf, Leisten und Werkzeugleiste ausgeblendet */
-body.praesentation .m-nav, body.praesentation .m-topnav, body.praesentation .m-prompt-zeile, body.praesentation .m-tb,
+body.praesentation .m-topnav,
 body.praesentation .m-kopf, body.praesentation .m-leiste { display: none !important; }
 .m-ex.praes { max-width: none; padding: 24px 32px; gap: 18px; }
 .m-ex.praes .m-xk { grid-template-columns: repeat(4, 1fr); }
@@ -996,12 +974,7 @@ CSS += """
 """
 CSS += """
 /* 0.35: Standorte – Wechsel über das Logo, Auswahl beim Start */
-.m-marke.m-standort { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 0; width: 100%;
-  text-align: left; cursor: pointer; border-radius: var(--r); margin-bottom: 8px; padding: 4px 8px 8px; }
-.m-marke.m-standort:hover { background: var(--fl2); }
-.m-marke-t { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
-.m-standort-name { font-size: 11.5px; font-weight: 500; color: var(--akzent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-standort-pfeil { font-size: 16px; color: var(--text3); }
+
 .m-standortwahl { width: min(560px, 94vw); }
 .m-standorte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
 .m-standort-k { font: inherit; color: var(--text); text-align: left; cursor: pointer; background: var(--fl2);
@@ -1049,12 +1022,7 @@ CSS += """
 """
 CSS += """
 /* 0.38: Markenname – „Belegung“ bleibt im Original, „INNternat“ (bzw. das Logo) im Theme INNternat */
-.m-marke-neu, .m-logo-bild { display: none; }
-body.th-innternat .m-marke-alt { display: none; }
-body.th-innternat .m-marke-neu:not(.mit-logo) { display: block; }
-body.th-innternat .m-logo-bild { display: block; max-width: 168px; max-height: 44px; object-fit: contain;
-  background: #fff; border-radius: 6px; padding: 4px 6px; }
-body.th-innternat.mod-hell .m-logo-bild { background: transparent; padding: 0; }
+
 """
 CSS += """
 /* 0.38: Tageszentrale auf „Heute“ – redaktionell ruhig, Aufgaben klar priorisiert (Tokens: gilt hell und dunkel) */

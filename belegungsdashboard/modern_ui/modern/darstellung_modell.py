@@ -21,26 +21,9 @@ import re
 # Aufbau: Layout (Informationsarchitektur) und Theme (Palette, je Theme hell und/oder dunkel)
 # =======================================================================================================
 
-LAYOUTS = {
-    "original": ("Original-Zustand", "Bisheriges Design und Layout – exakt wie vorher", "restart_alt"),
-    "office": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen und Ausklappmenüs – vertraut wie Word "
-                                        "und Excel", "view_agenda"),
-    "grid": ("Classic Enterprise Grid", "Einklappbare Seitenleiste, hohe Datendichte, volle Funktion", "view_sidebar"),
-    "canvas": ("AI-Canvas & Prompt", "Zentrale Eingabe (Strg+K, /) filtert live – Antworten als Karten", "auto_awesome"),
-    "showcase": ("Showcase", "Schwebendes Dock oben, großzügige Karten, viel Weißraum, Glas", "dashboard"),
-}
-THEMES = {
-    "innternat": ("INNternat", "Türkis-Grau wie das Logo – ruhig, klar, hell und dunkel", "dunkel"),
-    "original": ("Original", "Die Farben des bisherigen Designs", "dunkel"),
-    "inn": ("inn-tegrativ", "Corporate Deep Blue #183861 – ruhig und seriös", "hell"),
-    "linear": ("Linear Monochrome", "Graustufen, messerscharfe Kanten, hohe Dichte", "dunkel"),
-    "obsidian": ("Executive Obsidian", "Dunkler Obsidian mit Bronze- und Champagner-Akzenten", "dunkel"),
-    "nordic": ("Soft Nordic", "Augenschonend: warme Slate- und Sandtöne", "hell"),
-}
-ALT = {"corporate": "inn", "bento": "obsidian", "editorial": "nordic"}      # Namen aus 0.8
-# Welche Helligkeits-Modi es je Theme gibt (Reihenfolge = erste Wahl zuerst) – muss zu den Paletten in themes.P passen
-MODI = {"innternat": ("dunkel", "hell"), "original": ("dunkel",), "inn": ("hell", "dunkel"), "linear": ("dunkel", "hell"),
-        "obsidian": ("dunkel", "hell"), "nordic": ("hell", "dunkel")}
+LAYOUTS = {"office": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen und Ausklappmenüs", "view_agenda")}
+THEMES = {"innternat": ("INNternat", "Türkis-Grau wie das Logo – ruhig, klar, hell und dunkel", "dunkel")}
+MODI = {"innternat": ("dunkel", "hell")}     # muss zu den Paletten in themes.P passen
 DICHTEN = ("normal", "kompakt", "komfort")
 # 1.34: nur noch EINE Oberfläche – das Menüband (Office) im Theme INNternat. Die übrigen Layouts und Themes bleiben
 # als Namen bekannt (ältere Einstellungen werden übernommen), sind aber nicht mehr wählbar.
@@ -106,10 +89,6 @@ FARB_STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "fa
 # 1.34: zwei Symbol-Varianten im Menüband – die bisherigen (Fluent, zweifarbig) oder farbige, realistischere
 SYMBOLE = {"fluent": ("Klar (zweifarbig)", "Die bisherigen Symbole: feine Kontur mit zarter Bedeutungsfarbe"),
            "farbig": ("Farbig (realistischer)", "Vollfarbige Symbole mit Verlauf und Tiefe, wie in Microsoft 365")}
-# 0.92: Navigation im Windows-Look – Menüband wie in Office (Standard, bleibt) oder als Option die Seitenleiste.
-# Neuer Schlüssel „nav“: Die Einstellung „navigation“ aus 0.91 (dort war die Seitenleiste Standard) gilt nicht mehr.
-NAVIGATION = {"band": ("Menüband (wie Office)", "Registerkarten oben mit großen Symbolen – wie Word und Excel"),
-              "leiste": ("Seitenleiste", "Alle Bereiche links immer sichtbar, Zähler direkt am Eintrag")}
 # 0.89: Darstellung der Auswertungs-Diagramme – je nach Publikum wählbar (gilt je PC)
 DG_MODI = {"karte": ("Karte", "Diagramm-Karte mit Knöpfen, „Auf einen Blick“ und einheitlichem Stil"),
            "klassisch": ("Klassisch", "Wie bis Version 0.86: Diagramm mit Legende unten und Leiste darunter"),
@@ -118,8 +97,6 @@ HELLIGKEIT = {"hell": "Hell", "gedaempft": "Gedämpft", "dunkel": "Dunkel"}     
 FAERBUNG = {"akzent": "Nur Akzent", "ganz": "Ganzes Design"}
 # 0.75: Knopf- und Symbolstil – gelten immer für ALLE Knöpfe bzw. Symbole gleichzeitig (nie gemischt)
 KNOPFSTILE = {"klar": "Klar (wie Office)", "weich": "Weich", "kontur": "Kontur", "kraeftig": "Kräftig"}
-SYMBOLSTILE = {"linie": "Linie", "gefuellt": "Gefüllt", "rund": "Rund"}
-SYMBOL_SCHRIFT = {"linie": "Material Icons Outlined", "gefuellt": "Material Icons", "rund": "Material Icons Round"}
 # 0.75: fertige Vorlagen – ein Klick setzt Farbe, Helligkeit, Färbung, Titelleiste und Kontrast. Die Statusfarben
 # (frei grün, belegt blau, geplant violett …) bleiben in jeder Vorlage gleich.
 VORLAGEN = {

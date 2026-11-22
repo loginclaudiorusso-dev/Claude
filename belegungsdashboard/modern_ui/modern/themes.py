@@ -13,7 +13,7 @@ from __future__ import annotations
 from .stil import T as _ORIGINAL
 
 from . import darstellung_kern as _dk  # noqa: E402 – 0.66: Farbrechnung
-from .darstellung_modell import ALT, LAYOUTS, STANDARD, THEMES, bereinigen  # noqa: E402,F401 – 1.29: ein Modell
+from .darstellung_modell import LAYOUTS, STANDARD, THEMES, bereinigen  # noqa: E402,F401 – 1.29: ein Modell
 
 # ---------------------------------------------------------------------------------------
 # Paletten (je Theme hell/dunkel) – nur Farben
@@ -60,7 +60,7 @@ def _p(bg, fl, fl2, rand, rand2, text, text2, text3, akzent, akzent_text, akzent
     return d
 
 
-P = {
+P = {   # 1.34: nur noch das Theme INNternat (hell und dunkel)
     ("innternat", "dunkel"): _p("#132328", "#182b31", "#1f363d", "#25414a", "#33545e", "#E7F0EF", "#B4C7C6", "#93AAAA",
                                 "#5ED6C6", "#0A1F22", "#5ED6C6", "#7FE3D6", "#FF8A80", "#F6C26B", "#9AD96E", "#8DB8F0",
                                 "#0f1d21", "#173036", "#1d3d42", "#E7F0EF", "#5ED6C6", "#5ED6C6", "#B4C7C6", "#93AAAA",
@@ -70,46 +70,6 @@ P = {
                               "#E8F0F0", "#DCE8E8", "#CDE3E1", "#10272B", "#074B45", "#074B45", "#3D5558", "#53696C",
                               "#D3DFDF", "#0B6E66", kopf="#F1F5F5", status=_INN_HELL,
                               schatten="0 1px 2px rgba(16,39,43,.06)", panel_schatten="-12px 0 32px rgba(16,39,43,.14)"),
-    ("original", "dunkel"): _p("#0E0F12", "#15171C", "#1B1E24", "#262A32", "#323743", "#E6E8EC", "#A2A8B4", "#8A919D",
-                               "#7C8CFF", "#0E0F12", "#94A2FF", "#94A2FF", "#F2706B", "#E9A15A", "#4CC38A", "#6E8BD8",
-                               "#15171C", "#1B1E24", "#22252D", "#E6E8EC", "#E6E8EC", "#94A2FF", "#A2A8B4", "#848B98",
-                               "#262A32", "#7C8CFF", status=_DUNKEL),
-    ("inn", "hell"): _p("#f3f5f9", "#ffffff", "#eef2f7", "#dde3ec", "#c5cfdd", "#14213d", "#3b4a63", "#5b6880",
-                        "#183861", "#ffffff", "#183861", "#0f2341", "#b42318", "#b54708", "#067647", "#1d4ed8",
-                        "#183861", "#1f477a", "#0f2341", "#ffffff", "#ffffff", "#7fa7dc", "#c9d6ea", "#93a9c9",
-                        "#0f2341", "#7fa7dc", kopf="#ffffff", status=_HELL, schatten="0 1px 2px rgba(16,24,40,.06)",
-                        panel_schatten="-12px 0 32px rgba(16,24,40,.14)"),
-    ("inn", "dunkel"): _p("#0b1320", "#101b2d", "#16243a", "#1f2f47", "#2b3f5e", "#e6edf7", "#b0bfd5", "#8798b2",
-                          "#234d84", "#ffffff", "#7fa7dc", "#2c5c9c", "#f38b8b", "#f2b56b", "#5fd3a0", "#7fa7dc",
-                          "#081326", "#0f2341", "#183861", "#ffffff", "#ffffff", "#9fc0ea", "#b9c8de", "#7d91b0",
-                          "#0f2341", "#7fa7dc", status=_DUNKEL),
-    ("linear", "dunkel"): _p("#0a0a0b", "#111113", "#18181b", "#232327", "#303036", "#ededef", "#a1a1aa", "#8b8b94",
-                             "#ededef", "#0a0a0b", "#ededef", "#ffffff", "#f87171", "#fbbf24", "#4ade80", "#60a5fa",
-                             "#0a0a0b", "#141416", "#1c1c1f", "#ededef", "#ededef", "#ededef", "#a1a1aa", "#6b6b73",
-                             "#1c1c1f", "#ededef", status=_DUNKEL, panel_schatten="-1px 0 0 #232327"),
-    ("linear", "hell"): _p("#ffffff", "#ffffff", "#f4f4f5", "#e4e4e7", "#d4d4d8", "#09090b", "#52525b", "#6b6b74",
-                           "#18181b", "#ffffff", "#18181b", "#000000", "#b91c1c", "#a16207", "#15803d", "#1d4ed8",
-                           "#fafafa", "#f4f4f5", "#e4e4e7", "#09090b", "#09090b", "#09090b", "#52525b", "#8a8a93",
-                           "#e4e4e7", "#09090b", status=_HELL, panel_schatten="-1px 0 0 #e4e4e7"),
-    ("obsidian", "dunkel"): _p("#0c0b0a", "#141311", "#1d1b18", "#2a2723", "#3a352f", "#f3eee6", "#c4b9a8", "#9a8f80",
-                               "#c9a46a", "#17130d", "#e2c99a", "#d8b67f", "#e8857a", "#e0a85c", "#8fc79a", "#93b0d6",
-                               "#0a0908", "#171512", "#201d19", "#f3eee6", "#f3eee6", "#e2c99a", "#b3a796", "#7c7266",
-                               "#201d19", "#c9a46a", fls="#161513", status=_DUNKEL,
-                               panel_schatten="-24px 0 60px rgba(0,0,0,.55)"),
-    ("obsidian", "hell"): _p("#f7f3ec", "#fffdf9", "#efe8dc", "#e2d8c8", "#cdbfa8", "#1c1813", "#4a4136", "#6b5f50",
-                             "#7a5a2b", "#ffffff", "#7a5a2b", "#64491f", "#a3271b", "#8f4f05", "#1f6b3a", "#2a4f8f",
-                             "#1c1813", "#2a241c", "#3a3227", "#f3eee6", "#f3eee6", "#e2c99a", "#c4b9a8", "#8f8474",
-                             "#2a241c", "#c9a46a", kopf="#fffdf9", status=_HELL,
-                             schatten="0 1px 2px rgba(28,24,19,.06)", panel_schatten="-12px 0 32px rgba(28,24,19,.16)"),
-    ("nordic", "hell"): _p("#f3efe7", "#fbf9f5", "#ece6da", "#ddd5c6", "#c7bca8", "#2b3540", "#4d5966", "#636e7a",
-                           "#4a6878", "#ffffff", "#3f5b6a", "#3f5b6a", "#a33a3a", "#94600f", "#3b7356", "#3f6290",
-                           "#e9e2d5", "#e0d7c7", "#d6cbb6", "#2b3540", "#2b3540", "#3f5b6a", "#4d5966", "#6d7884",
-                           "#d6ccba", "#4a6878", kopf="#fbf9f5", status=_HELL,
-                           schatten="0 1px 2px rgba(43,53,64,.05)", panel_schatten="-12px 0 32px rgba(43,53,64,.14)"),
-    ("nordic", "dunkel"): _p("#1d2227", "#232a30", "#2c343c", "#343d46", "#44505b", "#e7e2d8", "#bdb6a8", "#9a9487",
-                             "#8fb3c2", "#12181c", "#a9c6d2", "#a9c6d2", "#e39a8f", "#e0b073", "#9cc9a8", "#9fb8dc",
-                             "#191d21", "#232a30", "#2c343c", "#e7e2d8", "#e7e2d8", "#a9c6d2", "#bdb6a8", "#8a8478",
-                             "#2c343c", "#8fb3c2", fls="#252c33", status=_DUNKEL),
 }
 
 # Typografie und Kanten je Theme (unabhängig von hell/dunkel)
@@ -117,21 +77,6 @@ TYPO = {
     "innternat": dict(r="6px", r2="10px", fs="14px", zeile="44px", kante="none",
                       schrift='"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',      # 0.55: statt Candara (ruhiger in Tabellen)
                       titel_schrift='"Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'),
-    "original": dict(r="8px", r2="12px", fs="13.5px", zeile="44px", kante="none",
-                     schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-                     titel_schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'),
-    "inn": dict(r="4px", r2="6px", fs="13.5px", zeile="44px", kante="3px solid var(--akzent-hell)",
-                schrift='"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-                titel_schrift='"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'),
-    "linear": dict(r="3px", r2="4px", fs="12.5px", zeile="34px", kante="none",
-                   schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-                   titel_schrift='"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'),
-    "obsidian": dict(r="6px", r2="14px", fs="13.5px", zeile="46px", kante="1px solid color-mix(in srgb, var(--akzent) 45%, transparent)",
-                     schrift='"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-                     titel_schrift='"Segoe UI Variable Display", "Georgia", serif'),
-    "nordic": dict(r="8px", r2="12px", fs="14px", zeile="48px", kante="none",
-                   schrift='"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-                   titel_schrift='"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'),
 }
 
 
@@ -172,48 +117,35 @@ AKTIV: dict = dict(STANDARD)      # aktueller Zustand (eine Oberfläche je Progr
 
 
 def klassen(d: dict) -> list[str]:
-    """Klassen am <body>. Im Original-Zustand keine – damit gilt ausschließlich das bisherige CSS."""
+    """Klassen am <body>. 1.35: immer Menüband (lay-office) im Theme INNternat."""
     d = bereinigen(d)
-    if d["layout"] == "original":
-        return []
-    k = ["pro", f"lay-{d['layout']}", f"th-{d['theme']}", f"mod-{d['modus']}"]
+    k = ["pro", "lay-office", "th-innternat", f"mod-{d['modus']}"]
     if d["modus"] == "hell":
         k.append("hell")
     if d["dichte"] in ("kompakt", "komfort"):
         k.append(f"dichte-{d['dichte']}")
-    if d["schmal"] or d["layout"] == "canvas":
-        k.append("nav-schmal")
-    if d["layout"] == "showcase" and not d["dock_fest"]:
-        k.append("dock-auto")
-    if d["layout"] == "office" and d["band_gross"]:
+    if d["band_gross"]:
         k.append("band-gross")
-    if d["layout"] == "office" and d.get("nav", "band") == "leiste":
-        k.append("nav-leiste")                  # 0.91: Seitenleiste statt Registerkarten (Titel- und Statusleiste bleiben)
-    if d["layout"] == "office" and d.get("nav", "band") != "leiste" and d.get("werkzeuge_oben", True):
+    if d.get("werkzeuge_oben", True):
         k.append("ob-oben")                     # 0.99: Werkzeuge der Seite in der Kontext-Registerkarte (wie Office)
-    if d["layout"] == "office" and d.get("band_zu"):
+    if d.get("band_zu"):
         k.append("band-zu")                     # 0.74: Menüband eingeklappt (Strg+F1)
-    if d["layout"] == "office":                 # 0.75: Knopf-/Symbolstil, hoher Kontrast
-        if d.get("knopfstil", "klar") != "klar":
-            k.append(f"knopf-{d['knopfstil']}")
-        if d.get("symbolstil", "linie") != "linie":
-            k.append(f"sym-{d['symbolstil']}")
-        if d.get("kontrast"):
-            k.append("kontrast")
+    if d.get("knopfstil", "klar") != "klar":    # 0.75: Knopfstil, hoher Kontrast
+        k.append(f"knopf-{d['knopfstil']}")
+    if d.get("kontrast"):
+        k.append("kontrast")
     return k
 
 
 def stil(d: dict) -> str:
-    """0.66: Inline-Stil für <body> – Akzentfarbe, Titelleiste, Schrift (nur in den neuen Layouts) und Zoom."""
+    """0.66: Inline-Stil für <body> – Akzentfarbe, Titelleiste, Schrift und Zoom."""
     d = bereinigen(d)
-    if d["layout"] == "original":
-        return _dk.style_text({"--m-zoom": f"{d['zoom'] / 100:.2f}"} if d["zoom"] != 100 else {})
     return _dk.style_text(_dk.css_variablen(d, d["modus"] != "hell"))
 
 
-ALLE_KLASSEN = (["pro", "hell", "nav-schmal", "dichte-kompakt", "dichte-komfort", "band-zu", "knopf-weich", "knopf-kontur",
-                 "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast", "mod-hell", "mod-dunkel", "dock-auto", "band-gross", "ob-oben", "nav-leiste", "ob-seite-an", "ob-hat-werkzeuge"] + [f"lay-{x}" for x in LAYOUTS]
-                + [f"th-{t}" for t in THEMES])
+ALLE_KLASSEN = ["pro", "hell", "dichte-kompakt", "dichte-komfort", "band-zu", "knopf-weich", "knopf-kontur", "knopf-kraeftig",
+                "kontrast", "mod-hell", "mod-dunkel", "band-gross", "ob-oben", "ob-seite-an", "ob-hat-werkzeuge", "lay-office",
+                "th-innternat"]
 
 # ---------------------------------------------------------------------------------------
 # CSS – nur unter body.pro
@@ -227,22 +159,8 @@ body.pro * { scrollbar-color: var(--rand2) transparent; }
 body.pro :focus-visible { outline: 2px solid var(--fokus) !important; outline-offset: 2px; }
 
 /* Navigation (Seitenleiste) */
-body.pro .m-nav { background: var(--chrome); border-right: 1px solid var(--chrome-rand); backdrop-filter: none; -webkit-backdrop-filter: none;
-  transition: width .2s ease, padding .2s ease; }
-body.pro .m-marke { color: var(--chrome-text); }
-body.pro .m-logo { background: var(--akzent); color: var(--akzent-text); border-radius: var(--r); box-shadow: none; }
-body.pro .m-navgruppe { color: var(--chrome-text3); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
-body.pro .m-navpunkt { color: var(--chrome-text2); border-radius: var(--r); }
-body.pro button.m-navpunkt:hover { background: var(--chrome-hover); color: var(--chrome-text); }
-body.pro .m-navpunkt.aktiv, body.pro button.m-navpunkt.aktiv:hover { background: var(--chrome-aktiv); color: var(--chrome-aktiv-text); }
-body.pro .m-navpunkt.aktiv::before { background: var(--chrome-strich); width: 2px; }
-body.pro .m-navpunkt.aktiv .material-icons, body.pro .m-navpunkt.aktiv .q-icon { color: var(--chrome-aktiv-icon); }
-body.pro .m-navfuss { color: var(--chrome-text3); }
+
 body.pro .m-suche { border-color: var(--chrome-rand) !important; }
-body.pro .m-nav .m-taste { color: var(--chrome-text3); border-color: var(--chrome-rand); }
-body.pro .m-nav .m-zahl { background: var(--chrome-aktiv); color: var(--chrome-text); }
-body.pro .m-nav .m-zahl.rot { background: var(--s-krit-fg); color: #fff; }
-body.pro .m-navklapp { display: flex; }
 
 /* Kopf und Leisten */
 body.pro .m-kopf, body.pro .m-leiste { background: var(--kopf); border-bottom: 1px solid var(--rand); backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -416,40 +334,15 @@ body.hell .m-palette-ein input { color: var(--text) !important; }
 body.hell .m-toast { box-shadow: 0 10px 30px rgba(16,24,40,.25); }
 
 /* Navigation: schmal (nur Symbole, Tooltips) */
-body.pro.nav-schmal .m-nav { width: 60px; padding: 14px 8px; }
-body.pro.nav-schmal .m-marke { padding: 4px 2px 14px; justify-content: center; }
-body.pro.nav-schmal .m-marke > :not(.m-logo) { display: none; }
-body.pro.nav-schmal .m-nav .m-navgruppe { font-size: 0 !important; height: 1px; padding: 0; margin: 10px 6px; background: var(--chrome-rand); }
-body.pro.nav-schmal .m-navpunkt { justify-content: center; padding: 6px 0; position: relative; }
-body.pro.nav-schmal .m-nav .m-navpunkt > :not(.q-icon):not(.m-zahl) { display: none; }
-body.pro.nav-schmal .m-navpunkt .m-zahl { position: absolute; top: 2px; right: 4px; margin: 0 !important; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
-body.pro.nav-schmal .m-navpunkt.aktiv::before { left: -8px; }
-body.pro.nav-schmal .m-navfuss { display: none; }
-body.pro.nav-schmal .m-navklapp .q-icon { transform: rotate(180deg); }
+
 
 /* Navigation einklappen */
-body.pro .m-navklapp { margin-top: 6px; align-items: center; gap: 10px; color: var(--chrome-text3); }
-body.pro.nav-schmal .m-navklapp { justify-content: center; }
+
 """
 
 _THEME_EIGEN = """
 /* Theme-Feinheiten (nur Optik, keine Struktur) */
 body.pro .m-stat, body.pro .m-block { border-top: var(--kante); }
-body.pro.th-inn .m-titel, body.pro.th-inn .m-btitel { color: var(--akzent-hell); }
-body.pro.th-inn .m-tkopf > div { text-transform: uppercase; font-size: 10.5px; letter-spacing: .06em; }
-body.pro.th-inn.mod-hell .m-segm button.an { background: var(--akzent); color: var(--akzent-text); box-shadow: none; }
-body.pro.th-inn .m-nav .m-logo, body.pro.th-inn .m-topnav .m-logo { background: #ffffff; color: #183861; }
-body.pro.th-linear .m-stat .s { color: var(--text3) !important; }
-body.pro.th-linear .m-ksymbol { --c: var(--text2) !important; }
-body.pro.th-linear .m-knopf { height: 28px; font-size: 12.5px; }
-body.pro.th-obsidian .m-titel { font-weight: 500; letter-spacing: .01em; }
-body.pro.th-obsidian .m-btitel { font-family: var(--titel-schrift); font-weight: 500; letter-spacing: .01em; font-size: 15px; }
-body.pro.th-obsidian .m-stat .l, body.pro.th-obsidian .m-navgruppe, body.pro.th-obsidian .m-tkopf > div { text-transform: uppercase;
-  letter-spacing: .12em; font-size: 10.5px; }
-body.pro.th-obsidian .m-stat .z { font-weight: 500 !important; }
-body.pro.th-obsidian .m-logo { background: linear-gradient(135deg, #e2c99a, #9c7a45); color: #17130d; }
-body.pro.th-nordic { line-height: 1.55; }
-body.pro.th-nordic .m-stat .z { font-weight: 600; }
 """
 
 _DICHTE = """
@@ -467,7 +360,6 @@ body.pro.dichte-kompakt .m-segm button { height: 22px; padding: 0 8px; }
 body.pro.dichte-kompakt .m-block { padding: 10px 12px; gap: 6px; }
 body.pro.dichte-kompakt .m-heute, body.pro.dichte-kompakt .m-zwei { gap: 10px; padding: 10px 14px; }
 body.pro.dichte-kompakt .m-karte { padding: 9px 11px; gap: 5px; }
-body.pro.dichte-kompakt .m-navpunkt { height: 28px; }
 body.pro.dichte-kompakt .m-kachel { width: 40px; height: 26px; }
 """
 
@@ -475,126 +367,14 @@ _LAYOUTS = """
 /* ===== Layout: Classic Enterprise Grid – Seitenleiste wie gewohnt, einklappbar (Grundschicht) ===== */
 
 /* ===== Layout: AI-Canvas & Prompt ===== */
-.m-prompt-zeile, .m-topnav, .m-navklapp, .m-cv-start { display: none; }
-body.lay-canvas .m-prompt-zeile { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 24px 10px; flex: none;
-  background: var(--bg); border-bottom: 1px solid var(--rand); }
-body.lay-canvas .m-prompt { width: min(760px, 100%); display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 16px;
-  background: var(--fls); border: 1px solid var(--rand2); border-radius: 16px; box-shadow: 0 8px 28px rgba(0,0,0,.18);
-  transition: border-color .15s, box-shadow .15s; }
-body.lay-canvas .m-prompt:focus-within { border-color: var(--akzent-hell); box-shadow: 0 0 0 4px color-mix(in srgb, var(--akzent-hell) 22%, transparent), 0 8px 28px rgba(0,0,0,.18); }
-body.lay-canvas .m-prompt > .q-icon { color: var(--akzent-hell); font-size: 22px; }
-body.lay-canvas .m-prompt .q-field { flex: 1; }
-body.lay-canvas .m-prompt .q-field__native { font-size: 16px !important; color: var(--text) !important; }
-body.lay-canvas .m-prompt .q-field__control:before, body.lay-canvas .m-prompt .q-field__control:after { border: 0 !important; }
-body.lay-canvas .m-prompt .q-field--focused .q-field__control { box-shadow: none; }
-body.lay-canvas .m-prompt .m-taste { flex: none; }
-body.lay-canvas .m-vorschlaege { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-body.lay-canvas .m-vorschlag { font: inherit; font-size: 12px; cursor: pointer; color: var(--text2); background: transparent;
-  border: 1px solid var(--rand2); border-radius: 999px; padding: 3px 10px; transition: background .15s, color .15s; }
-body.lay-canvas .m-vorschlag:hover { background: var(--fl2); color: var(--text); }
-body.lay-canvas .m-kopf { min-height: 44px; }
+.m-topnav { display: none; }
 body.pro .m-cv { padding: 18px 24px 40px; display: flex; flex-direction: column; gap: 18px; max-width: 1400px; margin: 0 auto; width: 100%;
   animation: m-cv-rein .25s ease-out both; }
 @keyframes m-cv-rein { from { opacity: 0; transform: translateY(6px); } }
-body.pro .m-cv-verstanden { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; color: var(--text3); font-size: 12.5px; }
-body.pro .m-cv-tag { padding: 2px 8px; border-radius: 999px; background: var(--fl2); color: var(--text); border: 1px solid var(--rand); font-size: 12px; }
-body.pro .m-cv-gruppe { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-body.pro .m-cv-gruppe .m-btitel { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); }
-body.pro .m-cv-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-body.pro .m-cv-raster.zahlen { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-body.pro .m-cv-karte { font: inherit; color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
-  padding: 14px 16px; border-radius: var(--r2); background: var(--fl); border: 1px solid var(--rand); transition: border-color .15s, background .15s; }
-body.pro .m-cv-karte:hover { border-color: var(--akzent-hell); background: var(--fl2); }
-body.pro .m-cv-karte .z { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-body.pro .m-cv-karte .k { display: flex; align-items: center; gap: 8px; min-width: 0; }
-body.pro .m-cv-karte .k .m-name { flex: 1; }
-body.pro .m-cv-leer { color: var(--text3); padding: 30px 0; text-align: center; }
 
 /* ===== Layout: Showcase – schwebendes Dock, großzügige Karten, Glas ===== */
-html:has(body.lay-showcase), body.lay-showcase, body.lay-showcase .q-layout, body.lay-showcase .q-page-container {
-  background: radial-gradient(1100px 700px at 85% -10%, color-mix(in srgb, var(--akzent-hell) 10%, transparent), transparent 60%),
-              radial-gradient(900px 600px at -10% 110%, color-mix(in srgb, var(--blau) 7%, transparent), transparent 60%), var(--bg) !important;
-  background-attachment: fixed !important; }
-body.lay-showcase .m-nav { display: none; }
-body.lay-showcase .m-topnav { display: flex; align-items: center; gap: 2px; align-self: center; margin: 14px auto 4px; padding: 6px 8px;
-  max-width: calc(100% - 32px); overflow-x: auto; scrollbar-width: none; border-radius: 18px; flex: none;
-  background: color-mix(in srgb, var(--fls) 78%, transparent); border: 1px solid var(--rand);
-  backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3); box-shadow: 0 12px 34px rgba(0,0,0,.22); }
-body.lay-showcase .m-topnav .m-marke { padding: 0 10px 0 4px; }
-body.lay-showcase .m-topnav .m-navpunkt { width: auto; height: 34px; padding: 0 12px; gap: 7px; flex: none; display: inline-flex; align-items: center;
-  border-radius: 12px; color: var(--text2); }
-body.lay-showcase .m-topnav .m-navpunkt:hover { background: var(--fl2); color: var(--text); }
-body.lay-showcase .m-topnav .m-navpunkt.aktiv { background: var(--akzent); color: var(--akzent-text); }
-body.lay-showcase .m-topnav .m-navpunkt.aktiv .q-icon { color: var(--akzent-text); }
-body.lay-showcase .m-topnav .m-navpunkt.aktiv::before { display: none; }
-body.lay-showcase .m-topnav .m-navpunkt .q-icon { font-size: 18px; }
-body.lay-showcase .m-topnav .m-trenner { width: 1px; height: 20px; background: var(--rand); margin: 0 4px; flex: none; }
-body.lay-showcase .m-topnav .m-suche { margin: 0 0 0 6px; border: 1px solid var(--rand) !important; }
-body.lay-showcase .m-topnav .m-zahl { margin-left: 2px !important; }
-body.lay-showcase .m-kopf, body.lay-showcase .m-leiste { background: transparent; border-bottom: 0;
-  padding-left: max(28px, calc((100% - 1360px) / 2)); padding-right: max(28px, calc((100% - 1360px) / 2)); }
-body.lay-showcase .m-kopf { padding-top: 18px; min-height: 64px; }
-body.lay-showcase .m-titel { font-size: 28px; font-weight: 600; letter-spacing: -0.025em; }
-body.lay-showcase .m-leiste { padding-bottom: 18px; }
-body.lay-showcase .m-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; flex: 1 1 100%; }
-body.lay-showcase .m-stat { padding: 16px 18px; border-radius: 18px; gap: 10px; background: color-mix(in srgb, var(--fl) 80%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-body.lay-showcase .m-stat .l { order: -1; text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; font-weight: 600; }
-body.lay-showcase .m-stat .z { font-size: 32px !important; font-weight: 500 !important; letter-spacing: -0.035em !important; }
-body.lay-showcase .m-inhalt > * { animation: m-cv-rein .35s ease-out both; }
-body.lay-showcase .m-inhalt { padding: 0 max(28px, calc((100% - 1360px) / 2)) 32px; }
-body.lay-showcase .m-block, body.lay-showcase .m-khaus, body.lay-showcase .m-kpikarte, body.lay-showcase .m-willkommen, body.lay-showcase .m-karte {
-  border-radius: 22px; background: color-mix(in srgb, var(--fl) 80%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 10px 30px rgba(0,0,0,.12); }
-body.lay-showcase .m-block, body.lay-showcase .m-willkommen { padding: 24px 26px; }
-body.lay-showcase .m-btitel { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-body.lay-showcase .m-heute, body.lay-showcase .m-zwei { gap: 20px; padding: 6px 0 24px; }
-body.lay-showcase .m-kpis { padding: 6px 0 0; gap: 16px; }
-body.lay-showcase .m-heute-rechts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
-body.lay-showcase .m-heute-rechts > .m-block:first-child, body.lay-showcase .m-heute-rechts > .m-block:nth-child(2) { grid-column: 1 / -1; }
-@media (max-width: 1250px) { body.lay-showcase .m-heute-rechts { grid-template-columns: 1fr; } }
-body.lay-showcase .m-inhalt > .m-tkopf { border-radius: 18px 18px 0 0; background: var(--fls); border: 1px solid var(--rand); margin-top: 6px; }
-body.lay-showcase .m-inhalt > .m-zeile { background: color-mix(in srgb, var(--fl) 85%, transparent); border-left: 1px solid var(--rand); border-right: 1px solid var(--rand); }
-body.lay-showcase .m-inhalt > .m-zeile:last-child { border-radius: 0 0 18px 18px; }
-body.lay-showcase .m-khaus { margin: 8px 0 18px; }
-body.lay-showcase .m-haeuser { padding: 6px 0 18px; }
-body.lay-showcase .m-segm { border-radius: 12px; } body.lay-showcase .m-segm button { border-radius: 9px; }
-body.lay-showcase .m-knopf.primaer { border-radius: 999px; padding: 0 18px; }
-body.lay-showcase .m-center, body.lay-showcase .m-center.offen { border-radius: 22px 0 0 22px; background: color-mix(in srgb, var(--fls) 92%, transparent);
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-@media (prefers-reduced-motion: reduce) { body.lay-showcase .m-inhalt > *, body.pro .m-cv { animation: none; } }
-"""
 
-_TOOLBAR = """
-/* ===== Schwebende Werkzeugleiste (in jedem Zustand, eigene neutrale Optik) ===== */
-.m-tb { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 8px; padding: 8px;
-  border-radius: 16px; background: rgba(9,9,11,.86); border: 1px solid rgba(63,63,70,.55); box-shadow: 0 20px 50px rgba(0,0,0,.45);
-  backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); transition: opacity .25s, padding .2s, gap .2s; color: #d4d4d8; }
-.m-tb-k { font: inherit; width: 34px; height: 34px; border-radius: 10px; border: 0; background: transparent; color: #d4d4d8; cursor: pointer;
-  display: grid; place-items: center; flex: none; transition: background .15s, color .15s; }
-.m-tb-k:hover { background: rgba(255,255,255,.1); color: #fff; }
-.m-tb-k.an { background: rgba(255,255,255,.14); color: #fff; }
-.m-tb-k.aus { opacity: .35; cursor: default; }
-.m-tb-k .q-icon { font-size: 19px; }
-.m-tb-k.reset { color: #fda4af; } .m-tb-k.reset:hover { background: rgba(244,63,94,.18); color: #fecdd3; }
-.m-tb-t { width: 1px; height: 22px; background: rgba(82,82,91,.6); flex: none; }
-.m-tb:not(.wach):not(.fest):not(:hover):not(:focus-within) { opacity: .55; padding: 6px; gap: 0; }
-.m-tb:not(.wach):not(.fest):not(:hover):not(:focus-within) > :not(.m-tb-griff) { display: none; }
-.m-tb.fest .m-tb-griff { background: rgba(255,255,255,.14); color: #fff; }
-.m-tb-menue, body .q-menu.m-tb-menue { background: rgba(24,24,27,.96) !important; color: #e4e4e7 !important;
-  border: 1px solid rgba(63,63,70,.6) !important; border-radius: 12px !important; padding: 6px; min-width: 220px; backdrop-filter: blur(24px); }
-.m-tb-menue .q-item, body .q-menu.m-tb-menue .q-item, body .q-menu.m-tb-menue .q-item__label { color: #e4e4e7 !important;
-  border-radius: 8px; min-height: 34px; }
-.m-tb-menue .q-item:hover, body .q-menu.m-tb-menue .q-item:hover { background: rgba(255,255,255,.08) !important; }
-body .q-menu.m-tb-menue textarea { color: #e4e4e7 !important; }
-body .q-menu.m-tb-menue .q-field__control:before { border-color: rgba(82,82,91,.8) !important; }
-.m-tb-menue .q-item.disabled, .m-tb-menue .q-item--disabled { opacity: .4 !important; }
-.m-tb-menue .m-mgruppe, body .q-menu.m-tb-menue .m-mgruppe { color: #a1a1aa !important; }
-.m-tb-menue .m-zweite, body .q-menu.m-tb-menue .m-zweite { color: #a1a1aa !important; }
-.m-tb-menue .m-mhaken { color: #71717a !important; } .m-tb-menue .m-mhaken.an { color: #e4e4e7 !important; }
-.m-tb-notiz { width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.m-tb-notiz textarea { color: #e4e4e7 !important; min-height: 160px; font-size: 13px; line-height: 1.5; }
-@media print { .m-tb { display: none; } }
+@media (prefers-reduced-motion: reduce) { body.pro .m-cv { animation: none; } }
 """
 
 # ---- 0.15: Heute als Newsfeed, Morgen-Briefing, Aufgaben-Drawer aus Glas (nur neue Layouts) ----------------------------
@@ -661,7 +441,6 @@ body.pro .m-center .m-karte.dringend::before { content: ""; position: absolute; 
   border-radius: 2px; background: var(--s-krit-fg); box-shadow: 0 0 10px color-mix(in srgb, var(--s-krit-fg) 55%, transparent); }
 body.pro .m-center .m-karte:hover { border-color: color-mix(in srgb, var(--text) 16%, transparent); }
 body.pro .m-schleier.offen { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-body:has(.m-center.offen) .m-tb { opacity: 0 !important; pointer-events: none !important; transform: translateY(8px); }
 @keyframes m-welle { from { transform: scaleY(.45); } to { transform: scaleY(1); } }
 """
 
@@ -669,7 +448,7 @@ body:has(.m-center.offen) .m-tb { opacity: 0 !important; pointer-events: none !i
 # Speicherns läuft oben ein schmaler Balken, und die Bestätigung rastet sichtbar ein. Nur in den Layouts (body.pro);
 # bei „Bewegung reduzieren“ (System) bleibt nur der Farbwechsel.
 _HAPTIK = """
-body.pro .m-knopf, body.pro .m-navpunkt, body.pro .m-stat, body.pro .m-segm button, body.pro .m-kachel,
+body.pro .m-knopf, body.pro .m-stat, body.pro .m-segm button, body.pro .m-kachel,
 body.pro .m-chip, body.pro .m-neu, body.pro .m-feed-zeile, body.pro .m-xs-pill, body.pro .m-monat-tag, body.pro .q-btn {
   transition: transform .14s cubic-bezier(.2,.9,.3,1.25), box-shadow .14s ease, background .12s, border-color .12s, color .12s; }
 body.pro .m-knopf { box-shadow: 0 1px 0 var(--rand2), var(--schatten); }
@@ -685,7 +464,7 @@ body.pro .m-glocke .m-zahl { position: absolute; top: -5px; right: -5px; min-wid
 body.pro .m-knopf:active, body.pro .m-knopf.primaer:active { transform: translateY(2px) scale(.97); transition-duration: .05s;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.28); }
 body.pro .m-knopf.leise:active { transform: scale(.94); background: var(--fl2); }
-body.pro .m-navpunkt:active, body.pro .m-segm button:active, body.pro .m-chip:active, body.pro .m-neu:active,
+body.pro .m-segm button:active, body.pro .m-chip:active, body.pro .m-neu:active,
 body.pro .m-feed-zeile:active, body.pro .m-xs-pill:active, body.pro .q-btn:active { transform: scale(.96); transition-duration: .05s; }
 body.pro .m-stat:active, body.pro .m-kachel:active { transform: translateY(1px) scale(.97); transition-duration: .05s;
   box-shadow: inset 0 2px 5px rgba(0,0,0,.25); }
@@ -711,39 +490,19 @@ body.pro .m-toast .m-toast-ok { color: var(--gruen); font-size: 20px; animation:
 @keyframes m-einrasten { from { opacity: 0; transform: translate(-50%, 14px) scale(.94); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 @keyframes m-haken { from { transform: scale(.2) rotate(-25deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  body.pro .m-knopf, body.pro .m-knopf:hover, body.pro .m-knopf:active, body.pro .m-stat:active, body.pro .m-kachel:active,
-  body.pro .m-navpunkt:active, body.pro .m-segm button:active { transform: none; }
+  body.pro .m-knopf, body.pro .m-knopf:hover, body.pro .m-knopf:active, body.pro .m-stat:active, body.pro .m-kachel:active, body.pro .m-segm button:active { transform: none; }
   body.pro .m-toast, body.pro .m-toast .m-toast-ok, body.pro.m-arbeitet::after { animation: none; }
 }
 """
 
 # 0.36: Showcase aufgeräumt – Standort im Dock, nur fünf Hauptbereiche (Rest unter „Mehr“), flachere Kennzahlen
-_SHOWCASE_RUHIG = """
-body.lay-showcase .m-topnav .m-dock-standort { font: inherit; font-weight: 600; color: var(--text); background: transparent;
-  border: 0; border-radius: 10px; height: 34px; padding: 0 8px 0 4px; gap: 8px; display: inline-flex; align-items: center;
-  cursor: pointer; width: auto; margin: 0; }
-body.lay-showcase .m-topnav .m-dock-standort:hover { background: var(--fl2); }
-body.lay-showcase .m-topnav .m-dock-standort .m-standort-name { font-size: 13px; color: var(--text); }
-body.lay-showcase .m-topnav .m-nur-symbol { padding: 0 10px; }
-body.lay-showcase .m-topnav .m-punkt-neu { width: 7px; height: 7px; border-radius: 50%; background: var(--akzent); flex: none; }
-body.lay-showcase .m-stats { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
-body.lay-showcase .m-stat { padding: 10px 14px; border-radius: 14px; gap: 4px; }
-body.lay-showcase .m-stat .l { font-size: 10px; letter-spacing: .06em; }
-body.lay-showcase .m-stat .z { font-size: 22px !important; }
-body.lay-showcase .m-leiste { padding-bottom: 12px; }
-"""
-
-
 # 0.38: Theme „INNternat“ – Bahnschrift für Überschriften und Kennzahlen, Candara für Text, Türkis nur als Akzent
 _INNTERNAT = """
 body.pro.th-innternat .m-btitel, body.pro.th-innternat .m-pf-dtitel, body.pro.th-innternat .m-pf-titel,
 body.pro.th-innternat .m-stat .z, body.pro.th-innternat .m-zahl, body.pro.th-innternat .m-tz-zahl,
-body.pro.th-innternat .m-tz-titel, body.pro.th-innternat .m-tz-ab, body.pro.th-innternat .m-navgruppe {
+body.pro.th-innternat .m-tz-titel, body.pro.th-innternat .m-tz-ab {
   font-family: var(--titel-schrift); }
 body.pro.th-innternat .m-btitel { font-weight: 600; letter-spacing: .01em; }
-body.pro.th-innternat .m-navgruppe { text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; }
-body.pro.th-innternat .m-marke .m-logo { display: none; }
-body.pro.th-innternat .m-marke-t > :first-child { font-family: var(--titel-schrift); font-size: 17px; letter-spacing: .02em; }
 body.pro.th-innternat .m-knopf.primaer { font-family: var(--titel-schrift); letter-spacing: .02em; }
 """
 
@@ -751,63 +510,9 @@ body.pro.th-innternat .m-knopf.primaer { font-family: var(--titel-schrift); lett
 # 0.38.1: Laptop – unter 1200 px Fensterbreite wird die Seitenleiste automatisch schmal (Symbole mit Tooltip), damit
 # Tabellen und Tageszentrale Platz haben; „Leiste einklappen“ braucht es dort nicht.
 _LAPTOP = """
-@media (max-width: 1199px) {
-body.pro.lay-grid .m-nav { width: 60px; padding: 14px 8px; }
-body.pro.lay-grid .m-marke { padding: 4px 2px 14px; justify-content: center; }
-body.pro.lay-grid .m-marke > :not(.m-logo) { display: none; }
-body.pro.lay-grid .m-nav .m-navgruppe { font-size: 0 !important; height: 1px; padding: 0; margin: 10px 6px; background: var(--chrome-rand); }
-body.pro.lay-grid .m-navpunkt { justify-content: center; padding: 6px 0; position: relative; }
-body.pro.lay-grid .m-nav .m-navpunkt > :not(.q-icon):not(.m-zahl) { display: none; }
-body.pro.lay-grid .m-navpunkt .m-zahl { position: absolute; top: 2px; right: 4px; margin: 0 !important; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
-body.pro.lay-grid .m-navpunkt.aktiv::before { left: -8px; }
-body.pro.lay-grid .m-navfuss { display: none; }
-body.pro.lay-grid .m-navklapp .q-icon { transform: rotate(180deg); }
-body.pro.lay-grid .m-navklapp { justify-content: center; }
-body.pro.lay-grid .m-navklapp { display: none; }
-}
-body.pro.th-innternat.nav-schmal .m-marke .m-standort-pfeil { display: inline-flex; }
-@media (max-width: 1199px) { body.pro.th-innternat.lay-grid .m-marke .m-standort-pfeil { display: inline-flex; } }
+
 """
-
-
-def _aufklappen(p: str) -> str:
-    """0.46: Eingeklappte Leiste wie in Office – beim Darüberfahren klappt sie (kurz verzögert) über dem Inhalt auf,
-    nichts verschiebt sich. „Anheften“ hält sie offen."""
-    return f"""
-{p} .m-nav {{ position: relative; z-index: 45; overflow: hidden; white-space: nowrap;
-  transition: width .18s ease, margin .18s ease, box-shadow .18s ease, padding .18s ease; transition-delay: 0s; }}
-{p} .m-nav .m-navpunkt {{ justify-content: flex-start; padding: 6px 0 6px 12px; }}
-{p} .m-nav:hover {{ width: 236px; margin-right: -176px; padding: 14px 10px; box-shadow: 16px 0 36px rgba(0,0,0,.28); transition-delay: .3s; }}
-{p} .m-nav:hover .m-navpunkt {{ padding: 6px 8px; }}
-{p} .m-nav:hover .m-navpunkt > :not(.q-icon):not(.m-zahl) {{ display: block; }}
-{p} .m-nav:hover .m-navpunkt .m-zahl {{ position: static; margin-left: auto !important; }}
-{p} .m-nav:hover .m-navgruppe {{ font-size: 11px !important; height: auto; padding: 10px 8px 4px; margin: 0; background: none; }}
-{p} .m-nav:hover .m-marke {{ justify-content: flex-start; padding: 4px 8px 16px; }}
-{p} .m-nav:hover .m-marke > .m-marke-t {{ display: flex; }}
-{p} .m-nav:hover .m-marke > .m-standort-pfeil {{ display: inline-flex; }}
-{p} .m-nav:hover .m-navpunkt.aktiv::before {{ left: -10px; }}
-"""
-
-
-_ANHEFTEN = (_aufklappen("body.pro.nav-schmal") + "@media (max-width: 1199px) {" + _aufklappen("body.pro.lay-grid") + "}" + """
-body.pro .m-navklapp .q-icon, body.pro.nav-schmal .m-navklapp .q-icon { transform: none !important; }
-@media (prefers-reduced-motion: reduce) { body.pro .m-nav { transition: none !important; } }
-
-/* Showcase-Dock: Gruppenmenüs, rechts Suche / Hell-Dunkel / Anheften */
-body.lay-showcase .m-topnav .m-dock-gruppe .m-dock-pfeil { font-size: 16px !important; margin-left: -2px; opacity: .7; }
-body.lay-showcase .m-topnav .m-dock-rechts { display: inline-flex; align-items: center; gap: 2px; }
-body.lay-showcase .m-topnav .m-nur-symbol { padding: 0 9px; }
-body.lay-showcase .m-topnav .m-dock-pin.an { color: var(--akzent-hell); }
-/* Dock automatisch ausblenden: am oberen Rand bleibt eine Kante, beim Darüberfahren fährt es herein */
-body.lay-showcase.dock-auto .m-topnav { position: fixed; left: 50%; top: 0; margin: 0; z-index: 50; overflow: visible;
-  transform: translate(-50%, calc(-100% + 7px)); transition: transform .2s ease .25s, box-shadow .2s ease .25s; box-shadow: none; }
-body.lay-showcase.dock-auto .m-topnav::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 16px; }
-body.lay-showcase.dock-auto .m-topnav:hover, body.lay-showcase.dock-auto .m-topnav:focus-within {
-  transform: translate(-50%, 12px); transition-delay: 0s; box-shadow: 0 12px 34px rgba(0,0,0,.22); }
-body.lay-showcase.dock-auto .m-kopf { padding-top: 24px; }
-@media (prefers-reduced-motion: reduce) { body.lay-showcase.dock-auto .m-topnav { transition: none; } }
-""")
 
 
 CSS = "\n".join([_vars(t, m) for (t, m) in P] + [_typo(t) for t in TYPO] + [_PRO]
-                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _TOOLBAR, _FEED, _HAPTIK, _SHOWCASE_RUHIG, _INNTERNAT, _LAPTOP, _ANHEFTEN])
+                + [_THEME_EIGEN, _DICHTE, _LAYOUTS, _FEED, _HAPTIK, _INNTERNAT, _LAPTOP])

@@ -9,7 +9,6 @@ from datetime import date, datetime, timedelta
 from nicegui import app, run, ui
 from nicegui.elements.mixins.value_element import ValueElement
 
-from belegung import __version__ as haupt_version
 
 from . import __version__, kern, register, seite_anreisen, seite_heute, suche_palette, themes
 from .stil import CSS
@@ -73,8 +72,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from . import symbole as _sy
 
         _sy.VARIANTE["art"] = self.design.get("symbole", "fluent")
-        self.prompt = ""                       # AI-Canvas: aktuelle Eingabe
-        self._antwort = None
         self.filter = "alle"
         self.karten: list[kern.Karte] = []
         self.nav_zahl: dict[str, kern.NavZahl] = {}   # Zähler an den Menüpunkten (Termine, Mieter, Assistenz …)
@@ -360,14 +357,8 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.body.style(replace=themes.stil(self.design))            # 0.66: Akzentfarbe, Schrift, Zoom
         self.dialog_ablage = ui.element("div")                     # Dialoge, die ein Neuzeichnen überstehen
         with ui.element("div").classes("m-app"):
-            with ui.element("nav").classes("m-nav"):
-                self._marke_bauen()
-                self.nav = ui.element("div").classes("m-navliste")
-                ui.label(f"Neue Oberfläche {__version__}\nDaten und Regeln: Belegung {haupt_version}").classes(
-                    "m-navfuss").style("white-space: pre-line")
             with ui.element("div").classes("m-haupt"):
-                self.topnav = ui.element("nav").classes("m-topnav")     # Showcase: schwebendes Dock
-                self._prompt_bauen()                                    # AI-Canvas: zentrale Eingabe
+                self.topnav = ui.element("nav").classes("m-topnav")     # Menüband
                 # 0.74: Kopf + Leiste bilden zusammen die EINE Kontextzeile (im Office-Layout eine Zeile, sonst wie bisher)
                 self.kontextzeile = ui.element("div").classes("m-kz")
                 with self.kontextzeile, ui.element("header").classes("m-kopf"):
@@ -390,10 +381,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             self._frage_bauen()
             self.center = ui.element("aside").classes("m-center")
             attr(self.center, aria_label="Aufgaben")
-        self.toolbar = ui.element("div").classes("m-tb")
-        attr(self.toolbar, role="toolbar", aria_label="Darstellung")
-        self._toolbar_fuellen()
-        ui.add_body_html(_TOOLBAR_JS)
         from .seite_prognose import GRAPH_JS
 
         ui.add_body_html(GRAPH_JS)            # Prognosegraph: Reiterwechsel im Browser
@@ -408,81 +395,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             ui.timer(1.0, lambda: self._vollbild_nativ(True), once=True)
 
 
-    # ---- Darstellung: Layout, Theme, Hell/Dunkel, Dichte, Vollbild, Notiz -----------------
-
-    def _toolbar_fuellen(self) -> None:
-        d = self.design
-        original = d["layout"] == "original"
-        self.toolbar.clear()
-
-        def k(icon: str, titel: str, klick=None, extra: str = ""):
-            b = ui.element("button").classes(f"m-tb-k {extra}".strip())
-            attr(b, title=titel, aria_label=titel)
-            with b:
-                ui.icon(icon)
-            if klick:
-                b.on("click", klick)
-            return b
-
-        def punkt(text: str, unter: str, an: bool, klick, aus: bool = False):
-            item = ui.menu_item(on_click=klick).classes("m-mpunkt")
-            if aus:
-                item.props("disable")
-            with item:
-                ui.icon("radio_button_checked" if an else "radio_button_unchecked").classes("m-mhaken" + (" an" if an else ""))
-                with ui.element("div"):
-                    ui.label(text)
-                    if unter:
-                        ui.label(unter).classes("m-zweite").style("white-space:normal; max-width:280px")
-
-        with self.toolbar:
-            griff = k("tune", "Darstellung – Leiste anheften/lösen", extra="m-tb-griff")
-            griff.on("click", js_handler="() => document.querySelector('.m-tb')?.classList.toggle('fest')")
-            # Layout und Farben in einem Menü „Weitere Darstellungen“ – für den Alltag reicht „Original“
-            with k("space_dashboard", "Weitere Darstellungen (Layout und Farben)", extra="" if original else "an"):
-                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
-                    ui.label("Weitere Darstellungen").classes("m-mgruppe")
-                    ui.label("Für den Alltag reicht „Original“. Die anderen sind Alternativen zum Ausprobieren.").classes(
-                        "m-zweite").style("white-space:normal; max-width:300px; padding: 0 12px 6px")
-                    ui.label("Layout (Aufbau)").classes("m-mgruppe")
-                    for key, (name, text, _i) in themes.LAYOUTS.items():
-                        punkt(name + (" (Standard)" if key == "original" else ""), text, d["layout"] == key,
-                              lambda key=key: self.design_setzen(layout=key))
-                    ui.label("Farben (Theme)" + (" – wechselt auch das Layout zu Classic Grid" if original else "")).classes(
-                        "m-mgruppe")
-                    for key, (name, text, _m) in themes.THEMES.items():
-                        punkt(name, text, not original and d["theme"] == key, lambda key=key: self.design_setzen(theme=key))
-            if not original:                   # Hell/Dunkel und Dichte gibt es nur in den weiteren Darstellungen
-                if len(themes.modi(d["theme"])) > 1:
-                    k("dark_mode" if d["modus"] == "hell" else "light_mode", "Dunkel" if d["modus"] == "hell" else "Hell",
-                      lambda: self.design_setzen(modus="dunkel" if d["modus"] == "hell" else "hell"))
-                k("density_small" if d["dichte"] == "normal" else "density_medium",
-                  "Kompakt (mehr Zeilen)" if d["dichte"] == "normal" else "Normale Dichte",
-                  lambda: self.design_setzen(dichte="kompakt" if d["dichte"] == "normal" else "normal"),
-                  "an" if d["dichte"] == "kompakt" else "")
-            ui.element("div").classes("m-tb-t")
-            k("search", "Suchen / Prompt (Strg+K)", self.suchen)
-            k("fullscreen_exit" if d["vollbild"] else "fullscreen", "Vollbild beenden" if d["vollbild"] else "Vollbild",
-              self.vollbild_umschalten, "an" if d["vollbild"] else "")
-            with k("sticky_note_2", "Notiz", extra="an" if d["notiz"].strip() else ""):
-                with ui.menu().props('class="m-tb-menue" anchor="top right" self="bottom right"'):
-                    with ui.element("div").classes("m-tb-notiz"):
-                        ui.label("Schnelle Notiz – bleibt gespeichert").classes("m-mgruppe").style("padding:0")
-                        notiz = ui.textarea(value=d["notiz"], placeholder="z. B. Rückruf Hausmeister wegen 2-408 …").props(
-                            "dark outlined autogrow")
-                        notiz.on("blur", lambda: self._notiz_speichern(notiz.value or ""))
-            ui.element("div").classes("m-tb-t")
-            k("restart_alt", "Original-Zustand – bisheriges Design und Layout (1 Klick)",
-              lambda: self.design_setzen(**{**themes.STANDARD, "notiz": self.design["notiz"]}), "reset" + (" aus" if original else ""))
-
-    async def _notiz_speichern(self, text: str) -> None:
-        if text == self.design["notiz"]:
-            return
-        self.design["notiz"] = text
-        try:
-            await run.io_bound(kern.design_setzen, self.design)
-        except Exception:                      # noqa: BLE001
-            log.exception("Notiz nicht gespeichert")
+    # ---- Darstellung: Hell/Dunkel, Dichte, Vollbild ------------------------------------------
 
     def _vollbild_nativ(self, an: bool) -> bool:
         """Vollbild im eigenen Fenster (pywebview). False = kein natives Fenster (dann der Browser)."""
@@ -518,10 +431,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         if themes.klassen(self.design):
             self.body.classes(add=" ".join(themes.klassen(self.design)))
         self.body.style(replace=themes.stil(self.design))
-        self._toolbar_fuellen()
-        if self.design["layout"] != "canvas" and self.prompt:
-            self.prompt_eingabe.set_value("")
-            self.prompt, self._antwort = "", None
         diagramm = ("farbe", "farbe_eigen", "helligkeit", "faerbung", "dg_modus", "dg_typ", "dg_glatt", "dg_punkte", "dg_werte", "dg_gitter", "dg_legende", "dg_anim",
                     "dg_anteil", "dg_anteil_zeit")
         farben_neu = ((alt["layout"], alt["theme"], alt["modus"]) != (self.design["layout"], self.design["theme"], self.design["modus"])
@@ -553,16 +462,14 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from . import menueband_ui as _mbu_z
         from . import ui_bausteine as _ub
 
-        _ub.BAND["an"] = _mbu_z.werkzeuge_oben(self) if self.design.get("layout") == "office" else False   # 1.01
+        _ub.BAND["an"] = _mbu_z.werkzeuge_oben(self)                    # 1.01
         self._zurueck_knopf()
         self.status_info = ""                   # 0.74: Zahlen der Ansicht für die Statusleiste (wie in Excel)
         titel = register.TITEL[self.seite]
         from . import menueband_ui
 
         self.titel.set_text(menueband_ui.seitentitel(self, titel))   # Menüband: „Auswertung · Maßnahmen“
-        if self.design["layout"] == "canvas" and self.prompt.strip() and self._antwort is not None:
-            self._canvas_zeichnen()
-        elif self.fehler:
+        if self.fehler:
             with self.inhalt:
                 leer(self.fehler)
         elif self.stand is None or (self.daten is None and (self.seite != "anreisen"
@@ -706,7 +613,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                         self._karte(k)
 
     def _karte(self, k: kern.Karte) -> None:
-        pro = self.design["layout"] != "original"          # neue Layouts: „Später“ als Symbol im Kartenkopf
+        pro = True                                          # „Später“ als Symbol im Kartenkopf
         with ui.element("article").classes(f"m-karte {k.stufe}"):
             with ui.element("div").classes("k1"):
                 with ui.element("span").classes(f"m-ksymbol {AMPEL[k.stufe]}"):
@@ -776,7 +683,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.toast_box.clear()
         with self.toast_box:
             with ui.element("div").classes("m-toast" + (" fehler" if fehler else "")).props('role="status"'):
-                if not fehler and self.design.get("layout", "original") != "original":
+                if not fehler:
                     ui.icon("check_circle").classes("m-toast-ok")      # Haptik: die Bestätigung rastet ein
                 ui.label(text)
                 if extra:
@@ -914,18 +821,12 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             await self.rueckgaengig()
         elif e.modifiers.ctrl and e.key.name.lower() == "k":
             await self.suchen()
-        elif e.key.name == "F1" and e.modifiers.ctrl and self.design["layout"] == "office":   # 0.74: wie Office
+        elif e.key.name == "F1" and e.modifiers.ctrl:                   # 0.74: wie Office
             await self.design_setzen(band_zu=not self.design.get("band_zu"))
         elif e.key.name == "F1":                                         # 0.68: Hilfe zur offenen Seite
             from . import hilfe_ui
 
             hilfe_ui.oeffnen(self)
-        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "showcase":
-            await self.design_setzen(dock_fest=not self.design["dock_fest"])
-        elif e.modifiers.ctrl and e.key.name.lower() == "b" and self.design["layout"] == "grid":
-            await self.design_setzen(schmal=not self.design["schmal"])
-        elif e.key.name == "/" and self.design["layout"] == "canvas":
-            self._prompt_fokus()
         elif self._praesentation() and e.key.name in ("Escape", "ArrowLeft", "ArrowRight"):
             from . import seite_prognose
 
@@ -958,16 +859,6 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                 await erg
         elif e.key.name.lower() == "a" and not e.modifiers.ctrl and self.panel_def is None:
             self.center_umschalten()
-
-
-_TOOLBAR_JS = """<script>
-(() => {   // Werkzeugleiste: nach 3,5 s ohne Bewegung zurücknehmen (nur der Griff bleibt), bei Bewegung wieder zeigen
-  let t = null;
-  const wach = () => { const tb = document.querySelector('.m-tb'); if (!tb) return; tb.classList.add('wach');
-    clearTimeout(t); t = setTimeout(() => tb.classList.remove('wach'), 3500); };
-  ['mousemove', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, wach, { passive: true }));
-})();
-</script>"""
 
 
 SORTIER_JS = r"""<script>

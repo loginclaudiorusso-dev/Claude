@@ -257,7 +257,7 @@ CSS = r"""
   border: 1px solid var(--ob-rand, #ccc); background: var(--ob-reiter, #f3f3f3); white-space: nowrap; justify-self: start; }
 /* Drucken der aktuellen Ansicht: nur der Arbeitsbereich, ganze Höhe */
 @media print {
-  .m-ob, .m-nav, .m-tb, .m-topnav, .m-center, .m-schleier, .m-werkzeuge, .m-ob-status, .m-prompt-zeile, .q-notifications,
+  .m-ob, .m-topnav, .m-center, .m-schleier, .m-werkzeuge, .m-ob-status, .q-notifications,
   .m-kopf .m-knopf, .m-toast { display: none !important; }
   .m-app, .m-haupt { display: block !important; height: auto !important; overflow: visible !important; }
   .m-inhalt { overflow: visible !important; zoom: 1 !important; }

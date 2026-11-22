@@ -251,43 +251,21 @@ SCHRITTE = [
 def _willkommen(a) -> None:
     from .kern import willkommen_weg
 
-    if a.design.get("layout") == "office":            # 0.69: im Menüband nur eine schmale, schließbare Leiste
-        leiste = ui.element("div").classes("m-w-leiste")
-        with leiste:
-            ui.icon("waving_hand")
-            ui.label("Neu hier? Die wichtigsten Schritte in zwei Minuten – jederzeit auch mit F1.")
+    leiste = ui.element("div").classes("m-w-leiste")
+    with leiste:
+        ui.icon("waving_hand")
+        ui.label("Neu hier? Die wichtigsten Schritte in zwei Minuten – jederzeit auch mit F1.")
 
-            async def weg_():
-                await run.io_bound(willkommen_weg)
-                leiste.delete()
+        async def weg_():
+            await run.io_bound(willkommen_weg)
+            leiste.delete()
 
-            def zeigen():
-                from . import hilfe_ui
+        def zeigen():
+            from . import hilfe_ui
 
-                hilfe_ui.oeffnen(a, "start")
-            knopf("Erste Schritte ansehen", zeigen, "leise", "school")
-            knopf("", weg_, "leise", "close", "Nicht mehr zeigen")
-        return
-    box = ui.element("section").classes("m-willkommen")
-    with box:
-        with ui.element("div").classes("m-w-kopf"):
-            ui.icon("waving_hand").classes("m-w-gruss")
-            with ui.element("div"):
-                ui.label("Erste Schritte in der neuen Oberfläche").classes("m-btitel")
-                ui.label("Fünf Dinge, dann kennen Sie alles Wichtige.").classes("m-ptext")
-
-            async def weg():
-                await run.io_bound(willkommen_weg)
-                box.delete()
-
-            knopf("Verstanden", weg, "primaer", "check").style("margin-left:auto")
-        with ui.element("div").classes("m-w-schritte"):
-            for i, (icon, titel, text) in enumerate(SCHRITTE, 1):
-                with ui.element("div").classes("m-w-schritt"):
-                    with ui.element("span").classes("m-w-nr"):
-                        ui.icon(icon)
-                    ui.label(f"{i}. {titel}").classes("m-name")
-                    ui.label(text).classes("m-ptext")
+            hilfe_ui.oeffnen(a, "start")
+        knopf("Erste Schritte ansehen", zeigen, "leise", "school")
+        knopf("", weg_, "leise", "close", "Nicht mehr zeigen")
 
 
 # =======================================================================================

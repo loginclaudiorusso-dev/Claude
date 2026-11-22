@@ -69,7 +69,7 @@ def test_vorlagen_und_stile():
     assert dk.bereinigen({"knopfstil": "glanz", "symbolstil": "emoji"})["knopfstil"] == "klar"
     assert dk.bereinigen({"symbolstil": "emoji"})["symbolstil"] == "linie"
     assert dk.bereinigen({"symbolstil": "rund"})["symbolstil"] == "linie"
-    for kl in ("knopf-weich", "knopf-kontur", "knopf-kraeftig", "sym-gefuellt", "sym-rund", "kontrast"):
+    for kl in ("knopf-weich", "knopf-kontur", "knopf-kraeftig", "kontrast"):
         assert kl in themes.ALLE_KLASSEN
 
 

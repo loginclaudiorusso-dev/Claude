@@ -109,13 +109,3 @@ def test_wochenblatt_und_exporte(leute):
     assert pfad.exists()
 
 
-def test_canvas_antwort(leute):
-    from belegung import zimmerplan as zp
-    from modern import canvas_kern as ck
-
-    st = zp.laden()
-    a = ck.antwort(st, "ohne Zimmer", leute, {})
-    assert a.personen_gesamt == 2 and {p.name for p in a.personen} == {"Anders, Anna", "Berger, Bea"}
-    a = ck.antwort(st, "freie Zimmer Haus 6", leute, {})
-    assert a.zimmer_gesamt > 0 and all(z.kurz.startswith("6-") for z in a.zimmer) and a.alle_zimmer[0] == "zimmer"
-    assert [z.titel for z in ck.antwort(st, "", leute, {}).zahlen][:2] == ["frei heute", "belegt"]

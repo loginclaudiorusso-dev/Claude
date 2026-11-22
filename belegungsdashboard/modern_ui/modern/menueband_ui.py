@@ -29,9 +29,7 @@ STANDARD_ANSICHT = {"anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung":
 
 
 def seitentitel(a, titel: str) -> str:
-    """Im Menüband-Layout fehlen die Ansichts-Umschalter im Seitenkopf – darum steht die Ansicht im Titel."""
-    if a.design.get("layout") != LAYOUT:
-        return titel
+    """Im Menüband fehlen die Ansichts-Umschalter im Seitenkopf – darum steht die Ansicht im Titel."""
     if a.seite == "heute":                             # 0.69: Datum im Titel statt eigener großer Überschrift
         if _heute(a) == "postfach":
             return titel + " · Aufgaben"
@@ -101,8 +99,6 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
                 f"Standort {standort_kern.aktiv().name}", rueck=False)
     elif name.startswith("nav:"):                           # 0.91: Seitenleiste ↔ Menüband
         await a.design_setzen(nav=name.split(":", 1)[1])
-    elif name.startswith("layout:"):
-        await a.design_setzen(layout=name.split(":", 1)[1])
     elif name.startswith("farbe:"):
         await a.design_setzen(farbe=name.split(":", 1)[1])
     elif name.startswith("dg_typ:"):
@@ -321,11 +317,6 @@ def seiten_reiter_titel(a) -> str:
 def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
     """Menüband in ``a.topnav`` bauen – nur neu, wenn sich etwas Sichtbares geändert hat (ein Klick bleibt stehen).
     ``nach_zeichnen``: Aufruf nach dem Zeichnen der Seite – erst dann ist bekannt, ob sie Werkzeuge hat."""
-    if a.design.get("layout") != LAYOUT:
-        if getattr(a, "_ob_sig", None) is not None:
-            a._ob_sig = None
-            a.topnav.clear()
-        return
     alle = mb.reiter(_ansichten(), a.design.get("leitung", True), _standorte())
     oben = werkzeuge_oben(a)
     ort = (a.seite, a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, "")))
@@ -394,28 +385,14 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")
-            if a.design.get("nav", "band") == "leiste":              # 0.91: was Rückgängig zurücknimmt, steht dran
-                from belegung import aenderungen
-
-                s_ = aenderungen.letzter()
-                if s_ is not None:
-                    rk = ui.element("button").classes("m-ob-rueck")
-                    attr(rk, title="Letzten eigenen Schritt zurücknehmen (Strg+Z)")
-                    with rk:
-                        ui.label(f"Rückgängig: {s_.titel}")
-                    rk.on("click", lambda: ausfuehren(a, mb.A("rueckgaengig")))
             # 0.68: Glocke (Neuigkeiten) und Hilfe in der Titelleiste – wie in Office
-            leiste = a.design.get("nav", "band") == "leiste"
-            glocke = ui.element("button").classes("m-ob-tk m-ob-glocke" + (" m-ob-neu" if leiste else ""))
+            glocke = ui.element("button").classes("m-ob-tk m-ob-glocke")
             attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen (Meldungen, keine Aufgaben)" if a.ungelesen
                  else "Neuigkeiten", aria_label="Neuigkeiten")
             with glocke:
-                if leiste:                       # 0.91: als Wort – die Zahl ist keine Aufgabenzahl
-                    ui.label(f"Neuigkeiten · {a.ungelesen}" if a.ungelesen else "Neuigkeiten")
-                else:
-                    ui.icon("notifications" if a.ungelesen else "notifications_none")
-                    if a.ungelesen:
-                        ui.label(str(a.ungelesen)).classes("m-ob-zahl rot" if a.ungelesen else "m-ob-zahl")
+                ui.icon("notifications" if a.ungelesen else "notifications_none")
+                if a.ungelesen:
+                    ui.label(str(a.ungelesen)).classes("m-ob-zahl rot")
             glocke.on("click", lambda: ausfuehren(a, mb.A("neuigkeiten")))
             hilfe = ui.element("button").classes("m-ob-tk")
             attr(hilfe, title="Hilfe zu dieser Seite (F1)", aria_label="Hilfe")
@@ -496,9 +473,8 @@ def _standorte() -> dict:
 
 
 def band_sichtbar(a) -> bool:
-    """0.96: Menüband sichtbar (Office-Layout ohne Seitenleiste) – dann stehen die Diagramm-Filter oben im Band."""
-    d = getattr(a, "design", None) or {}
-    return d.get("layout") == LAYOUT and d.get("nav", "band") != "leiste"
+    """0.96: Menüband sichtbar – dann stehen die Diagramm-Filter oben im Band. 1.35: immer."""
+    return getattr(a, "design", None) is not None
 
 
 async def bildschirmfoto(a, ausschnitt: bool = False) -> None:
@@ -543,7 +519,7 @@ body.lay-office { --ob-titel: #134F4F; --ob-titel-text: #ffffff; --ob-akzent: #0
 body.band-gross .m-ob-band, body.band-gross .m-ob-reiter { zoom: 1.18; }
 body.lay-office.mod-dunkel { --ob-titel: #0E3838; --ob-akzent: #5ED6C6; --ob-band: #1E2626; --ob-reiter: #182020;
   --ob-rand: #334040; --ob-text: #E6EEEE; --ob-text2: #A9B9B9; --ob-hover: #2A3636; --ob-an: #23413F; --ob-fl: #141B1B; }
-body.lay-office .m-nav, body.lay-office .m-tb, body.lay-office .m-kopf-doppelt { display: none !important; }
+body.lay-office .m-kopf-doppelt { display: none !important; }
 body.lay-office .m-topnav { display: block; padding: 0; margin: 0; border: 0; background: none; box-shadow: none;
   position: relative; z-index: 20; flex: none; }
 body.lay-office .m-haupt { background: var(--ob-fl); }
@@ -635,24 +611,7 @@ body.lay-office.mod-dunkel, body.lay-office:not(.hell) { --ob-sym-basis: #CBD5E1
   background: var(--ob-akzent); opacity: .55; }
 body.lay-office .m-seg-ansicht { display: none !important; }
 /* 0.91: Seitenleiste im Windows-Look – Titel- und Statusleiste bleiben, die Registerkarten entfallen */
-body.lay-office.nav-leiste .m-ob-reiter, body.lay-office.nav-leiste .m-ob-band { display: none !important; }
-body.lay-office.nav-leiste .m-seg-ansicht { display: inline-flex !important; }
-body.lay-office.nav-leiste .m-nav { display: flex !important; width: 232px; background: var(--ob-fl);
-  border-right: 1px solid var(--ob-rand); padding: 8px 8px 10px; gap: 1px; overflow-y: auto; backdrop-filter: none;
-  position: fixed; left: 0; top: var(--ob-titel-h, 38px); bottom: 24px; z-index: 5; }
-body.lay-office.nav-leiste .m-nav .m-marke, body.lay-office.nav-leiste .m-nav .m-navfuss { display: none !important; }
-body.lay-office.nav-leiste .m-navliste { display: flex; flex-direction: column; gap: 1px; flex: 1; }
-body.lay-office.nav-leiste .m-haupt { margin-left: 232px; min-width: 0; }
-body.lay-office.nav-leiste .m-haupt > .m-topnav { margin-left: -232px; }
-.m-lz { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent;
-  font: inherit; font-size: 14.5px; color: var(--ob-text); padding: 5px 12px; border-radius: 6px; cursor: pointer; min-height: 31px; }
-.m-lz:hover { background: var(--ob-hover); }
-.m-lz.an { background: var(--ob-an); color: var(--ob-titel); font-weight: 600; }
-body.mod-dunkel .m-lz.an { color: var(--ob-akzent); }
-.m-lz:focus-visible { outline: 2px solid var(--ob-akzent); outline-offset: -2px; }
-.m-lz .m-zahl { margin-left: auto; }
-.m-lz-gruppe { font-size: 12.5px; color: var(--ob-text2); padding: 11px 12px 3px; }
-.m-lz-klein { font-size: 12.5px; color: var(--ob-text2); min-height: 28px; }
+
 .m-ob-rueck { border: 0; background: transparent; color: var(--ob-titel-text); font: inherit; font-size: 13.5px;
   padding: 4px 10px; border-radius: 4px; cursor: pointer; max-width: 340px; overflow: hidden; white-space: nowrap;
   text-overflow: ellipsis; opacity: .92; }

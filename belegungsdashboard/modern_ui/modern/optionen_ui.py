@@ -114,34 +114,29 @@ def _haken(text: str, an: bool, bei) -> None:
 
 
 def _farben(a, d: dict, setzen) -> None:
-    office = True                              # 1.34: es gibt nur noch das Menüband
-    if office:
-        _titel("Vorlagen", "Ein Klick setzt Farbe, Helligkeit, Färbung und Titelleiste passend zusammen – danach lässt "
-               "sich alles einzeln weiter anpassen. Die Statusfarben (frei, belegt, geplant …) bleiben immer gleich.")
-        aktiv = dk.vorlage_von(d)
-        hinter = {"sand": "#FAF3EA", "praesentation": "#111827"}
-        with ui.element("div").classes("m-opt-vorlagen"):
-            for k, (name, unter, werte) in dk.VORLAGEN.items():
-                b = ui.element("button").classes("m-opt-vorlage" + (" an" if k == aktiv else ""))
-                attr(b, aria_pressed=str(k == aktiv).lower(), title=f"{name} – {unter}")
-                farbe = werte.get("farbe_eigen") if werte.get("farbe") == "eigen" else dk.FARBSCHEMATA[werte["farbe"]][1]
-                with b:
-                    with ui.element("span").classes("m-opt-vmuster").style(
-                            f"background:{hinter.get(k, '#FFFFFF')};" + ("outline:2px solid #000;" if werte.get("kontrast") else "")):
-                        ui.element("i").style(f"background:{farbe}")
-                        for s in ("#1E6B34", "#1F4E8C", "#5B3A9E"):
-                            ui.element("i").classes("st").style(f"background:{s}")
-                    ui.label(name).classes("m-name")
-                    ui.label(unter).classes("m-opt-unter")
-                b.on("click", lambda werte=werte: setzen(**werte))
-        _haken("Hoher Kontrast (schwarz auf weiß, kräftige Ränder)", d.get("kontrast", False), lambda x: setzen(kontrast=x))
+    _titel("Vorlagen", "Ein Klick setzt Farbe, Helligkeit, Färbung und Titelleiste passend zusammen – danach lässt "
+           "sich alles einzeln weiter anpassen. Die Statusfarben (frei, belegt, geplant …) bleiben immer gleich.")
+    aktiv = dk.vorlage_von(d)
+    hinter = {"sand": "#FAF3EA", "praesentation": "#111827"}
+    with ui.element("div").classes("m-opt-vorlagen"):
+        for k, (name, unter, werte) in dk.VORLAGEN.items():
+            b = ui.element("button").classes("m-opt-vorlage" + (" an" if k == aktiv else ""))
+            attr(b, aria_pressed=str(k == aktiv).lower(), title=f"{name} – {unter}")
+            farbe = werte.get("farbe_eigen") if werte.get("farbe") == "eigen" else dk.FARBSCHEMATA[werte["farbe"]][1]
+            with b:
+                with ui.element("span").classes("m-opt-vmuster").style(
+                        f"background:{hinter.get(k, '#FFFFFF')};" + ("outline:2px solid #000;" if werte.get("kontrast") else "")):
+                    ui.element("i").style(f"background:{farbe}")
+                    for s in ("#1E6B34", "#1F4E8C", "#5B3A9E"):
+                        ui.element("i").classes("st").style(f"background:{s}")
+                ui.label(name).classes("m-name")
+                ui.label(unter).classes("m-opt-unter")
+            b.on("click", lambda werte=werte: setzen(**werte))
+    _haken("Hoher Kontrast (schwarz auf weiß, kräftige Ränder)", d.get("kontrast", False), lambda x: setzen(kontrast=x))
     _titel("Helligkeit", "Hell, gedämpft (etwas dunkler, im Farbton – wie „Dunkelgrau“ in Office) oder dunkel. "
            "Auch unten rechts in der Statusleiste.")
-    if len(themes.modi(d["theme"])) > 1:
-        _wahl(dk.HELLIGKEIT, d["helligkeit"], lambda h: setzen(helligkeit=h),
-              {"hell": "light_mode", "gedaempft": "contrast", "dunkel": "dark_mode"})
-    else:
-        ui.label("Dieses Farbthema gibt es nur in einer Variante.").classes("m-opt-unter")
+    _wahl(dk.HELLIGKEIT, d["helligkeit"], lambda h: setzen(helligkeit=h),
+          {"hell": "light_mode", "gedaempft": "contrast", "dunkel": "dark_mode"})
     _titel("Färbung", "„Nur Akzent“ färbt Titelleiste, Symbole und Knöpfe. „Ganzes Design“ färbt auch Hintergrund, "
            "Karten, Menüband, Ränder und Text in Abstufungen des Farbtons – die Lesbarkeit wird dabei geprüft.")
     _wahl(dk.FAERBUNG, d["faerbung"], lambda f: setzen(faerbung=f), {"akzent": "format_color_text", "ganz": "format_paint"})
@@ -176,9 +171,8 @@ def _farben(a, d: dict, setzen) -> None:
         echt = dk.lesbar(c, "#FFFFFF")
         if echt != c:
             ui.label(f"Für gute Lesbarkeit wird {c} als {echt} dargestellt.").classes("m-opt-unter")
-    if office:
-        _titel("Titelleiste", "Wie in Office: farbig, hell oder dunkel.")
-        _wahl(dk.TITELLEISTE, d["titelleiste"], lambda t: setzen(titelleiste=t))
+    _titel("Titelleiste", "Wie in Office: farbig, hell oder dunkel.")
+    _wahl(dk.TITELLEISTE, d["titelleiste"], lambda t: setzen(titelleiste=t))
 
 
 def _anzeige(a, d: dict, setzen) -> None:
@@ -201,31 +195,30 @@ def _anzeige(a, d: dict, setzen) -> None:
             b.on("click", lambda k=k: setzen(schrift=k))
     _titel("Dichte")
     _wahl({"kompakt": "Kompakt (28 px)", "normal": "Standard (36 px)", "komfort": "Komfort (44 px)"}, d["dichte"], lambda x: setzen(dichte=x))
-    if d["layout"] == "office":
-        _titel("Knöpfe", "Gilt für alle Knöpfe und Chips gleichzeitig. Die Hauptaktion bleibt in jedem Stil erkennbar.")
-        _wahl(dk.KNOPFSTILE, d.get("knopfstil", "klar"), lambda x: setzen(knopfstil=x),
-              {"klar": "smart_button", "weich": "blur_on", "kontur": "crop_square", "kraeftig": "radio_button_checked"})
-        _titel("Symbole im Menüband", "Zwei Varianten – die bisherigen zweifarbigen oder farbige, realistischere "
-               "(Microsoft Fluent, im Programm enthalten, auch ohne Internet).")
-        from . import symbole as sy
+    _titel("Knöpfe", "Gilt für alle Knöpfe und Chips gleichzeitig. Die Hauptaktion bleibt in jedem Stil erkennbar.")
+    _wahl(dk.KNOPFSTILE, d.get("knopfstil", "klar"), lambda x: setzen(knopfstil=x),
+          {"klar": "smart_button", "weich": "blur_on", "kontur": "crop_square", "kraeftig": "radio_button_checked"})
+    _titel("Symbole im Menüband", "Zwei Varianten – die bisherigen zweifarbigen oder farbige, realistischere "
+           "(Microsoft Fluent, im Programm enthalten, auch ohne Internet).")
+    from . import symbole as sy
 
-        with ui.element("div").classes("m-opt-wahl"):
-            for k, (text, tipp) in dk.SYMBOLE.items():
-                an = d.get("symbole", "fluent") == k
-                b = ui.element("button").classes("m-opt-chip m-opt-sym" + (" an" if an else ""))
-                attr(b, aria_pressed=str(an).lower(), title=tipp)
-                with b:
-                    for name, farbe in sy.VORSCHAU:
-                        ui.html(sy.html(name, farbe, True, variante=k), sanitize=False)
-                    ui.label(text)
-                b.on("click", lambda k=k: setzen(symbole=k))
-        _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
-        _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
-        _titel("Werkzeuge der Seite", "„Im Menüband“: Filter und Knöpfe jeder Seite stehen in einer eigenen "
-               "Registerkarte oben (wie die Kontext-Registerkarten in Office) – sie öffnet sich, sobald man eine Ansicht "
-               "wählt. „Unter dem Menüband“: wie bisher in der Zeile über dem Inhalt.")
-        _wahl({True: "Im Menüband", False: "Unter dem Menüband"}, d.get("werkzeuge_oben", True),
-              lambda x: setzen(werkzeuge_oben=x))
+    with ui.element("div").classes("m-opt-wahl"):
+        for k, (text, tipp) in dk.SYMBOLE.items():
+            an = d.get("symbole", "fluent") == k
+            b = ui.element("button").classes("m-opt-chip m-opt-sym" + (" an" if an else ""))
+            attr(b, aria_pressed=str(an).lower(), title=tipp)
+            with b:
+                for name, farbe in sy.VORSCHAU:
+                    ui.html(sy.html(name, farbe, True, variante=k), sanitize=False)
+                ui.label(text)
+            b.on("click", lambda k=k: setzen(symbole=k))
+    _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
+    _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
+    _titel("Werkzeuge der Seite", "„Im Menüband“: Filter und Knöpfe jeder Seite stehen in einer eigenen "
+           "Registerkarte oben (wie die Kontext-Registerkarten in Office) – sie öffnet sich, sobald man eine Ansicht "
+           "wählt. „Unter dem Menüband“: wie bisher in der Zeile über dem Inhalt.")
+    _wahl({True: "Im Menüband", False: "Unter dem Menüband"}, d.get("werkzeuge_oben", True),
+          lambda x: setzen(werkzeuge_oben=x))
 
 
 def _diagramme(a, d: dict, setzen) -> None:

@@ -1,7 +1,7 @@
 """0.8: Designs – „original“ bleibt unberührt, alles Neue ist an body.pro / body.th-… gebunden."""
 
 import re
-from datetime import date, timedelta
+from datetime import date
 
 
 def _selektoren(css: str) -> list[str]:
@@ -57,20 +57,6 @@ def test_design_wird_gespeichert(tmp_path, monkeypatch):
     d = kern.design_lesen()
     assert (d["layout"], d["theme"], d["helligkeit"], d["dichte"], d["notiz"]) == \
         ("office", "innternat", "gedaempft", "kompakt", "Rückruf")
-
-
-def test_canvas_versteht_saetze():
-    from modern import canvas_kern as ck
-
-    h = date(2026, 10, 15)
-    v = ck.verstehen("freie Doppelzimmer Haus 3,1 morgen", h)
-    assert (v.status, v.haus, v.merkmale, v.von) == ("frei", "3.1", {"doppel"}, h + timedelta(days=1))
-    assert v.zimmerfrage and not v.personenfrage
-    v = ck.verstehen("EMR ohne Zimmer nächste Woche", h)
-    assert v.gruppen == {"EMR"} and v.ohne and v.von == date(2026, 10, 19) and v.personenfrage
-    v = ck.verstehen("Abreisen diese Woche", h)
-    assert v.abreisen and v.bis == date(2026, 10, 18)
-    assert ck.verstehen("2-301", h).zimmerfrage and ck.verstehen("Müller", h).rest == "müller"
 
 
 def test_prognose_szenario_kernaussagen_jahresvergleich():
