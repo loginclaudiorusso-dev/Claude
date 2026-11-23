@@ -81,6 +81,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from .seite_heute import fm_mail
 
         fm_mail(a)
+    elif name == "chat":                                    # 1.43: Chat-Fenster
+        from . import chat_ui
+
+        await chat_ui.umschalten(a)
     elif name == "automatisierung":                         # 1.39: QR-Eingang / Power Automate einrichten
         from . import qr_ui
 
@@ -373,7 +377,7 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
 
     letzt = _ae.letzter()
     sig = (tab, a.seite, repr(sorted(a.ansicht.items())), _heute(a), repr(sorted(a.design.items())), len(a.karten),
-           letzt.titel if letzt else "", len(_ae._verlauf),
+           letzt.titel if letzt else "", len(_ae._verlauf), (getattr(a, "chat", None) or {}).get("ungelesen", 0),
            sum(1 for k in a.karten if k.stufe == "dringend"), a.ungelesen, getattr(a.stand_anzeige, "text", ""),
            tuple(getattr(a, k, None) for k in AW_KEYS), oben and hat_werkzeuge(a))
     if sig == getattr(a, "_ob_sig", None) and not erzwingen:
@@ -407,6 +411,17 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                 ui.label("Strg+K").classes("m-ob-taste")
             such.on("click", a.suchen)
             ui.element("div").style("flex:1")
+            chat = getattr(a, "chat", None) or {}        # 1.43: Chat – immer erreichbar, mit Zahl ungelesener Beiträge
+            cb = ui.element("button").classes("m-ob-tk breit m-ob-chat")
+            n_chat = chat.get("ungelesen", 0)
+            attr(cb, title=f"Chat – {n_chat} neu" if n_chat else "Chat mit allen, die gerade im Programm sind",
+                 aria_label="Chat")
+            with cb:
+                ui.icon("forum")
+                ui.label("Chat")
+                if n_chat:
+                    ui.label(str(n_chat)).classes("m-ob-zahl rot")
+            cb.on("click", lambda: ausfuehren(a, mb.A("chat")))
             # 0.68: Glocke (Neuigkeiten) und Hilfe in der Titelleiste – wie in Office
             glocke = ui.element("button").classes("m-ob-tk m-ob-glocke")
             attr(glocke, title=f"Neuigkeiten – {a.ungelesen} ungelesen (Meldungen, keine Aufgaben)" if a.ungelesen

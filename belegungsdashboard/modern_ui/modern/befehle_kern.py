@@ -66,6 +66,7 @@ WORTE = {
     "konto": ("abmelden", "anmelden", "passwort", "konto", "benutzer wechseln", "ausloggen"),
     "hilfe": ("anleitung", "tastenkürzel", "erste schritte", "f1", "?"),
     "neuigkeiten": ("glocke", "meldungen", "benachrichtigungen"),
+    "chat": ("chat", "unterhalten", "kollegen fragen", "plaudern", "teams"),
     "automatisierung": ("power automate", "qr einrichten", "forms", "automatik"),
     "standort": ("goslar", "bad pyrmont", "weser-ems", "wechseln"),
     "rueckgaengig": ("undo", "zurück", "strg+z"),

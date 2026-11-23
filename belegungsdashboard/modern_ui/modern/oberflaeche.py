@@ -438,6 +438,10 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         ui.add_body_html(BRIEFING_JS)         # Heute: Morgen-Briefing vorlesen (Sprachausgabe des Systems)
         ui.add_body_html(SORTIER_JS)          # alle Tabellen: Klick auf die Spaltenüberschrift sortiert
         self.toast_box = ui.element("div")
+        from . import chat_ui                  # 1.43: Chat-Fenster unten rechts (bleibt beim Arbeiten offen)
+
+        ui.add_css(chat_ui.CSS)
+        chat_ui.einrichten(self)
         ui.keyboard(self._taste, ignore=["input", "select", "textarea"])   # Esc auch, wenn ein Knopf den Fokus hat
         ui.timer(PRUEF_S, self.pruefen)
         if self.design["vollbild"]:

@@ -389,7 +389,8 @@ DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – 1.39: nur Ausg
     Punkt("Konto", "p:konto", A("konto"), False, "Angemeldet als …, Passwort ändern, Abmelden, Darstellung"),  # 1.33
 ]
 # Titelleiste rechts (wie in Office): Glocke, Hilfe – der Standort steht als Auswahl neben dem Programmnamen
-TITELLEISTE = [Punkt("Benachrichtigungen", "notifications", A("neuigkeiten"), False),
+TITELLEISTE = [Punkt("Chat", "forum", A("chat"), False, "Chat mit allen, die gerade im Programm sind"),   # 1.43
+               Punkt("Benachrichtigungen", "notifications", A("neuigkeiten"), False),
                Punkt("Hilfe (F1)", "help_outline", A("hilfe"), False),
                Punkt("Standort", "location_city", A("standort"), False)]
 # Statusleiste rechts (wie in Word/Excel): Darstellung des Arbeitsbereichs

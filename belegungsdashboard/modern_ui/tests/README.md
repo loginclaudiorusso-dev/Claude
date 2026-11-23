@@ -19,6 +19,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_assistenz_v109_gaestehaus.py` – 1.09 – mehrere Gästehaus-Vormerkungen in einer Mail. Nur erfundene Namen, Orte und Anschriften.
 - `test_assistenz_v136_nachrichten.py` – 1.36 – Nachrichten im Programm, Mail an FM, „Was ist zu tun?“
 - `test_assistenz_v141_kurzmeldung.py` – 1.41 – Kurzmeldungen der Pforte (Schlüssel, Anreise heute), KI-Einschätzung, Kennzahlen → Belegung
+- `test_assistenz_v143_chat.py` – 1.43 – Chat im Programm: Kanäle, gelesen je Person, Hinweis bei Neuem
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

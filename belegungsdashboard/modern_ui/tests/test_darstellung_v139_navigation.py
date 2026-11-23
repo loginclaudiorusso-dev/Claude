@@ -118,7 +118,7 @@ def test_verwaltung_buendelt_einrichten():
 def test_datei_nur_ausgabe_und_persoenliches():
     assert [p.text for p in mb.DATEI] == ["Drucken … (Strg+P)", "Exportieren …", "Informationen & Sicherung", "Konto"]
     assert all(p.icon.startswith("p:") for p in mb.DATEI)
-    assert mb.TITELLEISTE[0].text == "Benachrichtigungen"
+    assert [p.text for p in mb.TITELLEISTE][:2] == ["Chat", "Benachrichtigungen"]      # 1.43: Chat vorne
 
 
 def test_alte_namen_finden_den_neuen_ort():

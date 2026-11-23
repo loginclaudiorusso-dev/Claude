@@ -447,7 +447,7 @@ def _schluessel(name: str, je_standort: bool) -> str:
 
 # 1.37: Diese Werte gehören zur PERSON (angemeldetes Konto) und reisen mit, wenn sie an einem anderen PC arbeitet.
 # Alles andere bleibt am PC (z. B. Pfad der Forms-Antwortdatei, Outlook-Ordner, schon gezeigte Windows-Meldungen).
-JE_PERSON = frozenset({"design", "spaeter", "gezeigt", "willkommen_gesehen", "standort"})
+JE_PERSON = frozenset({"design", "spaeter", "gezeigt", "willkommen_gesehen", "standort", "chat_gelesen"})   # 1.43: Chat
 
 
 def _person_datei() -> Path | None:

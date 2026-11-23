@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (ab 1.32)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.42)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -7,6 +7,16 @@ markiert dabei nichts. Ihr Posteingang bleibt dadurch sauber.
 
 Dauer: etwa 15 Minuten. Sie brauchen das Formular mit den Fragen „Zimmer“, „Code (bitte nicht ändern)“,
 „Art des Problems“ und „Beschreibung“.
+
+**Voraussetzung:** auf dem PC, der einliest, das **klassische Outlook** (nicht „Neues Outlook“ – dort fehlt die
+Schnittstelle). In INNternat öffnen Sie alles Nötige unter **Verwaltung → Automatisierung** (gleiches Fenster wie
+**Zimmer & Haus → QR-Meldungen → „Einrichten & Etiketten“**).
+
+## Teil 0 – Formular-Link in INNternat (falls noch nicht geschehen)
+1. In Forms: Formular öffnen → **„…“ → „Vorausgefüllte URL abrufen“**. Bei „Zimmer“ `ZIMMER` und bei „Code (bitte
+   nicht ändern)“ `CODE` eintragen → **„Vorausgefüllten Link abrufen“** → **Kopieren**.
+2. In INNternat **Verwaltung → Automatisierung** öffnen, unter **„1 · Formular-Link“** einfügen und speichern. Danach
+   lassen sich dort die Etiketten mit QR-Code je Zimmer drucken.
 
 ---
 
@@ -74,13 +84,24 @@ ENDE
     verschieben.
 
 ## Teil 4 – In INNternat eintragen (auf einem PC mit Outlook)
-20. Öffnen Sie **Zimmer & Haus → Defekte Zimmer → QR-Meldungen** und klicken Sie auf **„Einrichten & Etiketten“**.
+20. Öffnen Sie **Verwaltung → Automatisierung** (oder **Zimmer & Haus → QR-Meldungen → „Einrichten & Etiketten“**).
 21. Tragen Sie unter **„2 · Eingang auf diesem PC“** bei **„Outlook-Ordner für QR-Mails“** den Ordner ein:
     - für das eigene Postfach: `Posteingang/QR-Meldungen`;
     - für ein Gruppenpostfach: `<Name des Postfachs>/Posteingang/QR-Meldungen`, so wie es links in Outlook steht.
 22. Klicken Sie auf **„Ordner speichern“** und dann auf **„Jetzt einlesen“**. Die Testmeldung erscheint in der
     Liste, mit dem Zimmer vom Etikett.
 23. Oben zeigt die Prüfanzeige **„Outlook-Ordner“** grün und **„QR-Mails“** mit der Zahl der Mails.
+24. Eine Meldung wird erst zum Mangel, wenn Sie sie unter **Zimmer & Haus → QR-Meldungen** prüfen und
+    **„Übernehmen“** klicken. Danach steht sie unter **Defekte Zimmer** (und im Cockpit unter „Heute geändert“).
+
+## Wenn etwas nicht klappt
+| Was Sie sehen | Was zu tun ist |
+|---|---|
+| Ausführungsverlauf „Fehler“ bei „Antwortdetails abrufen“ | Formular-ID im Schritt prüfen (dasselbe Formular wie im Trigger). |
+| Mail kommt nicht an | „An“-Adresse prüfen; Junk-E-Mail-Ordner ansehen. |
+| Mail kommt an, INNternat zeigt nichts | Ordnerpfad genau wie links in Outlook schreiben; Outlook muss offen sein; „Jetzt einlesen“. |
+| Zimmer falsch oder leer | Etikett neu drucken (Teil 0); im Formular darf „Zimmer“ nicht verändert werden – der Code zeigt es an. |
+| Meldung doppelt | Nur einen Eingang nutzen (Outlook **oder** Excel), Excel-Pfad leeren. |
 
 **Wichtig:**
 - Outlook muss auf diesem PC geöffnet sein. Ist es zu, wartet INNternat und versucht es in 5 Minuten wieder. Outlook
