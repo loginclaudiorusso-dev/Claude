@@ -145,6 +145,6 @@ def test_navigation_steuerung_unten_und_zimmer_ohne_renovierung():
     from modern import register, seite_zimmer
 
     assert register.NAV[-1][0] == "steuerung" and "steuerung" in register.SEITEN
-    assert {g for *_x, g in register.NAV} >= {"Betrieb", "Leitung"} and "Täglich" not in {g for *_x, g in register.NAV}
+    assert {g for *_x, g in register.NAV} >= {"Anreisen", "Planung"} and "Täglich" not in {g for *_x, g in register.NAV}
     assert "renovierung" not in seite_zimmer.ANSICHTEN
     assert seite_zimmer._ansicht(SimpleNamespace(ansicht_von=lambda s, d: "renovierung")) == "uebersicht"

@@ -17,7 +17,7 @@ def _ansichten() -> dict:
                    seite_steuerung, seite_termine, seite_zimmer)
 
     return {"anreisen": seite_anreisen.ANSICHTEN, "zimmer": seite_zimmer.ANSICHTEN, "termine": seite_termine.ANSICHTEN,
-            "reinigung": {"liste": "Reinigungsliste", "last": "Vorschau 6 Wochen", "facility": "Facility-Checks"},
+            "reinigung": {"liste": "Reinigungsliste", "last": "Reinigungsvorschau", "facility": "Facility-Checks"},
             "assistenz": seite_assistenz.ANSICHTEN, "auswertung": seite_auswertung.ANSICHTEN,
             "steuerung": seite_steuerung.ANSICHTEN, "inventar": seite_inventar.ANSICHTEN,
             "einstellungen": seite_einstellungen.ANSICHTEN}
@@ -30,11 +30,8 @@ STANDARD_ANSICHT = {"anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung":
 
 def seitentitel(a, titel: str) -> str:
     """Im Menüband fehlen die Ansichts-Umschalter im Seitenkopf – darum steht die Ansicht im Titel."""
-    if a.seite == "heute":                             # 0.69: Datum im Titel statt eigener großer Überschrift
-        if _heute(a) == "postfach":
-            return titel + " · Aufgaben"
-        tage = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
-        return f"{titel} · {tage[a.heute.weekday()]}, {a.heute:%d.%m.%Y}"
+    if a.seite == "heute":                             # 1.39: die Startseite heißt Cockpit
+        return titel + " · Cockpit"
     views = _ansichten().get(a.seite) or {}
     k = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
     return f"{titel} · {views[k]}" if k in views else titel
@@ -84,6 +81,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from .seite_heute import fm_mail
 
         fm_mail(a)
+    elif name == "automatisierung":                         # 1.39: QR-Eingang / Power Automate einrichten
+        from . import qr_ui
+
+        qr_ui.fenster(a)
     elif name == "konto":                                   # 1.33: Konto, Abmelden, Benutzer verwalten
         from . import benutzer_ui
 
@@ -149,6 +150,11 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
 
 
 def _zahl(a, p: mb.Punkt) -> tuple[int, bool]:
+    if p.ziel and p.ziel[0] == "seite" and p.ziel[1] == "heute" and p.ziel[3].get("pf_auswahl"):
+        t = getattr(a, "daten", None)                    # 1.39: Nachrichten – ungelesene
+        if a.seite == "heute" and hasattr(t, "nachrichten"):
+            return sum(1 for n in t.nachrichten if n.ungelesen_fuer(getattr(t, "ich", ""))), False
+        return len(getattr(a, "_nachr_gemeldet", None) or ()), False
     if p.ziel and p.ziel[0] == "seite" and p.ziel[1] == "heute" and p.ziel[3].get("heute_ansicht") == "postfach":
         return len(a.karten), True                       # 0.99: rotes Zähler-Abzeichen wie in Office
     if p.ziel == ("aktion", "neuigkeiten"):
@@ -176,6 +182,10 @@ def _menue(a, punkte: list[mb.Punkt]) -> None:
             with ui.menu_item(on_click=lambda q=q: ausfuehren(a, q.ziel)).classes("m-ob-mpunkt" + (" an" if an else "")):
                 if q.farbe:
                     ui.element("span").classes("m-ob-muster").style(f"background:{q.farbe}")
+                elif icon.startswith("p:"):                   # 1.39: eigenes Piktogramm (Datei)
+                    from . import symbole
+
+                    ui.html(symbole.html(icon, gross=False), sanitize=False)
                 else:
                     ui.icon(icon)
                 ui.label(q.text)
@@ -320,6 +330,8 @@ def hat_werkzeuge(a) -> bool:
 def seiten_reiter_titel(a) -> str:
     from . import register
 
+    if a.seite in mb.KONTEXT_TITEL:                      # 1.39: Ansichtswahl + Werkzeuge in EINER Karte
+        return mb.KONTEXT_TITEL[a.seite]
     t = seitentitel(a, register.TITEL.get(a.seite, a.seite))
     return t.split(" · ")[-1] if " · " in t and a.seite != "heute" else t.split(" · ")[0]
 
@@ -333,7 +345,7 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
     if getattr(a, "_ob_ort", None) not in (None, ort) and oben:
         a._ob_sprung = True                         # Seite/Ansicht gewechselt → nach dem Zeichnen ihre Werkzeuge zeigen
     a._ob_ort = ort
-    tab = getattr(a, "band_tab", None) or "start"
+    tab = getattr(a, "band_tab", None) or "uebersicht"
     if tab == "seite" and not (oben and (hat_werkzeuge(a) or not nach_zeichnen)):
         tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))
     if tab != "seite":
@@ -424,8 +436,12 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                 if hier:                                     # Orientierung: hier liegt die offene Seite
                     attr(rb, title="Hier liegt die gerade offene Seite")
                 if r.kontext:
-                    attr(rb, title="Kontext-Registerkarte – erscheint nur auf Seiten mit Diagrammen")
+                    attr(rb, title="Kontext-Registerkarte – erscheint nur, solange sie hier gebraucht wird")
                 with rb:
+                    if r.symbol:                             # 1.39: Bereiche mit eigenem Piktogramm
+                        from . import symbole
+
+                        ui.html(symbole.html(r.symbol, gross=False, klasse="m-ob-tabsym"), sanitize=False)
                     ui.label(r.titel)
                 rb.on("click", lambda r=r: _tab(a, r.key))
             if oben and hat_werkzeuge(a):            # 0.99: Kontext-Registerkarte mit den Werkzeugen der Seite
@@ -560,6 +576,12 @@ body.lay-office .m-inhalt { padding-bottom: 26px; }
 body.lay-office.mod-dunkel .m-ob-datei { color: #0B2222 !important; }
 .m-ob-tab { position: relative; height: 32px; padding: 0 14px; border-radius: 4px 4px 0 0; color: var(--ob-text) !important; }
 .m-ob-tab:hover { background: var(--ob-hover) !important; }
+.m-ob-tab { display: inline-flex; align-items: center; gap: 6px; }
+.m-ob-tab .m-sym.klein { width: 18px; height: 18px; }
+.m-ob-tab.an { --pk-p: var(--ob-akzent); }
+.m-ob-gross:hover, .m-ob-klein:hover { --pk-k: var(--ob-hover); }
+.m-ob-gross.an, .m-ob-klein.an { --pk-p: var(--ob-akzent); --pk-k: var(--ob-an); }
+.m-ob-mpunkt .m-sym.klein { width: 18px; height: 18px; --pk-k: var(--ob-fl, #fff); }
 .m-ob-tab.an { background: var(--ob-band) !important; font-weight: 600 !important; color: var(--ob-akzent) !important; }
 .m-ob-tab.an::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 3px; height: 3px; border-radius: 2px;
   background: var(--ob-akzent); }

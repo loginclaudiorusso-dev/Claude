@@ -1,17 +1,17 @@
-"""1.38 – Registerkarte Start aufgeräumt (Heute · Kommunikation · Termine · Assistenz), Mail an FM direkt senden."""
+"""1.38 – Start aufgeräumt (1.39: Übersicht), Mail an FM direkt senden."""
 
 from modern import fm_mail_kern as fk
 from modern import menueband as mb
 
 
-def test_start_gruppen_und_jeder_befehl_einmal():
-    start = {r.key: r for r in mb.reiter({})}["start"]
-    assert [g.titel for g in start.gruppen] == ["Heute", "Kommunikation", "Termine", "Assistenz"]
-    ziele = [repr(q.ziel) for g in start.gruppen for p in g.punkte for q in [p] + p.menue]
+def test_kommunikation_in_der_uebersicht():
+    """1.39: Start heißt Übersicht; Termine → Planung › Kalender, Assistenz → KI-Assistent."""
+    ueb = {r.key: r for r in mb.reiter({})}["uebersicht"]
+    assert [g.titel for g in ueb.gruppen] == ["Cockpit", "Kommunikation"]
+    ziele = [repr(q.ziel) for g in ueb.gruppen for p in g.punkte for q in [p] + p.menue]
     assert len(ziele) == len(set(ziele))
-    texte = [p.text for g in start.gruppen for p in g.punkte]
-    assert "Mails auswerten" in texte and "Mails" not in texte              # keine Verwechslung mit dem Postfach
-    assert sum(1 for g in start.gruppen for _p in g.punkte) <= 8
+    texte = [p.text for g in ueb.gruppen for p in g.punkte]
+    assert texte == ["Cockpit", "Nachrichten", "Neue Nachricht", "Mail an FM"]
 
 
 def test_senden_prueft_vorher_und_startet_outlook_nie():

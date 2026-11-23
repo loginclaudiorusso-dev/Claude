@@ -31,6 +31,10 @@ def svg(name: str, stufe: str = "g", art: str = "r") -> str:
 
 
 def vorhanden(name: str) -> bool:
+    if name.startswith("p:"):
+        from . import piktogramme
+
+        return piktogramme.vorhanden(name[2:])
     return bool(svg(name, "g", "r"))
 
 
@@ -158,6 +162,11 @@ def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", ov
     """Duotone-Symbol als HTML. ``farbe``: Bedeutungsfarbe (Hex) oder leer. 1.07: ``overlay`` = kleines zweites Symbol
     unten rechts (z. B. Trend-Pfeil, Filter, Wechsel-Pfeil) in ``ofarbe``. 1.34: ``variante`` „farbig“ → vollfarbige
     Fassung, wenn es sie gibt (ohne Angabe gilt ``VARIANTE``)."""
+    if name.startswith("p:"):                       # 1.39: eigenes Piktogramm (Farben aus CSS, kein zweites Set)
+        from . import piktogramme
+
+        return (f'<span class="m-sym {"gross" if gross else "klein"} pikto {klasse}" aria-hidden="true">'
+                f'{piktogramme.svg(name[2:])}</span>')
     farbe = FARBEN.get(farbe, farbe)
     if (variante or VARIANTE["art"]) == "farbig" and (bunt := farbig(name, "g" if gross else "k")):
         inhalt = f'<span class="m-sym-c">{bunt}</span>'
@@ -184,6 +193,7 @@ body:not(.hell) { --sym-basis: #CBD5E1; --sym-deckung: .55; }
 .m-sym.gross { width: 32px; height: 32px; }
 .m-sym.klein { width: 20px; height: 20px; }
 .m-sym > span { position: absolute; inset: 0; display: block; }
+.m-sym.pikto > svg { position: absolute; inset: 0; }
 .m-sym svg { width: 100%; height: 100%; display: block; }
 .m-sym .m-sym-k { color: var(--sym-basis); }
 .m-sym .m-sym-f { opacity: var(--sym-deckung); }

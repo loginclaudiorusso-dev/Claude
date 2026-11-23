@@ -21,8 +21,8 @@ def _T() -> dict:
     return themes.farben(themes.AKTIV)
 
 
-ANSICHTEN = {"lage": "Überblick", "belegung": "Belegung", "prognose": "Belegungs\u00adprognose", "massnahmen": "Maßnahmen",
-             "zimmer": "Engpässe"}                       # 0.69: eindeutiger (kein „Zimmer“ doppelt neben Zimmer & Haus)
+ANSICHTEN = {"lage": "Kennzahlen", "belegung": "Belegung", "prognose": "Belegungs\u00adprognose", "massnahmen": "Maßnahmen",
+             "zimmer": "Zimmer-Engpässe"}                   # 1.39: „Überblick“ heißt Kennzahlen                       # 0.69: eindeutiger (kein „Zimmer“ doppelt neben Zimmer & Haus)
 AMPEL = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit", "unbekannt": "neutral"}
 
 
@@ -78,7 +78,7 @@ def zeichnen(a) -> None:
             leer(a.daten["fehler"])
             if "Pivot" in a.daten["fehler"]:         # 0.68: leerer Zustand mit direktem Weg zur Lösung
                 with ui.element("div").style("display:flex; justify-content:center"):
-                    knopf("Daten & Import öffnen", lambda: a.oeffnen("daten"), "primaer", "upload_file")
+                    knopf("Daten einlesen öffnen", lambda: a.oeffnen("daten"), "primaer", "upload_file")
         return
     {"lage": _lage, "belegung": _belegung, "prognose": seite_prognose.zeichnen}[ansicht](a)
 

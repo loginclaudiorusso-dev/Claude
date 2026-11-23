@@ -20,8 +20,8 @@ def leer(tmp_path, monkeypatch):
 def test_steuerung_fuenf_bereiche_und_alte_namen():
     from modern import seite_steuerung as ss
 
-    assert list(ss.ANSICHTEN.values()) == ["Cockpit", "Vorhaben", "Zeitplan & Kapazität", "Finanzen",
-                                          "Grundlagen"]   # 1.20: neues Cockpit ersetzt das alte
+    assert list(ss.ANSICHTEN.values()) == ["Überblick", "Vorhaben", "Zeitplan & Kapazität", "Finanzen",
+                                          "Annahmen"]   # 1.39: „Cockpit“ heißt nur die Startseite
     for alt, neu in (("uebersicht", "cockpit"), ("renovierung", "vorhaben"), ("prognose", "zeitplan"),
                      ("szenarien", "finanzen"), ("kennzahlen", "grundlagen"), ("quatsch", "cockpit")):
         assert ss.ansicht(SimpleNamespace(ansicht_von=lambda s, d, v=alt: v)) == neu

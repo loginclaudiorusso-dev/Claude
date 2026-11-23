@@ -25,6 +25,9 @@ def _schluessel(z):
 def test_jede_ansicht_erreichbar():
     ziele = mb.alle_ziele(ANS)
     erreicht = {(z[1], z[2]) for z in ziele} | {("einstellungen", "allgemein")}   # über Datei → Optionen → Programm
+    # 1.39: in der Werkzeug-Registerkarte der Seite umgeschaltet
+    erreicht |= {("zimmer", "karten"), ("termine", "monat"), ("inventar", "zimmer"), ("inventar", "haeuser")} | \
+        {("steuerung", k) for k in ("vorhaben", "zeitplan", "finanzen", "grundlagen")}
     for seite, views in ANS.items():
         for k in views:
             assert (seite, k) in erreicht or (seite, None) in erreicht and k == next(iter(views)), (seite, k)
@@ -33,8 +36,9 @@ def test_jede_ansicht_erreichbar():
 
 def test_jeder_befehl_nur_einmal():
     """Je Schaltfläche zählt ein Ziel einmal (der Split-Button nennt seine Standardansicht auch im Pfeil-Menü)."""
+    # 1.39: Kontext-Registerkarten schalten nur die Ansicht der offenen Seite um – sie sind kein zweiter Eingang
     je_knopf = [{_schluessel(q.ziel) for q in [p] + p.menue if q.ziel and q.ziel[0] == "seite"}
-                for r in mb.reiter(ANS) for g in r.gruppen for p in g.punkte]
+                for r in mb.reiter(ANS) if not r.kontext for g in r.gruppen for p in g.punkte]
     je_knopf += [{_schluessel(p.ziel)} for p in mb.DATEI if p.ziel and p.ziel[0] == "seite"]
     doppelt = [k for k, n in Counter(z for menge in je_knopf for z in menge).items() if n > 1]
     assert doppelt == []
@@ -47,14 +51,13 @@ def test_jeder_befehl_nur_einmal():
 def test_aufgeraeumt_hoechstens_acht():
     for r in mb.reiter(ANS):
         n = sum(len(g.punkte) for g in r.gruppen)
-        # 0.96: Die Kontext-Registerkarte „Diagrammentwurf“ ist wie in Excel dichter (Filter der Diagramme stehen dort);
-        # auf Seiten ohne Prognose zeigt sie nur drei Gruppen.
-        assert n <= (18 if r.kontext else 8), (r.titel, n)
+        # 1.39: auch Kontext-Registerkarten höchstens 8 (Diagramm verschlankt, Prognose eigene Karte)
+        assert n <= 8, (r.titel, n)
         assert len(r.gruppen) <= 5, r.titel
 
 
 def test_kontext_diagramm():
     d = next(r for r in mb.reiter(ANS) if r.key == "diagramm")
     assert mb.sichtbar(d, "auswertung") and mb.sichtbar(d, "steuerung") and not mb.sichtbar(d, "heute")
-    assert all(mb.sichtbar(r, "heute") for r in mb.reiter(ANS) if r.key != "diagramm")
+    assert all(mb.sichtbar(r, "heute") for r in mb.reiter(ANS) if not r.kontext)
     assert mb.reiter_von("auswertung", ANS, "prognose") == "auswertung"          # Kontext-Karte ist nie Ziel

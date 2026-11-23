@@ -15,7 +15,7 @@ from .kern import _schritt, unter_sperre
 from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
 
-ANSICHTEN = {"auftraege": "Aufträge", "mails": "Mails", "fragen": "Fragen & Zahlen"}
+ANSICHTEN = {"auftraege": "Aufträge", "mails": "Outlook-Mails", "fragen": "Schnellauskunft"}   # 1.39
 BEISPIEL = ("z. B.  6-403 Fliegen beseitigen bis 1.11.26\n        Nachname, Vorname vom 26.06.2025 bis 24.06.2027 in 2-408\n"
             "        2-115 Heizung erledigt\n        Freitag 10 Uhr Teambesprechung")
 
@@ -65,7 +65,7 @@ def _auftraege(a) -> None:
                     a.as_verstanden = [v for v in vs if v.eingabe not in fragen]
                     _vorschau(a, vorschau, eingabe)
                     if fragen:
-                        a.toast(f"{len(fragen)} Frage(n) – bitte unter „Fragen & Zahlen“ stellen.", rueck=False)
+                        a.toast(f"{len(fragen)} Frage(n) – bitte unter „Schnellauskunft“ stellen.", rueck=False)
 
                 eingabe.on("keydown.ctrl.enter", verstehen)
                 with ui.element("div").classes("m-paktionen"):

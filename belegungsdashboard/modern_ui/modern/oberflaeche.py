@@ -382,6 +382,9 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from . import symbole as _symbole
 
         ui.add_css(_symbole.CSS)               # 1.00: Fluent-2-Symbole (zweifarbig)
+        from . import piktogramme as _pk
+
+        ui.add_css(_pk.CSS)                    # 1.39: eigene Piktogramme
         from . import band_ui as _band_ui
 
         ui.add_css(_band_ui.CSS)               # 1.00: Seiten-Werkzeuge als Office-Gruppen

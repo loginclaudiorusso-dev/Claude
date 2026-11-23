@@ -25,7 +25,7 @@ def test_druckausgaben_bekannt():
 
 def test_glocke_hilfe_drucken_an_einer_stelle():
     datei = [p.ziel for p in mb.DATEI]
-    assert ("aktion", "drucken") in datei and datei[-1] == ("aktion", "optionen")
+    assert ("aktion", "drucken") in datei and datei[-1] == ("aktion", "konto")      # 1.39: Optionen im Konto
     titel = [p.ziel for p in mb.TITELLEISTE]
     assert {("aktion", "neuigkeiten"), ("aktion", "hilfe"), ("aktion", "standort")} <= set(titel)
     assert ("aktion", "hilfe") not in datei and ("aktion", "standort") not in datei          # 0.69: nur einmal

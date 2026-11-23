@@ -12,7 +12,8 @@ from . import anreisen_kern as ank
 from . import seiten
 from .ui_bausteine import attr, badge, badge_neu, kennzahlen, knopf, leer, segmente
 
-ANSICHTEN = {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": "Abreisen", "eintragen": "RIOS-Daten"}
+ANSICHTEN = {"zuteilen": "Zuteilen", "personen": "Teilnehmerliste", "abreisen": "Abreisen",
+             "eintragen": "Datenabgleich"}                  # 1.39: sagt, was gemeint ist
 
 
 def daten(a) -> None:

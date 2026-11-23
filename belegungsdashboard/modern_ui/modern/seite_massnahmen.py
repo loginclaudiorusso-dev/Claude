@@ -316,7 +316,7 @@ def zeichnen(a) -> None:
     with a.inhalt:
         if not d["stand"]["pivot"]:
             leer("Noch kein Maßnahmen-Pivot eingelesen. Unter Daten & Import → „Maßnahmen-Prognose“ hochladen.")
-            knopf("Zu Daten & Import", lambda: a.oeffnen("daten"), "primaer", "upload_file")
+            knopf("Zu Daten einlesen", lambda: a.oeffnen("daten"), "primaer", "upload_file")
             return
         if not d["reihen"]:
             leer("Für diese Auswahl gibt es keine Daten.")

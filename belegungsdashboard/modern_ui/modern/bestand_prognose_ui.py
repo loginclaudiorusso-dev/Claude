@@ -48,8 +48,8 @@ def daten(a) -> dict:
 def zeichnen(a, d: dict) -> None:
     if d.get("leer"):
         with a.inhalt:
-            leer("Für die Bestandsprognose den Maßnahmen-Pivot einmal neu einlesen (Daten & Import → Maßnahmen-Prognose).")
-            knopf("Zu Daten & Import", lambda: a.oeffnen("daten"), "", "upload_file")
+            leer("Für die Bestandsprognose den Maßnahmen-Pivot einmal neu einlesen (Verwaltung → Daten einlesen → Maßnahmen-Prognose).")
+            knopf("Zu Daten einlesen", lambda: a.oeffnen("daten"), "", "upload_file")
         return
     erg = d["erg"]
     md: bp.Modell = erg["modell"]

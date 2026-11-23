@@ -6,20 +6,20 @@ from . import (seite_auswertung, seite_daten, seite_einstellungen, seite_heute, 
                seite_zimmer, seiten)
 from . import seite_assistenz, seite_steuerung
 
-# (Schlüssel, Titel, Symbol, Gruppe)
+# (Schlüssel, Titel, Symbol, Bereich) – 1.39: Titel und Bereiche nach Navigation 2.0
 NAV = [
-    ("heute", "Heute", "today", ""),
-    ("anreisen", "Anreisen", "flight_land", "Betrieb"),
-    ("zimmer", "Zimmer", "meeting_room", "Betrieb"),
-    ("reinigung", "Reinigung", "cleaning_services", "Betrieb"),
-    ("termine", "Termine", "event", "Betrieb"),
-    ("assistenz", "Assistenz", "auto_awesome", "Betrieb"),
-    ("mieter", "Mieter", "key", "Betrieb"),
-    ("auswertung", "Auswertung", "insights", "Überblick"),
-    ("daten", "Daten & Import", "upload_file", "Verwalten"),
-    ("inventar", "Inventar", "inventory_2", "Verwalten"),
-    ("einstellungen", "Einstellungen", "settings", "Verwalten"),
-    ("steuerung", "Steuerung", "query_stats", "Leitung"),     # selten genutzt – ganz unten, abgesetzt
+    ("heute", "Übersicht", "today", ""),
+    ("anreisen", "Anreisen", "flight_land", "Anreisen"),
+    ("zimmer", "Zimmer & Haus", "meeting_room", "Zimmer & Haus"),
+    ("reinigung", "Reinigung", "cleaning_services", "Zimmer & Haus"),
+    ("termine", "Kalender", "event", "Planung"),
+    ("assistenz", "KI-Assistent", "auto_awesome", "KI-Assistent"),
+    ("mieter", "Mieter", "key", "Anreisen"),
+    ("auswertung", "Auswertung", "insights", "Auswertung"),
+    ("daten", "Daten einlesen", "upload_file", "Verwaltung"),
+    ("inventar", "Inventar", "inventory_2", "Zimmer & Haus"),
+    ("einstellungen", "Verwaltung", "settings", "Verwaltung"),
+    ("steuerung", "Renovierung & Budget", "query_stats", "Planung"),     # selten genutzt – ganz unten, abgesetzt
 ]
 TITEL = {k: t for k, t, _i, _g in NAV}
 

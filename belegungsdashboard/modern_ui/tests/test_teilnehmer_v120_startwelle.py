@@ -124,7 +124,7 @@ def test_bedarf_ohne_band_und_ab_null():
 def test_cockpit_ersetzt_altes_und_hat_einstellungen():
     from modern import cockpit_ui, seite_steuerung as st
 
-    assert st.ANSICHTEN["cockpit"] == "Cockpit" and "cockpit_neu" not in st.ANSICHTEN
+    assert st.ANSICHTEN["cockpit"] == "Überblick" and "cockpit_neu" not in st.ANSICHTEN     # 1.39: Name
     assert st.ALT["cockpit_neu"] == "cockpit" and not hasattr(st, "_cockpit")
     q = inspect.getsource(cockpit_ui)
     for s in ('"Freie Betten"', '"Bedarf & Decke"', '"Unsicherheit zeigen"', '"Achse ab 0"', "SO_LESEN", "ck_ansicht"):

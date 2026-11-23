@@ -116,23 +116,25 @@ def _entwurf():
 
 def test_diagrammentwurf_wie_excel():
     d = _entwurf()
-    assert d.titel == "Diagrammentwurf" and d.kontext
+    assert d.titel == "Diagramm" and d.kontext                    # 1.39: verschlankt – Prognose hat eine eigene Karte
     titel = [g.titel for g in d.gruppen]
-    assert titel == ["Daten", "Diagramm", "Darstellung", "Typ", "Elemente"]
-    anteile = next(p for p in d.gruppen[3].punkte if p.text == "Anteile")
+    assert titel == ["Form", "Details"]
+    anteile = next(p for p in d.gruppen[0].punkte if p.text == "Anteile")
     assert [q.ziel[1] for q in anteile.menue] == [f"dg_anteil:{k}" for k in dk.DG_ANTEILE]
-    elemente = [q.ziel[1] for q in d.gruppen[4].punkte[0].menue]
-    assert "awt:aw_95" in elemente and "awt:aw_backtest" in elemente
+    prog = next(r for r in mb.reiter({}, standorte={"G": "Gesamt", "A": "Alpha"}) if r.key == "prognose")
+    sicher = [q.ziel[1] for g in prog.gruppen for p in g.punkte for q in p.menue]
+    assert "awt:aw_95" in sicher and "awt:aw_backtest" in sicher
 
 
 def test_daten_und_prognose_nur_auf_der_prognose():
-    d = _entwurf()
-    nur = {g.titel: g for g in d.gruppen}
-    assert mb.gruppe_sichtbar(nur["Daten"], "auswertung", "prognose")
-    assert not mb.gruppe_sichtbar(nur["Daten"], "auswertung", "belegung")
-    assert mb.gruppe_sichtbar(nur["Typ"], "auswertung", "belegung")
+    prog = next(r for r in mb.reiter({}, standorte={"G": "Gesamt", "A": "Alpha"}) if r.key == "prognose")
+    assert mb.sichtbar(prog, "auswertung", "prognose")
+    assert not mb.sichtbar(prog, "auswertung", "belegung") and not mb.sichtbar(prog, "zimmer", "liste")
+    nur = {g.titel: g for g in prog.gruppen}
     standort = next(p for p in nur["Daten"].punkte if p.text == "Standort")
     assert [q.ziel for q in standort.menue] == [mb.A("aw:aw_standort=G"), mb.A("aw:aw_standort=A")]
+    betten = next(p for p in nur["Daten"].punkte if p.text == "Betten")          # 1.39: statt Netto/Brutto
+    assert [q.text for q in betten.menue] == ["Belegbare Betten", "Alle Betten"]
 
 
 def test_aw_wert_typen():

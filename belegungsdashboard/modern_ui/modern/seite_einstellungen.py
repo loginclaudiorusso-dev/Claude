@@ -16,8 +16,8 @@ from .kern import _schritt
 from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
 
-ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Sicherung & Verlauf",
-             "benutzer": "Benutzer"}
+ANSICHTEN = {"allgemein": "Allgemein", "stammdaten": "Zimmer-Stammdaten", "sicherung": "Informationen & Sicherung",
+             "benutzer": "Benutzer & Rechte"}                                   # 1.39
 ZAHLEN = {   # Einstellung → (Text, Standard, min, max)
     "zimmer_puffer": ("Tage zwischen Abreise und nächster Belegung (1 = nicht am Abreisetag)", 1, 0, 7),
     "facility_monate": ("Facility-Check nach einem Aufenthalt ab … Monaten (Elektrik, Fenster)", 6, 1, 36),

@@ -98,5 +98,8 @@ def test_menueband_ansicht_und_optionen():
     assert {("aktion", "zoom:100"), ("aktion", "zoom:+"), ("aktion", "zoom:-"), ("aktion", "dichte"),
             ("aktion", "vollbild"), ("aktion", "modus")} <= {p.ziel for p in mb.STATUSLEISTE}
     assert {("aktion", "dg_typ:saeule"), ("aktion", "dg:dg_glatt"), ("aktion", "dg_legende:aus")} <= ziele(rs["diagramm"])
-    assert next(g for g in rs["diagramm"].gruppen if g.titel == "Elemente").starter == ("aktion", "optionen:diagramme")
-    assert ("aktion", "optionen") in [p.ziel for p in mb.DATEI]
+    assert next(g for g in rs["diagramm"].gruppen if g.titel == "Details").starter == ("aktion", "optionen:diagramme")
+    assert ("aktion", "optionen") not in [p.ziel for p in mb.DATEI]       # 1.39: Optionen stehen im Konto
+    from pathlib import Path
+
+    assert "_optionen(a)" in (Path(mb.__file__).parent / "benutzer_ui.py").read_text(encoding="utf-8")

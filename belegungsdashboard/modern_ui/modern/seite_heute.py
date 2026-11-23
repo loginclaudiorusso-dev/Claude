@@ -162,32 +162,26 @@ window.mBriefing = (knopf, saetze) => {   // Sprachausgabe im Browser/Windows (W
 
 
 def zeichnen(a) -> None:
-    """0.64 entschlackt: eine Ansicht (Tageszentrale). Das Postfach öffnet sich nur noch als Vertiefung („Fälle
-    ansehen“, „Alle im Postfach“) und hat einen Weg zurück; die frühere Übersicht/der Newsfeed entfallen."""
-    _umschalter(a)
+    """1.39: Das Cockpit – EINE Startseite. Oben die Zahlen von heute (früher Tagesübersicht), darunter wie in Outlook
+    links Überblick, Nachrichten und Aufgaben, rechts die Lesespalte."""
     with a.inhalt:
         if a.daten.willkommen:
             _willkommen(a)
-        if postfach_an(a):
-            _postfach(a, a.daten)
-        else:
-            _zentrale(a, a.daten)
+        with ui.element("div").classes("m-cockpit-kopf"):
+            ui.label("Heute").classes("m-cockpit-tag")
+            _chips(a, a.daten)
+        _postfach(a, a.daten)
 
-def _tagesblock(a, t: "Tag") -> None:
-    """Der Tag auf einen Blick: Anreisen 7 Tage, frei nach Planung, Abreisen, Reinigung, Neuigkeiten."""
-    with ui.element("div").classes("m-block"):
-        ui.label("Anreisen der nächsten 7 Tage").classes("m-btitel")
-        if not t.anreisen:
-            ui.label("Keine Anreisen.").classes("m-ptext")
-        for kennung, text, n, mit in t.anreisen:
-            z_ = ui.element("button").classes("m-liste-zeile")
-            with z_:
-                ui.element("div").classes("m-ampel " + ("ok" if mit == n else "krit")).style("margin:0")
-                attr(ui.label(text).classes("m-name"), title=text)
-                ui.label(f"{mit}/{n}").classes("m-mono")
-            z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
-    if t.np:
-        _nach_planung_block(a, t.np)
+def _tagesblock(a, t: "Tag", cockpit: bool = False) -> None:
+    """Der Tag auf einen Blick: Anreisen 7 Tage, frei nach Planung, Abreisen, Reinigung, Neuigkeiten.
+    1.39 ``cockpit``: die nächsten 7 Tage und die freien Zimmer stehen als Karten darüber (früher Tagesübersicht)."""
+    if cockpit:
+        _woche_tabelle(a, t)
+        _frei_saeulen(a, t)
+    else:
+        _anreisen_block(a, t)
+        if t.np:
+            _nach_planung_block(a, t.np)
     with ui.element("div").classes("m-block"):
         ui.label("Abreisen heute und morgen").classes("m-btitel")
         if not t.abreisen:
@@ -215,6 +209,20 @@ def _tagesblock(a, t: "Tag") -> None:
                     with ui.element("div"):
                         ui.label(text).classes("m-ptext").style("color:var(--text)")
                         ui.label(zeit).classes("m-zweite")
+
+def _anreisen_block(a, t: "Tag") -> None:
+    with ui.element("div").classes("m-block"):
+        ui.label("Anreisen der nächsten 7 Tage").classes("m-btitel")
+        if not t.anreisen:
+            ui.label("Keine Anreisen.").classes("m-ptext")
+        for kennung, text, n, mit in t.anreisen:
+            z_ = ui.element("button").classes("m-liste-zeile")
+            with z_:
+                ui.element("div").classes("m-ampel " + ("ok" if mit == n else "krit")).style("margin:0")
+                attr(ui.label(text).classes("m-name"), title=text)
+                ui.label(f"{mit}/{n}").classes("m-mono")
+            z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
+
 
 def _nach_planung_block(a, np_) -> None:
     """Freie Zimmer der nächsten 5 Wochen nach Planung – gesamt, EMR, Doppelzimmer, mit Ampel."""
@@ -292,14 +300,15 @@ def feed_eintraege(t: Tag, karten: list, heute: date) -> dict:
 
 
 UEBERBLICK = "ueberblick"
+NACHRICHTEN = "nachrichten"                               # 1.39: Sprung aus dem Menüband (= menueband.NACHRICHTEN)
 STUFEN_PF = (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info"))
 
-ANSICHTEN = {"zentrale": "Tageszentrale", "postfach": "Postfach"}    # 0.64: „Übersicht“ entfällt
+ANSICHTEN = {"postfach": "Cockpit"}            # 1.39: eine Startseite – die Tagesübersicht ist Teil des Cockpits
 
 
 def ansicht(a) -> str:
-    v = getattr(a, "heute_ansicht", STANDARD)
-    return v if v in ANSICHTEN else STANDARD             # gemerkte „uebersicht“ → Standard
+    """1.39: es gibt nur noch das Cockpit – gemerkte „zentrale“/„uebersicht“ landen dort."""
+    return STANDARD
 
 
 STANDARD = "postfach"                                     # 1.36: Startseite wie Outlook – Liste links, Lesespalte rechts
@@ -307,15 +316,6 @@ STANDARD = "postfach"                                     # 1.36: Startseite wie
 
 def postfach_an(a) -> bool:
     return ansicht(a) == "postfach"
-
-
-def _umschalter(a) -> None:
-    """0.91: Übersicht → Chips des Tages rechts im Kopf; gewählte Aufgabe → „Zurück zur Übersicht“."""
-    if postfach_an(a):                       # 1.38: keine eigene Registerkarte „Heute“ – Tagesübersicht steht in Start
-        return
-    with a.werkzeuge:
-        if isinstance(getattr(a, "daten", None), Tag):
-            _chips(a, a.daten)
 
 
 def _chips(a, t: "Tag") -> None:
@@ -350,6 +350,9 @@ def auswahl(a) -> str:
     alt = getattr(a, "pf_auswahl", None)
     if alt is None:                                   # 1.36: Start mit dem Überblick (Auslastung, Zahlen des Tages)
         return UEBERBLICK
+    if alt == NACHRICHTEN:                            # 1.39: Menüband „Nachrichten“ → erste (neueste) Nachricht
+        ns = getattr(getattr(a, "daten", None), "nachrichten", None) or []
+        return f"nachricht:{ns[0].id}" if ns else UEBERBLICK
     if alt in ids or alt == UEBERBLICK:
         return alt
     nachr = [f"nachricht:{n.id}" for n in getattr(getattr(a, "daten", None), "nachrichten", []) or []]
@@ -411,7 +414,7 @@ def _postfach(a, t: Tag) -> None:
             if a.pf_auswahl == UEBERBLICK:
                 ui.label("Überblick heute").classes("m-pf-dtitel")
                 with ui.element("div").classes("m-pf-ueberblick"):
-                    _tagesblock(a, t)
+                    _tagesblock(a, t, cockpit=True)
                 return
             if str(a.pf_auswahl).startswith("nachricht:"):
                 _nachricht_lesen(a, t, a.pf_auswahl.split(":", 1)[1], fuellen)
@@ -678,63 +681,6 @@ def untertitel(dringend: int, weitere: int) -> str:
     return f"Keine dringenden Aufgaben – {weitere} weitere offen." if weitere else "Keine offenen Aufgaben."
 
 
-def _zentrale(a, t: Tag) -> None:
-    """0.91: EINE Seite – links die Aufgaben (nur die dringendste gefüllt), rechts die nächsten 7 Tage und die freien
-    Zimmer. Ein Klick auf eine Aufgabe öffnet rechts ihr Detail (Ansicht „Aufgabe gewählt“)."""
-    jetzt = [k for k in a.karten if k.stufe == "dringend"]
-    bald = [k for k in a.karten if k.stufe == "bald"]
-    with ui.element("div").classes("m-hz"):
-        with ui.element("section").classes("m-hz-karte m-hz-aufgaben"):
-            with ui.element("div").classes("m-hz-kopf"):
-                ui.label(str(len(jetzt))).classes("m-hz-gross" + (" krit" if jetzt else " ok"))
-                with ui.element("div"):
-                    ui.label(("Aufgabe ist dringend" if len(jetzt) == 1 else "Aufgaben sind dringend") if jetzt
-                             else "Nichts ist dringend").classes("m-hz-ktitel")
-                    ui.label(f"{len(bald)} weitere können warten" if bald else "keine weiteren offen").classes("m-zweite")
-            erster = True
-            for k in jetzt:
-                _zeile(a, k, primaer=erster)
-                erster = False
-            if bald:
-                ui.label("Als Nächstes").classes("m-hz-abschnitt")
-            for k in bald[:6]:
-                _zeile(a, k, primaer=erster and not jetzt)
-                erster = False
-            if a.karten:
-                with ui.element("div").classes("m-hz-fuss"):
-                    l_ = ui.label(f"Alle {len(jetzt) + len(bald)} Aufgaben zeigen").classes("m-link")
-                    l_.on("click", lambda: a.setzen(heute_ansicht="postfach", laden=False))
-                    info = [k for k in a.karten if k.stufe == "info"]
-                    if info:
-                        i_ = ui.label(f"{len(info)} Hinweis{'e' if len(info) != 1 else ''} zur Info").classes("m-link m-zweite")
-                        i_.on("click", lambda: a.setzen(heute_ansicht="postfach", pf_auswahl=info[0].id, laden=False))
-        with ui.element("aside").classes("m-hz-rechts"):
-            _woche_tabelle(a, t)
-            _frei_saeulen(a, t)
-            outlook_block(a)
-
-
-def _zeile(a, k, primaer: bool) -> None:
-    """Eine Aufgabe: Text (Klick → Detail) und GENAU EIN Knopf – gefüllt nur bei der dringendsten."""
-    with ui.element("div").classes(f"m-hz-zeile {k.stufe}"):
-        if k.stufe == "dringend":
-            ui.icon("error_outline").classes("m-hz-sym")
-        t_ = ui.element("button").classes("m-hz-text")
-        attr(t_, title="Aufgabe öffnen")
-        with t_:
-            ui.label(k.titel).classes("m-hz-ztitel")
-            if k.detail:
-                attr(ui.label(k.detail).classes("m-hz-zdetail"), title=k.detail)
-        t_.on("click", lambda k=k: a.setzen(heute_ansicht="postfach", pf_auswahl=k.id, laden=False))
-        stil = "primaer" if primaer else ""
-        if k.aktion:
-            knopf(k.aktion.text, lambda k=k: a._karte_loesen(k), stil)
-        elif k.zweite:
-            knopf(k.zweite.text, lambda k=k: a._zeigen(k.zweite.zeigen), stil)
-        else:
-            knopf("Ansehen", lambda k=k: a.setzen(heute_ansicht="postfach", pf_auswahl=k.id, laden=False), stil)
-
-
 def _woche_tabelle(a, t: Tag) -> None:
     with ui.element("section").classes("m-hz-karte"):
         with ui.element("div").classes("m-hz-ab"):
@@ -795,133 +741,6 @@ def _frei_saeulen(a, t: Tag) -> None:
                     ui.label(w[0].split(" · ")[0]).classes("m-zweite")
 
 
-def _zahlen(a, t: Tag, n_jetzt: int, heute_an) -> None:
-    eilig, offen = t.reinigung
-    np_ = t.np
-    werte = [
-        ("jetzt", n_jetzt, "Dringend", "Aufgaben mit Frist" if n_jetzt else "keine dringenden Aufgaben",
-         "krit" if n_jetzt else "ok", "priority_high" if n_jetzt else "check_circle",
-         lambda: a.setzen(heute_ansicht="postfach", laden=False)),
-        ("an", heute_an["an"] if heute_an else 0, "Anreisen heute",
-         (f"{heute_an['an'] - heute_an['mit']} noch ohne Zimmer" if heute_an["an"] > heute_an["mit"] else "alle mit Zimmer")
-         if heute_an else "keine Anreisen", "krit" if heute_an and heute_an["an"] > heute_an["mit"] else "blau", "flight_land",
-         lambda: a.oeffnen("anreisen", ansicht="zuteilen", kennung=a.heute.isoformat()) if heute_an else a.oeffnen("anreisen")),
-        ("rein", eilig, "Reinigung vor Einzug", f"offen · {offen} weitere heute", "warn" if eilig else "ok", "cleaning_services",
-         lambda: a.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer="")),
-        ("zimmer", t.nicht_nutzbar, "Zimmer nicht nutzbar",
-         (f"davon {t.unbewohnbar} wegen Mangel · " if t.unbewohnbar else "gesperrt laut Gebäudeplan · " if t.nicht_nutzbar
-          else "") + f"{t.mit_maengeln} mit Mängeln",
-         "krit" if t.unbewohnbar else "ok", "report" if t.unbewohnbar else "verified",   # Sperren sind geplant – kein Alarm
-         lambda: a.oeffnen("zimmer", ansicht="uebersicht", zu_tag=a.heute, zu_filter=frozenset({"nicht_nutzbar"}))),
-    ]
-    if np_ and np_.tiefst:
-        text, frei, stufe = np_.tiefst
-        werte.append(("np", frei, "Frei nach Planung", f"Tiefstand {text.split(' · ')[0]}", STUFE[stufe],
-                      {"ok": "event_available", "warn": "warning", "krit": "error"}[STUFE[stufe]],
-                      lambda: a.oeffnen("auswertung", ansicht="zimmer")))
-    with ui.element("div").classes("m-tz-zahlen"):
-        for _k, zahl, titel, unter, stufe, icon, klick in werte:
-            b = ui.element("button").classes(f"m-tz-zahl-k {stufe}" + (" null" if not zahl else ""))
-            attr(b, title=f"{titel}: {zahl} – {unter}")
-            with b:
-                ui.label(str(zahl)).classes("m-tz-zahl")          # 0.54: ohne führende Null („0“ statt „00“)
-                with ui.element("div").classes("m-tz-zahl-t"):
-                    with ui.element("div").classes("m-tz-zahl-l"):
-                        ui.icon(icon)
-                        ui.label(titel)
-                    ui.label(unter).classes("m-tz-zahl-u")
-            b.on("click", klick)
-
-
-def _punkt(a, i: int, k) -> None:
-    liste = a.pf_hat_liste(k)
-    with ui.element("article").classes(f"m-tz-punkt {k.stufe}"):
-        ui.label(str(i)).classes("m-tz-nr")
-        with ui.element("div").classes("m-tz-ptext"):
-            with ui.element("div").classes("m-tz-kat"):
-                ui.icon(STUFE_ICON[k.stufe])
-                ui.label(f"{_kategorie(k.id)} · {STUFE_TEXT[k.stufe]}")
-            ui.label(k.titel).classes("m-tz-ptitel")
-            if k.detail:
-                attr(ui.label(k.detail).classes("m-tz-pdetail"), title=k.detail)
-        with ui.element("div").classes("m-tz-paktion"):
-            if k.aktion:
-                knopf(k.aktion.text, lambda k=k: a._karte_loesen(k), "primaer")
-            if liste:
-                knopf("Fälle ansehen", lambda k=k: a.setzen(heute_ansicht="postfach", pf_auswahl=k.id, laden=False),
-                      "" if k.aktion else "primaer")
-            elif k.zweite:
-                knopf(k.zweite.text, lambda k=k: a._zeigen(k.zweite.zeigen), "" if k.aktion else "primaer")
-            elif k.hinweis and not k.aktion:
-                ui.label(k.hinweis).classes("m-zweite")
-            knopf("", lambda k=k: a._spaeter(k), "leise", "snooze", "Später – bis morgen ausblenden")
-
-
-def _woche_block(a, t: Tag) -> None:
-    with ui.element("section").classes("m-tz-block"):
-        with ui.element("div").classes("m-tz-ab"):
-            ui.label("Die nächsten 7 Tage")
-            knopf("Alle Anreisen", lambda: a.oeffnen("anreisen"), "leise")
-        if not t.woche:
-            ui.label("Keine An- oder Abreisen in den nächsten 7 Tagen.").classes("m-ptext")
-        for w in t.woche:
-            tag = w["tag"]
-            wann = "Heute" if tag == a.heute else "Morgen" if tag == a.heute + timedelta(days=1) else f"{WT[tag.weekday()]} {tag:%d.%m.}"
-            z = ui.element("button").classes("m-tz-tag")
-            with z:
-                ui.label(wann).classes("m-tz-wann" + (" heute" if tag == a.heute else ""))
-                with ui.element("div").classes("m-tz-tagtext"):
-                    if w["an"]:
-                        ohne = w["an"] - w["mit"]
-                        ui.label(f"{w['an']} Anreise{'n' if w['an'] != 1 else ''}"
-                                 + (f" · {w['gruppen']}" if w["gruppen"] else "")).classes("m-name")
-                        teile = [f"{ohne} ohne Zimmer" if ohne else "alle mit Zimmer"]
-                        if w["bereit"]:
-                            teile.append(f"{w['bereit'][0]} von {w['bereit'][1]} bezugsfertig")
-                        ui.label(" · ".join(teile)).classes("m-zweite" + (" m-krit" if ohne else ""))
-                    if w["ab"]:
-                        ui.label(f"{w['ab']} Abreise{'n' if w['ab'] != 1 else ''}").classes("m-zweite")
-            z.on("click", lambda tag=tag, w=w: a.oeffnen("anreisen", ansicht="zuteilen", kennung=tag.isoformat())
-                 if w["an"] else a.oeffnen("anreisen", ansicht="abreisen"))
-
-
-def _frei_block(a, t: Tag) -> None:
-    np_ = t.np
-    if not np_ or not np_.wochen:
-        return
-    wochen = np_.wochen[:5]
-    groesst = max([w[1] for w in wochen] + [1])
-    engpass = next((w for w in wochen if w[6].get("emr") != "ok" or w[6].get("doppel") != "ok"), None)
-    with ui.element("section").classes("m-tz-frei"):
-        with ui.element("div").classes("m-tz-ab"):
-            ui.label("Freie Zimmer nach Planung")
-            ui.label("5-Wochen-Blick" + (f" · Engpass zuerst in {engpass[0].split(' · ')[0]}" if engpass else " · kein Engpass")).classes(
-                "m-tz-meta")
-            knopf("Alle 12 Wochen", lambda: a.oeffnen("auswertung", ansicht="zimmer"), "leise")
-        with ui.element("div").classes("m-tz-wochen"):
-            for text, _jetzt, frei, emr, doppel, stufe, je in wochen:
-                st = STUFE[stufe]
-                with ui.element("div").classes(f"m-tz-woche {st}"):
-                    with ui.element("div").classes("m-tz-wkopf"):
-                        ui.label(text.split(" · ")[0]).classes("m-zweite")
-                        with ui.element("span").classes("m-tz-wfrei"):
-                            if st != "ok":
-                                ui.icon("warning" if st == "warn" else "error")
-                            ui.label(f"{frei} frei")
-                    with ui.element("div").classes("m-tz-balken"):
-                        ui.element("i").style(f"width:{max(2, min(100, round(100 * frei / groesst)))}%")
-                    ui.label(f"EMR {emr}{' (knapp)' if je.get('emr') != 'ok' else ''} · DZ {doppel}"
-                             f"{' (knapp)' if je.get('doppel') != 'ok' else ''}").classes(
-                        "m-tz-wunter" + (" m-warn" if je.get("emr") != "ok" or je.get("doppel") != "ok" else ""))
-
-
-def outlook_block(a) -> None:
-    """Platzhalter – wird mit der Outlook-Vorschau gefüllt (siehe outlook_kern)."""
-    from . import outlook_kern
-
-    outlook_kern.block(a)
-
-
 # 0.91: Heute als eine Seite (Entwurf „Heute neu gedacht“) – ruhige Karten, ein Blickfang, graue Chips
 CSS = r"""
 /* 1.36: Startseite wie Outlook – „Was ist zu tun?“, Nachrichten */
@@ -976,6 +795,10 @@ CSS = r"""
 .m-hz-swert { font-weight: 600; font-variant-numeric: tabular-nums; }
 .m-werkzeuge:has(.m-hz-chips) { margin-left: auto; }
 .m-hz-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+/* 1.39: Cockpit – Zahlen von heute über Liste und Lesespalte */
+.m-cockpit-kopf { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 0 20px; }
+.m-cockpit-tag { font-weight: 600; color: var(--text2); font-size: 13px; letter-spacing: .02em; }
+.m-cockpit-kopf .m-hz-chips { justify-content: flex-start; margin-left: 0; }
 .m-hz-chip { border: 1px solid var(--ob-rand, var(--rand)); background: var(--ob-fl, var(--fl)); color: var(--text2);
   border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13.5px; cursor: pointer; }
 .m-hz-chip:hover { background: var(--ob-hover, var(--fl2)); }

@@ -55,8 +55,8 @@ def test_keine_doppelten_symbole_je_reiter():
     for r in mb.reiter(mu._ansichten(), True, {"G": "Gesamt"}):
         sym = [mb.symbol(p)[0] for g in r.gruppen for p in g.punkte]
         assert len(sym) == len(set(sym)), (r.key, sym)
-        if r.key == "zimmer":
-            assert all(p.gross for p in r.gruppen[0].punkte) and len(r.gruppen[0].punkte) == 4
+        if r.key == "zimmer":                                   # 1.39: Zimmerübersicht und Zimmerliste
+            assert all(p.gross for p in r.gruppen[0].punkte) and len(r.gruppen[0].punkte) == 2
 
 
 def test_werkzeuge_oben_einstellung_und_klasse():

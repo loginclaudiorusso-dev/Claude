@@ -7,28 +7,30 @@ from modern import menueband as mb
 
 def test_arbeitsbereiche_als_reiter():
     rs = {r.key: r for r in mb.reiter({"anreisen": {"zuteilen": "Zuteilen", "abreisen": "Abreisen"}})}
-    assert list(rs) == ["start", "anreisen", "zimmer", "auswertung", "verwalten", "diagramm"]
-    start = [q.text for g in rs["start"].gruppen for p in g.punkte for q in [p] + p.menue]
-    assert {"Termine", "Kalender"} <= set(start)                          # 1.38: Kalender im Pfeil an „Termine“
+    assert [k for k, r in rs.items() if not r.kontext] == ["uebersicht", "anreisen", "zimmer", "planung", "auswertung",
+                                                         "ki", "verwaltung"]            # 1.39: Navigation 2.0
+    planung = [q.text for g in rs["planung"].gruppen for p in g.punkte for q in [p] + p.menue]
+    assert "Kalender" in planung and "Termine" not in planung             # 1.39: ein Name je Funktion
     anreisen = [p.ziel for g in rs["anreisen"].gruppen for p in g.punkte]
     assert ("seite", "anreisen", "abreisen", {}) in anreisen             # Abreisen sichtbar, nicht im Pfeil
     assert not any(p.menue for g in rs["anreisen"].gruppen for p in g.punkte)
 
 
 def test_leitung_abschaltbar():
-    mit = {r.key: r for r in mb.reiter({})}["auswertung"]
-    ohne = {r.key: r for r in mb.reiter({}, leitung=False)}["auswertung"]
-    assert [g.titel for g in mit.gruppen] == ["Berichte", "Leitung"] and [g.titel for g in ohne.gruppen] == ["Berichte"]
+    def haus(leitung):
+        r = {r.key: r for r in mb.reiter({}, leitung=leitung)}["planung"]
+        return [p.text for g in r.gruppen if g.titel == "Haus" for p in g.punkte]
+    assert "Renovierung & Budget" in haus(True) and "Renovierung & Budget" not in haus(False)   # 1.39
     assert dk.bereinigen({"leitung": False})["leitung"] is False and dk.STANDARD["leitung"] is True
 
 
 def test_datei_wie_backstage():
-    assert [p.text for p in mb.DATEI] == ["Drucken … (Strg+P)", "Exportieren …", "Importieren", "Informationen & Sicherung",
-                                          "Konto", "Optionen"]   # 1.33: Konto wie in Office
-    assert ("seite", "daten", None, {}) in [p.ziel for p in mb.DATEI]
+    assert [p.text for p in mb.DATEI] == ["Drucken … (Strg+P)", "Exportieren …", "Informationen & Sicherung",
+                                          "Konto"]   # 1.39: Importieren → Verwaltung › Daten einlesen; Optionen → Konto
+    assert ("seite", "daten", None, {}) not in [p.ziel for p in mb.DATEI]
 
 
 def test_auswertung_umbenannt():
     from modern import seite_auswertung as sa
 
-    assert sa.ANSICHTEN["lage"] == "Überblick" and sa.ANSICHTEN["zimmer"] == "Engpässe"
+    assert sa.ANSICHTEN["lage"] == "Kennzahlen" and sa.ANSICHTEN["zimmer"] == "Zimmer-Engpässe"   # 1.39

@@ -37,6 +37,10 @@ class Reiter:
     gruppen: list[Gruppe]
     kontext: tuple = ()                                      # nicht leer → nur auf diesen Seiten (Kontext-Registerkarte)
     ohne: tuple = ()                                         # 1.23: (Seite, Ansicht), auf denen er trotzdem fehlt
+    symbol: str = ""                                         # 1.39: Piktogramm der Registerkarte („p:…“)
+
+
+NACHRICHTEN = "nachrichten"                                  # 1.39: Cockpit mit der ersten Nachricht offen
 
 
 def S(seite: str, ansicht: str | None = None, **zustand) -> tuple:
@@ -98,11 +102,14 @@ TEXT_SYMBOLE: dict[str, tuple] = {   # Schaltflächen ohne eigenes Ziel (Ausklap
     "Diagrammtyp": ("data_line", BLAU),
     "Elemente": ("layer", VIOLETT), "Legende": ("tag", VIOLETT), "Steuerung": ("target_arrow", BASIS),
     "Inventar": ("box", BLAU),
+    "Betten": ("bed", BLAU), "Vergleich": ("layout_column_three", TEAL), "Sicherheit": ("checkmark_starburst", GRUEN),
 }
 
 
 def symbol(p: "Punkt") -> tuple[str, str]:
-    """(Fluent-Symbol, Bedeutungsfarbe) einer Schaltfläche im Menüband."""
+    """(Symbol, Bedeutungsfarbe) einer Schaltfläche im Menüband. 1.39: „p:…“ = eigenes Piktogramm (eine Farbe)."""
+    if p.icon.startswith("p:"):
+        return (p.icon, BASIS)
     z = p.ziel
     if z and z[0] == "seite":
         _s, seite, ansicht, zustand = z
@@ -112,6 +119,11 @@ def symbol(p: "Punkt") -> tuple[str, str]:
             return SYMBOLE[(seite, ansicht)]
         if (seite, None) in SYMBOLE:
             return SYMBOLE[(seite, None)]
+    if z and z[0] == "seite":                       # 1.39: Kontextkarten nennen ihr Fluent-Symbol selbst
+        from . import symbole
+
+        if symbole.vorhanden(p.icon):
+            return (p.icon, BLAU)
     if z and z[0] == "aktion" and z[1] in AKTION_SYMBOLE:
         return AKTION_SYMBOLE[z[1]]
     t = p.text.replace("\u00ad", "")
@@ -176,6 +188,8 @@ def _haken(text: str, key: str, nur: tuple = ()) -> Punkt:
 #  4. Kontext-Registerkarte nur für „Diagramm“; Filter bleiben in EINER Kopfzeile direkt über dem Inhalt.
 #  5. Gruppenpfeil ↘ öffnet den Dialog zur Gruppe (statt eigener Schaltfläche).
 KONTEXT_DIAGRAMM = ("auswertung", "steuerung")
+# 1.39: Name der Werkzeug-Registerkarte einer Seite (sonst der Name der Ansicht)
+KONTEXT_TITEL = {"termine": "Kalender", "zimmer": "Zimmer", "inventar": "Inventar", "steuerung": "Renovierung"}
 # 1.23: Seiten ohne einstellbare Diagramme bekommen keinen „Diagrammentwurf“ – eine Option, die nichts bewirkt, fehlt
 OHNE_DIAGRAMM = (("auswertung", "zimmer"), ("steuerung", "vorhaben"), ("steuerung", "grundlagen"))
 MIT_DIAGRAMMTYP = (("auswertung", "lage"), ("auswertung", "belegung"), ("auswertung", "prognose"), ("auswertung", "massnahmen"),
@@ -219,8 +233,11 @@ def _daten_punkte(standorte: dict | None) -> list[Punkt]:
     st = standorte or {}
     return [Punkt("Standort", "location_city", None, True, "Welcher Standort im Diagramm",
                   [Punkt(t, "radio_button_unchecked", A(f"aw:aw_standort={k}"), False) for k, t in st.items()]),
-            Punkt("Netto", "person", A("aw:aw_brutto=false"), False, "Nur belegte Plätze (ohne Puffer)"),
-            Punkt("Brutto", "groups", A("aw:aw_brutto=true"), False, "Mit Puffer/Sperren"),
+            Punkt("Betten", "bed", None, False, "Welche Betten zählen (1.39: statt Netto/Brutto)",   # 1.39
+                  [Punkt("Belegbare Betten", "radio_button_unchecked", A("aw:aw_brutto=false"), False,
+                         "Nur Betten, die belegt werden können (ohne Puffer)"),
+                   Punkt("Alle Betten", "radio_button_unchecked", A("aw:aw_brutto=true"), False,
+                         "Alle Betten, auch Puffer und gesperrte")]),
             Punkt("Zeitraum", "date_range", None, False, "Wie weit die Prognose reicht",
                   [Punkt(t, "radio_button_unchecked", A(f"aw:aw_horizont={k}"), False) for k, t in ZEITRAEUME.items()])]
 
@@ -250,101 +267,129 @@ def reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte
 
 
 def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standorte: dict | None = None) -> list[Reiter]:
-    """Registerkarten des Menübands. ``ansichten``: Seite → {Unteransicht: Titel} (aus den Seiten-Modulen).
-    ``leitung``: Gruppe „Leitung“ (Steuerung) zeigen – in den Optionen je PC abschaltbar."""
-    v = lambda *x, **y: _v(ansichten, *x, **y)          # noqa: E731
-    auswertung = [Gruppe("Berichte", _einzeln("auswertung", ansichten))]
+    """1.39 – Navigation 2.0 (Konzept C „Hybrid“): sieben Arbeitsbereiche als Registerkarten, Datei wie in Office,
+    Kontext-Registerkarten nur solange sie gebraucht werden. Jede Funktion hat genau einen Ort und einen Namen.
+    ``ansichten``: Seite → {Unteransicht: Titel} (aus den Seiten-Modulen). ``leitung``: „Renovierung & Budget“ zeigen."""
+    def p(text: str, sym: str, ziel: tuple, tipp: str) -> Punkt:
+        return Punkt(trenn(text), f"p:{sym}", ziel, True, tipp)
+
+    planung_haus = [p("Reinigungs­vorschau", "reinigungsvorschau", S("reinigung", "last"),
+                      "Wie viel in den nächsten 6 Wochen zu reinigen ist")]
     if leitung:
-        auswertung.append(Gruppe("Leitung", [_split("steuerung", ansichten, "Steuerung", "query_stats",
-                                                    tipp="Cockpit – Pfeil: Vorhaben, Zeitplan, Finanzen, Grundlagen",
-                                                    standard="cockpit")]))
+        planung_haus.append(p("Renovierung & Budget", "renovierung", S("steuerung", "cockpit"),
+                              "Renovierungsvorhaben, Zeitplan, Kapazität und Finanzen (Leitung)"))
     return [
-        Reiter("start", "Start", [
-            # 1.38: Start aufgeräumt – Heute · Kommunikation · Termine · Assistenz (je Befehl genau eine Stelle)
-            Gruppe("Heute", [Punkt("Posteingang", "task_alt", S("heute", heute_ansicht="postfach"),
-                                   tipp="Startseite wie Outlook: Überblick, Nachrichten und Aufgaben – rechts lesen und "
-                                        "erledigen"),
-                             Punkt("Tages­übersicht", "wb_twilight", S("heute", heute_ansicht="zentrale"),
-                                   tipp="Kennzahlen und offene Aufgaben des Tages auf einen Blick")]),
-            Gruppe("Kommunikation", [Punkt("Nachricht", "forum", A("nachricht_neu"), True,
-                                           "Neue Nachricht an alle am Standort – Pfeil: Mail an FM",
-                                           [Punkt("Mail an FM …", "mail", A("fm_mail"), False,
-                                                  "Mail an das Facility-Management – über Ihr Outlook")]),
-                                     Punkt("Mails auswerten", "mail", S("assistenz", "mails"), True,
-                                           "Mails aus Outlook lesen und Anreisen, Abreisen oder Änderungen daraus "
-                                           "übernehmen")]),
-            Gruppe("Termine", [Punkt("Termine", "calendar_today", S("termine", "liste"), True,
-                                     "Termine und Wiedervorlagen – Pfeil: Monatskalender",
-                                     [Punkt("Kalender", "calendar_month", S("termine", "monat"), False,
-                                            "Termine im Monatskalender")])]),
-            Gruppe("Assistenz", [Punkt("Aufträge", "assignment", S("assistenz", "auftraege"), True,
-                                       "Aufträge an die Assistenz (z. B. „alle EMR vom 26.11. einplanen“)"),
-                                 Punkt("Fragen & Zahlen", "help_center", S("assistenz", "fragen"), True,
-                                       "Fragen zu Belegung und Zahlen stellen")]),
-        ]),
+        Reiter("uebersicht", "Übersicht", [
+            Gruppe("Cockpit", [p("Cockpit", "uebersicht", S("heute", heute_ansicht="postfach"),
+                                 "Startseite: Zahlen von heute, Aufgaben, Nachrichten – rechts lesen und erledigen")]),
+            Gruppe("Kommunikation", [
+                p("Nachrichten", "nachrichten", S("heute", heute_ansicht="postfach", pf_auswahl=NACHRICHTEN),
+                  "Nachrichten am Standort lesen und beantworten"),
+                p("Neue Nachricht", "nachricht_neu", A("nachricht_neu"), "Nachricht an alle am Standort schreiben"),
+                p("Mail an FM", "fm_mail", A("fm_mail"), "Mail an das Facility-Management – über Ihr Outlook")]),
+        ], symbol="p:uebersicht"),
         Reiter("anreisen", "Anreisen", [
-            Gruppe("Anreisen", _einzeln("anreisen", ansichten)),
-            Gruppe("Mieter", [Punkt("Mieter", "description", S("mieter"), tipp="Mieter und Mietverträge")]),
-        ]),
+            Gruppe("Anreisen", [p("Zuteilen", "zuteilen", S("anreisen", "zuteilen"), "Anreisenden Zimmer zuteilen"),
+                                p("Teilnehmer­liste", "teilnehmer", S("anreisen", "personen"),
+                                  "Alle Personen mit Zimmer, Hinweisen und Suche"),
+                                p("Abreisen", "abreisen", S("anreisen", "abreisen"), "Abreisen und frei werdende Zimmer")]),
+            Gruppe("Abgleich", [p("Daten­abgleich", "datenabgleich", S("anreisen", "eintragen"),
+                                  "Was in RIOS einzutragen oder zu prüfen ist")]),
+            Gruppe("Weitere Bewohner", [p("Mieter", "mieter", S("mieter"), "Mieter und Mietverträge")]),
+        ], symbol="p:anreisen"),
         Reiter("zimmer", "Zimmer & Haus", [
-            Gruppe("Zimmer", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
-                              v("zimmer", "karten")]),                    # 0.99: vier gleich große Ansichten
-            Gruppe("Betrieb", [v("reinigung", "liste", "Reinigung", "cleaning_services", tipp="Reinigungsliste"),
-                               # 1.31: Mängel als Split – oben „Defekte Zimmer“, im Pfeil auch „QR-Meldungen“
-                               _split("zimmer", ansichten, "Defekte Zimmer", "warning_amber", ["maengel", "qr"],
-                                      "Defekte Zimmer – im Pfeil: QR-Meldungen (per Handy gemeldet)", standard="maengel"),
-                               v("reinigung", "last", gross=False), v("reinigung", "facility", gross=False)]),
-        ]),
-        Reiter("auswertung", "Auswertung", auswertung),
-        Reiter("verwalten", "Verwalten", [
-            Gruppe("Bestand", [_split("inventar", ansichten, "Inventar", "inventory_2", standard="gegenstaende"),
-                               v("einstellungen", "stammdaten", icon="edit_note", tipp="Zimmer anlegen und pflegen")]),
-            Gruppe("Verlauf", [v("zimmer", "aenderungen", icon="history", tipp="Alle Änderungen, auch als Excel")]),
-        ]),
-        Reiter("diagramm", "Diagrammentwurf", [                 # 0.96: wie die Kontext-Registerkarte in Excel
-            Gruppe("Daten", _daten_punkte(standorte), nur=PROGNOSE),
-            Gruppe("Diagramm", [Punkt(t, i, A(f"aw:aw_chart={k}"), tipp=t) for k, (t, i) in PROGNOSE_DIAGRAMME.items()]
-                   + [Punkt("inkl. UWTler und Mieter", "group_add", A("awt:aw_status"), False,
-                            "Gesamtlinie mit UWTlern und Mietern (Trend & Prognose)"),
-                      Punkt("Standorte einzeln", "stacked_line_chart", A("awt:aw_parallel"), False,
-                            "Bei „Gesamt“: die drei Standorte nebeneinander")], nur=PROGNOSE),
-            Gruppe("Darstellung", [Punkt(t, i, A(f"dg_modus:{k}"), tipp=b_) for k, t, i, b_ in _dg_modi()],
-                   nur=MIT_DARSTELLUNG),
-            Gruppe("Typ", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
-                                 "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
-                                 "Säulen stellen alle Verläufe um",
-                                 [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()],
-                                 nur=MIT_DIAGRAMMTYP),
-                           Punkt("Anteile", "donut_large", None, True,
-                            "Anteils-Diagramme: links Ring oder Kreis (wie viel insgesamt), rechts 100 %-Säulen oder "
-                            "100 %-Fläche (wann) – beides lässt sich getrennt wählen",
-                            [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()],
-                            nur=MIT_ANTEILEN)]),
-            Gruppe("Elemente", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
-                                      [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
-                                       _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN), _haken("Gitternetzlinien", "dg_gitter"),
-                                       _haken("Animation", "dg_anim"),
-                                       Punkt("95 %-Band (Prognose)", "haken", A("awt:aw_95"), False, nur=PROGNOSE),
-                                       Punkt("Backtest – frühere Vorhersagen (Prognose)", "haken", A("awt:aw_backtest"),
-                                             False, nur=PROGNOSE)]),
-                                Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
-                                      [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
-                                       for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])],
+            Gruppe("Zimmer", [p("Zimmer­übersicht", "zimmeruebersicht", S("zimmer", "uebersicht"),
+                                "Alle Zimmer je Etage – Darstellung Raster oder Karten in der Registerkarte „Zimmer“"),
+                              p("Zimmer­liste", "zimmerliste", S("zimmer", "liste"), "Alle Zimmer als Tabelle")]),
+            Gruppe("Pflege", [p("Reinigung", "reinigung", S("reinigung", "liste"), "Reinigungsliste"),
+                              p("Facility-Checks", "facility", S("reinigung", "facility"), "Prüfgänge im Haus")]),
+            Gruppe("Schäden", [p("Defekte Zimmer", "defekt", S("zimmer", "maengel"), "Gemeldete Mängel, Sperren, FM-Aufträge"),
+                               p("QR-Meldungen", "qr", S("zimmer", "qr"), "Per QR-Code am Zimmer gemeldete Mängel")]),
+            Gruppe("Ausstattung", [p("Inventar", "inventar", S("inventar", "gegenstaende"),
+                                     "Gegenstände – je Zimmer und je Haus in der Registerkarte „Inventar“")]),
+        ], symbol="p:zimmer"),
+        Reiter("planung", "Planung", [
+            Gruppe("Belegung", [p("Belegungs­plan", "belegungsplan", S("zimmer", "zeitstrahl"),
+                                  "Zeitstrahl: wer wann in welchem Zimmer wohnt")]),
+            Gruppe("Termine", [p("Kalender", "kalender", S("termine", "liste"),
+                                 "Termine und Wiedervorlagen – Liste oder Monat in der Registerkarte „Kalender“")]),
+            Gruppe("Haus", planung_haus),
+        ], symbol="p:planung"),
+        Reiter("auswertung", "Auswertung", [
+            Gruppe("Berichte", [p("Kennzahlen", "kennzahlen", S("auswertung", "lage"), "Die wichtigsten Zahlen im Verlauf"),
+                                p("Belegung", "belegung", S("auswertung", "belegung"), "Belegung je Standort und Monat"),
+                                p("Belegungs­prognose", "prognose", S("auswertung", "prognose"),
+                                  "Vorhersage der Belegung mit Sicherheitsband"),
+                                p("Maßnahmen", "massnahmen", S("auswertung", "massnahmen"), "Teilnehmende je Maßnahme"),
+                                p("Zimmer-Engpässe", "engpaesse", S("auswertung", "zimmer"), "Wo Betten knapp werden")]),
+        ], symbol="p:auswertung"),
+        Reiter("ki", "KI-Assistent", [
+            Gruppe("Assistent", [p("Aufträge", "auftraege", S("assistenz", "auftraege"),
+                                   "Dem Assistenten Aufgaben geben, z. B. „alle EMR vom 26.11. einplanen“"),
+                                 p("Schnell­auskunft", "schnellauskunft", S("assistenz", "fragen"),
+                                   "Frage zu Belegung und Zahlen stellen – Antwort sofort"),
+                                 p("Outlook-Mails auswerten", "mails_ki", S("assistenz", "mails"),
+                                   "Mails aus Outlook lesen und Anreisen, Abreisen oder Änderungen daraus übernehmen")]),
+        ], symbol="p:ki"),
+        Reiter("verwaltung", "Verwaltung", [
+            Gruppe("Daten", [p("Daten einlesen", "daten_einlesen", S("daten"),
+                               "Anreiselisten, Gebäudeplan und weitere Dateien einlesen"),
+                             p("Zimmer-Stammdaten", "stammdaten", S("einstellungen", "stammdaten"),
+                               "Zimmer anlegen und pflegen")]),
+            Gruppe("Zugang", [p("Benutzer & Rechte", "benutzer", S("einstellungen", "benutzer"),
+                                "Konten, Rollen und Standorte (nur Admin)")]),
+            Gruppe("Programm", [p("Einstellungen", "einstellungen", S("einstellungen", "allgemein"),
+                                  "Einstellungen für alle: Mail-Adressen, Standorte, Regeln"),
+                                p("Automati­sierung", "automatisierung", A("automatisierung"),
+                                  "QR-Eingang und Power Automate einrichten"),
+                                p("Änderungs­verlauf", "verlauf", S("zimmer", "aenderungen"),
+                                  "Wer hat wann was geändert – auch als Excel")]),
+        ], symbol="p:verwaltung"),
+        # ---- Kontext-Registerkarten: erscheinen nur, solange sie gebraucht werden. Die Ansichtswahl einer Seite
+        # (Raster | Karten, Liste | Monat, Inventar, Renovierung) steht in ihrer Werkzeug-Registerkarte (KONTEXT_TITEL).
+        Reiter("prognose", "Prognose", [
+            Gruppe("Daten", _daten_punkte(standorte)),
+            Gruppe("Ansicht", [Punkt(t, i, A(f"aw:aw_chart={k}"), tipp=t) for k, (t, i) in PROGNOSE_DIAGRAMME.items()]
+                   + [Punkt("Vergleich", "layout_column_three", None, True, "Weitere Linien bei „Trend & Prognose“",
+                            [Punkt("Mit UWT und Mietern", "haken", A("awt:aw_status"), False),
+                             Punkt("Standorte einzeln", "haken", A("awt:aw_parallel"), False)])]),
+            Gruppe("Sicherheit", [Punkt("Sicherheit", "verified", None, True, "Wie sicher die Vorhersage ist",
+                                        [Punkt("95-%-Band", "haken", A("awt:aw_95"), False),
+                                         Punkt("Prognose-Genauigkeit (frühere Vorhersagen)", "haken",
+                                               A("awt:aw_backtest"), False)])]),
+        ], kontext=("auswertung",), ohne=tuple(("auswertung", k) for k in ("lage", "belegung", "massnahmen", "zimmer"))),
+        Reiter("diagramm", "Diagramm", [                 # 0.96: wie die Kontext-Registerkarte in Excel; 1.39 verschlankt
+            Gruppe("Form", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
+                                  "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
+                                  "Säulen stellen alle Verläufe um",
+                                  [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()],
+                                  nur=MIT_DIAGRAMMTYP),
+                            Punkt("Anteile", "donut_large", None, True,
+                                  "Anteils-Diagramme: links Ring oder Kreis (wie viel insgesamt), rechts 100 %-Säulen oder "
+                                  "100 %-Fläche (wann) – beides lässt sich getrennt wählen",
+                                  [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()],
+                                  nur=MIT_ANTEILEN),
+                            Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
+                                  [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
+                                   for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])]),
+            Gruppe("Details", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
+                                     [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
+                                      _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN), _haken("Gitternetzlinien", "dg_gitter"),
+                                      _haken("Animation", "dg_anim")])],
                    starter=A("optionen:diagramme")),
         ], kontext=KONTEXT_DIAGRAMM, ohne=OHNE_DIAGRAMM),
     ]
 
 
-DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – Ausgabe, Daten, Programm
-    Punkt("Drucken … (Strg+P)", "print", A("drucken"), False),
-    Punkt("Exportieren …", "ios_share", A("exportieren"), False),
-    Punkt("Importieren", "upload_file", S("daten"), False),
-    Punkt("Informationen & Sicherung", "backup", S("einstellungen", "sicherung"), False),
-    Punkt("Konto", "account_circle", A("konto"), False, "Angemeldet als …, Passwort ändern, Abmelden, Benutzer verwalten"),  # 1.33
-    Punkt("Optionen", "settings", A("optionen"), False),
+DATEI = [   # „Datei“ wie die Backstage-Ansicht in Office – 1.39: nur Ausgabe und Persönliches
+    Punkt("Drucken … (Strg+P)", "p:drucken", A("drucken"), False),
+    Punkt("Exportieren …", "p:exportieren", A("exportieren"), False),
+    Punkt("Informationen & Sicherung", "p:info", S("einstellungen", "sicherung"), False,
+          "Version, Neuigkeiten, Sicherungen"),
+    Punkt("Konto", "p:konto", A("konto"), False, "Angemeldet als …, Passwort ändern, Abmelden, Darstellung"),  # 1.33
 ]
 # Titelleiste rechts (wie in Office): Glocke, Hilfe – der Standort steht als Auswahl neben dem Programmnamen
-TITELLEISTE = [Punkt("Neuigkeiten", "notifications", A("neuigkeiten"), False),
+TITELLEISTE = [Punkt("Benachrichtigungen", "notifications", A("neuigkeiten"), False),
                Punkt("Hilfe (F1)", "help_outline", A("hilfe"), False),
                Punkt("Standort", "location_city", A("standort"), False)]
 # Statusleiste rechts (wie in Word/Excel): Darstellung des Arbeitsbereichs
@@ -399,39 +444,6 @@ def punkt_sichtbar(p: Punkt, seite: str, ansicht: str | None) -> bool:
     return not p.nur or (seite, ansicht) in p.nur
 
 
-def leiste(ansichten: dict, leitung: bool = True) -> list[tuple[str, list[Punkt]]]:
-    """0.91: Seitenleiste – (Gruppe, Einträge). Jedes häufige Ziel steht direkt da (kein Suchen hinter Registerkarten);
-    seltenere Unteransichten (Karten, Änderungen, Vorschau, Facility-Checks …) bleiben als Umschalter auf der Seite."""
-    def v(seite, k, text=None, icon=None):
-        t = text or (ansichten.get(seite) or {}).get(k, k)
-        return Punkt(t.replace("\u00ad", ""), icon or ICONS.get(seite, {}).get(k, "chevron_right"), S(seite, k), False)
-
-    erg = [("", [Punkt("Heute", "today", S("heute", heute_ansicht="postfach"), False),
-                 Punkt("Termine", "event", S("termine"), False),
-                 Punkt("Assistenz", "auto_awesome", S("assistenz"), False)]),
-           ("Anreisen", [v("anreisen", "zuteilen"), v("anreisen", "personen"), v("anreisen", "abreisen"),
-                         v("anreisen", "eintragen", "RIOS-Daten"), Punkt("Mieter", "key", S("mieter"), False)]),
-           ("Zimmer und Haus", [v("zimmer", "uebersicht"), v("zimmer", "zeitstrahl"), v("zimmer", "liste"),
-                                Punkt("Reinigung", "cleaning_services", S("reinigung", "liste"), False),
-                                v("zimmer", "maengel", "Mängel und Prüfungen"), v("zimmer", "qr", "QR-Meldungen")]),
-           ("Auswertung", [v("auswertung", "prognose", "Belegung und Prognose"), v("auswertung", "massnahmen"),
-                           v("auswertung", "zimmer", "Engpässe")]
-            + ([Punkt("Steuerung", "query_stats", S("steuerung"), False)] if leitung else [])),
-           ("Verwalten", [Punkt("Inventar", "inventory_2", S("inventar"), False),
-                          Punkt("Daten und Import", "upload_file", S("daten"), False),
-                          Punkt("Einstellungen", "settings", S("einstellungen"), False)])]
-    return erg
-
-
-def leiste_aktiv(eintraege: list[tuple[str, list[Punkt]]], seite: str, ansicht_von, heute_ansicht: str) -> Punkt | None:
-    """Welcher Eintrag ist markiert? Genau einer: zuerst die genaue Ansicht, sonst der erste Eintrag der Seite."""
-    alle = [p for _g, ps in eintraege for p in ps]
-    genau = next((p for p in alle if aktiv(p, seite, ansicht_von, heute_ansicht) and p.ziel[2] is not None), None)
-    if seite == "heute":
-        return alle[0]
-    return genau or next((p for p in alle if p.ziel and p.ziel[1] == seite), None)
-
-
 def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "postfach") -> bool:
     """Ist die Schaltfläche die gerade offene Seite/Ansicht? ``ansicht_von(seite)`` liefert die aktuelle Unteransicht.
     Split-Button: aktiv, wenn seine Standardansicht oder eine Ansicht aus dem Pfeil offen ist."""
@@ -440,8 +452,8 @@ def aktiv(p: Punkt, seite: str, ansicht_von, heute_ansicht: str = "postfach") ->
     if not p.ziel or p.ziel[0] != "seite" or p.ziel[1] != seite:
         return False
     _s, s, ans, zustand = p.ziel
-    if s == "heute":
-        return zustand.get("heute_ansicht", "postfach") == heute_ansicht
+    if s == "heute":                                # 1.39: „Nachrichten“ ist ein Sprung ins Cockpit, kein eigener Ort
+        return "pf_auswahl" not in zustand and zustand.get("heute_ansicht", "postfach") == heute_ansicht
     return ans is None or ans == ansicht_von(s)
 
 
@@ -462,7 +474,7 @@ def reiter_von(seite: str, ansichten: dict, ansicht: str | None = None) -> str:
     for r in alle:
         if any(z[1] == seite for z in _ziele(r)):
             return r.key
-    return "start"
+    return "uebersicht"
 
 
 def alle_ziele(ansichten: dict) -> list[tuple]:

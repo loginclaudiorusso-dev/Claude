@@ -26,23 +26,6 @@ def test_navigation_einstellung_und_klasse():
     assert ("aktion", "nav:leiste") not in [p.ziel for p in mb.DATEI]      # 1.34: Seitenleiste entfällt
 
 
-def test_seitenleiste_alle_ziele_sichtbar():
-    from modern import menueband_ui as mbu
-
-    e = mb.leiste(mbu._ansichten())
-    gruppen = [g for g, _ in e]
-    assert gruppen == ["", "Anreisen", "Zimmer und Haus", "Auswertung", "Verwalten"]
-    texte = [p.text for _g, ps in e for p in ps]
-    for t in ("Heute", "Zuteilen", "RIOS-Daten", "Reinigung", "Mängel und Prüfungen", "Belegung und Prognose",
-              "Engpässe", "Steuerung", "Daten und Import"):
-        assert t in texte, t
-    assert "Steuerung" not in [p.text for _g, ps in mb.leiste(mbu._ansichten(), leitung=False) for p in ps]
-    av = lambda s: {"zimmer": "liste"}.get(s, "")  # noqa: E731
-    assert mb.leiste_aktiv(e, "zimmer", av, "zentrale").text == "Liste"
-    assert mb.leiste_aktiv(e, "heute", av, "postfach").text == "Heute"
-    assert mb.leiste_aktiv(e, "reinigung", lambda s: "facility", "zentrale").text == "Reinigung"   # erster der Seite
-
-
 def _reihe():
     ms = [date(2025, m, 1) for m in range(11, 13)] + [date(2026, m, 1) for m in range(1, 13)] + \
          [date(2027, m, 1) for m in range(1, 11)]
@@ -81,8 +64,8 @@ def test_offene_mail_ohne_outlook_verstaendlich():
 
 def test_heute_eine_seite_und_ein_klick():
     h = (MOD / "seite_heute.py").read_text(encoding="utf-8")
-    for teil in ("def _zeile(a, k, primaer: bool)", "Aufgaben sind dringend", "Zurück zur Übersicht",
-                 "def _woche_tabelle", "def _frei_saeulen", "def _fall_vergleich", "Danach geht es weiter mit"):
+    for teil in ("def _woche_tabelle", "def _frei_saeulen", "def _fall_vergleich",   # 1.39: Tageszentrale → Cockpit
+                 "Danach geht es weiter mit"):
         assert teil in h, teil
     k = (MOD / "kern.py").read_text(encoding="utf-8")
     assert 'Aktion(f"ausweich:{fs[0].schluessel}", f"{kurz(fs[0].vorschlag)} zuweisen")' in k

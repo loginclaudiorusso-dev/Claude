@@ -104,5 +104,4 @@ def test_unterpunkt_im_menueband_und_in_der_seitenleiste():
 
     assert ANSICHTEN["qr"] == "QR-Meldungen"
     text = pathlib.Path(mb.__file__).read_text(encoding="utf-8")
-    assert '_split("zimmer", ansichten, "Defekte Zimmer", "warning_amber", ["maengel", "qr"]' in text   # Menüband
-    assert 'v("zimmer", "qr", "QR-Meldungen")' in text                                                  # Seitenleiste
+    assert 'p("QR-Meldungen", "qr", S("zimmer", "qr")' in text          # 1.39: eigener Knopf in Zimmer & Haus › Schäden

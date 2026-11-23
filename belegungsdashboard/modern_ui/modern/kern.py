@@ -355,7 +355,7 @@ def strittig_im_weg(stand: zp.Planstand, zimmer: str, von: date, bis: date, auss
 
 def strittig_text(s: Strittig) -> str:
     return (f"{kurz(s.geplant)} ist laut eigener Planung für {s.name} ({s.von:%d.%m.} – {s.bis:%d.%m.%Y}) vorgesehen, "
-            f"im Gebäudeplan steht {s.name} aber in {kurz(s.gebucht)} – bitte erst klären (Heute → „Planung widerspricht "
+            f"im Gebäudeplan steht {s.name} aber in {kurz(s.gebucht)} – bitte erst klären (Übersicht → „Planung widerspricht "
             "dem Gebäudeplan“).")
 
 

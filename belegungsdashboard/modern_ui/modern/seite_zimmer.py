@@ -11,8 +11,9 @@ from . import seiten, zimmer_kern as zk
 from .ui_bausteine import attr, badge, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
-ANSICHTEN = {"uebersicht": "Übersicht", "karten": "Karten", "zeitstrahl": "Zeitstrahl", "liste": "Liste",
-             "maengel": "Defekte Zimmer", "qr": "QR-Meldungen", "aenderungen": "Änderungen"}
+ANSICHTEN = {"uebersicht": "Zimmerübersicht", "karten": "Karten", "zeitstrahl": "Belegungsplan", "liste": "Zimmerliste",
+             "maengel": "Defekte Zimmer", "qr": "QR-Meldungen", "aenderungen": "Änderungsverlauf"}   # 1.39: eindeutige Namen
+DARSTELLUNG = {"uebersicht": "Raster", "karten": "Karten"}      # 1.39: zwei Darstellungen derselben Übersicht
 # 0.41: „Renovierung“ ist nach Steuerung → Renovierung umgezogen (strategisch, selten genutzt).
 
 
@@ -60,7 +61,8 @@ def daten(a) -> None:
 def zeichnen(a) -> None:
     ansicht = _ansicht(a)
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v), ansicht=True)
+        if ansicht in DARSTELLUNG:                     # 1.39: Raster | Karten in der Registerkarte „Zimmer“
+            segmente(DARSTELLUNG, ansicht, lambda v: a.oeffnen("zimmer", ansicht=v))
     if ansicht == "uebersicht":
         _uebersicht(a)
     elif ansicht == "maengel":

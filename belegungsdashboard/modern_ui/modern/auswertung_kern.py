@@ -51,7 +51,7 @@ def datenstand(neu: bool = False):
         if not neu and schluessel == _ZWISCHEN["schluessel"]:
             return _ZWISCHEN["ds"], _ZWISCHEN["fehler"]
         if quelle is None:
-            ds, fehler = None, ("Keine Pivot-Datei gefunden. Unter „Daten & Import → Pivot“ die Excel-Datei mit der "
+            ds, fehler = None, ("Keine Pivot-Datei gefunden. Unter „Verwaltung → Daten einlesen → Pivot“ die Excel-Datei mit der "
                                 "Belegungs-Pivot wählen.")
         else:
             try:

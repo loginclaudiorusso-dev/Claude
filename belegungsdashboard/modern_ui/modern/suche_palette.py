@@ -149,7 +149,12 @@ def oeffnen(a) -> None:
                     _art, titel, zusatz, icon, _ziel = e
                     b = ui.element("button").classes("m-palette-z mit-symbol" + (" an" if i == auswahl["i"] else ""))
                     with b:
-                        ui.icon(icon).classes("m-palette-sym")
+                        if str(icon).startswith("p:"):        # 1.39: eigenes Piktogramm
+                            from . import symbole
+
+                            ui.html(symbole.html(icon, gross=False, klasse="m-palette-sym"), sanitize=False)
+                        else:
+                            ui.icon(icon).classes("m-palette-sym")
                         with ui.element("div").classes("m-palette-text"):
                             attr(ui.label(titel).classes("m-name"), title=titel)
                             ui.label(zusatz).classes("m-zweite")

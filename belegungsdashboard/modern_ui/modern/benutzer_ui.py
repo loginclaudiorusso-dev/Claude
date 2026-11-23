@@ -89,6 +89,14 @@ async def passwort_dialog(pflicht: bool = False) -> bool:
     return bool(await dlg)
 
 
+def _optionen(a) -> None:
+    """1.39: Optionen (Darstellung) stehen im Konto – „Datei → Optionen“ gibt es nicht mehr."""
+    from . import optionen_ui
+
+    a.panel_zu()
+    optionen_ui.oeffnen(a, "farben")
+
+
 # ---- Konto (Datei → Konto, Statusleiste) -----------------------------------------------------------------------------
 
 def konto_panel(a) -> None:
@@ -101,9 +109,10 @@ def konto_panel(a) -> None:
     def bauen():
         if k is None:
             ui.label("Es gibt noch keine Benutzerkonten – INNternat läuft ohne Anmeldung. Den ersten Administrator legen "
-                     "Sie unter Einstellungen → Benutzer an.").classes("m-ptext")
+                     "Sie unter Verwaltung → Benutzer & Rechte an.").classes("m-ptext")
             with ui.element("div").classes("m-paktionen"):
                 knopf("Benutzer einrichten", verwalten, "primaer", "manage_accounts")
+                knopf("Optionen", lambda: _optionen(a), "", "tune", "Darstellung, Farben, Diagramme")
                 knopf("Schließen", a.panel_zu, "leise")
             return
         ui.label(k.name).classes("m-titel")
@@ -120,6 +129,7 @@ def konto_panel(a) -> None:
             knopf("Abmelden", lambda: abmelden(a), "", "logout", "Abmelden – z. B. wenn jemand anderes an diesem PC weiterarbeitet")
             if k.admin:
                 knopf("Benutzer verwalten", verwalten, "primaer", "manage_accounts")
+            knopf("Optionen", lambda: _optionen(a), "", "tune", "Darstellung, Farben, Diagramme – für Sie persönlich")
             knopf("Schließen", a.panel_zu, "leise")
 
     a.panel("Konto", bauen)

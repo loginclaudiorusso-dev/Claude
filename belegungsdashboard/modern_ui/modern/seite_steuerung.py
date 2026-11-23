@@ -29,8 +29,8 @@ from .steuerung_renovierung_ui import (  # noqa: F401
 
 # 0.46: nach Fragen statt nach Werkzeugen – Cockpit (nur lesen) · Vorhaben (planen) · Zeitplan & Kapazität · Finanzen ·
 # Grundlagen. Alte Namen (aus Links anderer Seiten) werden umgeleitet.
-ANSICHTEN = {"cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
-             "grundlagen": "Grundlagen"}
+ANSICHTEN = {"cockpit": "Überblick", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan & Kapazität", "finanzen": "Finanzen",
+             "grundlagen": "Annahmen"}       # 1.39: „Cockpit“ heißt nur noch die Startseite
 # 1.20: „Cockpit (neu)“ ist jetzt das Cockpit
 ALT = {"cockpit_neu": "cockpit", "uebersicht": "cockpit", "renovierung": "vorhaben", "prognose": "zeitplan",
        "szenarien": "finanzen", "kennzahlen": "grundlagen"}
@@ -229,7 +229,7 @@ def _entscheidungen(d: dict) -> list[str]:
 def zeichnen(a) -> None:
     ansicht_ = ansicht(a)
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht_, lambda v: a.oeffnen("steuerung", ansicht=v), ansicht=True)
+        segmente(ANSICHTEN, ansicht_, lambda v: a.oeffnen("steuerung", ansicht=v))   # 1.39: Registerkarte „Renovierung“
     d = a.daten
     if d.get("fremd"):
         with a.inhalt:

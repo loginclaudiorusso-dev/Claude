@@ -50,6 +50,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_darstellung_v129_ein_modell.py` – 1.29 – Ein Einstellungsmodell für die Darstellung (vorher themes.py + darstellung_kern.py getrennt).
 - `test_darstellung_v134_eine_oberflaeche.py` – 1.34 – nur noch das Menüband; Symbole klar oder farbig
 - `test_darstellung_v138_start.py` – 1.38 – Start aufgeräumt, Mail an FM direkt senden
+- `test_darstellung_v139_navigation.py` – 1.39 – Navigation 2.0: sieben Bereiche, Cockpit, Piktogramme, Kontextkarten, alte Namen in der Suche
 
 ## export – Exporte (Excel, Änderungen, FM-Liste)
 

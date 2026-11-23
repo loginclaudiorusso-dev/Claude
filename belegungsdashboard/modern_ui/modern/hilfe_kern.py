@@ -1,23 +1,24 @@
 """Hilfe (0.68): kurze Erklärung je Seite und Ansicht, erste Schritte, Tastenkürzel. Rein, ohne NiceGUI.
-Geöffnet mit F1, dem „?“ in der Titelleiste oder Datei → Hilfe – immer passend zur gerade offenen Seite."""
+Geöffnet mit F1, dem „?“ in der Titelleiste oder Strg+K – immer passend zur gerade offenen Seite."""
 
 from __future__ import annotations
 
 # Seite → (Titel, Kurzbeschreibung, [Punkte]); optional je Ansicht eigene Punkte in ANSICHT
 SEITEN = {
-    "heute": ("Heute", "Der Tag auf einen Blick: was dringend ist, wer anreist, was gereinigt werden muss.", [
-        "Die Kacheln oben sind Knöpfe – ein Klick springt zur passenden Stelle (z. B. Anreisen ohne Zimmer).",
-        "„Offene Aufgaben“ sind nach Dringlichkeit sortiert. Der farbige Knopf löst eine Aufgabe mit einem Klick, "
-        "„Später“ blendet sie bis morgen aus.",
-        "„Aufgaben“ öffnet das Postfach: links alle Aufgaben, rechts die einzelnen Fälle mit Einzel- und Sammelaktion.",
+    "heute": ("Übersicht · Cockpit", "Die Startseite: was heute ansteht, Nachrichten und offene Aufgaben.", [
+        "Die Zahlen oben (Anreisen, Abreisen, Reinigung, nicht nutzbare Zimmer) sind Knöpfe – ein Klick springt zur "
+        "passenden Stelle.",
+        "Links „Überblick heute“, die Nachrichten am Standort und die Aufgaben nach Dringlichkeit; rechts liest und "
+        "erledigt man den gewählten Eintrag („Was ist zu tun?“).",
+        "„Später“ blendet eine Aufgabe bis morgen aus. Neue Nachricht und Mail an FM stehen in der Registerkarte Übersicht.",
     ]),
     "anreisen": ("Anreisen", "Personen der Anreiselisten ein Zimmer geben – nach denselben Regeln wie im Hauptprogramm.", [
         "Oben die Anreise wählen; je Person das Zimmer in der Zeile wählen. Grün ist der passende Vorschlag.",
-        "„Alle Vorschläge übernehmen“ (in der Aufgabe unter Heute) teilt alle grünen Vorschläge auf einmal zu. "
+        "„Alle Vorschläge übernehmen“ (in der Aufgabe im Cockpit) teilt alle grünen Vorschläge auf einmal zu. "
         "Gespeichert wird sofort.",
         "Im Menü ⋯ der Seite: Anreiseliste, Schlüsselliste und Zimmerschilder drucken.",
     ]),
-    "zimmer": ("Zimmer", "Alle Zimmer mit Belegung, Sperren und Mängeln.", [
+    "zimmer": ("Zimmer & Haus", "Alle Zimmer mit Belegung, Sperren und Mängeln.", [
         "Jedes Zimmer hat genau einen Zustand: frei, geplant, belegt oder nicht nutzbar (gesperrt oder wegen eines "
         "Mangels unbewohnbar – gestreift). Zusammen ergeben sie alle Zimmer.",
         "Dazu zwei Markierungen, die auf jedem Zustand liegen können: „nicht bezugsfertig“ (Besen: Reinigung offen – "
@@ -28,32 +29,32 @@ SEITEN = {
     ]),
     "reinigung": ("Reinigung", "Was vor dem nächsten Einzug gereinigt werden muss.", [
         "Erledigtes abhaken – die Liste ist auf allen PCs gleich.",
-        "„Vorschau 6 Wochen“ zeigt die Last je Woche, „Facility-Checks“ die wiederkehrenden Prüfungen.",
+        "„Reinigungsvorschau“ (Planung) zeigt die Last je Woche, „Facility-Checks“ die wiederkehrenden Prüfungen.",
     ]),
-    "termine": ("Termine", "Termine und Wiedervorlagen – mit Erinnerung als Windows-Meldung.", [
-        "Neue Termine über „Neuer Termin“; fällige erscheinen auch unter Heute.",
+    "termine": ("Kalender", "Termine und Wiedervorlagen – mit Erinnerung als Windows-Meldung.", [
+        "Neue Termine über „Neuer Termin“; fällige erscheinen auch im Cockpit. Liste oder Monat: Registerkarte „Kalender“.",
     ]),
-    "assistenz": ("Assistenz", "Aufträge, Mails und Fragen an die Daten.", [
-        "„Fragen & Zahlen“ beantwortet Fragen wie „Wie viele Plätze sind im November frei?“.",
+    "assistenz": ("KI-Assistent", "Aufträge, Outlook-Mails und Fragen an die Daten.", [
+        "„Schnellauskunft“ beantwortet Fragen wie „Wie viele Plätze sind im November frei?“.",
     ]),
     "mieter": ("Mieter", "Mieter und Mietverträge.", [
         "Vertragsnummern laufen je Jahr (z. B. 27-001); die Nummer lässt sich beim Bearbeiten ändern.",
         "Für Mieter gilt die Trennung nach Geschlecht bei den Zimmern in Haus 6 nicht.",
     ]),
-    "auswertung": ("Auswertung", "Lage, Belegung und Prognosen – für alle Standorte.", [
-        "Die Prognose zeigt den erwarteten Verlauf mit 80-%- und 95-%-Spanne; der Rückwärtstest zeigt, wie gut sie früher "
-        "getroffen hätte.",
+    "auswertung": ("Auswertung", "Kennzahlen, Belegung und Prognosen – für alle Standorte.", [
+        "Die Prognose zeigt den erwarteten Verlauf mit 80-%- und 95-%-Spanne; „Prognose-Genauigkeit“ zeigt, wie gut sie "
+        "früher getroffen hätte. Beides steht in der Registerkarte „Prognose“.",
         "Diagrammtyp, Legende und Elemente stehen in der Registerkarte „Diagramm“.",
     ]),
-    "steuerung": ("Steuerung", "Renovierung, Zeitplan, Kapazität und Finanzen – für die Leitung.", [
+    "steuerung": ("Renovierung & Budget", "Renovierung, Zeitplan, Kapazität und Finanzen – für die Leitung.", [
         "Vorhaben anlegen, im Zeitplan einplanen und die Wirkung auf freie Zimmer prüfen.",
     ]),
-    "daten": ("Daten & Import", "Listen einlesen und den Datenstand prüfen.", [
+    "daten": ("Daten einlesen", "Listen einlesen und den Datenstand prüfen.", [
         "Anreiselisten, Gebäudeplan und Pivot hier einlesen; das Programm zeigt, was neu ist.",
     ]),
     "inventar": ("Inventar", "Gegenstände je Zimmer und Haus.", ["Im Menü ⋯ der Seite: Inventarliste drucken."]),
-    "einstellungen": ("Einstellungen", "Programm, Zimmer-Stammdaten, Sicherung.", [
-        "Die Darstellung (Farben, Zoom, Schrift) steht unter Datei → Optionen.",
+    "einstellungen": ("Verwaltung", "Einstellungen, Zimmer-Stammdaten, Benutzer & Rechte, Sicherung.", [
+        "Die Darstellung (Farben, Zoom, Schrift) steht unter Datei → Konto → Optionen.",
     ]),
 }
 ANSICHT = {
@@ -71,24 +72,25 @@ ANSICHT = {
     ("auswertung", "prognose"): ["Taste P startet die Präsentation (← → Schritt für Schritt, Esc beendet)."],
 }
 ERSTE_SCHRITTE = [
-    ("Registerkarten", "Oben wie in Word und Excel: Start (Heute, Termine, Assistenz), Anreisen, Zimmer & Haus, "
-                       "Auswertung, Verwalten. Ein Klick auf eine Schaltfläche öffnet die Ansicht; ein Punkt am Reiter "
-                       "zeigt, wo die offene Seite liegt."),
+    ("Registerkarten", "Oben wie in Word und Excel: Übersicht (Cockpit), Anreisen, Zimmer & Haus, Planung, "
+                       "Auswertung, KI-Assistent, Verwaltung. Ein Klick auf eine Schaltfläche öffnet die Ansicht; ein "
+                       "Punkt am Reiter zeigt, wo die offene Seite liegt. Blaue Registerkarten rechts (z. B. „Diagramm“, "
+                       "„Kalender“) erscheinen nur, solange sie gebraucht werden."),
     ("Suchen und Befehle", "Das Suchfeld oben (Strg+K) findet Personen, Zimmer, Seiten und Befehle – z. B. „drucken“, "
                            "„neuer Termin“, „abtippen“, „2-408 Mangel“ oder eine Frage wie „Wie viele Zimmer sind im "
                            "Dezember frei?“."),
     ("Rückgängig", "Jede Änderung lässt sich mit Strg+Z oder dem Pfeil oben links zurücknehmen."),
     ("Automatisch gespeichert", "Es gibt kein „Speichern“: jede Änderung ist sofort gespeichert – auch für die "
                                 "anderen PCs."),
-    ("Neuigkeiten", "Die Glocke oben rechts zeigt neue Meldungen; die Zahl verschwindet, wenn sie gelesen sind."),
+    ("Benachrichtigungen", "Die Glocke oben rechts zeigt neue Meldungen; die Zahl verschwindet, wenn sie gelesen sind."),
     ("Darstellung", "Zoom, Kompakt, Vollbild und Helligkeit (Hell → Gedämpft → Dunkel) unten rechts in der "
-                    "Statusleiste; Farbton, „Ganzes Design“, Schrift und Programm-Einstellungen unter Datei → Optionen."),
+                    "Statusleiste; Farbton, „Ganzes Design“, Schrift und Programm-Einstellungen unter Datei → Konto → Optionen."),
     ("Standort", "Der Standort steht oben neben „INNternat“ – Klick wechselt ihn."),
 ]
 TASTEN = [
     ("Strg+K", "Suchen"), ("Strg+Z", "Letzte Änderung zurücknehmen"), ("Strg+P", "Aktuelle Ansicht drucken"),
     ("F1", "Hilfe zur aktuellen Seite"), ("A", "Aufgaben-Center ein/aus"), ("Esc", "Panel oder Dialog schließen"),
-    ("↑ ↓", "Aufgabe im Postfach wählen"), ("L · S", "Aufgabe lösen · auf später legen (Postfach)"),
+    ("↑ ↓", "Aufgabe im Cockpit wählen"), ("L · S", "Aufgabe lösen · auf später legen (Cockpit)"),
     ("1–6 · E · N", "Abtipp-Modus: Feld kopieren · erledigt · nächster"), ("P", "Präsentation der Prognose"),
 ]
 

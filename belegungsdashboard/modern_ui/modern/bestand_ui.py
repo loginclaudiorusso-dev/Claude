@@ -66,10 +66,10 @@ def zeichnen(a, d: dict) -> None:
             knopf("Maßnahmearten zuordnen …", lambda: zuordnung_panel(a), "primaer", "rule")
     with a.inhalt, ui.element("div").classes("m-rv m-bst"):
         if b is None:
-            leer("Für den Prüfbericht den Maßnahmen-Pivot einmal neu einlesen (Daten & Import → Maßnahmen-Prognose) – "
+            leer("Für den Prüfbericht den Maßnahmen-Pivot einmal neu einlesen (Verwaltung → Daten einlesen → Maßnahmen-Prognose) – "
                  "erst ab dieser Version werden die Aufenthalte je Person gebildet." if d.get("leer") else
-                 "Noch kein Maßnahmen-Pivot eingelesen (Daten & Import → Maßnahmen-Prognose).")
-            knopf("Zu Daten & Import", lambda: a.oeffnen("daten"), "", "upload_file")
+                 "Noch kein Maßnahmen-Pivot eingelesen (Verwaltung → Daten einlesen → Maßnahmen-Prognose).")
+            knopf("Zu Daten einlesen", lambda: a.oeffnen("daten"), "", "upload_file")
             return
         a.status_info = (f"{b.personen} Personen · {b.kurse} Kurse · {b.aufenthalte} Aufenthalte · Stichtag "
                          f"{b.letzter_ist:%d.%m.%Y}")

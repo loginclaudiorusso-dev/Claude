@@ -3,7 +3,7 @@
 Die Befehle kommen aus dem Menüband (jede Schaltfläche, Datei, Titel- und Statusleiste) – damit findet die Suche immer
 genau das, was es im Band gibt – plus Aktionen, die nur in Seiten stecken (Neuer Termin, Neuer Mieter …). Dazu:
 * Zimmernummer + Stichwort („2-408 Mangel“) → Zimmerkarte, dort Mangel, Sperre, Verlauf;
-* eine Frage („Wie viele Zimmer sind im Dezember frei?“) → direkt an „Fragen & Zahlen“;
+* eine Frage („Wie viele Zimmer sind im Dezember frei?“) → direkt an „Schnellauskunft“;
 * sonst als letzter Vorschlag: „Als Auftrag an die Assistenz“.
 
 Ziele: ("seite", seite, ansicht, zustand) · ("aktion", name) · ("panel", seite, ansicht, name) · ("frage", text) ·
@@ -31,41 +31,42 @@ class Befehl:
 # Zusätzliche Suchwörter je Ziel – was Kolleginnen und Kollegen tippen würden
 WORTE = {
     ("anreisen", "zuteilen"): ("zimmer zuteilen", "zuweisen", "vorschläge", "anreise", "belegen", "einchecken"),
-    ("anreisen", "personen"): ("teilnehmer", "tn", "leute", "neu"),
+    ("anreisen", "personen"): ("teilnehmer", "tn", "leute", "neu", "personen"),
     ("anreisen", "abreisen"): ("auszug", "abreise", "auschecken", "schlüssel zurück"),
-    ("anreisen", "eintragen"): ("belegungssystem", "trägersystem", "übertragen", "abtippen", "abtipp", "eintragen"),
-    ("zimmer", "uebersicht"): ("frei", "freie zimmer", "belegung", "gebäude", "kacheln"),
-    ("zimmer", "zeitstrahl"): ("gantt", "kalender", "wochen", "zeitachse"),
+    ("anreisen", "eintragen"): ("rios", "rios-daten", "belegungssystem", "trägersystem", "übertragen", "abtippen", "abtipp", "eintragen"),
+    ("zimmer", "uebersicht"): ("frei", "freie zimmer", "belegung", "gebäude", "kacheln", "karten", "raster"),
+    ("zimmer", "zeitstrahl"): ("zeitstrahl", "gantt", "wochen", "zeitachse"),
     ("zimmer", "liste"): ("tabelle", "excel", "zimmerliste"),
     ("zimmer", "maengel"): ("mängel", "defekt", "kaputt", "fm", "hausmeister", "reparatur", "unbewohnbar"),
     ("zimmer", "qr"): ("qr", "qr-code", "meldung per handy", "forms", "gast meldet", "scannen"),
     ("zimmer", "aenderungen"): ("verlauf", "historie", "wer hat", "protokoll", "änderungen"),
     ("reinigung", "liste"): ("putzen", "sauber", "reinigungsliste"),
-    ("reinigung", "last"): ("vorschau", "planung reinigung"),
+    ("reinigung", "last"): ("vorschau", "vorschau 6 wochen", "planung reinigung"),
     ("reinigung", "facility"): ("prüfungen", "checks", "wartung"),
-    ("termine", "liste"): ("wiedervorlage", "erinnerung", "frist"),
+    ("termine", "liste"): ("termine", "wiedervorlage", "erinnerung", "frist"),
     ("termine", "monat"): ("kalender", "monat"),
-    ("assistenz", "auftraege"): ("auftrag", "ki", "assistent"),
+    ("assistenz", "auftraege"): ("auftrag", "ki", "assistent", "assistenz"),
     ("assistenz", "mails"): ("mail", "e-mail", "outlook", "posteingang"),
-    ("assistenz", "fragen"): ("frage", "zahlen", "auskunft", "wie viele"),
-    ("auswertung", "lage"): ("überblick", "lage", "dashboard", "kennzahlen"),
+    ("assistenz", "fragen"): ("fragen & zahlen", "frage", "zahlen", "auskunft", "wie viele"),
+    ("auswertung", "lage"): ("überblick", "lage", "kennzahlen"),
     ("auswertung", "prognose"): ("vorhersage", "zukunft", "präsentation", "forecast"),
     ("auswertung", "massnahmen"): ("neuanmeldungen", "kurse", "startwelle", "wirtschaftsplan"),
     ("auswertung", "zimmer"): ("engpass", "knapp", "kapazität"),
-    ("steuerung", None): ("renovierung", "budget", "finanzen", "leitung", "vorhaben"),
+    ("steuerung", None): ("steuerung", "renovierung", "budget", "finanzen", "leitung", "vorhaben"),
     ("mieter", None): ("mietvertrag", "vertrag", "miete"),
-    ("daten", None): ("import", "einlesen", "hochladen", "pivot", "anreiseliste laden", "gebäudeplan"),
+    ("daten", None): ("import", "importieren", "daten & import", "einlesen", "hochladen", "pivot", "anreiseliste laden", "gebäudeplan"),
     ("einstellungen", "stammdaten"): ("zimmer anlegen", "stammdaten", "betten"),
-    ("einstellungen", "sicherung"): ("backup", "sichern", "wiederherstellen"),
+    ("einstellungen", "sicherung"): ("backup", "sichern", "wiederherstellen", "sicherung", "version", "neuigkeiten"),
     ("einstellungen", "benutzer"): ("benutzer", "konten", "benutzerverwaltung", "mitarbeiter anlegen", "zugang", "rechte"),
     ("inventar", None): ("möbel", "gegenstand", "ausstattung", "lager"),
-    ("heute", None): ("start", "tagesübersicht", "dashboard", "aufgaben"),
+    ("heute", None): ("start", "heute", "tagesübersicht", "posteingang", "dashboard", "aufgaben", "übersicht"),
     "drucken": ("print", "ausdrucken", "liste drucken", "schilder", "schlüsselliste"),
     "exportieren": ("export", "excel", "pdf", "csv", "tabelle", "speichern unter", "herunterladen", "zwischenablage"),
     "optionen": ("einstellungen", "farbe", "farben", "schrift", "design", "theme", "layout"),
     "konto": ("abmelden", "anmelden", "passwort", "konto", "benutzer wechseln", "ausloggen"),
     "hilfe": ("anleitung", "tastenkürzel", "erste schritte", "f1", "?"),
-    "neuigkeiten": ("glocke", "meldungen", "nachrichten"),
+    "neuigkeiten": ("glocke", "meldungen", "benachrichtigungen"),
+    "automatisierung": ("power automate", "qr einrichten", "forms", "automatik"),
     "standort": ("goslar", "bad pyrmont", "weser-ems", "wechseln"),
     "rueckgaengig": ("undo", "zurück", "strg+z"),
     "aktualisieren": ("neu laden", "refresh"),
@@ -80,22 +81,24 @@ WORTE = {
 # Aktionen, die nicht im Band stehen: (Titel, Symbol, Ziel, Suchwörter, Bereich)
 EXTRA = [
     ("Neuer Termin", "event", ("panel", "termine", "liste", "termin_neu"), ("termin anlegen", "wiedervorlage anlegen",
-                                                                          "erinnerung"), "Start → Termine"),
+                                                                          "erinnerung"), "Planung → Kalender"),
     ("Neuer Mieter / Mietvertrag", "person_add", ("panel", "mieter", None, "mieter_neu"), ("mieter anlegen", "vertrag anlegen",
                                                                                        "mietvertrag neu"), "Anreisen → Mieter"),
     ("Wochenblatt drucken", "print", ("panel", "reinigung", "liste", "wochenblatt"), ("aushang", "hausmeister", "wochenplan"),
      "Zimmer & Haus → Reinigung"),
     ("QR-Codes am Zimmer (Meldung per Handy)", "qr_code_2", ("panel", "zimmer", "qr", "qr"),
-     ("qr", "qr-code", "etikett", "aufkleber", "forms", "umfrage", "scannen"), "Zimmer & Haus → Defekte Zimmer"),
+     ("qr", "qr-code", "etikett", "aufkleber", "forms", "umfrage", "scannen"), "Zimmer & Haus → QR-Meldungen"),
     ("Notfallliste drucken", "emergency", ("panel", "zimmer", "uebersicht", "notfall"),
      ("notfall", "evakuierung", "feuer", "brand", "feueralarm", "sammelplatz", "wer ist im haus", "anwesend"),
-     "Zimmer & Haus → Übersicht"),
+     "Zimmer & Haus → Zimmerübersicht"),
     ("Aufgaben-Center", "task_alt", ("aktion", "aufgaben"), ("aufgaben", "to do", "offen"), "Taste A"),
-    ("Optionen: Farben", "palette", ("aktion", "optionen:farben"), ("farbschema", "akzentfarbe"), "Datei → Optionen"),
+    ("Optionen", "settings", ("aktion", "optionen"), ("optionen", "darstellung", "design", "farbe", "schrift"),
+     "Datei → Konto → Optionen"),                       # 1.39: nicht mehr als eigener Eintrag unter Datei
+    ("Optionen: Farben", "palette", ("aktion", "optionen:farben"), ("farbschema", "akzentfarbe"), "Datei → Konto → Optionen"),
     ("Optionen: Diagramme", "insert_chart", ("aktion", "optionen:diagramme"), ("diagrammtyp", "säulen", "linie"),
-     "Datei → Optionen"),
+     "Datei → Konto → Optionen"),
     ("Optionen: Schrift & Zoom", "format_size", ("aktion", "optionen:anzeige"), ("schriftart", "schriftgröße"),
-     "Datei → Optionen"),
+     "Datei → Konto → Optionen"),
 ]
 
 ZIMMER_RE = re.compile(r"\b(\d(?:\.\d)?)\s*-\s*([A-Za-z]?\d{2,3})\b")

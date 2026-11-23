@@ -13,7 +13,7 @@ from .kern import _schritt
 from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
-ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Zimmer", "haeuser": "Übersicht je Haus"}
+ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Je Zimmer", "haeuser": "Je Haus"}   # 1.39: „Übersicht“ nur einmal
 HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
 
 
@@ -71,7 +71,7 @@ def zeichnen(a) -> None:
     ansicht = a.ansicht_von("inventar", "gegenstaende")
     inv: iv.Inventar = a.daten["inv"]
     with a.werkzeuge:
-        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("inventar", ansicht=v), ansicht=True)
+        segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("inventar", ansicht=v))  # 1.39: in der Registerkarte „Inventar“
         knopf("Neuer Gegenstand", lambda: _gegenstand_panel(a, None), "primaer", "add")
         with knopf("Drucken & Export", None, "", "print"):
             with ui.menu().props('dark class="m-menue"'):

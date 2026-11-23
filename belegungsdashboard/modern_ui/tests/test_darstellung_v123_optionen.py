@@ -22,12 +22,12 @@ def test_optionen_je_seite():
     assert mb.punkt_sichtbar(p["Anteile"], "auswertung", "massnahmen")
     assert not mb.punkt_sichtbar(p["Anteile"], "auswertung", "prognose")
     assert not mb.punkt_sichtbar(p["Diagrammtyp"], "steuerung", "cockpit")
-    assert mb.punkt_sichtbar(p["95 %-Band (Prognose)"], "auswertung", "prognose")
-    assert not mb.punkt_sichtbar(p["95 %-Band (Prognose)"], "auswertung", "belegung")
+    prog = next(r for r in mb.reiter({}) if r.key == "prognose")     # 1.39: Band in der Karte „Prognose“
+    assert "95-%-Band" in _alle(prog) and mb.sichtbar(prog, "auswertung", "prognose")
+    assert not mb.sichtbar(prog, "auswertung", "belegung")
     assert not mb.punkt_sichtbar(p["Datenbeschriftungen"], "auswertung", "massnahmen")
     assert mb.punkt_sichtbar(p["Datenbeschriftungen"], "steuerung", "cockpit")
-    darst = next(g for g in r.gruppen if g.titel == "Darstellung")
-    assert mb.gruppe_sichtbar(darst, "auswertung", "belegung") and not mb.gruppe_sichtbar(darst, "auswertung", "lage")
+    assert not any(g.titel == "Darstellung" for g in r.gruppen)      # 1.39: Karte/Klassisch/Einfach → Konto › Optionen
 
 
 def test_datenbeschriftung_auch_bei_ausdruecklich_keiner():

@@ -25,10 +25,11 @@ def _alle(reiter):
 
 def test_reiter_wie_office():
     r = mb.reiter(ANS)
-    assert [x.titel for x in r] == ["Start", "Anreisen", "Zimmer & Haus", "Auswertung", "Verwalten", "Diagrammentwurf"]
+    assert [x.titel for x in r if not x.kontext] == ["Übersicht", "Anreisen", "Zimmer & Haus", "Planung", "Auswertung",
+                                                    "KI-Assistent", "Verwaltung"]          # 1.39: Navigation 2.0
     zimmer = next(x for x in r if x.key == "zimmer")
-    sichtbar = [p.text for g in zimmer.gruppen for p in g.punkte]
-    assert {"Übersicht", "Zeitstrahl", "Liste", "Karten"} <= set(sichtbar)            # 0.69: Ansichten sichtbar im Band
+    sichtbar = [p.text.replace("\u00ad", "") for g in zimmer.gruppen for p in g.punkte]
+    assert {"Zimmerübersicht", "Zimmerliste"} <= set(sichtbar)            # 0.69: Ansichten sichtbar im Band
     assert all(p.icon for _r, p in _alle(r))                                       # jede Schaltfläche mit Symbol
     ziele = [p.ziel for _r, p in _alle(r) if p.ziel]
     assert all(z[0] in ("seite", "aktion") for z in ziele)
@@ -36,16 +37,19 @@ def test_reiter_wie_office():
 
 def test_aktiv_und_reiter_von():
     r = mb.reiter(ANS)
-    zeit = next(p for x, p in _alle(r) if x.key == "zimmer" and p.text == "Zeitstrahl")
+    zeit = next(p for x, p in _alle(r) if x.key == "planung" and p.text.replace("\u00ad", "") == "Belegungsplan")
     assert mb.aktiv(zeit, "zimmer", lambda s: "zeitstrahl")
     assert not mb.aktiv(zeit, "zimmer", lambda s: "liste")
-    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Posteingang")          # 1.36: „Aufgaben“ heißt Posteingang
-    assert mb.aktiv(pf, "heute", lambda s: "", "postfach") and not mb.aktiv(pf, "heute", lambda s: "", "zentrale")
+    pf = next(p for _r, p in _alle(r[:1]) if p.text == "Cockpit")              # 1.39: Startseite = Cockpit
+    assert mb.aktiv(pf, "heute", lambda s: "", "postfach")
+    nachr = next(p for _r, p in _alle(r[:1]) if p.text == "Nachrichten")       # Sprung ins Cockpit, kein eigener Ort
+    assert not mb.aktiv(nachr, "heute", lambda s: "", "postfach")
     assert mb.reiter_von("auswertung", ANS) == "auswertung"
-    assert mb.reiter_von("einstellungen", ANS, "stammdaten") == "verwalten"
-    assert mb.reiter_von("zimmer", ANS, "aenderungen") == "verwalten"
+    assert mb.reiter_von("einstellungen", ANS, "stammdaten") == "verwaltung"
+    assert mb.reiter_von("zimmer", ANS, "aenderungen") == "verwaltung"
+    assert mb.reiter_von("zimmer", ANS, "zeitstrahl") == "planung"
     assert mb.reiter_von("zimmer", ANS, "liste") == "zimmer"
-    assert mb.reiter_von("heute", ANS) == "start"
+    assert mb.reiter_von("heute", ANS) == "uebersicht"
 
 
 def test_statuszeile():
