@@ -167,6 +167,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_zimmer_v097_suche_kontrast.py` – 0.97 – Suche zeigt nach Umzug das Zimmer heute, Diagrammschrift mit hohem Kontrast, deutlich verschiedene
 - `test_zimmer_v111_filter.py` – 1.11 – Zimmerfilter in der Übersicht (Einzel-/Doppelzimmer, Tier …), Einzelzimmer als neuer Filter.
 - `test_zimmer_v123_suche_umzug.py` – 1.23 – Suche nach Zimmerwechsel: nur das neue Zimmer (altes als Hinweis). Erfundene Namen.
+- `test_zimmer_v142_kontrast_protokoll.py` – 1.42 – Zimmerkacheln mit hohem Kontrast und Legende, Protokoll „Heute geändert“ im Cockpit
 
 ## zuteilung – Zuteilung bei Anreisen: Regeln, Zimmerwahl, strittige Planung, Doppelzimmer
 

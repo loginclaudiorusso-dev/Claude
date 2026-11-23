@@ -1034,6 +1034,7 @@ def _uebersicht(a) -> None:
                                                                                 "gruppen": [], "renoviert": "alle",
                                                                                 "alle": False}, laden=False),
                       "leise", "close")
+        legende()                                   # 1.42: was die Farben und Zeichen bedeuten
         with ui.element("div").classes("m-haeuser"):
             for haus, etagen in haeuser.items():
                 with ui.element("section").classes("m-block m-haus"):
@@ -1062,6 +1063,35 @@ def _uebersicht(a) -> None:
                                         if k.strittig:
                                             ui.label("?").classes("m-kachel-s")
                                     b.on("click", lambda k=k: karte_oeffnen(a, k.zimmer))
+
+
+# 1.42: Legende der Zimmerkacheln (Klasse der Probe-Kachel, Zeichen darin, Erklärung)
+LEGENDE = (("frei", "", "frei – mindestens ein Bett frei"),
+           ("teilweise", "", "Doppelzimmer – ein Bett frei"),
+           ("geplant", "", "geplant – Einzug steht bevor"),
+           ("belegt", "", "belegt – alle Betten belegt"),
+           ("nn", "", "nicht nutzbar – gesperrt laut Gebäudeplan"),
+           ("nn unbew", "", "nicht nutzbar – Mangel macht es unbewohnbar"))
+ZEICHEN = (("!", "offener Mangel (! leicht · !! mittel · !!! dringend)"),
+           ("besen", "nicht bezugsfertig – Reinigung offen"),
+           ("?", "Gebäudeplan widerspricht der Planung"))
+
+
+def legende() -> None:
+    with ui.element("div").classes("m-zi-legende"):
+        ui.label("So lesen:").classes("m-zi-titel").style("font-weight:600")
+        for klasse, _z, text in LEGENDE:
+            with ui.element("span"):
+                with ui.element("span").classes(f"m-kachel {klasse}"):
+                    ui.label("101")
+                ui.label(text)
+        for zeichen, text in ZEICHEN:
+            with ui.element("span"):
+                if zeichen == "besen":
+                    ui.icon("cleaning_services").classes("m-zi-besen")
+                else:
+                    ui.label(zeichen).classes("m-kachel-m" if zeichen == "!" else "m-kachel-s")
+                ui.label(text)
 
 
 def _besen_oeffnen(a, k):

@@ -106,6 +106,12 @@ def daten(a) -> None:
 
     a.daten.nachrichten = nk.offene()
     a.daten.ich = nk.ich()
+    from . import protokoll_kern as pk            # 1.42: wer hat heute was geändert
+
+    try:
+        a.daten.protokoll = pk.heute(a.heute)
+    except Exception:                          # noqa: BLE001 – Anzeige darf das Cockpit nie blockieren
+        a.daten.protokoll = []
 
 
 MONATE_LANG = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
@@ -231,6 +237,7 @@ def feed_eintraege(t: Tag, karten: list, heute: date) -> dict:
 
 UEBERBLICK = "ueberblick"
 POSTFACH = "postfach_outlook"                               # 1.40: Outlook-Postfach als Eintrag links
+AENDERUNGEN = "aenderungen_heute"                           # 1.42: wer hat heute was geändert
 NACHRICHTEN = "nachrichten"                               # 1.39: Sprung aus dem Menüband (= menueband.NACHRICHTEN)
 STUFEN_PF = (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info"))
 
@@ -284,7 +291,7 @@ def auswahl(a) -> str:
     if alt == NACHRICHTEN:                            # 1.39: Menüband „Nachrichten“ → erste (neueste) Nachricht
         ns = getattr(getattr(a, "daten", None), "nachrichten", None) or []
         return f"nachricht:{ns[0].id}" if ns else UEBERBLICK
-    if alt in ids or alt in (UEBERBLICK, POSTFACH):
+    if alt in ids or alt in (UEBERBLICK, POSTFACH, AENDERUNGEN):
         return alt
     nachr = [f"nachricht:{n.id}" for n in getattr(getattr(a, "daten", None), "nachrichten", []) or []]
     if alt in nachr:
@@ -311,7 +318,7 @@ def _postfach(a, t: Tag) -> None:
         fuellen()
 
     def schritt(richtung: int) -> None:
-        reihe = [UEBERBLICK, POSTFACH] + [f"nachricht:{n.id}" for n in getattr(t, "nachrichten", [])] + [k.id for k in a.karten]
+        reihe = [UEBERBLICK, AENDERUNGEN, POSTFACH] + [f"nachricht:{n.id}" for n in getattr(t, "nachrichten", [])] + [k.id for k in a.karten]
         i = reihe.index(a.pf_auswahl) if a.pf_auswahl in reihe else 0
         zeigen(reihe[max(0, min(len(reihe) - 1, i + richtung))])
 
@@ -344,6 +351,9 @@ def _postfach(a, t: Tag) -> None:
                 with ui.element("div").classes("m-pf-ueberblick"):
                     _woche_tabelle(a, t)          # 1.40: nur zwei Karten – Abreisen und Reinigung stehen oben als Zahl
                     _frei_saeulen(a, t)
+                return
+            if a.pf_auswahl == AENDERUNGEN:
+                _aenderungen(a, t, fuellen)
                 return
             if a.pf_auswahl == POSTFACH:          # 1.40: Outlook-Postfach (z. B. Internatsdienst) auf Klick
                 from . import outlook_kern
@@ -404,6 +414,18 @@ def _liste_kopf(a, t: Tag, zeigen) -> None:
             ui.label(f"{an} Anreise{'n' if an != 1 else ''} · Auslastung und freie Zimmer"
                      + (f" · {frei} frei" if frei is not None else "")).classes("m-pf-unter")
     z.on("click", lambda: zeigen(UEBERBLICK))
+    prot = getattr(t, "protokoll", []) or []
+    if prot:                                          # 1.42: „Anna: 5 Änderungen · Ben: 2 Änderungen“
+        from . import protokoll_kern as pk
+
+        z = ui.element("button").classes("m-pf-zeile info" + (" an" if a.pf_auswahl == AENDERUNGEN else ""))
+        attr(z, title="Was heute an diesem Standort geändert wurde – und von wem")
+        with z:
+            ui.icon("history").classes("m-pf-symbol info")
+            with ui.element("div").classes("m-pf-text"):
+                ui.label(f"Heute geändert · {len(prot)}").classes("m-pf-titel")
+                ui.label(pk.zusammenfassung(prot)).classes("m-pf-unter")
+        z.on("click", lambda: zeigen(AENDERUNGEN))
     from . import outlook_kern
 
     if pfad := outlook_kern.ordner():                 # 1.40: Postfach nur auf Klick (vorher immer unter der Lesespalte)
@@ -431,6 +453,32 @@ def _liste_kopf(a, t: Tag, zeigen) -> None:
                 letzte = n.antworten[-1] if n.antworten else n
                 ui.label(f"{letzte.von} · {_zeit_kurz(letzte.zeit)} · {letzte.text[:70]}").classes("m-pf-unter")
         z.on("click", lambda kid=kid: zeigen(kid))
+
+
+def _aenderungen(a, t: Tag, fuellen) -> None:
+    """1.42: Was heute geändert wurde – je Person; Klick öffnet die Stelle, × nimmt eine falsche Meldung aus der Liste."""
+    from . import protokoll_kern as pk
+
+    ui.label("Heute geändert").classes("m-pf-dtitel")
+    ui.label("Je Person, neueste zuerst. „Ansehen“ öffnet die Stelle; dort lässt sich ein Fehler korrigieren oder "
+             "die Person bzw. der Eintrag entfernen. „Aus der Liste“ blendet nur die Meldung aus.").classes("m-zweite")
+
+    async def weg(e):
+        if await a.aendern(pk.ausblenden, e.id):
+            t.protokoll = [x for x in t.protokoll if x.id != e.id]
+            fuellen()
+
+    for wer, es in pk.je_person(getattr(t, "protokoll", []) or []).items():
+        with ui.element("section").classes("m-pf-wer"):
+            ui.label(f"{wer} · {len(es)} Änderung{'en' if len(es) != 1 else ''}").classes("m-btitel")
+            for e in es:
+                with ui.element("div").classes("m-pf-prot"):
+                    ui.label(e.uhr).classes("m-mono m-zweite")
+                    attr(ui.label(e.titel).classes("m-pf-prot-t"), title=e.titel)
+                    seite, ansicht = pk.ziel(e.titel)
+                    knopf("Ansehen", lambda s_=seite, v=ansicht: a.oeffnen(s_, ansicht=v) if v else a.oeffnen(s_),
+                          "leise", "open_in_new", "Die Stelle öffnen, an der sich die Änderung zeigt")
+                    knopf("", lambda e=e: weg(e), "leise", "close", "Aus der Liste – falsche oder unwichtige Meldung")
 
 
 def _zeit_kurz(iso: str) -> str:
@@ -738,6 +786,11 @@ CSS = r"""
 .m-hz-swert { font-weight: 600; font-variant-numeric: tabular-nums; }
 .m-werkzeuge:has(.m-hz-chips) { margin-left: auto; }
 .m-hz-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+/* 1.42: Heute geändert – je Person */
+.m-pf-wer { margin-top: 14px; }
+.m-pf-prot { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
+  padding: 3px 0; border-bottom: 1px solid var(--rand); }
+.m-pf-prot-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 1.39: Cockpit – Zahlen von heute über Liste und Lesespalte */
 .m-cockpit-kopf { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 0 20px; }
 .m-cockpit-tag { font-weight: 600; color: var(--text2); font-size: 13px; letter-spacing: .02em; }

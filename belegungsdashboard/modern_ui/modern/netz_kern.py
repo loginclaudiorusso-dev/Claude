@@ -386,6 +386,12 @@ def notieren(titel: str) -> None:
                                     "zeit": datetime.now().isoformat(timespec="seconds")})
     except OSError as exc:
         log.warning("Letzte Änderung nicht notiert: %s", exc)
+    try:                                            # 1.42: Protokoll fürs Cockpit („wer hat heute was geändert“)
+        from . import protokoll_kern
+
+        protokoll_kern.anhaengen(titel, wer())
+    except Exception as exc:                        # noqa: BLE001 – Protokoll ist Komfort, nie ein Grund zum Abbruch
+        log.warning("Protokoll nicht geschrieben: %s", exc)
 
 
 def letzte_aenderung() -> dict | None:

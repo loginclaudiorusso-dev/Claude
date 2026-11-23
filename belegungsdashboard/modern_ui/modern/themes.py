@@ -238,6 +238,39 @@ body.pro .m-kachel.unbew { border: 2px solid var(--s-krit-fg); }
 body.pro .m-kachel.nn { background: repeating-linear-gradient(135deg, var(--s-neutral-bg) 0 5px, var(--fl2) 5px 10px);
   color: var(--s-neutral-fg); }                     /* 0.70: „nicht nutzbar“ einheitlich gestreift (Grund: roter Rahmen = Mangel) */
 body.pro .m-kachel-m { background: var(--s-warn-fg); color: var(--fls); }
+/* 1.42: Zimmerkacheln mit deutlich höherem Kontrast – frei hellgrün mit grünem Rahmen, belegt kräftig blau mit weißer
+   Schrift, geplant violett gestrichelt, nicht nutzbar dunkelgrau gestreift, wegen Mangel unbewohnbar rot gestreift. */
+body.pro { --zi-frei: #D3EDC4; --zi-frei-rand: #2F6F14; --zi-frei-text: #173D07; --zi-belegt: #1D5BB8; --zi-belegt-text: #FFFFFF;
+  --zi-halb: #7FA6E0; --zi-geplant: #EEE7FB; --zi-geplant-rand: #6D3FC0; --zi-geplant-text: #44207F;
+  --zi-nn1: #66767A; --zi-nn2: #849396; --zi-nn-text: #FFFFFF; --zi-mangel1: #A3342A; --zi-mangel2: #C0574D; --zi-mangel-rand: #7A1A12; }
+body.pro.mod-dunkel { --zi-frei: #2D5A20; --zi-frei-rand: #9AD96E; --zi-frei-text: #EEF9E6; --zi-belegt: #3D74C2; --zi-belegt-text: #FFFFFF;
+  --zi-halb: #3D74C2; --zi-geplant: #30264A; --zi-geplant-rand: #B9A0F0; --zi-geplant-text: #E3D8FA;
+  --zi-nn1: #46524F; --zi-nn2: #5A6764; --zi-nn-text: #F1F5F4; --zi-mangel1: #7A2D27; --zi-mangel2: #964038; --zi-mangel-rand: #FF8A80; }
+body.pro .m-kachel { font-weight: 600; }
+body.pro .m-kachel.frei, body.pro .m-legende i.frei { background: var(--zi-frei); color: var(--zi-frei-text);
+  border: 1.5px solid var(--zi-frei-rand); box-shadow: none; }
+body.pro .m-kachel.teilweise, body.pro .m-legende i.teilweise {
+  background: linear-gradient(90deg, var(--zi-halb) 0 calc(50% - 1px), var(--zi-frei-rand) calc(50% - 1px) calc(50% + 1px),
+                              var(--zi-frei) calc(50% + 1px) 100%);
+  color: var(--zi-frei-text); border: 1.5px solid var(--zi-frei-rand); }
+body.pro .m-kachel.belegt, body.pro .m-legende i.belegt { background: var(--zi-belegt); color: var(--zi-belegt-text);
+  box-shadow: none; border: 1.5px solid var(--zi-belegt); }
+body.pro .m-kachel.geplant, body.pro .m-legende i.geplant { background: var(--zi-geplant); color: var(--zi-geplant-text);
+  border: 2px dashed var(--zi-geplant-rand); }
+body.pro .m-kachel.nn, body.pro .m-kachel.gesperrt { background: repeating-linear-gradient(135deg, var(--zi-nn1) 0 5px, var(--zi-nn2) 5px 10px);
+  color: var(--zi-nn-text); border: 1.5px solid var(--zi-nn1); box-shadow: none; }
+body.pro .m-kachel.nn.unbew { background: repeating-linear-gradient(135deg, var(--zi-mangel1) 0 5px, var(--zi-mangel2) 5px 10px);
+  color: #FFFFFF; border: 2px solid var(--zi-mangel-rand); }
+body.pro .m-kachel.aus { opacity: .22; }
+/* Legende über den Häusern – dieselben Kacheln in klein, nicht anklickbar */
+body.pro .m-zi-legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 12px; padding: 8px 12px;
+  border: 1px solid var(--rand); border-radius: var(--r, 6px); background: var(--fls, var(--fl)); font-size: 12.5px; }
+body.pro .m-zi-legende > b { font-weight: 600; color: var(--text2); }
+body.pro .m-zi-legende > span { display: inline-flex; align-items: center; gap: 6px; color: var(--text2); }
+body.pro .m-zi-legende .m-kachel { width: 34px; height: 20px; font-size: 10.5px; cursor: default; pointer-events: none; display: inline-flex;
+  align-items: center; justify-content: center; }
+body.pro .m-zi-legende .m-kachel-m, body.pro .m-zi-legende .m-kachel-s { position: static; display: inline-block; }
+body.pro .m-zi-legende .m-zi-besen { color: var(--orange, #9A5B00); font-size: 16px; }
 body.pro .m-zs-tag.heute { color: var(--akzent-hell); } body.pro .m-zs-jetzt { background: var(--akzent-hell); }
 body.pro .m-zs-kopf, body.pro .m-tkopf { background: var(--bg); }
 
