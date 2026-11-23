@@ -158,7 +158,7 @@ def test_neue_namen_in_den_seiten():
     assert seite_anreisen.ANSICHTEN["personen"] == "Teilnehmerliste" and seite_anreisen.ANSICHTEN["eintragen"] == "Datenabgleich"
     assert seite_zimmer.ANSICHTEN["zeitstrahl"] == "Belegungsplan" and seite_zimmer.ANSICHTEN["aenderungen"] == "Änderungsverlauf"
     assert seite_assistenz.ANSICHTEN["fragen"] == "Schnellauskunft"
-    assert seite_auswertung.ANSICHTEN["lage"] == "Kennzahlen"
+    assert "lage" not in seite_auswertung.ANSICHTEN                  # 1.41: in „Belegung“ aufgegangen
     assert seite_einstellungen.ANSICHTEN["benutzer"] == "Benutzer & Rechte"
     assert seite_steuerung.ANSICHTEN["grundlagen"] == "Annahmen"
     # „Übersicht“ gibt es nur noch als Bereich

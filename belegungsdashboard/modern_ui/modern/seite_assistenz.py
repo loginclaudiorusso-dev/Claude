@@ -11,6 +11,7 @@ from belegung import anreiseliste, assistenz, mails
 from belegung import termine as tm
 from belegung import zimmerplan as zp
 
+from . import mail_kern
 from .kern import _schritt, unter_sperre
 from .ui_bausteine import attr, knopf, segmente
 from .standort_kern import kurz as zkurz
@@ -168,8 +169,6 @@ def _mails(a) -> None:
                 async def erkennen():
                     if not (text.value or betreff.value):
                         return
-                    from . import mail_kern               # 1.04: Zeitraum mit „–“, Name aus Betreff, UWT
-
                     liste = await run.io_bound(mail_kern.buchungen, betreff.value or "", text.value or "")
                     if liste:                             # 1.09: mehrere Gästehaus-Vormerkungen in einer Mail
                         stand = await run.io_bound(zp.laden)
@@ -263,11 +262,22 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
     box.clear()
     zustand = {"treffer": treffer[0] if treffer else None, "schritte": []}
     with box:
+        h = date.today()                               # 1.41: welcher Tag ist heute – „heute“ in der Mail bezieht sich darauf
+        ui.label(f"Heute ist {mail_kern.WOCHENTAGE[h.weekday()]}, {h:%d.%m.%Y}").classes("m-zweite")
         ui.label(f"Erkannt: {mails.ARTEN.get(e.art, e.art)}" + (f" · {e.name}" if e.name else "") +
                  (f" · {e.massnahme}" if e.massnahme else "") + (f" · TN {e.tn_id}" if e.tn_id else "") +
                  (f" · {e.von:%d.%m.%Y}" if e.von else "") + (f" – {e.bis:%d.%m.%Y}" if e.bis else "")).classes("m-name")
+        if e.zusammenfassung:
+            ui.label(e.zusammenfassung).classes("m-ptext")
         for u in e.unsicher:
             ui.label(u).classes("m-zweite").style("color:var(--orange)")
+        if mail_kern.ki_an():                           # 1.41: Einschätzung der KI (z. B. Qwen lokal), wenn eingeschaltet
+            ki = ui.label("KI liest die Mail …").classes("m-zweite m-ki-einschaetzung")
+
+            async def ki_lesen():
+                t = await run.io_bound(mail_kern.ki_einschaetzung, betreff.value or "", text.value or "")
+                ki.text = f"KI: {t}" if t and not t.startswith("KI") else (t or "")
+            ui.timer(0.05, ki_lesen, once=True)
         if treffer:
             ui.select({i: t.text for i, t in enumerate(treffer)} | {-1: "Keine dieser Personen"}, value=0,
                       label="Person", on_change=lambda ev: neu_vorschlag(treffer[ev.value] if ev.value >= 0 else None)).classes(
@@ -276,7 +286,7 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
 
         def neu_vorschlag(t):
             zustand["treffer"] = t
-            zustand["schritte"] = mails.vorschlag(e, t, zp.laden())
+            zustand["schritte"] = mail_kern.vorschlag(e, t, zp.laden())     # 1.41: mit „Schlüssel bereitlegen“
             schritte_box.clear()
             with schritte_box:
                 for s in zustand["schritte"]:

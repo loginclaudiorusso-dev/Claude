@@ -316,8 +316,8 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
             Gruppe("Haus", planung_haus),
         ], symbol="p:planung"),
         Reiter("auswertung", "Auswertung", [
-            Gruppe("Berichte", [p("Kennzahlen", "kennzahlen", S("auswertung", "lage"), "Die wichtigsten Zahlen im Verlauf"),
-                                p("Belegung", "belegung", S("auswertung", "belegung"), "Belegung je Standort und Monat"),
+            Gruppe("Berichte", [p("Belegung", "belegung", S("auswertung", "belegung"),   # 1.41: mit den Kennzahlen
+                                  "Belegung im Zeitraum: Kennzahlen, Verlauf, Häuser, Personentage"),
                                 p("Belegungs­prognose", "prognose", S("auswertung", "prognose"),
                                   "Vorhersage der Belegung mit Sicherheitsband"),
                                 p("Maßnahmen", "massnahmen", S("auswertung", "massnahmen"), "Teilnehmende je Maßnahme"),

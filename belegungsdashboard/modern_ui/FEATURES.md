@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.40)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.41)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -38,6 +38,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Netzwerkordner mit portablem Python: PCs brauchen keine Python-Installation, Kopie je PC für schnellen Start (1.38.1)
 - Navigation 2.0: sieben Bereiche (Übersicht, Anreisen, Zimmer & Haus, Planung, Auswertung, KI-Assistent, Verwaltung), Cockpit als eine Startseite, Kontext-Registerkarten nur bei Bedarf, eindeutige Namen mit Weiterleitung über die Suche, eigene Duotone-Piktogramme (1.39)
 - Eigene Piktogramme auch in Kontext- und Werkzeugkarten (Bedeutungsfarben nur für Zustände), ruhigeres Cockpit, Start mit portablem Python unempfindlich gegen fremde Python-Einstellungen (1.40)
+- Mail-Erkennung versteht Kurzmeldungen der Pforte (Schlüssel, Anreise heute/morgen, Gast/Hospitant → Zimmer vorschlagen, „Schlüssel bereitlegen“), optionale KI-Einschätzung; Kennzahlen in Belegung aufgegangen (1.41)
 - Mails mit mehreren Gästehaus-Vormerkungen: je Zeile eine Buchung, fest/vorgemerkt, Zimmer gemeinsam vorgeschlagen (1.09)
 - Maßnahmen-Auswahl wird übernommen, eigene Skala als Standard (1.08)
 - Kontext-Reiter Maßnahmen einheitlich: Gruppe Ansicht links, Filter als flache Felder, Pflege & Wechsel direkt dahinter, Symbole mit zweitem Zeichen (1.07)

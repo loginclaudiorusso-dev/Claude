@@ -24,7 +24,7 @@ def _ansichten() -> dict:
 
 
 STANDARD_ANSICHT = {"anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung": "liste", "termine": "liste",
-                    "assistenz": "auftraege", "auswertung": "lage", "steuerung": "cockpit", "inventar": "gegenstaende",
+                    "assistenz": "auftraege", "auswertung": "belegung", "steuerung": "cockpit", "inventar": "gegenstaende",
                     "einstellungen": "allgemein"}
 
 

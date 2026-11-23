@@ -48,7 +48,7 @@ WORTE = {
     ("assistenz", "auftraege"): ("auftrag", "ki", "assistent", "assistenz"),
     ("assistenz", "mails"): ("mail", "e-mail", "outlook", "posteingang"),
     ("assistenz", "fragen"): ("fragen & zahlen", "frage", "zahlen", "auskunft", "wie viele"),
-    ("auswertung", "lage"): ("überblick", "lage", "kennzahlen"),
+    ("auswertung", "belegung"): ("kennzahlen", "überblick", "lage", "auslastung", "personentage"),   # 1.41
     ("auswertung", "prognose"): ("vorhersage", "zukunft", "präsentation", "forecast"),
     ("auswertung", "massnahmen"): ("neuanmeldungen", "kurse", "startwelle", "wirtschaftsplan"),
     ("auswertung", "zimmer"): ("engpass", "knapp", "kapazität"),

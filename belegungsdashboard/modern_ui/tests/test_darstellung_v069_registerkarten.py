@@ -33,4 +33,4 @@ def test_datei_wie_backstage():
 def test_auswertung_umbenannt():
     from modern import seite_auswertung as sa
 
-    assert sa.ANSICHTEN["lage"] == "Kennzahlen" and sa.ANSICHTEN["zimmer"] == "Zimmer-Engpässe"   # 1.39
+    assert "lage" not in sa.ANSICHTEN and sa.ANSICHTEN["zimmer"] == "Zimmer-Engpässe"   # 1.41: Kennzahlen → Belegung

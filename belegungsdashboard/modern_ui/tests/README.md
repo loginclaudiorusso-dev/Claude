@@ -18,6 +18,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_assistenz_v104_mail_erkennung.py` – 1.04 – Mail-Erkennung nachgeschärft, Outlook-Erkennung robuster, Maßnahmen-Auswahl im Menüband.
 - `test_assistenz_v109_gaestehaus.py` – 1.09 – mehrere Gästehaus-Vormerkungen in einer Mail. Nur erfundene Namen, Orte und Anschriften.
 - `test_assistenz_v136_nachrichten.py` – 1.36 – Nachrichten im Programm, Mail an FM, „Was ist zu tun?“
+- `test_assistenz_v141_kurzmeldung.py` – 1.41 – Kurzmeldungen der Pforte (Schlüssel, Anreise heute), KI-Einschätzung, Kennzahlen → Belegung
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

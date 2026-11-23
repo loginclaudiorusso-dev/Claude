@@ -10,7 +10,7 @@ ANS = {"anreisen": {"zuteilen": "Zuteilen", "personen": "Personen", "abreisen": 
        "reinigung": {"liste": "Reinigungsliste", "last": "Vorschau 6 Wochen", "facility": "Facility-Checks"},
        "termine": {"liste": "Liste", "monat": "Monat"},
        "assistenz": {"auftraege": "Aufträge", "mails": "Mails", "fragen": "Fragen & Zahlen"},
-       "auswertung": {"lage": "Lage", "belegung": "Belegung", "prognose": "Prognose", "massnahmen": "Maßnahmen",
+       "auswertung": {"belegung": "Belegung", "prognose": "Prognose", "massnahmen": "Maßnahmen",
                       "zimmer": "Zimmer & Engpässe"},
        "steuerung": {"cockpit": "Cockpit", "vorhaben": "Vorhaben", "zeitplan": "Zeitplan", "finanzen": "Finanzen",
                      "grundlagen": "Grundlagen"},

@@ -11,6 +11,10 @@ wo sie typische Mails des Internatsdiensts nicht ganz versteht:
 * **Gruppe UWT:** „UWT“, „UWTler“, „Umschüler“ → Maßnahme „UWT“.
 * **„Anreise am Sonntag“:** liegt der Beginn nicht auf einem Sonntag, zählt der Sonntag davor als Anreise.
 * **„… bestätigen?“** gilt als Bitte um Bestätigung.
+* **1.41 – Kurzmeldungen der Pforte:** „Schlüssel für Herrn X, der reist heute an“ → X reist heute (bzw. morgen,
+  am Mittwoch, am 26.11.) an und braucht Zimmer und Schlüssel. Steht X nicht in der Anreiseliste, wird er als Gast
+  (Gästezimmer) vorgeschlagen; „Hospitant“, „Praktikant“, „Besucher“ … werden genannt. Dazu der Schritt
+  „Schlüssel bereitlegen“ mit dem Zimmer.
 """
 
 from __future__ import annotations
@@ -30,6 +34,59 @@ _UWT = re.compile(r"\bUWT(?:ler(?:in)?)?\b|umsch[üu]l(?:er|erin|ung)", re.I)
 _NAME_WORT_NICHT = {"hallo", "liebe", "lieber", "sehr", "guten", "zusätzliche", "zusaetzliche", "unterbringung",
                     "anfrage", "anmeldung", "uwtler", "uwt", "aw", "wg", "re", "fw", "betreff"}
 _TAGE = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+WOCHENTAGE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+_SCHLUESSEL = re.compile(r"schl[üu]e?ssel", re.I)
+_ROLLE = re.compile(r"\b(hospitant(?:in)?|hospitation|praktikant(?:in)?|praktikum|besucher(?:in)?|dozent(?:in)?|"
+                    r"referent(?:in)?|gutachter(?:in)?|gast)\b", re.I)
+_RELATIV = {"heute": 0, "morgen": 1, "übermorgen": 2, "uebermorgen": 2}
+_ANREISE_WORT = re.compile(r"\b(reist|reisen|kommt|kommen|anreise|anreisen|eintrifft|eintreffen)\b", re.I)
+
+
+def anreise_tag(text: str, heute: date) -> date | None:
+    """1.41: Anreisetag aus einer Kurzmeldung – „reist heute an“, „kommt morgen“, „Anreise am Mittwoch“, „am 26.11.“.
+    Nur, wenn im selben Satz von einer Anreise die Rede ist."""
+    for satz in re.split(r"(?<=[!?\n])|(?<=\.)\s+(?=[A-ZÄÖÜ])", text or ""):     # Datum „27.11.“ bleibt ganz
+        if not _ANREISE_WORT.search(satz):
+            continue
+        klein = satz.lower()
+        for wort, tage in _RELATIV.items():
+            if re.search(rf"\b{wort}\b", klein):
+                return heute + timedelta(days=tage)
+        for i, wt in enumerate(WOCHENTAGE):
+            if re.search(rf"\b{wt.lower()}\b", klein):
+                return heute + timedelta(days=(i - heute.weekday()) % 7)
+        m = re.search(r"(?<![\d.])(\d{1,2})\.\s*(\d{1,2})\.(\d{2,4})?", satz)
+        if m:
+            d = mails._jahr(int(m.group(1)), int(m.group(2)), int(m.group(3)) if m.group(3) else None, heute)
+            if d:
+                return d
+    return None
+
+
+@dataclass
+class Anliegen:
+    """1.41: Was eine Kurzmeldung will – z. B. Zimmer und Schlüssel für eine heutige Anreise."""
+    tag: date
+    schluessel: bool
+    rolle: str = ""
+
+    def text(self, heute: date) -> str:
+        wann = {0: "heute", 1: "morgen"}.get((self.tag - heute).days, "")
+        tag = f"{WOCHENTAGE[self.tag.weekday()]}, {self.tag:%d.%m.%Y}"
+        braucht = "Zimmer und Schlüssel" if self.schluessel else "ein Zimmer"
+        return f"Anreise {wann + ' ' if wann else ''}({tag}) – braucht {braucht}" + (f" · {self.rolle}" if self.rolle else "")
+
+
+def anliegen(betreff: str, text: str, heute: date) -> Anliegen | None:
+    alles = f"{_bereinigt(betreff)}\n{mails._koerper(text or '')}"
+    tag = anreise_tag(alles, heute)
+    if tag is None or tag < heute:
+        return None
+    schluessel = bool(_SCHLUESSEL.search(alles))
+    if not schluessel and not _UNTERBRINGUNG.search(alles):
+        return None
+    r = _ROLLE.search(alles)
+    return Anliegen(tag, schluessel, r.group(1).capitalize() if r else "")
 
 
 def _bereinigt(betreff: str) -> str:
@@ -97,9 +154,21 @@ def erkennen(betreff: str, text: str, heute: date | None = None):
         neu["von"], neu["bis"] = von, bis
     if not e.bestaetigung and re.search(r"bestätigen\b|bestaetigen\b", klein):
         neu["bestaetigung"] = True
+    al = anliegen(betreff, text, heute) if neu.get("art", e.art) in ("hinweis", "unklar") else None
+    if al is not None:                                # 1.41: „Schlüssel für X, reist heute an“ → Zimmer für die Anreise
+        neu.update(art="gast", von=al.tag, bis=(e.bis if e.bis and e.bis > al.tag else al.tag + timedelta(days=1)))
     if not neu:
         return e
     e2 = replace(e, **neu)
+    if al is not None:
+        e2.massnahme = e2.massnahme or "Gast Gästehaus"
+        e2.zusammenfassung = al.text(heute)
+        e2.unsicher = [x for x in e2.unsicher if not x.startswith(("Art der Mail", "Zeitraum"))]
+        if not (e.bis and e.bis > al.tag):
+            e2.unsicher.append("Abreise steht nicht in der Mail – eine Nacht angenommen, bitte prüfen.")
+        e2.unsicher.append("Steht die Person nicht in der Anreiseliste, wird sie als Gast angelegt (Gästezimmer).")
+        e2.anliegen = al                              # für den Schritt „Schlüssel bereitlegen“
+        return e2
     # Zusammenfassung neu, wenn sich Art oder Zeitraum geändert haben
     if "art" in neu or "von" in neu:
         teile = []
@@ -352,3 +421,57 @@ def schritte(liste: list[Buchung], stand, heute: date | None = None) -> list[lis
             erg[i].append(mails.Schritt("notiz", f"Wiedervorlage {wv:%d.%m.}: Bestätigung von {b.nachname} abwarten",
                                         daten={"text": f"Vormerkung {b.nachname}: Bestätigung abwarten", "wv": wv.isoformat()}))
     return erg
+
+
+# ---- 1.41: Vorschlag mit „Schlüssel bereitlegen“ ---------------------------------------------------------------------
+
+def vorschlag(e, treffer, stand, heute: date | None = None) -> list:
+    """Wie ``mails.vorschlag``, bei einer Kurzmeldung mit Schlüssel zusätzlich „Schlüssel bereitlegen“ (mit Zimmer)."""
+    heute = heute or date.today()
+    s = mails.vorschlag(e, treffer, stand, heute)
+    al = getattr(e, "anliegen", None)
+    if al is None or not al.schluessel:
+        return s
+    zimmer = (treffer.zimmer.removeprefix("GS-") if treffer and treffer.zimmer else "")
+    if not zimmer:
+        z = next((x for x in s if x.art == "zimmer" and x.daten.get("zimmer")), None)
+        zimmer = z.text.split(": ", 1)[-1].split(" (")[0] if z else ""
+    wer = treffer.name if treffer else e.name
+    tag = f"{_TAGE[al.tag.weekday()]} {al.tag:%d.%m.}"
+    s.append(mails.Schritt("aufgabe", f"Schlüssel bereitlegen für {wer}" + (f" – Zimmer {zimmer}" if zimmer else "")
+                           + f", Anreise {tag}", daten={"person": treffer.schluessel if treffer else None}))
+    return s
+
+
+# ---- 1.41: Einschätzung durch die KI (Qwen lokal über Ollama oder Claude), nur wenn eingeschaltet ------------------
+
+def ki_an() -> bool:
+    from belegung import speicher
+
+    return (speicher.einstellungen().get("ki", {}) or {}).get("backend", "aus") in ("lokal", "claude")
+
+
+def ki_einschaetzung(betreff: str, text: str, heute: date | None = None) -> str:
+    """Kurze Einschätzung der eingestellten KI: Was will die Mail, für wen, wann, welches Zimmer kommt in Frage?
+    Die KI darf über ihre Werkzeuge freie Zimmer nachsehen. Fehler → Text mit dem Grund (kein Absturz)."""
+    from belegung import speicher
+    from belegung.assistent.llm import Einstellungen, backend_erstellen
+
+    from . import auswertung_kern as ak
+
+    heute = heute or date.today()
+    backend = backend_erstellen(Einstellungen.aus_dict(speicher.einstellungen().get("ki", {})))
+    if backend is None:
+        return ""
+    ds, fehler = ak.datenstand()
+    if ds is None:
+        return f"KI: {fehler or 'Datenstand fehlt'}"
+    frage = (f"Heute ist {WOCHENTAGE[heute.weekday()]}, der {heute:%d.%m.%Y}. Du hilfst dem Internatsdienst. Lies diese "
+             "Mail und sage in höchstens drei kurzen Sätzen: was zu tun ist, für wen, ab wann und bis wann (falls "
+             "genannt), und ob ein Zimmer gebraucht wird. Wenn ja, nenne ein bis zwei freie, passende Zimmer (Gäste und "
+             "Hospitanten bevorzugt ins Gästezimmer). Erfinde nichts; was fehlt, nenne als offene Frage.\n\n"
+             f"Betreff: {betreff}\n\n{mails._koerper(text or '')[:3000]}")
+    try:
+        return backend.antworte(frage, [], ds, heute).strip()
+    except Exception as exc:                          # noqa: BLE001 – Komfort; die Regeln oben gelten trotzdem
+        return f"KI nicht erreichbar: {exc}"

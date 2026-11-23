@@ -13,7 +13,7 @@ from . import auswertung_kern as ak
 from . import seite_prognose, seiten
 from . import diagramm_stil as _ds
 from . import themes
-from .ui_bausteine import attr, knopf, leer, segmente
+from .ui_bausteine import knopf, leer, segmente
 
 
 def _T() -> dict:
@@ -21,7 +21,7 @@ def _T() -> dict:
     return themes.farben(themes.AKTIV)
 
 
-ANSICHTEN = {"lage": "Kennzahlen", "belegung": "Belegung", "prognose": "Belegungs\u00adprognose", "massnahmen": "Maßnahmen",
+ANSICHTEN = {"belegung": "Belegung", "prognose": "Belegungs\u00adprognose", "massnahmen": "Maßnahmen",
              "zimmer": "Zimmer-Engpässe"}                   # 1.39: „Überblick“ heißt Kennzahlen                       # 0.69: eindeutiger (kein „Zimmer“ doppelt neben Zimmer & Haus)
 AMPEL = {"ok": "ok", "knapp": "warn", "kritisch": "krit", "ueber": "krit", "unbekannt": "neutral"}
 
@@ -32,8 +32,14 @@ def _zahl(x: float | None, nk: int = 0) -> str:
     return f"{x:,.{nk}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _ansicht(a) -> str:
+    """1.41: „Kennzahlen“ ist in „Belegung“ aufgegangen – gemerkte oder verlinkte „lage“ zeigt die Belegung."""
+    v = a.ansicht_von("auswertung", "belegung")
+    return v if v in ANSICHTEN else "belegung"
+
+
 def daten(a) -> None:
-    ansicht = a.ansicht_von("auswertung", "lage")
+    ansicht = _ansicht(a)
     if ansicht == "zimmer":
         seiten.aw_daten(a)
         return
@@ -46,9 +52,7 @@ def daten(a) -> None:
     if ds is None:
         a.daten = {"fehler": fehler}
         return
-    if ansicht == "lage":
-        a.daten = {"lage": ak.lage(ds, a.aw_standort, a.aw_brutto)}
-    elif ansicht == "belegung":
+    if ansicht == "belegung":
         mzr = _mieter_zr(a)
         a.daten = {"zr": ak.zeitraum(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto, mzr), "stichtag": ds.stichtag,
                    "det": ak.belegung_details(ds, a.aw_standort, a.aw_von, a.aw_bis, a.aw_brutto,
@@ -58,7 +62,7 @@ def daten(a) -> None:
 
 
 def zeichnen(a) -> None:
-    ansicht = a.ansicht_von("auswertung", "lage")
+    ansicht = _ansicht(a)
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("auswertung", ansicht=v), ansicht=True)
     if ansicht == "zimmer":
@@ -80,7 +84,7 @@ def zeichnen(a) -> None:
                 with ui.element("div").style("display:flex; justify-content:center"):
                     knopf("Daten einlesen öffnen", lambda: a.oeffnen("daten"), "primaer", "upload_file")
         return
-    {"lage": _lage, "belegung": _belegung, "prognose": seite_prognose.zeichnen}[ansicht](a)
+    {"belegung": _belegung, "prognose": seite_prognose.zeichnen}[ansicht](a)
 
 
 def _chart_basis() -> dict:
@@ -207,81 +211,6 @@ def _kpi(titel: str, wert: str, unter: str = "", stufe: str = "") -> None:
 
 
 # ---- Lage --------------------------------------------------------------------------------
-
-def _lage(a) -> None:
-    lg: ak.Lage = a.daten["lage"]
-    stufe, text = ak.einschaetzung(lg.belegt, lg.kapazitaet)
-    with a.inhalt:
-        with ui.element("div").classes("m-kpis"):
-            _kpi(f"Belegt am {lg.stichtag:%d.%m.%Y}", _zahl(lg.belegt), "Personen laut Pivot und Listen")
-            _kpi("Kapazität", _zahl(lg.kapazitaet) if lg.kapazitaet else "–", "Netto" if not a.aw_brutto else "Brutto")
-            _kpi("Auslastung", f"{round(100 * lg.anteil)} %" if lg.anteil is not None else "–", text.split(" · ")[0],
-                 AMPEL.get(stufe, ""))
-            _kpi("Frei", _zahl(lg.kapazitaet - lg.belegt) if lg.kapazitaet else "–", "Plätze")
-        with ui.element("div").classes("m-zwei"):
-            with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
-                ui.label("Verlauf – 4 Monate zurück, 6 Monate Prognose").classes("m-btitel")
-                v = lg.verlauf
-                opt = _chart_basis()
-                opt["xAxis"]["data"] = v["tage"]
-                opt["series"] = [
-                    {"name": "80 %-Spanne unten", "type": "line", "data": v["lo80"], "stack": "band", "lineStyle": {"opacity": 0},
-                     "symbol": "none", "tooltip": {"show": False}},
-                    {"name": "80 %-Spanne", "type": "line", "data": [None if h is None else round(h - l, 1) for h, l in
-                                                                      zip(v["hi80"], v["lo80"])],
-                     "stack": "band", "lineStyle": {"opacity": 0}, "symbol": "none", "areaStyle": {"color": _ds.band_flaeche(_T())}},
-                    {"name": "Ist", "type": "line", "data": v["ist"], "symbol": "none", "lineStyle": {"color": _T()["text"], "width": 2}},
-                    {"name": "Prognose", "type": "line", "data": v["prognose"], "symbol": "none",
-                     "lineStyle": {"color": _T()["akzent"], "width": 2, "type": "dashed"}},
-                ]
-                if lg.kapazitaet:
-                    opt["series"].append({"name": "Kapazität", "type": "line", "data": [lg.kapazitaet] * len(v["tage"]),
-                                          "symbol": "none", "lineStyle": {"color": _T()["rot"], "width": 1, "type": "dotted"}})
-                opt["legend"]["data"] = ["Ist", "Prognose", "80 %-Spanne", "Kapazität"]
-                _chart(opt, a)
-            with ui.element("section").classes("m-block"):
-                ui.label("Zusammensetzung heute").classes("m-btitel")
-                gesamt = max(lg.belegt, 1)
-                for k, v_ in lg.teile.items():
-                    with ui.element("div").classes("m-aw-haus"):
-                        ui.label(k).classes("m-name")
-                        with ui.element("div").classes("m-aw-balken"):
-                            with ui.element("div").classes("m-spur"):
-                                ui.element("div").classes("m-bar akzent").style(f"width:{max(1, round(100 * v_ / gesamt))}%")
-                            ui.label(_zahl(v_)).classes("m-mono")
-            with ui.element("section").classes("m-block"):
-                ui.label("Häuser laut Pivot").classes("m-btitel")
-                if not lg.haeuser:
-                    ui.label("Keine Hausaufteilung im Pivot.").classes("m-ptext")
-                hoechst = max([w for _h, w in lg.haeuser] + [1])
-                for h, w in lg.haeuser:
-                    with ui.element("div").classes("m-aw-haus"):
-                        ui.label(h).classes("m-name")
-                        with ui.element("div").classes("m-aw-balken"):
-                            with ui.element("div").classes("m-spur"):
-                                ui.element("div").classes("m-bar ok").style(f"width:{max(1, round(100 * w / hoechst))}%")
-                            ui.label(_zahl(w)).classes("m-mono")
-            with ui.element("section").classes("m-block"):
-                ui.label("Anstehende Anreisen – nächste 21 Tage").classes("m-btitel")
-                if not lg.anreisen:
-                    ui.label("In den nächsten drei Wochen sind keine Anreisen geplant.").classes("m-ptext")
-                else:
-                    summe, tage = sum(x[2] for x in lg.anreisen), len({x[0] for x in lg.anreisen})
-                    ui.label(f"{_zahl(summe)} Personen mit Internat an {tage} Anreisetag{'en' if tage > 1 else ''}").classes("m-ptext")
-                    with ui.element("div").classes("m-aw-tab").style("grid-template-columns: 60px minmax(90px,1fr) 60px minmax(120px,2fr)"):
-                        for t in ("Datum", "Standort", "Anzahl", "Bezeichnung"):
-                            ui.label(t).classes("m-zweite")
-                        for d, st, n, bez in lg.anreisen[:12]:
-                            ui.label(f"{d:%d.%m.}").classes("m-mono")
-                            ui.label(st).classes("m-zweite")
-                            ui.label(str(n)).classes("m-mono")
-                            attr(ui.label(bez).classes("m-zweite"), title=bez)
-            if lg.hinweise:
-                with ui.element("section").classes("m-block").style("grid-column: 1 / -1"):
-                    ui.label("Hinweise zu den Daten").classes("m-btitel")
-                    for h in lg.hinweise:
-                        ui.label(h).classes("m-ptext")
-
 
 # ---- Belegung im Zeitraum ----------------------------------------------------------------
 
