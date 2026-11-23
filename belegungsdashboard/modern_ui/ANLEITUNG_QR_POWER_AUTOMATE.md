@@ -66,6 +66,24 @@ ENDE
     - Hat das Formular keine Frage „Art des Problems“, lassen Sie die Zeile `Art:` leer stehen.
 11. Klicken Sie oben rechts auf **„Speichern“**.
 
+### Schritt 3 ohne Office-365-Outlook-Verbindung (Variante B)
+Wenn Power Automate für „E-Mail senden (V2)“ eine **Office 365 Outlook-Verbindung** verlangt, die es bei Ihnen nicht
+gibt, nehmen Sie stattdessen den Baustein **„Mail“** von Microsoft. Er braucht **keine Anmeldung und kein Postfach** –
+die Mail kommt vom Absender *Microsoft Power Automate* (flow-noreply@microsoft.com).
+
+7b. Klicken Sie auf **„+ Neuer Schritt“** und suchen Sie **„E-Mail-Benachrichtigung“** (englisch: „Send an email
+    notification“). Wählen Sie **„E-Mail-Benachrichtigung senden (V3)“** mit dem Symbol **„Mail“** (blauer Umschlag) –
+    **nicht** „Office 365 Outlook“.
+8b. **An**, **Betreff** und **Text** füllen Sie genau wie oben in 8–10 (Betreff `INNternat-QR | …`, Text mit den
+    Zeilen `INNTERNAT-QR` … `ENDE`). Jede Zeile mit Enter beenden.
+9b. Speichern, testen wie in Teil 2. In der Outlook-Regel (Teil 3) bleibt die Bedingung **Betreff enthält
+    „INNternat-QR“** – der Absender spielt keine Rolle.
+
+Gut zu wissen: Diese Benachrichtigungen schickt Microsoft – höchstens etwa 100 am Tag, für QR-Meldungen genug. Landet
+die erste im Junk-Ordner: Rechtsklick → **Junk-E-Mail → Absender nie sperren**. Ist auch dieser Baustein gesperrt
+(Hinweis „durch Richtlinie zur Verhinderung von Datenverlust blockiert“), bleibt nur der Weg über die Excel-Datei
+(INNternat → Verwaltung → Automatisierung → „2 · Eingang“ → Excel-Datei) oder eine Freigabe durch die IT.
+
 ## Teil 2 – Testen
 12. Scannen Sie ein Probe-Etikett mit dem Handy und schicken Sie eine Testantwort ab.
 13. Öffnen Sie in Power Automate **„Meine Flows“ → „INNternat QR-Meldung“ → „Ausführungsverlauf“**. Nach ein bis
