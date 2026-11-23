@@ -6,6 +6,11 @@ rem Die Python-Umgebung, das Protokoll und die persoenlichen Einstellungen liege
 rem %LOCALAPPDATA%\INNternat - beim ersten Start wird sie einmalig angelegt (ca. 1-3 Minuten).
 chcp 65001 >nul
 setlocal
+rem 1.40: fremde Python-Einstellungen dieses PCs (z. B. von GIS- oder Statistik-Programmen) duerfen nicht stoeren -
+rem sonst "Could not find platform independent libraries" und "No module named nicegui".
+set "PYTHONHOME="
+set "PYTHONPATH="
+set "PYTHONSTARTUP="
 set "INN=%~dp0"
 set "PROG=%INN%Programm"
 set "BELEGUNG_DATEN=%INN%Daten"
@@ -33,11 +38,16 @@ if not exist "%INNTERNAT_LOKAL%" mkdir "%INNTERNAT_LOKAL%"
 rem Portables Python im Installationspaket (Ordner "Python" mit allen Paketen): keine Python-Installation noetig.
 rem 1.39: einmal je PC (und nach einem neuen Python-Paket) nach %INNTERNAT_LOKAL%\Python kopieren und von dort
 rem starten - aus dem Netzwerkordner waere jeder Start langsam. Klappt das Kopieren nicht: direkt aus dem Netz.
-if exist "%INN%Python\pythonw.exe" (
+rem Auch doppelt entpackt (Python\Python\...) wird erkannt.
+set "PYNETZ="
+if exist "%INN%Python\pythonw.exe" set "PYNETZ=%INN%Python"
+if not defined PYNETZ if exist "%INN%Python\Python\pythonw.exe" set "PYNETZ=%INN%Python\Python"
+if defined PYNETZ (
     set "PYTHONNOUSERSITE=1"
     set "INNTERNAT_BROWSER=1"
-    set "PYW=%INN%Python\pythonw.exe"
+    set "PYW=%PYNETZ%\pythonw.exe"
     call :python_lokal
+    if errorlevel 1 exit /b 1
     goto verknuepfung
 )
 
@@ -122,19 +132,42 @@ rem 1.27: Auf das Lebenszeichen warten - scheitert der Start, erscheint die Fehl
 exit /b
 
 :python_lokal
+rem 1.40: Die lokale Kopie wird vor dem Start geprueft (import nicegui). Passt sie nicht, wird sie einmal neu
+rem kopiert; klappt auch das nicht, startet INNternat mit dem Python aus dem Netzwerkordner.
 set "PYSTAND=neu"
-if exist "%INN%Python\stand.txt" set /p PYSTAND=<"%INN%Python\stand.txt"
+if exist "%PYNETZ%\stand.txt" set /p PYSTAND=<"%PYNETZ%\stand.txt"
 set "PYLOKAL="
 if exist "%INNTERNAT_LOKAL%\Python\stand.txt" set /p PYLOKAL=<"%INNTERNAT_LOKAL%\Python\stand.txt"
-if "%PYSTAND%"=="%PYLOKAL%" if exist "%INNTERNAT_LOKAL%\Python\pythonw.exe" (
-    set "PYW=%INNTERNAT_LOKAL%\Python\pythonw.exe"
-    exit /b 0
+if not "%PYSTAND%"=="%PYLOKAL%" goto python_kopieren
+call :python_testen "%INNTERNAT_LOKAL%\Python"
+if not errorlevel 1 exit /b 0
+echo Die Python-Kopie auf diesem PC ist unvollstaendig - sie wird neu kopiert ...
+:python_kopieren
+echo Python wird einmalig auf diesen PC kopiert (ca. 1-2 Minuten) ...
+if exist "%INNTERNAT_LOKAL%\Python\stand.txt" del /q "%INNTERNAT_LOKAL%\Python\stand.txt" >nul 2>nul
+robocopy "%PYNETZ%" "%INNTERNAT_LOKAL%\Python" /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 >nul
+if errorlevel 8 goto python_netz
+call :python_testen "%INNTERNAT_LOKAL%\Python"
+if not errorlevel 1 exit /b 0
+:python_netz
+echo Python vom PC passt nicht - INNternat startet mit dem Python aus dem Netzwerkordner.
+call :python_testen "%PYNETZ%"
+if not errorlevel 1 exit /b 0
+echo.
+echo Das Python im Ordner "%PYNETZ%" ist unvollstaendig ^(nicegui fehlt^).
+echo Bitte INNternat_Python.zip noch einmal in den INNternat-Ordner entpacken ^(Ordner Python ersetzen^).
+"%PYNETZ%\python.exe" -c "import sys; print('Python:', sys.executable); print('prefix:', sys.prefix); print('Pfade:', sys.path)"
+pause
+exit /b 1
+
+:python_testen
+rem Setzt PYW und PYTHONHOME auf das Python im Ordner %~1 und prueft, ob alle Pakete da sind (errorlevel 0 = ok).
+if not exist "%~1\pythonw.exe" exit /b 1
+set "PYTHONHOME=%~1"
+set "PYW=%~1\pythonw.exe"
+"%~1\python.exe" -c "import nicegui, encodings" >nul 2>nul
+if errorlevel 1 (
+    set "PYTHONHOME="
+    exit /b 1
 )
-echo Erster Start auf diesem PC: Python wird einmalig auf diesen PC kopiert (ca. 1-2 Minuten) ...
-robocopy "%INN%Python" "%INNTERNAT_LOKAL%\Python" /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 >nul
-if errorlevel 8 (
-    echo Kopieren nicht vollstaendig - INNternat startet direkt aus dem Netzwerkordner.
-    exit /b 0
-)
-if exist "%INNTERNAT_LOKAL%\Python\pythonw.exe" set "PYW=%INNTERNAT_LOKAL%\Python\pythonw.exe"
 exit /b 0

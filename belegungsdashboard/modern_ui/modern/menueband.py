@@ -102,7 +102,7 @@ TEXT_SYMBOLE: dict[str, tuple] = {   # Schaltflächen ohne eigenes Ziel (Ausklap
     "Diagrammtyp": ("data_line", BLAU),
     "Elemente": ("layer", VIOLETT), "Legende": ("tag", VIOLETT), "Steuerung": ("target_arrow", BASIS),
     "Inventar": ("box", BLAU),
-    "Betten": ("bed", BLAU), "Vergleich": ("layout_column_three", TEAL), "Sicherheit": ("checkmark_starburst", GRUEN),
+    "Betten": ("bed", BLAU), "Vergleich": ("layout_column_three", TEAL), "Sicherheit": ("p:a_sicherheit", BASIS),
 }
 
 

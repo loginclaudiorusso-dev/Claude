@@ -157,23 +157,42 @@ def farbig(name: str, stufe: str = "g") -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
+SIGNAL = {GRUEN, AMBER, ROT}                     # 1.40: nur Bedeutungsfarben färben ein Piktogramm (ok, Achtung, kritisch)
+
+
+def _signal(farbe: str) -> str:
+    """Stil für ein Piktogramm in einer Bedeutungsfarbe – sonst bleibt der eine Akzent (Türkis)."""
+    f = FARBEN.get(farbe, farbe)
+    if f not in SIGNAL:
+        return ""
+    r, g, b = (int(f[i:i + 2], 16) for i in (1, 3, 5))
+    return f' style="--pk-a:{f};--pk-t:rgba({r},{g},{b},.16)"'
+
+
 def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", overlay: str = "",
          ofarbe: str = "", variante: str | None = None) -> str:
     """Duotone-Symbol als HTML. ``farbe``: Bedeutungsfarbe (Hex) oder leer. 1.07: ``overlay`` = kleines zweites Symbol
     unten rechts (z. B. Trend-Pfeil, Filter, Wechsel-Pfeil) in ``ofarbe``. 1.34: ``variante`` „farbig“ → vollfarbige
     Fassung, wenn es sie gibt (ohne Angabe gilt ``VARIANTE``)."""
-    if name.startswith("p:"):                       # 1.39: eigenes Piktogramm (Farben aus CSS, kein zweites Set)
-        from . import piktogramme
+    from . import piktogramme
 
-        return (f'<span class="m-sym {"gross" if gross else "klein"} pikto {klasse}" aria-hidden="true">'
-                f'{piktogramme.svg(name[2:])}</span>')
+    if not name.startswith("p:") and name in piktogramme.ERSATZ:    # 1.40: auch Kontext- und Werkzeugkarten eigen
+        name = "p:" + piktogramme.ERSATZ[name]
+    if name.startswith("p:"):                       # 1.39: eigenes Piktogramm (Farben aus CSS, kein zweites Set)
+        stil = _signal(farbe)
+        inhalt = piktogramme.svg(name[2:])
+        if overlay and gross:
+            of = FARBEN.get(ofarbe, ofarbe) or BLAU
+            inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
+        return (f'<span class="m-sym {"gross" if gross else "klein"} pikto {klasse}" data-n="{name}"{stil} '
+                f'aria-hidden="true">{inhalt}</span>')
     farbe = FARBEN.get(farbe, farbe)
     if (variante or VARIANTE["art"]) == "farbig" and (bunt := farbig(name, "g" if gross else "k")):
         inhalt = f'<span class="m-sym-c">{bunt}</span>'
         if overlay and gross:
             of = FARBEN.get(ofarbe, ofarbe) or BLAU
             inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
-        return f'<span class="m-sym {"gross" if gross else "klein"} farbig {klasse}" aria-hidden="true">{inhalt}</span>'
+        return f'<span class="m-sym {"gross" if gross else "klein"} farbig {klasse}" data-n="{name}" aria-hidden="true">{inhalt}</span>'
     if gross:
         flaeche = (f'<span class="m-sym-f" style="color:{_html.escape(farbe)}">{svg(name, "g", "f")}</span>'
                    if farbe else "")
@@ -181,9 +200,9 @@ def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", ov
         if overlay:
             of = FARBEN.get(ofarbe, ofarbe) or BLAU
             inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
-        return f'<span class="m-sym gross {klasse}" aria-hidden="true">{inhalt}</span>'
+        return f'<span class="m-sym gross {klasse}" data-n="{name}" aria-hidden="true">{inhalt}</span>'
     stil = f' style="color:{_html.escape(farbe)}"' if farbe else ""
-    return f'<span class="m-sym klein {klasse}" aria-hidden="true"><span class="m-sym-k"{stil}>{svg(name, "k", "r")}</span></span>'
+    return f'<span class="m-sym klein {klasse}" data-n="{name}" aria-hidden="true"><span class="m-sym-k"{stil}>{svg(name, "k", "r")}</span></span>'
 
 
 CSS = """

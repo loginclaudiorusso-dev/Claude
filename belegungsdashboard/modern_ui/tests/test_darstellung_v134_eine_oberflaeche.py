@@ -33,10 +33,13 @@ def test_farbige_symbole_vorhanden_und_ersatz_greift():
         assert (sy.FARBIG_ORDNER / f"{ziel}.g.svg").exists() and (sy.FARBIG_ORDNER / f"{ziel}.k.svg").exists(), name
     mit = [n for n in sy.alle() if sy.farbig(n)]
     assert len(mit) >= 100                                        # die meisten Menüband-Symbole gibt es farbig
-    h = sy.html("calendar", sy.BLAU, True, variante="farbig")
+    h = sy.html("sparkle", sy.BLAU, True, variante="farbig")          # 1.40: ohne eigenes Piktogramm
     assert "farbig" in h and "linearGradient" in h and "m-sym-f" not in h
-    assert "farbig" not in sy.html("calendar", sy.BLAU, True, variante="fluent")
-    ohne = next(n for n in sy.alle() if not sy.farbig(n))
+    assert "farbig" not in sy.html("sparkle", sy.BLAU, True, variante="fluent")
+    assert "pikto" in sy.html("calendar", sy.BLAU, True, variante="farbig")   # eigenes Bild hat Vorrang
+    from modern import piktogramme as pk
+
+    ohne = next(n for n in sy.alle() if not sy.farbig(n) and n not in pk.ERSATZ)
     assert "m-sym-k" in sy.html(ohne, sy.BLAU, True, variante="farbig")     # ohne farbiges Motiv: zweifarbig
 
 

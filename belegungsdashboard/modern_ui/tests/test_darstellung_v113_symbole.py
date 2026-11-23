@@ -18,7 +18,7 @@ def test_alle_zuordnungen_haben_dateien():
     namen = {v[0] for tab in (sy.MATERIAL, sy.ZUSTAND, sy.TON) for v in tab.values()}
     namen |= {z[0] for _w, z in sy.TEXT}
     namen |= {v[0] for tab in (mb.SYMBOLE, mb.AKTION_SYMBOLE, mb.TEXT_SYMBOLE) for v in tab.values()}
-    fehlt = sorted(n for n in namen if not _vollstaendig(n))
+    fehlt = sorted(n for n in namen if not n.startswith("p:") and not _vollstaendig(n))   # 1.39: p: = Piktogramm
     assert not fehlt, fehlt
 
 

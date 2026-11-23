@@ -47,7 +47,7 @@ def test_piktogramme_sind_gueltiges_svg():
         wurzel = ET.fromstring(pk.svg(name, 32))
         assert wurzel.get("viewBox") == "0 0 32 32", name
         klassen = {e.get("class") for e in wurzel.iter() if e.get("class")}
-        assert klassen <= {"s", "sa", "f", "fa", "fw", "sw", "k", "k2", "dot", "dot a", "sa w", "sa dash", "s dash", "boje", "m-pk"}, name
+        assert klassen <= {"s", "sa", "f", "fa", "fw", "sw", "k", "k2", "dot", "dot a", "sa w", "s w", "sa dash", "s dash", "boje", "m-pk"}, name
     assert len(set(pk.SYMBOLE.values())) == len(pk.SYMBOLE)            # keine zwei gleich
     assert pk.svg("gibt_es_nicht") == ""
     from modern import symbole
@@ -147,7 +147,7 @@ def test_cockpit_eine_startseite_und_sprung_zu_nachrichten():
     assert sh.auswahl(a) == sh.UEBERBLICK
     assert sh.NACHRICHTEN == mb.NACHRICHTEN
     quelle = Path(sh.__file__).read_text(encoding="utf-8")
-    assert "def _zentrale" not in quelle and "_tagesblock(a, t, cockpit=True)" in quelle
+    assert "def _zentrale" not in quelle and "_woche_tabelle(a, t)" in quelle and "_frei_saeulen(a, t)" in quelle
     assert register.TITEL["heute"] == "Übersicht" and mbu.seitentitel(SimpleNamespace(seite="heute"), "Übersicht") == \
         "Übersicht · Cockpit"
 

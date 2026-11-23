@@ -172,76 +172,6 @@ def zeichnen(a) -> None:
             _chips(a, a.daten)
         _postfach(a, a.daten)
 
-def _tagesblock(a, t: "Tag", cockpit: bool = False) -> None:
-    """Der Tag auf einen Blick: Anreisen 7 Tage, frei nach Planung, Abreisen, Reinigung, Neuigkeiten.
-    1.39 ``cockpit``: die nächsten 7 Tage und die freien Zimmer stehen als Karten darüber (früher Tagesübersicht)."""
-    if cockpit:
-        _woche_tabelle(a, t)
-        _frei_saeulen(a, t)
-    else:
-        _anreisen_block(a, t)
-        if t.np:
-            _nach_planung_block(a, t.np)
-    with ui.element("div").classes("m-block"):
-        ui.label("Abreisen heute und morgen").classes("m-btitel")
-        if not t.abreisen:
-            ui.label("Keine Abreisen.").classes("m-ptext")
-        for wann, name, zimmer in t.abreisen[:12]:
-            with ui.element("div").classes("m-liste-zeile"):
-                ui.label(wann).classes("m-zweite").style("width:52px")
-                ui.label(name).classes("m-name")
-                ui.label(zimmer).classes("m-mono")
-        if len(t.abreisen) > 12:
-            knopf(f"Alle {len(t.abreisen)} ansehen", lambda: a.oeffnen("anreisen", ansicht="abreisen"), "leise")
-    with ui.element("div").classes("m-block"):
-        ui.label("Reinigung heute").classes("m-btitel")
-        eilig, offen = t.reinigung
-        ui.html(f'<span class="m-kpi"><b style="color:var(--rot)">{eilig}</b> vor Einzug noch offen'
-                f'<span class="m-punktt">·</span><b>{offen}</b> weitere heute</span>', sanitize=False)
-        knopf("Reinigungsliste öffnen", lambda: a.oeffnen("reinigung", rg_zeitraum="heute", rg_zimmer=""), "", "cleaning_services")
-    if t.neuigkeiten:
-        with ui.element("div").classes("m-block"):
-            ui.label("Neu seit gestern").classes("m-btitel")
-            for zeit, text, art in t.neuigkeiten:
-                with ui.element("div").classes("m-neu"):
-                    ui.element("div").classes("m-ampel " + {"warnung": "warn", "fehler": "krit"}.get(art, "ok")).style(
-                        "margin:6px 0 0")
-                    with ui.element("div"):
-                        ui.label(text).classes("m-ptext").style("color:var(--text)")
-                        ui.label(zeit).classes("m-zweite")
-
-def _anreisen_block(a, t: "Tag") -> None:
-    with ui.element("div").classes("m-block"):
-        ui.label("Anreisen der nächsten 7 Tage").classes("m-btitel")
-        if not t.anreisen:
-            ui.label("Keine Anreisen.").classes("m-ptext")
-        for kennung, text, n, mit in t.anreisen:
-            z_ = ui.element("button").classes("m-liste-zeile")
-            with z_:
-                ui.element("div").classes("m-ampel " + ("ok" if mit == n else "krit")).style("margin:0")
-                attr(ui.label(text).classes("m-name"), title=text)
-                ui.label(f"{mit}/{n}").classes("m-mono")
-            z_.on("click", lambda k=kennung: a.oeffnen("anreisen", kennung=k))
-
-
-def _nach_planung_block(a, np_) -> None:
-    """Freie Zimmer der nächsten 5 Wochen nach Planung – gesamt, EMR, Doppelzimmer, mit Ampel."""
-    with ui.element("div").classes("m-block"):
-        ui.label("Frei nach Planung – nächste 5 Wochen").classes("m-btitel")
-        ui.label(f"Ganz freie Zimmer, wenn auch die {np_.offen} Anreisen ohne Zimmer probeweise zugeteilt sind"
-                 + (f" ({np_.ohne_platz} fänden keins)" if np_.ohne_platz else "") + ".").classes("m-ptext")
-        with ui.element("div").classes("m-np"):
-            for t in ("Woche", "jetzt", "nach Planung", "EMR", "Doppel"):
-                ui.label(t).classes("m-zweite")
-            for text, jetzt, frei, emr, doppel, _stufe, je in np_.wochen[:5]:
-                ui.label(text).classes("m-ptext")
-                ui.label(str(jetzt)).classes("m-mono")
-                ui.label(str(frei)).classes(f"m-pille {STUFE[je['gesamt']]}")
-                ui.label(str(emr)).classes(f"m-pille {STUFE[je['emr']]}")
-                ui.label(str(doppel)).classes(f"m-pille {STUFE[je['doppel']]}")
-        knopf("Alle 12 Wochen", lambda: a.oeffnen("auswertung", ansicht="zimmer"), "leise", "insights")
-
-
 def _defekte(a):
     from belegung import maengel as mg
 
@@ -300,6 +230,7 @@ def feed_eintraege(t: Tag, karten: list, heute: date) -> dict:
 
 
 UEBERBLICK = "ueberblick"
+POSTFACH = "postfach_outlook"                               # 1.40: Outlook-Postfach als Eintrag links
 NACHRICHTEN = "nachrichten"                               # 1.39: Sprung aus dem Menüband (= menueband.NACHRICHTEN)
 STUFEN_PF = (("dringend", "Dringend"), ("bald", "Als Nächstes"), ("info", "Zur Info"))
 
@@ -353,7 +284,7 @@ def auswahl(a) -> str:
     if alt == NACHRICHTEN:                            # 1.39: Menüband „Nachrichten“ → erste (neueste) Nachricht
         ns = getattr(getattr(a, "daten", None), "nachrichten", None) or []
         return f"nachricht:{ns[0].id}" if ns else UEBERBLICK
-    if alt in ids or alt == UEBERBLICK:
+    if alt in ids or alt in (UEBERBLICK, POSTFACH):
         return alt
     nachr = [f"nachricht:{n.id}" for n in getattr(getattr(a, "daten", None), "nachrichten", []) or []]
     if alt in nachr:
@@ -374,16 +305,13 @@ def _postfach(a, t: Tag) -> None:
         attr(liste, aria_label="Aufgaben")
         with ui.element("div").classes("m-pf-rechts"):
             detail = ui.element("section").classes("m-pf-detail")
-            from . import outlook_kern                # 1.02: das Postfach (z. B. „Internatsdienst“) unter der Aufgabe
-
-            outlook_kern.block(a, anzahl=12, postfach=True)
 
     def zeigen(kid: str) -> None:
         a.pf_auswahl = kid
         fuellen()
 
     def schritt(richtung: int) -> None:
-        reihe = [UEBERBLICK] + [f"nachricht:{n.id}" for n in getattr(t, "nachrichten", [])] + [k.id for k in a.karten]
+        reihe = [UEBERBLICK, POSTFACH] + [f"nachricht:{n.id}" for n in getattr(t, "nachrichten", [])] + [k.id for k in a.karten]
         i = reihe.index(a.pf_auswahl) if a.pf_auswahl in reihe else 0
         zeigen(reihe[max(0, min(len(reihe) - 1, i + richtung))])
 
@@ -414,7 +342,13 @@ def _postfach(a, t: Tag) -> None:
             if a.pf_auswahl == UEBERBLICK:
                 ui.label("Überblick heute").classes("m-pf-dtitel")
                 with ui.element("div").classes("m-pf-ueberblick"):
-                    _tagesblock(a, t, cockpit=True)
+                    _woche_tabelle(a, t)          # 1.40: nur zwei Karten – Abreisen und Reinigung stehen oben als Zahl
+                    _frei_saeulen(a, t)
+                return
+            if a.pf_auswahl == POSTFACH:          # 1.40: Outlook-Postfach (z. B. Internatsdienst) auf Klick
+                from . import outlook_kern
+
+                outlook_kern.block(a, anzahl=15, postfach=True)
                 return
             if str(a.pf_auswahl).startswith("nachricht:"):
                 _nachricht_lesen(a, t, a.pf_auswahl.split(":", 1)[1], fuellen)
@@ -470,12 +404,21 @@ def _liste_kopf(a, t: Tag, zeigen) -> None:
             ui.label(f"{an} Anreise{'n' if an != 1 else ''} · Auslastung und freie Zimmer"
                      + (f" · {frei} frei" if frei is not None else "")).classes("m-pf-unter")
     z.on("click", lambda: zeigen(UEBERBLICK))
+    from . import outlook_kern
+
+    if pfad := outlook_kern.ordner():                 # 1.40: Postfach nur auf Klick (vorher immer unter der Lesespalte)
+        z = ui.element("button").classes("m-pf-zeile info" + (" an" if a.pf_auswahl == POSTFACH else ""))
+        with z:
+            ui.icon("mail").classes("m-pf-symbol info")
+            with ui.element("div").classes("m-pf-text"):
+                ui.label("Postfach").classes("m-pf-titel")
+                ui.label(pfad).classes("m-pf-unter")
+        z.on("click", lambda: zeigen(POSTFACH))
     ns = getattr(t, "nachrichten", []) or []
     ich = getattr(t, "ich", "")
     neu = sum(1 for n in ns if n.ungelesen_fuer(ich))
-    with ui.element("div").classes("m-pf-gruppe-zeile"):
+    if ns:                                            # 1.40: ohne Nachrichten keine leere Überschrift
         ui.label(f"Nachrichten · {len(ns)}" + (f" ({neu} neu)" if neu else "")).classes("m-pf-gruppe info")
-        knopf("Neu", lambda: nachricht_neu(a), "leise", "edit", "Neue Nachricht an alle am Standort")
     for n in ns[:12]:
         kid = f"nachricht:{n.id}"
         z = ui.element("button").classes("m-pf-zeile info" + (" an" if a.pf_auswahl == kid else "")

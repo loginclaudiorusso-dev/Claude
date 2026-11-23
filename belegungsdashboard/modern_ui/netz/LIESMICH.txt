@@ -15,6 +15,8 @@ Das Zip "INNternat_Python.zip" einmal in diesen Ordner entpacken - es legt den O
 "INNternat starten.bat" an (ca. 320 MB, Python 3.13 mit allen Paketen). Dann braucht KEIN PC eine Python-Installation.
 Beim ersten Start kopiert jeder PC dieses Python einmalig zu sich (%LOCALAPPDATA%\INNternat\Python, 1-2 Minuten),
 danach startet INNternat von dort schnell. Bei Updates bleibt der Ordner "Python" stehen (nur "Programm" ersetzen).
+Ab 1.40 prüft die Startdatei die Kopie vor dem Start und kopiert sie bei Bedarf neu; fremde Python-Einstellungen
+des PCs (PYTHONHOME, PYTHONPATH – z. B. von GIS-Programmen) werden für INNternat ignoriert.
 
 Erste Einrichtung (einmalig)
 ----------------------------

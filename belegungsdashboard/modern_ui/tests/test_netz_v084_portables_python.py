@@ -14,7 +14,7 @@ def test_startdatei_nimmt_portables_python():
     t = (NETZ / "INNternat starten.bat").read_bytes()
     assert b"\r\n" in t and all(c < 128 for c in t)
     t = t.decode()
-    assert 'if exist "%INN%Python\\pythonw.exe" (' in t and 'set "PYW=%INN%Python\\pythonw.exe"' in t
+    assert 'if exist "%INN%Python\\pythonw.exe" set "PYNETZ=%INN%Python"' in t and 'set "PYW=%PYNETZ%\\pythonw.exe"' in t
     assert t.index("goto verknuepfung") < t.index("Erster Start auf diesem PC") < t.index(":verknuepfung")
     assert 'set "PYW=%VENV%\\Scripts\\pythonw.exe"' in t and '"%PYW%" "%PROG%\\modern_ui\\app.py"' in t
     assert "PYTHONNOUSERSITE" in t

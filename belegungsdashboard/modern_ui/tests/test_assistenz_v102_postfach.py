@@ -35,7 +35,8 @@ def test_vorschau_merkt_sich_anzahl_getrennt(monkeypatch):
 
 def test_postfach_steht_auf_der_aufgaben_seite():
     q = inspect.getsource(seite_heute._postfach)
-    assert "outlook_kern.block(a, anzahl=12, postfach=True)" in q
+    assert "outlook_kern.block(a, anzahl=15, postfach=True)" in q        # 1.40: als Eintrag links, auf Klick
+    assert "if a.pf_auswahl == POSTFACH:" in q
 
 
 def test_mehr_als_drei_optionen_in_einer_reihe():

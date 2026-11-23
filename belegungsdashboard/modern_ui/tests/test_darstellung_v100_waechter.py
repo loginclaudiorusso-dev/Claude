@@ -50,11 +50,13 @@ def test_symbole_lizenz_und_beide_ebenen():
 def test_symbol_html_gross_zweifarbig_klein_einfarbig():
     from modern import symbole
 
-    g = symbole.html("gauge", "blau")
+    n = "sparkle"                                                       # 1.40: ohne eigenes Piktogramm (Fluent)
+    g = symbole.html(n, "blau")
     assert "m-sym gross" in g and "m-sym-f" in g and "#0284c7" in g and g.count("<svg") == 2
-    k = symbole.html("gauge", "blau", gross=False)
+    k = symbole.html(n, "blau", gross=False)
     assert "m-sym klein" in k and "m-sym-f" not in k and k.count("<svg") == 1
-    assert symbole.html("gauge").count("<svg") == 1                    # ohne Farbe: nur Kontur
+    assert symbole.html(n).count("<svg") == 1                          # ohne Farbe: nur Kontur
+    assert "pikto" in symbole.html("gauge", "blau") and "--pk-a" not in symbole.html("gauge", "blau")   # 1.40
 
 
 def test_zeitstrahl_filter():

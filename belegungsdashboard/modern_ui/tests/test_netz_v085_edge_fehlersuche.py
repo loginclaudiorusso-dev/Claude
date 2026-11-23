@@ -10,7 +10,7 @@ def test_startdatei_browser_und_konsole():
     t = (NETZ / "INNternat starten.bat").read_bytes()
     assert b"\r\n" in t and all(c < 128 for c in t)
     t = t.decode()
-    portabel = t[t.index('if exist "%INN%Python\\pythonw.exe" ('):t.index("goto verknuepfung")]
+    portabel = t[t.index('if defined PYNETZ ('):t.index("goto verknuepfung")]
     assert 'set "INNTERNAT_BROWSER=1"' in portabel
     assert 'if /i "%~1"=="--konsole" (' in t and '"%PYW:pythonw.exe=python.exe%"' in t and "pause" in t
     assert t.index('"--konsole"') < t.index('start "" /D "%INNTERNAT_LOKAL%" "%PYW%"')
