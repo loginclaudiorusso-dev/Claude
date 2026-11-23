@@ -1079,6 +1079,10 @@ button.m-tz-mail:hover { background: var(--fl2); }
 button.m-tz-mail:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
 .m-tz-abk { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
 .m-tz-ab .m-tz-abk .m-knopf { margin-left: 0; }
+.m-pf-filter { font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: 12px; border: 1px solid var(--rand); background: transparent; color: var(--text2); cursor: pointer; }
+.m-pf-filter .q-icon { font-size: 15px; }
+.m-pf-filter.an { background: var(--akzent); border-color: var(--akzent); color: var(--fls, #fff); font-weight: 600; }
 .m-pf-rechts { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .m-pf-post { border-radius: 12px; padding: 16px 20px; }
 .m-pf-post .m-tz-ab { margin-bottom: 4px; }

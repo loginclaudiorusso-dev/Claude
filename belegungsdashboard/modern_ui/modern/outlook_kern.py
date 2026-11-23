@@ -5,6 +5,8 @@ nichts gesendet, verschoben, gelöscht oder als gelesen markiert; Outlook wird n
 1.02: Eine Mail (oder den ganzen Ordner) per Klick **in Outlook öffnen** – Outlook zeigt sie in seinem eigenen
 Fenster; ob sie dann als gelesen gilt, regelt Outlook wie bei jedem Öffnen dort.
 Keine Cloud, kein Server, kein OAuth. Ohne eingestellten Ordner ist die Vorschau aus und zeigt keine Inhalte.
+1.47: Im Cockpit-Postfach „Nur Zimmer-Mails“ (Standard, je Person umschaltbar): nur Mails mit Zimmerbezug, nach festen
+Stichwörtern in Betreff und Text (``zimmerbezug``).
 
 Ordner-Angabe (Einstellungen): ``Internatsdienst`` = Posteingang des Postfachs „Internatsdienst“,
 ``Internatsdienst/Posteingang/Anreisen`` = Unterordner, leer = aus. Das neue Outlook (ohne COM) wird nicht unterstützt.
@@ -33,10 +35,58 @@ class Mail:
     ungelesen: bool
     eintrag: str = ""            # 1.02: Outlook-EntryID – zum Öffnen in Outlook
     ablage: str = ""             # StoreID des Postfachs (freigegebene Postfächer)
+    bezug: str = ""              # 1.47: warum die Mail mit Zimmern zu tun hat („Zimmer 2-101“, „Schlüssel“ …), "" = nicht
 
     @property
     def wann(self) -> str:
         return f"{self.zeit:%H:%M}" if self.zeit.date() == date.today() else f"{self.zeit:%d.%m.}"
+
+
+# ---- 1.47: nur Mails, die etwas mit Zimmern zu tun haben ----------------------------------------------------------
+# Feste Regeln (Stichwörter), keine KI: lieber eine Mail zu viel als eine zu wenig. Reihenfolge = Vorrang der Begründung.
+
+BEZUG = [
+    ("Zimmer", re.compile(r"\b(?:zimmer|zi\.|raum|appartement|apartment)\s*(?:nr\.?\s*)?[a-z]?\d{1,2}[-./ ]?\d{2,3}\b"
+                          r"|\b\d-\d{3}\b", re.I)),
+    ("Schlüssel", re.compile(r"schl[üu]ssel|transponder|schlie(?:ß|ss)(?:anlage|zylinder)|zylinder|ausgesperrt", re.I)),
+    ("Defekt", re.compile(r"defekt|kaputt|mangel|m[äa]ngel|reparatur|heizung|fenster|rollo|dusche|toilette|\bwc\b|"
+                          r"waschbecken|verstopf|tropf|undicht|schimmel|wasserschaden|lampe|licht geht|steckdose|"
+                          r"hausmeister|facility|\bfm\b", re.I)),
+    ("Anreise", re.compile(r"anreise|anreisen|ankunft|anreist|einzug|zimmerbuchung|unterbringung|[üu]bernachtung|"
+                           r"hospitant|g[äa]stezimmer|\bgast\b|g[äa]ste", re.I)),
+    ("Abreise", re.compile(r"abreise|abreisen|auszug|zieht aus|vorzeitig|abbruch|nichtanreise|storn", re.I)),
+    ("Belegung", re.compile(r"belegung|zimmer|umzug|umziehen|\bbett(?:en)?\b|mietvertrag|\bmieter", re.I)),
+    ("Reinigung", re.compile(r"reinigung|bettw[äa]sche|endreinigung|sauber|putz", re.I)),
+]
+
+
+def zimmerbezug(betreff: str, text: str = "") -> str:
+    """Hat die Mail mit Zimmern zu tun? Begründung („Zimmer 2-101“, „Schlüssel“ …) oder "". Betreff zählt zuerst."""
+    for quelle in (betreff or "", (text or "")[:3000]):
+        for name, muster in BEZUG:
+            m = muster.search(quelle)
+            if m:
+                if name == "Zimmer":
+                    nr = re.search(r"[a-z]?\d{1,2}[-./ ]?\d{2,3}", m.group(0), re.I)
+                    return f"Zimmer {nr.group(0)}" if nr else "Zimmer"
+                return name
+    return ""
+
+
+NUR_ZIMMER = "postfach_nur_zimmer"           # je Person (netz_kern.persoenlich), Standard: an
+
+
+def nur_zimmer() -> bool:
+    from .netz_kern import persoenlich
+
+    return bool(persoenlich(NUR_ZIMMER, True))
+
+
+def nur_zimmer_setzen(an: bool) -> None:
+    from .netz_kern import persoenlich_setzen
+
+    persoenlich_setzen(NUR_ZIMMER, bool(an))
+    _ZWISCHEN["zeit"] = 0.0
 
 
 def ordner() -> str:
@@ -100,8 +150,12 @@ def _outlook(text: str = "Outlook ist nicht geöffnet – die Vorschau erscheint
         raise ValueError(text) from exc
 
 
-def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
-    """Die neuesten Mails des Ordners – nur lesen. ValueError mit verständlichem Text, wenn es nicht geht."""
+DURCHSUCHEN = 120                           # 1.47: so viele neueste Mails werden für „nur Zimmer“ angesehen
+
+
+def lesen(pfad: str, anzahl: int = ANZAHL, filtern: bool = False) -> list[Mail]:
+    """Die neuesten Mails des Ordners – nur lesen. ValueError mit verständlichem Text, wenn es nicht geht.
+    ``filtern`` (1.47): nur Mails mit Zimmerbezug, dafür bis zu ``DURCHSUCHEN`` Mails ansehen."""
     pythoncom, ol = _outlook()
     try:
         ns = ol.GetNamespace("MAPI")
@@ -114,11 +168,22 @@ def lesen(pfad: str, anzahl: int = ANZAHL) -> list[Mail]:
         items.Sort("[ReceivedTime]", True)
         erg: list[Mail] = []
         m = items.GetFirst()
-        while m is not None and len(erg) < anzahl:
-            if getattr(m, "Class", 0) == 43:          # olMail
-                rt = m.ReceivedTime
-                erg.append(Mail(datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute), str(m.Subject or "(ohne Betreff)"),
-                                str(m.SenderName or ""), bool(m.UnRead), str(getattr(m, "EntryID", "") or ""), ablage))
+        gesehen = 0
+        while m is not None and len(erg) < anzahl and gesehen < (DURCHSUCHEN if filtern else anzahl * 4):
+            gesehen += 1
+            try:
+                if getattr(m, "Class", 0) == 43:      # olMail
+                    betreff = str(m.Subject or "(ohne Betreff)")
+                    bezug = zimmerbezug(betreff)
+                    if not bezug and filtern:         # Text nur lesen, wenn der Betreff nichts verrät
+                        bezug = zimmerbezug("", str(m.Body or "")[:3000])
+                    if bezug or not filtern:
+                        rt = m.ReceivedTime
+                        erg.append(Mail(datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute), betreff,
+                                        str(m.SenderName or ""), bool(m.UnRead), str(getattr(m, "EntryID", "") or ""),
+                                        ablage, bezug))
+            except Exception:                         # noqa: BLE001 – eine kaputte Mail stoppt die Vorschau nicht
+                pass
             m = items.GetNext()
         return erg
     finally:
@@ -164,21 +229,21 @@ def ordner_oeffnen(pfad: str | None = None) -> str:
         pythoncom.CoUninitialize()
 
 
-def vorschau(neu: bool = False, anzahl: int = ANZAHL) -> tuple[list[Mail], str]:
+def vorschau(neu: bool = False, anzahl: int = ANZAHL, filtern: bool = False) -> tuple[list[Mail], str]:
     """(Mails, Fehlertext) – höchstens alle ``NEU_LADEN_S`` Sekunden frisch aus Outlook."""
     pfad = ordner()
     if not pfad:
         return [], ""
-    if (not neu and _ZWISCHEN["pfad"] == (pfad, anzahl)
+    if (not neu and _ZWISCHEN["pfad"] == (pfad, anzahl, filtern)
             and time.monotonic() - _ZWISCHEN["zeit"] < NEU_LADEN_S):
         return _ZWISCHEN["erg"]
     try:
-        erg = (lesen(pfad, anzahl), "")
+        erg = (lesen(pfad, anzahl, filtern), "")
     except ValueError as exc:
         erg = ([], str(exc))
     except Exception as exc:                          # noqa: BLE001 – Outlook-Fehler nie bis zur Oberfläche durchreichen
         erg = ([], f"Outlook konnte nicht gelesen werden: {exc}")
-    _ZWISCHEN.update(zeit=time.monotonic(), pfad=(pfad, anzahl), erg=erg)
+    _ZWISCHEN.update(zeit=time.monotonic(), pfad=(pfad, anzahl, filtern), erg=erg)
     return erg
 
 
@@ -303,6 +368,7 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
     from .ui_bausteine import attr, knopf
 
     pfad = ordner()
+    zustand = {"nur": postfach and nur_zimmer()}
 
     async def _oeffnen(m: Mail) -> None:
         fehler = await run.io_bound(oeffnen, m.eintrag, m.ablage)
@@ -319,6 +385,21 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
             ui.label(("Postfach" if postfach else "Outlook") + (f" · {pfad}" if pfad else ""))
             if pfad:
                 with ui.element("div").classes("m-tz-abk"):
+                    if postfach:                      # 1.47: nur Mails mit Zimmerbezug ⇄ alle
+                        filt = ui.element("button").classes("m-pf-filter" + (" an" if zustand["nur"] else ""))
+                        attr(filt, type="button", title="Nur Mails zeigen, die etwas mit Zimmern zu tun haben "
+                             "(Zimmernummer, Schlüssel, Defekt, An-/Abreise, Gäste, Reinigung)")
+                        with filt:
+                            ui.icon("filter_alt")
+                            filt_text = ui.label("Nur Zimmer-Mails" if zustand["nur"] else "Alle Mails")
+
+                        async def _umschalten() -> None:
+                            zustand["nur"] = not zustand["nur"]
+                            await run.io_bound(nur_zimmer_setzen, zustand["nur"])
+                            filt.classes(add="an") if zustand["nur"] else filt.classes(remove="an")
+                            filt_text.set_text("Nur Zimmer-Mails" if zustand["nur"] else "Alle Mails")
+                            await _laden(True)
+                        filt.on("click", _umschalten)
                     knopf("In Outlook", _ordner, "leise", "open_in_new", "Den Ordner in Outlook öffnen")
                     knopf("", lambda: _laden(True), "leise", "refresh", "Neu laden")
         inhalt = ui.element("div").classes("m-tz-mails")
@@ -333,7 +414,7 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
             ui.label("Lädt …").classes("m-zweite")
 
     async def _laden(neu: bool = False) -> None:
-        erg = await run.io_bound(vorschau, neu, anzahl)
+        erg = await run.io_bound(vorschau, neu, anzahl, zustand["nur"])
         if erg is None:                    # 1.29.1: Programm wird gerade beendet (NiceGUI liefert dann None)
             return
         mails, fehler = erg
@@ -343,7 +424,8 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
                 ui.label(fehler).classes("m-zweite").style("white-space:normal")
                 return
             if not mails:
-                ui.label("Keine Mails in diesem Ordner.").classes("m-zweite")
+                ui.label(f"Unter den neuesten {DURCHSUCHEN} Mails ist keine mit Zimmerbezug." if zustand["nur"] else
+                         "Keine Mails in diesem Ordner.").classes("m-zweite")
                 return
             for m in mails:
                 z = ui.element("button").classes("m-tz-mail" + (" neu" if m.ungelesen else ""))
@@ -352,12 +434,12 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
                     ui.label(m.wann).classes("m-tz-mzeit")
                     with ui.element("div").classes("m-tz-mtext"):
                         ui.label(m.betreff).classes("m-tz-mbetreff")
-                        ui.label(m.absender).classes("m-zweite")
+                        ui.label(m.absender + (f" · {m.bezug}" if m.bezug and zustand["nur"] else "")).classes("m-zweite")
                     if m.ungelesen:
                         ui.label("ungelesen").classes("m-pille akzent")
                 z.on("click", lambda m=m: _oeffnen(m))
             ungelesen = sum(1 for m in mails if m.ungelesen)
-            ui.label(f"Klick öffnet die Mail in Outlook · {ungelesen} ungelesen unter den neuesten {len(mails)} · "
-                     f"Stand {datetime.now():%H:%M}").classes("m-tz-meta")
+            ui.label(f"Klick öffnet die Mail in Outlook · {ungelesen} ungelesen unter den neuesten {len(mails)}"
+                     + (" mit Zimmerbezug" if zustand["nur"] else "") + f" · Stand {datetime.now():%H:%M}").classes("m-tz-meta")
 
     ui.timer(0.05, _laden, once=True)

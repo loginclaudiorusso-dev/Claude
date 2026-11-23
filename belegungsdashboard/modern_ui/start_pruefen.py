@@ -38,6 +38,19 @@ def vorher(argv: list[str], ordner: Path) -> int:
     if art == "neu":
         print("Hinweis: " + text, flush=True)
     d = sk.lesen(ordner)
+    if sk.lebt(d) and sk.veraltet(d, _version()):
+        # 1.47: Nach einem Update lief die alte Version unsichtbar weiter – das Fenster hätte sich wieder mit ihr
+        # verbunden (alter Stand bis zum Neustart des PCs). Alte Version beenden, dann die neue starten.
+        print(f"Ältere Version {d.get('version')} läuft noch im Hintergrund – sie wird beendet ...", flush=True)
+        if sk.beenden(d.get("pid")):
+            try:
+                sk.pfad(ordner).unlink(missing_ok=True)       # Lebenszeichen der beendeten Instanz
+            except OSError:
+                pass
+            return 0
+        melden(f"Die ältere Version {d.get('version')} läuft noch im Hintergrund und ließ sich nicht beenden.\n\n"
+               "Bitte im Task-Manager „Python“ bzw. „pythonw.exe“ beenden oder den PC neu starten.")
+        return 2
     if sk.lebt(d):
         if "--minimiert" in argv:                       # „Mit Windows starten“: still – es läuft ja schon
             return 2
@@ -54,6 +67,12 @@ def vorher(argv: list[str], ordner: Path) -> int:
                "(Ein zweites Fenster würde dieselben Daten doppelt bearbeiten.)", fehler=False)
         return 2
     return 0
+
+
+def _version() -> str:
+    from modern import __version__
+
+    return __version__
 
 
 def nachher(ordner: Path) -> int:

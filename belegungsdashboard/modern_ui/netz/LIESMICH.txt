@@ -86,6 +86,9 @@ Immer das Paket "INNternat.zip" verwenden (nicht das Test-Paket - das legt eine 
 2. Den Ordner "Programm" löschen (NICHT "Daten").
 3. Das neue Zip in denselben Ordner entpacken.
 Laufende PCs, die das Update verpasst haben, zeigen "Neue Version ist eingespielt – bitte neu starten".
+Beim ersten Start der neuen Version werden die Arbeitsdaten jedes Standorts automatisch nach
+"Daten\Sicherungen" gesichert (Wiederherstellen: Einstellungen -> Datensicherung). Läuft auf einem PC noch die
+alte Version unsichtbar im Hintergrund, beendet der Start sie und öffnet die neue (ab 1.47).
 
 Test-Installation (INSTANZ.txt)
 -------------------------------

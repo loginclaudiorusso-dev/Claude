@@ -25,7 +25,7 @@ def test_ordner_oeffnen_ohne_einstellung():
 def test_vorschau_merkt_sich_anzahl_getrennt(monkeypatch):
     aufrufe = []
     monkeypatch.setattr(ok, "ordner", lambda: "Internatsdienst")
-    monkeypatch.setattr(ok, "lesen", lambda pfad, anzahl=ok.ANZAHL: aufrufe.append(anzahl) or [])
+    monkeypatch.setattr(ok, "lesen", lambda pfad, anzahl=ok.ANZAHL, filtern=False: aufrufe.append(anzahl) or [])
     ok._ZWISCHEN.update(zeit=0.0, pfad=None)
     ok.vorschau(False, 6)
     ok.vorschau(False, 12)

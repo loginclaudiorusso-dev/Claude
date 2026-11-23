@@ -1,4 +1,5 @@
-"""1.36: Mail an FM (Facility-Management) – als Outlook-Entwurf zum Prüfen und Absenden; 1.38 auch direkt senden.
+"""1.36: Mail an FM (Facility-Management) – als Outlook-Entwurf zum Prüfen und Absenden; 1.38 auch direkt senden;
+1.47 auf Wunsch aus dem gemeinsamen Postfach (z. B. Internatsdienst) statt aus dem eigenen Konto.
 
 * Die FM-Adresse wird je Standort gespeichert (Programm-Einstellung ``fm_mail``, für alle PCs gleich).
 * ``entwurf`` legt im laufenden klassischen Outlook eine neue Mail an und zeigt sie an – gesendet wird erst, wenn man
@@ -36,11 +37,48 @@ def adresse_setzen(wert: str) -> str:
     return f"FM-Adresse gespeichert: {neu}" if neu else "FM-Adresse entfernt"
 
 
+ABSENDER = "fm_absender"     # 1.47: gemeinsames Postfach (z. B. Internatsdienst), aus dem FM-Mails gehen
+
+
+def absender() -> str:
+    from belegung import speicher
+
+    return str(speicher.einstellungen().get(ABSENDER, "") or "")
+
+
+def absender_setzen(wert: str) -> str:
+    from belegung import speicher
+
+    from .kern import _schritt
+
+    neu = (wert or "").strip()
+    if neu and not _MAIL.match(neu):
+        raise ValueError(f"„{neu}“ ist keine gültige Mail-Adresse – bitte die Adresse des Postfachs eintragen.")
+    _schritt("FM-Absender", lambda: speicher.einstellung_setzen(ABSENDER, neu), [speicher.EINSTELLUNGEN])
+    return f"FM-Mails gehen jetzt aus dem Postfach {neu}" if neu else "FM-Mails gehen aus dem eigenen Konto"
+
+
+def _als_postfach(ol, m, von: str) -> None:
+    """1.47: „Im Auftrag von“/„Senden als“ das gemeinsame Postfach; die Kopie möglichst in dessen „Gesendete
+    Elemente“ (klappt das nicht, landet sie wie sonst im eigenen Ordner)."""
+    if not von:
+        return
+    m.SentOnBehalfOfName = von
+    try:
+        ns = ol.GetNamespace("MAPI")
+        r = ns.CreateRecipient(von)
+        r.Resolve()
+        if r.Resolved:
+            m.SaveSentMessageFolder = ns.GetSharedDefaultFolder(r, 5)       # olFolderSentMail
+    except Exception:                              # noqa: BLE001 – nur Komfort
+        pass
+
+
 def mailto(an: str, betreff: str, text: str) -> str:
     return f"mailto:{quote(an, safe='@;,')}?subject={quote(betreff)}&body={quote(text)}"
 
 
-def entwurf(an: str, betreff: str, text: str) -> str:
+def entwurf(an: str, betreff: str, text: str, von: str = "") -> str:
     """Outlook-Entwurf anzeigen. Rückgabe "" = geklappt, sonst Grund (dann den mailto-Link anbieten)."""
     from . import outlook_kern as ok
 
@@ -56,6 +94,7 @@ def entwurf(an: str, betreff: str, text: str) -> str:
         m.To = an
         m.Subject = betreff
         m.Body = text
+        _als_postfach(ol, m, von)
         m.Display(False)
         return ""
     except Exception as exc:                       # noqa: BLE001
@@ -75,7 +114,7 @@ def vorlage(zimmer: str = "", art: str = "", notiz: str = "", absender: str = ""
     return betreff, "\n".join(zeilen).rstrip() + "\n"
 
 
-def senden(an: str, betreff: str, text: str) -> str:
+def senden(an: str, betreff: str, text: str, von: str = "") -> str:
     """1.38: Mail direkt über das laufende Outlook senden (Absender = eigenes Konto, Kopie in „Gesendete Elemente“).
     Rückgabe "" = gesendet, sonst Grund. Outlook wird nie selbst gestartet."""
     from . import outlook_kern as ok
@@ -93,9 +132,13 @@ def senden(an: str, betreff: str, text: str) -> str:
         m.To = an
         m.Subject = betreff
         m.Body = text
+        _als_postfach(ol, m, von)
         m.Send()
         return ""
     except Exception as exc:                       # noqa: BLE001
+        if von:
+            return (f"Outlook konnte die Mail nicht aus dem Postfach {von} senden: {exc} – fehlt das Recht "
+                    "„Senden als“ bzw. „Senden im Auftrag von“? Dann bitte die IT fragen oder das Feld leeren.")
         return f"Outlook konnte die Mail nicht senden: {exc}"
     finally:
         pythoncom.CoUninitialize()

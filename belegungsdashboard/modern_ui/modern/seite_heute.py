@@ -550,29 +550,35 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
     betreff0, text0 = fk.vorlage(zimmer, art, notiz, benutzer_kern.anzeige())
 
     def bauen():
-        ui.label("Gesendet wird über Ihr Outlook (Ihr Konto, die Mail steht danach in „Gesendete Elemente“). "
-                 "„In Outlook öffnen“ zeigt sie vorher noch in Outlook an.").classes("m-ptext")
+        ui.label("Gesendet wird über Ihr Outlook – aus dem gemeinsamen Postfach, wenn unten eins eingetragen ist, "
+                 "sonst aus Ihrem Konto. „In Outlook öffnen“ zeigt die Mail vorher noch in Outlook an.").classes("m-ptext")
+        von = ui.input("Senden aus Postfach (z. B. Internatsdienst)", value=fk.absender(),
+                       placeholder="leer = eigenes Konto").classes("m-feld w-full").props("dense outlined dark")
         an = ui.input("An (FM)", value=fk.adresse()).classes("m-feld w-full").props("dense outlined dark")
         betreff = ui.input("Betreff", value=betreff0).classes("m-feld w-full").props("dense outlined dark")
         text = ui.textarea("Text", value=text0).classes("m-feld w-full").props("dense outlined dark autogrow")
 
         async def merken() -> bool:
-            if (an.value or "").strip() != fk.adresse():
-                try:
+            try:
+                if (an.value or "").strip() != fk.adresse():
                     await run.io_bound(fk.adresse_setzen, an.value or "")
-                except ValueError as exc:
-                    a.toast(str(exc), fehler=True)
-                    return False
+                if (von.value or "").strip() != fk.absender():
+                    await run.io_bound(fk.absender_setzen, von.value or "")
+            except ValueError as exc:
+                a.toast(str(exc), fehler=True)
+                return False
             return True
 
         async def senden():                    # 1.38: direkt über das eigene Outlook senden (landet in „Gesendet“)
             if not await merken():
                 return
-            fehler = await run.io_bound(fk.senden, an.value or "", betreff.value or "", text.value or "")
+            fehler = await run.io_bound(fk.senden, an.value or "", betreff.value or "", text.value or "",
+                                        (von.value or "").strip())
             if fehler:
                 a.toast(fehler, fehler=True)
                 return
-            a.toast("Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“", rueck=False)
+            a.toast(f"Gesendet aus {von.value.strip()}" if (von.value or "").strip() else
+                    "Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“", rueck=False)
             a.panel_zu()
             if nach:                           # 1.46: z. B. QR-Meldung „an FM weitergeleitet“ vermerken
                 await nach()
@@ -580,7 +586,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
         async def los():
             if not await merken():
                 return
-            fehler = await run.io_bound(fk.entwurf, an.value or "", betreff.value or "", text.value or "")
+            fehler = await run.io_bound(fk.entwurf, an.value or "", betreff.value or "", text.value or "",
+                                        (von.value or "").strip())
             if fehler and fk.adresse():
                 ui.navigate.to(fk.mailto(an.value or "", betreff.value or "", text.value or ""))
                 a.toast(f"{fehler} Geöffnet im Standard-Mailprogramm.", rueck=False)
@@ -596,7 +603,7 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
             knopf("Senden", senden, "primaer", "send", "Direkt über Ihr Outlook senden")
             knopf("In Outlook öffnen", los, "", "open_in_new", "Erst in Outlook ansehen, dort senden")
             knopf("Abbrechen", a.panel_zu, "leise")
-        ui.label("Die FM-Adresse wird für den Standort gemerkt (gilt für alle PCs).").classes("m-zweite")
+        ui.label("Postfach und FM-Adresse werden für den Standort gemerkt (gilt für alle PCs).").classes("m-zweite")
     a.panel("Mail an FM", bauen)
 
 

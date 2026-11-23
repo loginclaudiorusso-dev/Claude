@@ -106,6 +106,40 @@ def lebt(d: dict | None, jetzt: float | None = None, pid: int | None = None) -> 
     return -FRISCH < alter < FRISCH and pid_lebt(d.get("pid"))   # abgestürzt → sofort neu starten dürfen
 
 
+def veraltet(d: dict | None, version: str) -> bool:
+    """1.47: Läuft im Hintergrund noch eine ANDERE Programmversion (z. B. nach einem Update, Fenster schon zu)?"""
+    v = str((d or {}).get("version") or "")
+    return bool(v) and v != version
+
+
+def beenden(pid, warten: float = 6.0, schlaf=time.sleep) -> bool:
+    """1.47: Alte Instanz beenden (samt Unterprozessen). True, wenn sie danach weg ist."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0 or pid == os.getpid():
+        return False
+    try:
+        if sys.platform == "win32":
+            import subprocess
+
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=15,
+                           creationflags=0x08000000)
+        else:
+            import signal
+
+            os.kill(pid, signal.SIGTERM)
+    except Exception:          # noqa: BLE001 – dann entscheidet unten, ob er noch lebt
+        pass
+    ende = time.time() + warten
+    while time.time() < ende:
+        if not pid_lebt(pid):
+            return True
+        schlaf(0.2)
+    return not pid_lebt(pid)
+
+
 def python_pruefen(version: tuple[int, ...] | None = None) -> tuple[str, str]:
     """('ok' | 'neu' | 'alt', Text). 'alt' = Start abbrechen, 'neu' = nur Hinweis (noch nicht erprobt)."""
     v = tuple((version or sys.version_info)[:2])
