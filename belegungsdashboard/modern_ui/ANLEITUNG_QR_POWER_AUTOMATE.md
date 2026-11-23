@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (Stand 1.45)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.46)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -140,6 +140,18 @@ denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, er
 23. Oben zeigt die Prüfanzeige **„Outlook-Ordner“** grün und **„QR-Mails“** mit der Zahl der Mails.
 24. Eine Meldung wird erst zum Mangel, wenn Sie sie unter **Zimmer & Haus → QR-Meldungen** prüfen und
     **„Übernehmen“** klicken. Danach steht sie unter **Defekte Zimmer** (und im Cockpit unter „Heute geändert“).
+
+## Teil 5 – Meldungen bearbeiten (alle PCs)
+- **Zimmer & Haus → QR-Meldungen**: Die Meldungen liegen in den gemeinsamen Daten. Alle Kolleginnen und Kollegen
+  sehen sie, auch wenn der Ordner nur auf einem PC eingetragen ist.
+- Meldung anklicken → **„Übernehmen & an FM“**: Der Mangel wird angelegt, und die Mail an FM öffnet sich fertig
+  ausgefüllt. Klicken Sie **„Senden“** (über Ihr Outlook) oder **„In Outlook öffnen“**. Die FM-Adresse wird beim ersten
+  Mal gemerkt.
+- **„Erledigte archivieren“** räumt übernommene und verworfene Meldungen in den Filter **„Archiv“**. Von dort holen
+  Sie eine Meldung mit **„Zurückholen“** wieder.
+- Tipp: Damit auch eingelesen wird, wenn Ihr PC aus ist, können Sie den OneDrive-Ordner für eine Kollegin oder einen
+  Kollegen freigeben („Freigeben“ → „Verknüpfung zu Meine Dateien hinzufügen“). Tragen Sie ihn dort ebenfalls ein.
+  Doppelte Meldungen entstehen dabei nicht.
 
 ## Wenn etwas nicht klappt
 | Was Sie sehen | Was zu tun ist |

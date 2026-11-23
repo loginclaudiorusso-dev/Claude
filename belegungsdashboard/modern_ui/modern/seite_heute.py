@@ -540,7 +540,7 @@ def nachricht_neu(a) -> None:
     a.panel("Neue Nachricht", bauen)
 
 
-def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
+def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> None:
     """1.36: Mail an FM – Entwurf in Outlook (zum Prüfen und Senden), sonst Standard-Mailprogramm."""
     from nicegui import run
 
@@ -574,6 +574,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
                 return
             a.toast("Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“", rueck=False)
             a.panel_zu()
+            if nach:                           # 1.46: z. B. QR-Meldung „an FM weitergeleitet“ vermerken
+                await nach()
 
         async def los():
             if not await merken():
@@ -588,6 +590,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "") -> None:
             else:
                 a.toast("Mail in Outlook geöffnet – bitte prüfen und senden", rueck=False)
             a.panel_zu()
+            if nach:
+                await nach()
         with ui.element("div").classes("m-paktionen"):
             knopf("Senden", senden, "primaer", "send", "Direkt über Ihr Outlook senden")
             knopf("In Outlook öffnen", los, "", "open_in_new", "Erst in Outlook ansehen, dort senden")

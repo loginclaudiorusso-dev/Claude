@@ -93,6 +93,8 @@ class Meldung:
     hinweis: str = ""
     code: str = ""               # 1.30: Prüfcode aus dem Formular
     etikett: str = ""            # 1.30: Zimmer-ID laut Prüfcode (vom Etikett)
+    fm: str = ""                 # 1.46: an FM weitergeleitet am (ISO-Datum)
+    archiviert: str = ""         # 1.46: archiviert am (ISO-Datum) – erscheint dann nur noch unter „Archiv“
 
     @property
     def dringend(self) -> bool:
@@ -157,9 +159,65 @@ def meldungen(status: str | None = None) -> list[Meldung]:
             m = Meldung(**{k: x.get(k, "") for k in Meldung.__dataclass_fields__})
         except TypeError:
             continue
-        if status is None or m.status == status:
+        if status is None or (status == ARCHIV and m.archiviert) or (m.status == status and not m.archiviert):
             erg.append(m)
     return sorted(erg, key=lambda m: m.zeit, reverse=True)
+
+
+# ---- 1.46: an FM weiterleiten, Archiv -----------------------------------------------------------------------------
+
+ARCHIV = "archiv"
+
+
+def fm_vorlage(m: Meldung, kurz=lambda z: z.removeprefix("GS-")) -> tuple[str, str, str]:
+    """(Zimmer kurz, Mangelart, Notiz) für die FM-Mail – die Notiz trägt Eingang und Text der Meldung."""
+    wo = kurz(m.zimmer) if m.zimmer else (m.zimmer_text or "")
+    notiz = f"Meldung per QR-Code vom {m.zeit_text}: {m.text or m.art_text or '(ohne Text)'}"
+    if m.art_text and m.text:
+        notiz += f" (Auswahl: {m.art_text})"
+    return wo, mg.NAMEN.get(m.art, m.art) if m.art else "", notiz
+
+
+def fm_vermerken(mid: str, heute: date | None = None) -> str:
+    """Vermerk „an FM weitergeleitet am …“ (ein Schritt, rückgängig machbar)."""
+    from .kern import _schritt
+
+    heute = heute or date.today()
+
+    def aktion():
+        d = _lesen()
+        _finden(d, mid)["fm"] = heute.isoformat()
+        _schreiben(d)
+    _schritt("QR-Meldung an FM", aktion, [DATEI])
+    return "Als „an FM weitergeleitet“ vermerkt"
+
+
+def archivieren(mids: list[str], an: bool = True, heute: date | None = None) -> str:
+    """Erledigte (übernommen/verworfen) ins Archiv legen bzw. zurückholen. Neue bleiben immer sichtbar."""
+    from .kern import _schritt
+
+    heute = heute or date.today()
+    n = {"z": 0}
+
+    def aktion():
+        d = _lesen()
+        for mid in mids:
+            x = _finden(d, mid)
+            if an and x.get("status") == "neu":
+                continue
+            x["archiviert"] = heute.isoformat() if an else ""
+            n["z"] += 1
+        _schreiben(d)
+    if not mids:
+        return "Nichts zu archivieren"
+    _schritt("QR-Meldungen archiviert" if an else "QR-Meldung zurückgeholt", aktion, [DATEI])
+    if an:
+        return f"{n['z']} Meldung(en) archiviert" if n["z"] else "Neue Meldungen werden nicht archiviert – erst prüfen"
+    return "Meldung zurückgeholt"
+
+
+def erledigte_ids() -> list[str]:
+    return [m.id for m in meldungen() if m.status in ("uebernommen", "verworfen") and not m.archiviert]
 
 
 def neue() -> list[Meldung]:

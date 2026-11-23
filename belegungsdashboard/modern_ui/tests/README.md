@@ -22,6 +22,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_assistenz_v143_chat.py` – 1.43 – Chat im Programm: Kanäle, gelesen je Person, Hinweis bei Neuem
 - `test_maengel_v144_pa_mail.py` – 1.44 – QR-Mail aus der Mail-Benachrichtigung (Auswahl-Liste, UTC-Zeit)
 - `test_maengel_v144_onedrive_ordner.py` – 1.44/1.45 – QR-Meldungen aus einem OneDrive-Ordner (Textdatei je Antwort, ohne Kennzeile, Platzhalter)
+- `test_maengel_v146_fm_archiv.py` – 1.46 – QR-Meldungen an FM weiterleiten (Vorlage, Vermerk) und archivieren
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

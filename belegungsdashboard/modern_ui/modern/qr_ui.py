@@ -7,6 +7,8 @@ und Artwahl, Übernehmen und Verwerfen. „Defekte Zimmer“ zeigt nur noch eine
 
 from __future__ import annotations
 
+from datetime import date
+
 from belegung import maengel as mg
 from nicegui import run, ui
 
@@ -44,7 +46,7 @@ def knopf_leiste(a) -> None:
 
 # ---- 1.31: Unterpunkt „QR-Meldungen“ --------------------------------------------------------------------------------
 
-FILTER = {"neu": "neu", "uebernommen": "übernommen", "verworfen": "verworfen"}
+FILTER = {"neu": "neu", "uebernommen": "übernommen", "verworfen": "verworfen", qm.ARCHIV: "Archiv"}
 STUFE_SYMBOL = {"ok": ("check_circle", "m-ok"), "warn": ("warning_amber", "m-warn"), "krit": ("error", "m-krit"),
                 "info": ("info", "m-zweite")}
 
@@ -81,19 +83,26 @@ def ansicht_zeichnen(a) -> None:
     alle: list[qm.Meldung] = d.get("alle") or []
     diag: list[qm.Punkt] = d.get("diag") or []
     filt = getattr(a, "qr_filter", "neu")
-    n = {k: sum(1 for m in alle if m.status == k) for k in FILTER}
+    def passt(m, k):
+        return bool(m.archiviert) if k == qm.ARCHIV else (m.status == k and not m.archiviert)
+    n = {k: sum(1 for m in alle if passt(m, k)) for k in FILTER}
     with a.leiste:
         kennzahlen([("neu", n["neu"], "neu", "warn" if n["neu"] else "neutral"),
                     ("uebernommen", n["uebernommen"], "übernommen", "ok"),
-                    ("verworfen", n["verworfen"], "verworfen", "neutral")],
+                    ("verworfen", n["verworfen"], "verworfen", "neutral"),
+                    (qm.ARCHIV, n[qm.ARCHIV], "Archiv", "neutral")],
                    filt, lambda k: a.setzen(qr_filter=k, laden=False))
         a.status_info = f"{n['neu']} neue Meldung(en) per QR-Code"
         knopf("Einrichten & Etiketten", lambda: fenster(a), "leise", "settings",
               "Formular-Link, Eingang (Outlook oder Excel) auf diesem PC, Etiketten drucken")
-        knopf("Jetzt einlesen", lambda: _jetzt_einlesen(a), "primaer", "sync", "Outlook-Ordner bzw. Antwortdatei sofort lesen")
+        knopf("Jetzt einlesen", lambda: _jetzt_einlesen(a), "primaer", "sync", "QR-Ordner, Outlook-Ordner bzw. Antwortdatei sofort lesen")
+        if n["uebernommen"] + n["verworfen"]:
+            knopf(f"Erledigte archivieren ({n['uebernommen'] + n['verworfen']})",
+                  lambda: a.aendern(qm.archivieren, qm.erledigte_ids()), "leise", "inventory_2",
+                  "Übernommene und verworfene Meldungen ins Archiv legen (Rückgängig möglich)")
     with a.inhalt:
         _pruefanzeige(diag)
-        zeigen = [m for m in alle if m.status == filt]
+        zeigen = [m for m in alle if passt(m, filt)]
         ui.label(f"Meldungen – {FILTER[filt]} ({len(zeigen)})").classes("m-abschnitt")
         if not zeigen:
             leer("Keine neuen Meldungen." if filt == "neu" else f"Keine Meldungen „{FILTER[filt]}“.")
@@ -116,8 +125,8 @@ def ansicht_zeichnen(a) -> None:
                             ui.icon("warning_amber").classes("m-warn")
                             ui.label(m.hinweis).classes("m-zweite m-warn").style("white-space:normal")
                 ui.label(mg.NAMEN.get(m.art, m.art)).classes("m-zweite")
-                ui.label({"neu": "prüfen ›", "uebernommen": "übernommen", "verworfen": "verworfen"}[m.status]).classes(
-                    "m-link" if m.status == "neu" else "m-zweite")
+                ui.label({"neu": "prüfen ›", "uebernommen": "übernommen", "verworfen": "verworfen"}.get(m.status, m.status)
+                         + (" · FM ✓" if m.fm else "")).classes("m-link" if m.status == "neu" else "m-zweite")
             z_.on("click", lambda m=m: meldung_panel(a, m))
 
 
@@ -202,9 +211,29 @@ async def meldung_panel(a, m: qm.Meldung) -> None:
             async def verwerfen():
                 if await a.aendern(qm.verwerfen, m.id):
                     a.panel_zu()
+            async def uebernehmen_fm():
+                if await a.aendern(qm.uebernehmen, m.id, wahl["art"], wahl["zimmer"]):
+                    m.zimmer, m.art = wahl["zimmer"], wahl["art"]
+                    an_fm(a, m)
             with ui.element("div").classes("m-paktionen"):
-                knopf("Übernehmen", uebernehmen, "primaer", "add_task", "Als Mangel im Zimmer anlegen (mit Rückgängig)")
+                knopf("Übernehmen & an FM", uebernehmen_fm, "primaer", "forward_to_inbox",
+                      "Als Mangel anlegen und gleich als Mail an FM schicken (über Ihr Outlook)")
+                knopf("Nur übernehmen", uebernehmen, "", "add_task", "Als Mangel im Zimmer anlegen (mit Rückgängig)")
                 knopf("Verwerfen", verwerfen, "leise", "close", "Spaß, doppelt oder schon erledigt")
+        if m.fm:
+            ui.label(f"An FM weitergeleitet am {_datum(m.fm)}").classes("m-zweite").style("margin-top:6px")
+        if m.archiviert:
+            ui.label(f"Archiviert am {_datum(m.archiviert)}").classes("m-zweite")
+        with ui.element("div").classes("m-paktionen"):
+            if m.status == "uebernommen":
+                knopf("An FM weiterleiten" if not m.fm else "Noch einmal an FM", lambda: an_fm(a, m), "",
+                      "forward_to_inbox", "Mail an FM mit Zimmer, Mangel und Text der Meldung (über Ihr Outlook)")
+            if m.status != "neu":
+                async def archiv():
+                    if await a.aendern(qm.archivieren, [m.id], not m.archiviert):
+                        a.panel_zu()
+                knopf("Zurückholen" if m.archiviert else "Archivieren", archiv, "leise",
+                      "unarchive" if m.archiviert else "inventory_2")
         with ui.element("div").classes("m-paktionen"):
             if m.zimmer:
                 from .seite_zimmer import karte_oeffnen
@@ -338,3 +367,21 @@ async def takt() -> None:
         except Exception:                               # noqa: BLE001 – der Takt läuft weiter
             log.exception("QR-Meldungen nicht geprüft")
         await asyncio.sleep(qm.TAKT_MINUTEN * 60)
+
+
+def _datum(iso: str) -> str:
+    try:
+        return f"{date.fromisoformat(iso):%d.%m.%Y}"
+    except ValueError:
+        return iso
+
+
+def an_fm(a, m: qm.Meldung) -> None:
+    """1.46: QR-Meldung als Mail an FM – Zimmer, Mangel und Text vorausgefüllt; nach dem Senden vermerkt."""
+    from .seite_heute import fm_mail
+
+    wo, art, notiz = qm.fm_vorlage(m, zkurz)
+
+    async def nach():
+        await a.aendern(qm.fm_vermerken, m.id)
+    fm_mail(a, wo, art, notiz, nach=nach)
