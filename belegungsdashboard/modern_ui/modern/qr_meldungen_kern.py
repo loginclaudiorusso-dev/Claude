@@ -30,7 +30,7 @@ import secrets
 import shutil
 import tempfile
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -730,8 +730,17 @@ def mail_parsen(betreff: str, text: str, eintrag: str = "", empfangen: datetime 
     if not rid:
         return None
     zeit = _pa_zeit(werte.get("zeit") or "") or (empfangen or datetime.now()).isoformat(timespec="minutes")
-    return Roh(f"pa|{rid}", zeit, werte.get("zimmer", ""), werte.get("art", ""), werte.get("text", ""),
+    return Roh(f"pa|{rid}", zeit, werte.get("zimmer", ""), _auswahl(werte.get("art", "")), werte.get("text", ""),
                werte.get("code", ""))
+
+
+def _auswahl(t: str) -> str:
+    """1.44: Auswahlfragen kommen aus Forms als Liste – „["Heizung"]“ bzw. „["Heizung","Fenster"]“ → „Heizung, Fenster“."""
+    t = (t or "").strip()
+    if t.startswith("[") and t.endswith("]"):
+        teile = [x.strip().strip('"').strip("'") for x in t[1:-1].split(",")]
+        return ", ".join(x for x in teile if x)
+    return t
 
 
 def _pa_zeit(t: str) -> str:
@@ -747,9 +756,10 @@ def _pa_zeit(t: str) -> str:
         if x.tzinfo is not None:
             x = x.astimezone().replace(tzinfo=None)
         return x.isoformat(timespec="minutes")
-    for f in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p"):
+    for f in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p"):   # 1.44: so schreibt Forms die Übermittlungszeit – in UTC
         try:
-            return datetime.strptime(t, f).isoformat(timespec="minutes")
+            x = datetime.strptime(t, f).replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+            return x.isoformat(timespec="minutes")
         except ValueError:
             pass
     z = _zeit(t)
