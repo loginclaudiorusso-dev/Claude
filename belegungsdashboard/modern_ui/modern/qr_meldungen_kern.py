@@ -120,12 +120,17 @@ def _schreiben(d: dict) -> None:
     speicher.schreiben(DATEI, d)
 
 
+def _platzhalter_norm(wert: str) -> str:
+    """1.45: In Forms vorausgefüllte Werte „Zimmer“/„code“ o. Ä. gelten wie ZIMMER/CODE (nur ganze Link-Werte)."""
+    return re.sub(r"=(zimmer|code)(?=&|#|$)", lambda m: "=" + m.group(1).upper(), wert or "", flags=re.I)
+
+
 def link() -> str:
-    return str(_lesen().get("link") or "")
+    return _platzhalter_norm(str(_lesen().get("link") or ""))
 
 
 def link_setzen(wert: str) -> str:
-    wert = (wert or "").strip()
+    wert = _platzhalter_norm((wert or "").strip())
     if wert and not re.match(r"^https://", wert, re.I):
         raise ValueError("Bitte den vollständigen Forms-Link einfügen (beginnt mit https://).")
     from .kern import _schritt
@@ -272,6 +277,8 @@ class Roh:
 class Ergebnis:
     zeilen: list[Roh] = field(default_factory=list)
     fehler: str = ""
+    unbekannt: list[str] = field(default_factory=list)  # 1.45: Dateien im QR-Ordner, die keine QR-Meldung sind
+    gesamt: int = 0
 
 
 def lesen_xlsx(pfad: Path) -> Ergebnis:
@@ -448,6 +455,9 @@ def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = 
         gelesen = True
         if erg.fehler:
             fehler.append(erg.fehler)
+        elif erg.unbekannt and not erg.zeilen:
+            fehler.append(f"{len(erg.unbekannt)} Datei(en) im QR-Ordner ohne erkennbare Meldung (z. B. "
+                          f"{erg.unbekannt[0]}) – Dateiinhalt in Power Automate prüfen")
         zeilen += erg.zeilen
     if not gelesen:
         return [], ""
@@ -725,6 +735,9 @@ def mail_parsen(betreff: str, text: str, eintrag: str = "", empfangen: datetime 
     t = re.sub(r"&nbsp;", " ", t)
     if MAIL_KENNUNG not in t.upper() and MAIL_KENNUNG not in str(betreff or "").upper():
         return None
+    schluessel = r"(?:ID|Zeit|Zimmer|Code|Art|Beschreibung)\s*:"
+    if len(re.findall(rf"(?im)^\s*{schluessel}", t)) < 2:      # 1.45: alles in einer Zeile → an den Wörtern trennen
+        t = re.sub(rf"\s+(?={schluessel}|ENDE\s*$)", "\n", t, flags=re.I)
     werte: dict[str, str] = {}
     feld = None
     for zeile in t.split("\n"):
@@ -883,11 +896,15 @@ def ordner_lesen(pfad: str, anzahl: int = ORDNER_MAX) -> Ergebnis:
     erg = Ergebnis()
     for mt, x in dateien[:anzahl]:
         try:
-            r = mail_parsen(x.stem, _text_datei(x), x.stem, datetime.fromtimestamp(mt).replace(second=0, microsecond=0))
+            # 1.45: die Kennzeile INNTERNAT-QR ist in der Datei nicht nötig – der Ordner gehört nur INNternat
+            r = mail_parsen(MAIL_KENNUNG, _text_datei(x), x.stem, datetime.fromtimestamp(mt).replace(second=0, microsecond=0))
         except OSError:                                 # z. B. gerade von OneDrive gesperrt – beim nächsten Mal
             continue
         if r is not None:
             erg.zeilen.append(r)
+        else:
+            erg.unbekannt.append(x.name)
+    erg.gesamt = len(dateien)
     return erg
 
 
@@ -902,11 +919,19 @@ def _diagnose_dateiordner(ordner: str, d: dict) -> list[Punkt]:
                                          "OneDrive; nur ein synchronisierter Ordner bekommt die neuen Dateien.")]
     else:
         erg = [Punkt("ok", "QR-Ordner", ordner)]
-    if not inhalt.zeilen:
+    if inhalt.unbekannt:
+        erg.append(Punkt("krit" if not inhalt.zeilen else "warn", "Unlesbare Dateien",
+                         f"{len(inhalt.unbekannt)} Textdatei(en) ohne Zeilen „ID:“ und „Zimmer:“ bzw. „Beschreibung:“ "
+                         f"(z. B. {inhalt.unbekannt[0]}). In Power Automate beim Schritt „Datei erstellen“ den "
+                         "Dateiinhalt prüfen: jede Angabe in eine eigene Zeile, links genau „ID:“, „Zimmer:“ … "
+                         "„ENDE“."))
+    if not inhalt.zeilen and not inhalt.unbekannt:
         erg.append(Punkt("warn", "QR-Dateien", "Im Ordner liegt noch keine QR-Datei. Ist eine Testantwort abgeschickt: "
                                                "in Power Automate unter „Ausführungsverlauf“ nachsehen, ob der Flow "
                                                "gelaufen ist, und ob OneDrive auf diesem PC synchronisiert (Wolke in "
                                                "der Taskleiste)."))
+        return erg
+    if not inhalt.zeilen:
         return erg
     bekannt = {x.get("id") for x in d.get("meldungen") or []}
     neu = [r for r in inhalt.zeilen if r.id not in bekannt]

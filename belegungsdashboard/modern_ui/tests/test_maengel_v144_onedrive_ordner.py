@@ -70,3 +70,38 @@ def test_einstellung_und_diagnose(stand, tmp_path):
     _datei(o, "9", "1-101")
     assert "1 noch nicht eingelesen" in {x.titel: x for x in qm.diagnose()}["QR-Dateien"].text
     assert qm.dateiordner_setzen("") == "QR-Ordner entfernt"
+
+
+# ---- 1.45 ---------------------------------------------------------------------------------------------------------
+
+def test_datei_ohne_kennzeile_und_in_einer_zeile(tmp_path):
+    o = tmp_path / "INNternat-QR"
+    o.mkdir()
+    (o / "qr-7.txt").write_text("ID: 7\r\nZeit: 2026-11-23T14:13:00Z\r\nZimmer: 2-101\r\nCode: \r\nArt: [\"Heizung\"]\r\n"
+                                "Beschreibung: Laut\r\nENDE\r\n", encoding="utf-8")
+    (o / "qr-8.txt").write_text("ID: 8 Zeit: 2026-11-23T14:20:00Z Zimmer: 2-102 Code: AB2CD Art: Fenster "
+                                "Beschreibung: zieht ENDE", encoding="utf-8")
+    (o / "liste.txt").write_text("Einkauf: Milch", encoding="utf-8")
+    erg = qm.ordner_lesen(str(o))
+    m = {r.id: r for r in erg.zeilen}
+    assert (m["pa|7"].zimmer_text, m["pa|7"].art_text, m["pa|7"].text) == ("2-101", "Heizung", "Laut")
+    assert (m["pa|8"].zimmer_text, m["pa|8"].code, m["pa|8"].art_text, m["pa|8"].text) == ("2-102", "AB2CD", "Fenster", "zieht")
+    assert erg.unbekannt == ["liste.txt"] and erg.gesamt == 3
+
+
+def test_unlesbare_dateien_in_der_pruefanzeige(stand, tmp_path):
+    o = tmp_path / "OneDrive - Demo" / "INNternat-QR"
+    o.mkdir(parents=True)
+    (o / "qr-1.txt").write_text("Hallo", encoding="utf-8")
+    qm.dateiordner_setzen(str(o))
+    p = {x.titel: x for x in qm.diagnose()}
+    assert p["Unlesbare Dateien"].stufe == "krit" and "qr-1.txt" in p["Unlesbare Dateien"].text
+    neu, fehler = qm.einlesen("", ordner="", dateien=str(o))
+    assert neu == [] and "Dateiinhalt" in fehler
+
+
+def test_platzhalter_gross_klein():
+    link = "https://forms.office.com/Pages/ResponsePage.aspx?id=AbcCODEx&r1=Zimmer&r2=code"
+    n = qm._platzhalter_norm(link)
+    assert n.endswith("&r1=ZIMMER&r2=CODE") and "id=AbcCODEx" in n
+    assert qm.zimmer_link(n, "2-101", "XY7QZ").endswith("&r1=2-101&r2=XY7QZ")

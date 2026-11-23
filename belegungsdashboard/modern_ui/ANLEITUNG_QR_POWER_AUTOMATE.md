@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (Stand 1.44)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.45)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -98,7 +98,8 @@ C4. Füllen Sie die Felder aus:
     - **Ordnerpfad:** auf das Ordnersymbol klicken und **`/INNternat-QR`** wählen.
     - **Dateiname:** tippen Sie `qr-`, fügen Sie aus dem Blitz-Menü **„Antwort-ID“** ein und tippen Sie `.txt`.
       Ergebnis: `qr-[Antwort-ID].txt`
-    - **Dateiinhalt:** dieselben Zeilen wie oben in Schritt 10 (`INNTERNAT-QR`, `ID:` … `ENDE`). Beenden Sie jede
+    - **Dateiinhalt:** dieselben Zeilen wie oben in Schritt 10 (`ID:` … `ENDE`; die erste Zeile `INNTERNAT-QR`
+      darf hier fehlen). Beenden Sie jede
       Zeile mit Enter. Die Teile in eckigen Klammern kommen aus dem Blitz-Menü.
 C5. **„Speichern“** und testen wie in Teil 2. Nach ein bis zwei Minuten liegt im Ordner `INNternat-QR` eine Datei
     `qr-….txt`. Mit dem Editor geöffnet sieht man die Zeilen.
@@ -149,6 +150,8 @@ denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, er
 | Zimmer falsch oder leer | Etikett neu drucken (Teil 0); im Formular darf „Zimmer“ nicht verändert werden – der Code zeigt es an. |
 | Mail-Schritt rot mit 401 „Mail connector is currently restricted“ | Microsoft sperrt den Mail-Baustein für neue Firmenkonten. Nehmen Sie Variante C (OneDrive-Datei). |
 | Variante C: Datei nur in OneDrive im Browser, nicht auf dem PC | Prüfen Sie, ob OneDrive auf dem PC angemeldet ist (Wolke in der Taskleiste). Stellen Sie den Ordner auf „Immer auf diesem Gerät beibehalten“. |
+| Variante C: Datei liegt im Ordner, INNternat zeigt nichts | Verwaltung → Automatisierung: Steht „Unlesbare Dateien“ in der Prüfanzeige, den Dateiinhalt im Flow prüfen (jede Angabe in eine eigene Zeile, links „ID:“, „Zimmer:“ …). Danach „Jetzt einlesen“. |
+| Beim Scannen bleibt „Code“ im Formular leer | Der gespeicherte Formular-Link enthält keinen Platzhalter CODE. Vorausgefüllten Link neu holen (Teil 0), bei der Code-Frage `CODE` eintragen, in INNternat speichern, Etiketten neu drucken. Alte Etiketten haben keinen Code. |
 | Variante C: „QR-Ordner nicht gefunden“ | Kopieren Sie den Pfad aus der Explorer-Adresszeile, ohne Anführungszeichen. Er gilt je PC. |
 | Meldung doppelt | Nur einen Eingang nutzen (Outlook **oder** Excel), Excel-Pfad leeren. |
 
