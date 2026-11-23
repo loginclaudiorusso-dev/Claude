@@ -400,10 +400,12 @@ def antwortdatei_setzen(pfad: str) -> str:
 _STAND = {"mtime": None, "pfad": "", "gelesen": None, "fehler": "", "neu": 0}   # 1.31: letztes Einlesen (je PC)
 
 
-def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = None) -> tuple[list[Meldung], str]:
-    """Neue Antworten holen und ablegen (unter der Schreibsperre – mehrere PCs können einlesen). Zwei Quellen, je PC:
-    die Forms-Excel-Datei (nur wenn sie sich geändert hat, außer ``immer``) und – 1.32 – der Outlook-Ordner, in den
-    Power Automate je Antwort eine Mail legt. (neue, Fehlertext)."""
+def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = None,
+             dateien: str | None = None) -> tuple[list[Meldung], str]:
+    """Neue Antworten holen und ablegen (unter der Schreibsperre – mehrere PCs können einlesen). Drei Quellen, je PC:
+    die Forms-Excel-Datei (nur wenn sie sich geändert hat, außer ``immer``), – 1.32 – der Outlook-Ordner, in den
+    Power Automate je Antwort eine Mail legt, und – 1.44 – ein OneDrive-Ordner mit je einer Textdatei pro Antwort.
+    (neue, Fehlertext)."""
     from belegung import zimmerplan as zp
 
     from . import netz_kern
@@ -411,7 +413,8 @@ def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = 
 
     pfad = pfad if pfad is not None else antwortdatei()
     ordner = ordner if ordner is not None else outlook_ordner()
-    if not pfad and not ordner:
+    dateien = dateien if dateien is not None else dateiordner()
+    if not pfad and not ordner and not dateien:
         return [], ""
     zeilen: list[Roh] = []
     fehler: list[str] = []
@@ -422,7 +425,7 @@ def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = 
         try:
             mt = Path(pfad).stat().st_mtime
         except OSError:
-            if not ordner:
+            if not ordner and not dateien:
                 return [], f"Antwortdatei nicht gefunden: {pfad}"
             fehler.append(f"Antwortdatei nicht gefunden: {pfad}")
         else:
@@ -436,6 +439,12 @@ def einlesen(pfad: str | None = None, immer: bool = False, ordner: str | None = 
                     xlsx_ok = True
     if ordner:
         erg = outlook_lesen(ordner)
+        gelesen = True
+        if erg.fehler:
+            fehler.append(erg.fehler)
+        zeilen += erg.zeilen
+    if dateien:
+        erg = ordner_lesen(dateien)
         gelesen = True
         if erg.fehler:
             fehler.append(erg.fehler)
@@ -596,18 +605,22 @@ def diagnose(jetzt: datetime | None = None) -> list[Punkt]:
                                                   "Zimmernummern fallen nicht auf."))
     else:
         erg.append(Punkt("ok", "Formular-Link", f"Gespeichert, mit {PLATZHALTER} und {CODE_PLATZHALTER}."))
+    dateien = dateiordner()
+    if dateien:
+        erg += _diagnose_dateiordner(dateien, d)
     ordner = outlook_ordner()
     if ordner:
         erg += _diagnose_outlook(ordner, d)
     pfad = antwortdatei()
     if not pfad:
-        if ordner:
-            erg.append(Punkt("info", "Antwortdatei", "Nicht nötig – die Meldungen kommen per Power Automate über Outlook."))
+        if ordner or dateien:
+            weg = "einen OneDrive-Ordner" if dateien else "Outlook"
+            erg.append(Punkt("info", "Antwortdatei", f"Nicht nötig – die Meldungen kommen per Power Automate über {weg}."))
             erg.append(_letztes_einlesen())
         else:
-            erg.append(Punkt("krit", "Antwortdatei", "Auf DIESEM PC ist weder ein Outlook-Ordner (Power Automate) noch "
-                                                     "eine Antwortdatei eingetragen. Eingelesen wird nur auf PCs, auf "
-                                                     "denen eins von beiden eingetragen ist."))
+            erg.append(Punkt("krit", "Antwortdatei", "Auf DIESEM PC ist weder ein QR-Ordner (OneDrive), ein "
+                                                     "Outlook-Ordner noch eine Antwortdatei eingetragen. Eingelesen wird "
+                                                     "nur auf PCs, auf denen eins davon eingetragen ist."))
         return erg
     p = Path(pfad)
     teile = {t.lower() for t in p.parts}
@@ -813,3 +826,96 @@ def outlook_lesen(pfad: str, anzahl: int = 300) -> Ergebnis:
         return erg
     finally:
         pythoncom.CoUninitialize()
+
+
+# ---- 1.44: Quelle OneDrive-Ordner – Power Automate legt je Antwort eine Textdatei ab -------------------------------
+#
+# Für Firmenkonten, in denen weder „Office 365 Outlook“ noch der Mail-Baustein freigegeben ist: Power Automate
+# („OneDrive for Business – Datei erstellen“) schreibt je Forms-Antwort eine Datei „qr-<Antwort-ID>.txt“ mit genau
+# dem Aufbau der QR-Mail (INNTERNAT-QR, ID:, Zeit:, Zimmer:, Code:, Art:, Beschreibung:, ENDE) in einen Ordner, den
+# OneDrive auf den PC synchronisiert. INNternat liest die Dateien nur (nichts wird verschoben oder gelöscht).
+
+EINSTELLUNG_ORDNER = "qr_datei_ordner"              # je PC, z. B. „C:\\Users\\…\\OneDrive - …\\INNternat-QR“
+ORDNER_MAX = 500                                    # nur die neuesten Dateien – ältere sind längst eingelesen
+ORDNER_ENDUNGEN = (".txt", ".text")
+
+
+def dateiordner() -> str:
+    from .netz_kern import persoenlich
+
+    return str(persoenlich(EINSTELLUNG_ORDNER, "", je_standort=True) or "")
+
+
+def dateiordner_setzen(pfad: str) -> str:
+    from .netz_kern import persoenlich_setzen
+
+    pfad = (pfad or "").strip().strip('"')
+    if pfad and not Path(pfad).is_dir():
+        raise ValueError(f"Den Ordner gibt es auf diesem PC nicht: {pfad}")
+    persoenlich_setzen(EINSTELLUNG_ORDNER, pfad, je_standort=True)
+    return (f"QR-Ordner gespeichert – neue Dateien werden alle {TAKT_MINUTEN} Minuten gelesen" if pfad
+            else "QR-Ordner entfernt")
+
+
+def _text_datei(p: Path) -> str:
+    roh = p.read_bytes()
+    for kod in ("utf-8-sig", "utf-16", "cp1252"):
+        try:
+            t = roh.decode(kod)
+        except UnicodeDecodeError:
+            continue
+        if kod != "utf-16" or MAIL_KENNUNG in t.upper():
+            return t
+    return roh.decode("utf-8", errors="replace")
+
+
+def ordner_lesen(pfad: str, anzahl: int = ORDNER_MAX) -> Ergebnis:
+    """Die neuesten Textdateien des Ordners lesen (nur lesen) und die QR-Meldungen herausziehen."""
+    d = Path(pfad)
+    if not d.is_dir():
+        return Ergebnis(fehler=f"QR-Ordner nicht gefunden: {pfad} – ist OneDrive auf diesem PC angemeldet?")
+    try:
+        dateien = [(x.stat().st_mtime, x) for x in d.iterdir()
+                   if x.is_file() and x.suffix.lower() in ORDNER_ENDUNGEN and not x.name.startswith((".", "~"))]
+    except OSError as exc:
+        return Ergebnis(fehler=f"QR-Ordner nicht lesbar: {exc}")
+    dateien.sort(key=lambda t: t[0], reverse=True)
+    erg = Ergebnis()
+    for mt, x in dateien[:anzahl]:
+        try:
+            r = mail_parsen(x.stem, _text_datei(x), x.stem, datetime.fromtimestamp(mt).replace(second=0, microsecond=0))
+        except OSError:                                 # z. B. gerade von OneDrive gesperrt – beim nächsten Mal
+            continue
+        if r is not None:
+            erg.zeilen.append(r)
+    return erg
+
+
+def _diagnose_dateiordner(ordner: str, d: dict) -> list[Punkt]:
+    inhalt = ordner_lesen(ordner)
+    if inhalt.fehler:
+        return [Punkt("krit", "QR-Ordner", inhalt.fehler)]
+    p = Path(ordner)
+    teile = {t.lower() for t in p.parts}
+    if not any("onedrive" in t or "sharepoint" in t for t in teile):
+        erg = [Punkt("warn", "QR-Ordner", f"{ordner} – liegt nicht in einem OneDrive-Ordner. Power Automate schreibt in "
+                                         "OneDrive; nur ein synchronisierter Ordner bekommt die neuen Dateien.")]
+    else:
+        erg = [Punkt("ok", "QR-Ordner", ordner)]
+    if not inhalt.zeilen:
+        erg.append(Punkt("warn", "QR-Dateien", "Im Ordner liegt noch keine QR-Datei. Ist eine Testantwort abgeschickt: "
+                                               "in Power Automate unter „Ausführungsverlauf“ nachsehen, ob der Flow "
+                                               "gelaufen ist, und ob OneDrive auf diesem PC synchronisiert (Wolke in "
+                                               "der Taskleiste)."))
+        return erg
+    bekannt = {x.get("id") for x in d.get("meldungen") or []}
+    neu = [r for r in inhalt.zeilen if r.id not in bekannt]
+    letzte = max(r.zeit for r in inhalt.zeilen)
+    try:
+        letzte = f"{datetime.fromisoformat(letzte):%d.%m.%Y %H:%M}"
+    except ValueError:
+        pass
+    erg.append(Punkt("ok" if not neu else "warn", "QR-Dateien",
+                     f"{len(inhalt.zeilen)} QR-Datei(en) im Ordner, neueste vom {letzte}; "
+                     + (f"{len(neu)} noch nicht eingelesen – „Jetzt einlesen“ klicken." if neu else "alle eingelesen.")))
+    return erg

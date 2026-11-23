@@ -20,6 +20,8 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_assistenz_v136_nachrichten.py` – 1.36 – Nachrichten im Programm, Mail an FM, „Was ist zu tun?“
 - `test_assistenz_v141_kurzmeldung.py` – 1.41 – Kurzmeldungen der Pforte (Schlüssel, Anreise heute), KI-Einschätzung, Kennzahlen → Belegung
 - `test_assistenz_v143_chat.py` – 1.43 – Chat im Programm: Kanäle, gelesen je Person, Hinweis bei Neuem
+- `test_maengel_v144_pa_mail.py` – 1.44 – QR-Mail aus der Mail-Benachrichtigung (Auswahl-Liste, UTC-Zeit)
+- `test_maengel_v144_onedrive_ordner.py` – 1.44 – QR-Meldungen aus einem OneDrive-Ordner (Textdatei je Antwort)
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

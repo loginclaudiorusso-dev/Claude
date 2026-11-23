@@ -219,7 +219,7 @@ def fenster(a) -> None:
     """Einrichten und Drucken – drei Schritte."""
     def bauen():
         ui.label("Gäste melden Mängel anonym per Handy: QR-Code am Zimmer → Microsoft-Forms-Formular mit "
-                 "eingetragener Zimmernummer → Power Automate schickt die Antwort als Mail → INNternat liest sie alle paar Minuten ein und zeigt sie hier "
+                 "eingetragener Zimmernummer → Power Automate legt die Antwort als Datei in OneDrive ab oder schickt sie als Mail → INNternat liest sie alle paar Minuten ein und zeigt sie hier "
                  "zum Prüfen. Ein Mangel entsteht erst, wenn Sie „Übernehmen“ klicken.").classes("m-ptext")
 
         ui.label("1 · Formular-Link (gilt für alle PCs)").classes("m-abschnitt")
@@ -233,7 +233,20 @@ def fenster(a) -> None:
         knopf("Link speichern", lambda: a.aendern(qm.link_setzen, link.value or ""), "", "link")
 
         ui.label("2 · Eingang auf diesem PC").classes("m-abschnitt")
-        ui.label("Empfohlen: Power Automate schickt je Antwort eine Mail mit festem Aufbau; eine Outlook-Regel legt sie "
+        ui.label("Weg A – OneDrive-Ordner (ohne Mail-Verbindung): Power Automate legt je Antwort mit „OneDrive for "
+                 "Business – Datei erstellen“ eine Textdatei in einen Ordner, z. B. „INNternat-QR“. Diesen Ordner im "
+                 "Explorer öffnen (unter OneDrive), Adresszeile kopieren und hier einfügen. Tipp: Rechtsklick auf den "
+                 "Ordner → „Immer auf diesem Gerät beibehalten“.").classes("m-ptext")
+        dordner = ui.input(value=qm.dateiordner(), label="QR-Ordner in OneDrive").classes("m-feld w-full").props(
+            "dense outlined dark")
+
+        async def dordner_speichern():
+            try:
+                a.toast(await run.io_bound(qm.dateiordner_setzen, dordner.value or ""), rueck=False)
+            except ValueError as exc:
+                a.toast(str(exc), fehler=True)
+        knopf("QR-Ordner speichern", dordner_speichern, "", "save")
+        ui.label("Weg B – Outlook: Power Automate schickt je Antwort eine Mail mit festem Aufbau; eine Outlook-Regel legt sie "
                  "in einen eigenen Ordner (z. B. „QR-Meldungen“). Hier den Ordner eintragen – Schreibweise wie bei der "
                  "Outlook-Vorschau, z. B. „Posteingang/QR-Meldungen“ oder „Internatsdienst/Posteingang/QR-Meldungen“. "
                  "INNternat liest diesen Ordner nur (nichts wird verschoben oder gelöscht). Es reicht ein PC mit Outlook.") \

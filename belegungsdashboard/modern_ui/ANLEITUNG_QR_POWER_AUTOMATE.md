@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (Stand 1.42)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.44)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -81,8 +81,36 @@ die Mail kommt vom Absender *Microsoft Power Automate* (flow-noreply@microsoft.c
 
 Gut zu wissen: Diese Benachrichtigungen schickt Microsoft – höchstens etwa 100 am Tag, für QR-Meldungen genug. Landet
 die erste im Junk-Ordner: Rechtsklick → **Junk-E-Mail → Absender nie sperren**. Ist auch dieser Baustein gesperrt
-(Hinweis „durch Richtlinie zur Verhinderung von Datenverlust blockiert“), bleibt nur der Weg über die Excel-Datei
-(INNternat → Verwaltung → Automatisierung → „2 · Eingang“ → Excel-Datei) oder eine Freigabe durch die IT.
+(Hinweis „durch Richtlinie zur Verhinderung von Datenverlust blockiert“ oder Fehler **401 „The Mail connector is
+currently restricted for new tenants“**), nehmen Sie Variante C.
+
+### Schritt 3 ganz ohne Mail: Datei in OneDrive (Variante C, ab 1.44)
+Für Firmenkonten, in denen **weder Office 365 Outlook noch der Mail-Baustein** freigegeben ist. Power Automate legt je
+Antwort eine kleine Textdatei in einen OneDrive-Ordner. OneDrive holt sie auf den PC, INNternat liest den Ordner.
+**Outlook wird dafür nicht gebraucht, Teil 3 entfällt.**
+
+C1. Einmalig: Öffnen Sie im Explorer Ihren **OneDrive-Ordner** (links „OneDrive – <Firma>“) und legen Sie einen
+    neuen Ordner **`INNternat-QR`** an. Rechtsklick auf den Ordner → **„Immer auf diesem Gerät beibehalten“**.
+C2. Im Flow: Löschen Sie den Mail-Schritt (die drei Punkte „…“ am Schritt → **„Löschen“**).
+C3. **„+ Neuer Schritt“**, suchen Sie **„OneDrive for Business“** und wählen Sie **„Datei erstellen“**. Melden Sie
+    sich bei der Nachfrage mit Ihrem Dienstkonto an.
+C4. Füllen Sie die Felder aus:
+    - **Ordnerpfad:** auf das Ordnersymbol klicken und **`/INNternat-QR`** wählen.
+    - **Dateiname:** tippen Sie `qr-`, fügen Sie aus dem Blitz-Menü **„Antwort-ID“** ein und tippen Sie `.txt`.
+      Ergebnis: `qr-[Antwort-ID].txt`
+    - **Dateiinhalt:** dieselben Zeilen wie oben in Schritt 10 (`INNTERNAT-QR`, `ID:` … `ENDE`). Beenden Sie jede
+      Zeile mit Enter. Die Teile in eckigen Klammern kommen aus dem Blitz-Menü.
+C5. **„Speichern“** und testen wie in Teil 2. Nach ein bis zwei Minuten liegt im Ordner `INNternat-QR` eine Datei
+    `qr-….txt`. Mit dem Editor geöffnet sieht man die Zeilen.
+C6. In INNternat öffnen Sie **Verwaltung → Automatisierung → „2 · Eingang auf diesem PC“**. Tragen Sie bei
+    **„Weg A – QR-Ordner in OneDrive“** den Ordner ein:
+    - Ordner im Explorer öffnen, oben in die Adresszeile klicken, kopieren und einfügen
+      (z. B. `C:\Users\<Name>\OneDrive - <Firma>\INNternat-QR`).
+    - **„QR-Ordner speichern“**, dann **„Jetzt einlesen“**.
+    - Die Prüfanzeige zeigt **„QR-Ordner“** grün und **„QR-Dateien“** mit der Zahl der Dateien.
+
+INNternat liest die Dateien nur. Es verschiebt und löscht nichts. Eingelesene Dateien dürfen Sie gefahrlos löschen,
+denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, erscheint keine Meldung doppelt.
 
 ## Teil 2 – Testen
 12. Scannen Sie ein Probe-Etikett mit dem Handy und schicken Sie eine Testantwort ab.
@@ -119,12 +147,15 @@ die erste im Junk-Ordner: Rechtsklick → **Junk-E-Mail → Absender nie sperren
 | Mail kommt nicht an | „An“-Adresse prüfen; Junk-E-Mail-Ordner ansehen. |
 | Mail kommt an, INNternat zeigt nichts | Ordnerpfad genau wie links in Outlook schreiben; Outlook muss offen sein; „Jetzt einlesen“. |
 | Zimmer falsch oder leer | Etikett neu drucken (Teil 0); im Formular darf „Zimmer“ nicht verändert werden – der Code zeigt es an. |
+| Mail-Schritt rot mit 401 „Mail connector is currently restricted“ | Microsoft sperrt den Mail-Baustein für neue Firmenkonten. Nehmen Sie Variante C (OneDrive-Datei). |
+| Variante C: Datei nur in OneDrive im Browser, nicht auf dem PC | Prüfen Sie, ob OneDrive auf dem PC angemeldet ist (Wolke in der Taskleiste). Stellen Sie den Ordner auf „Immer auf diesem Gerät beibehalten“. |
+| Variante C: „QR-Ordner nicht gefunden“ | Kopieren Sie den Pfad aus der Explorer-Adresszeile, ohne Anführungszeichen. Er gilt je PC. |
 | Meldung doppelt | Nur einen Eingang nutzen (Outlook **oder** Excel), Excel-Pfad leeren. |
 
 **Wichtig:**
 - Outlook muss auf diesem PC geöffnet sein. Ist es zu, wartet INNternat und versucht es in 5 Minuten wieder. Outlook
   wird nie selbst gestartet.
 - Es reicht **ein** PC mit eingetragenem Ordner. Die anderen PCs sehen die Meldungen über die gemeinsamen Daten.
-- Bitte **nur einen Eingang** nutzen: entweder Outlook oder die Excel-Datei. Sonst kann dieselbe Antwort zweimal
+- Bitte **nur einen Eingang** nutzen: OneDrive-Ordner, Outlook oder die Excel-Datei. Sonst kann dieselbe Antwort zweimal
   erscheinen. Den Excel-Pfad leeren und speichern genügt.
 - Die QR-Mails können Sie gefahrlos löschen, sobald sie eingelesen sind. INNternat merkt sich die Antwort-ID.
