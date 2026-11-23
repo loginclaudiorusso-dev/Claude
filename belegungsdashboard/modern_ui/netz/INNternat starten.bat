@@ -30,11 +30,14 @@ if not exist "%PROG%\modern_ui\app.py" (
 if not exist "%BELEGUNG_DATEN%" mkdir "%BELEGUNG_DATEN%"
 if not exist "%INNTERNAT_LOKAL%" mkdir "%INNTERNAT_LOKAL%"
 
-rem Portables Python im Installationspaket (Ordner "Python" mit allen Paketen): keine Python-Installation noetig
+rem Portables Python im Installationspaket (Ordner "Python" mit allen Paketen): keine Python-Installation noetig.
+rem 1.39: einmal je PC (und nach einem neuen Python-Paket) nach %INNTERNAT_LOKAL%\Python kopieren und von dort
+rem starten - aus dem Netzwerkordner waere jeder Start langsam. Klappt das Kopieren nicht: direkt aus dem Netz.
 if exist "%INN%Python\pythonw.exe" (
     set "PYTHONNOUSERSITE=1"
-    set "PYW=%INN%Python\pythonw.exe"
     set "INNTERNAT_BROWSER=1"
+    set "PYW=%INN%Python\pythonw.exe"
+    call :python_lokal
     goto verknuepfung
 )
 
@@ -116,3 +119,22 @@ if errorlevel 2 exit /b 0
 start "" /D "%INNTERNAT_LOKAL%" "%PYW%" "%PROG%\modern_ui\app.py" %*
 rem 1.27: Auf das Lebenszeichen warten - scheitert der Start, erscheint die Fehlermeldung mit dem Protokoll
 "%PY%" "%PROG%\modern_ui\start_pruefen.py" nachher
+exit /b
+
+:python_lokal
+set "PYSTAND=neu"
+if exist "%INN%Python\stand.txt" set /p PYSTAND=<"%INN%Python\stand.txt"
+set "PYLOKAL="
+if exist "%INNTERNAT_LOKAL%\Python\stand.txt" set /p PYLOKAL=<"%INNTERNAT_LOKAL%\Python\stand.txt"
+if "%PYSTAND%"=="%PYLOKAL%" if exist "%INNTERNAT_LOKAL%\Python\pythonw.exe" (
+    set "PYW=%INNTERNAT_LOKAL%\Python\pythonw.exe"
+    exit /b 0
+)
+echo Erster Start auf diesem PC: Python wird einmalig auf diesen PC kopiert (ca. 1-2 Minuten) ...
+robocopy "%INN%Python" "%INNTERNAT_LOKAL%\Python" /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 >nul
+if errorlevel 8 (
+    echo Kopieren nicht vollstaendig - INNternat startet direkt aus dem Netzwerkordner.
+    exit /b 0
+)
+if exist "%INNTERNAT_LOKAL%\Python\pythonw.exe" set "PYW=%INNTERNAT_LOKAL%\Python\pythonw.exe"
+exit /b 0
