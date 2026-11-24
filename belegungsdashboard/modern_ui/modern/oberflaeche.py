@@ -104,6 +104,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.zl_schnell: set[str] = set()
         self.zl_mehr: dict = {}                # seltenere Zimmerfilter (Boden, Mangel, Renovierung, Gruppe …)
         self.zk_auswahl: set[str] = set()      # markierte Zimmer in der Liste (für „Eigenschaften setzen“)
+        self.dz_auswahl: set[tuple[str, str]] = set()   # 1.55: markierte Mängel (Zimmer, Art) für die Sammelmail an FM
         self.ps_filter, self.ps_text = "alle", ""
         self.iv_haus, self.iv_text, self.iv_ohne = "", "", False
         self.zu_vergangene = False             # Zuteilen: auch vergangene Anreisen (letztes Jahr) zur Auswahl

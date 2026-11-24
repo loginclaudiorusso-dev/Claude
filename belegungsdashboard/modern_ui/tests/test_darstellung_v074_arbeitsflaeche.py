@@ -78,5 +78,5 @@ def test_zimmer_liste_einzeilig():
     q = (MOD / "seite_zimmer.py").read_text(encoding="utf-8")
     assert "Schnellfilter" in q                                   # Mängel, Vinyl … jetzt unter „Filter“
     assert "m-hauswahl" in q                                      # Haus als Auswahl statt Segment-Leiste
-    assert 'knopf("Für Mail kopieren", lambda: _fm(a, "mail"), "primaer"' in q
+    assert 'knopf("Sammelmail an FM"' in q and '"primaer", "mail"' in q        # 1.55: Hauptaktion Sammelmail
     assert 'knopf("Drucken & Export"' not in q                    # Drucken/Export → ⋯

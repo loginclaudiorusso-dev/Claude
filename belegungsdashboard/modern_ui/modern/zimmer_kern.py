@@ -817,6 +817,73 @@ def fm_mailtext(stand: zp.Planstand) -> str:
     return mg.fm_text(mg.offen(), lambda zid: k.get(zid, kurz(zid)))
 
 
+def _auftrag(stand: zp.Planstand, zid: str, art: str, heute: date):
+    """Angaben zu EINEM Mangel für FM: (Zeilen, Zimmer kurz, Mangelname, Stufentext, Stufe, nächste Anreise)."""
+    z = stand.lage.zimmer.get(zid)
+    zkurz = z.kurz if z is not None else kurz(zid)
+    m = next((x for x in mg.offen(zid) if x.art == art), None)
+    name = mg.NAMEN.get(art, art or "Mangel")
+    stufe = STUFEN.get(m.stufe, "") if m is not None else ""
+    zeilen: list[tuple[str, str]] = [("Zimmer", zkurz + (f" ({zp.flur_text(z)})" if z is not None else "")),
+                                     ("Mangel", name)]
+    if stufe:
+        zeilen.append(("Dringlichkeit", stufe + (" – Zimmer ist gesperrt" if m.unbewohnbar else "")))
+    if m is not None:
+        zeilen.append(("Gemeldet am", f"{m.seit:%d.%m.%Y}" + (f" (seit {(heute - m.seit).days} Tagen offen)"
+                                                              if (heute - m.seit).days > 1 else "")))
+        if (m.notiz or "").strip():
+            zeilen.append(("Beschreibung", " ".join(m.notiz.split())))
+    naechste = None
+    if z is not None:
+        st, bs, _emr = status_anzeige(stand.lage, zid, heute)
+        drin = [b for b in bs if b.art in ("belegt", "geplant")]
+        heute_txt = mg.ZIMMER_HEUTE.get(st, st)
+        if drin:
+            heute_txt += f" bis {max(b.bis for b in drin):%d.%m.%Y} – bitte vorher kurz anmelden"
+        zeilen.append(("Zimmer heute", heute_txt))
+        naechste = min((b.von for b in stand.lage.belegungen.get(zid, [])
+                        if b.art in ("belegt", "geplant") and b.von > heute), default=None)
+        zeilen.append(("Nächste Anreise", f"{naechste:%d.%m.%Y} – bitte bis dahin erledigen" if naechste
+                       else "keine geplant"))
+    return zeilen, zkurz, name, stufe, (m.stufe if m is not None else 0), naechste
+
+
+def fm_auftrag(stand: zp.Planstand, zid: str, art: str, heute: date, absender: str = "") -> tuple[str, str]:
+    """1.55: Betreff und Text einer FM-Mail zu EINEM Mangel – alles, was FM braucht: Zimmer, Lage, Mangel,
+    Dringlichkeit, gemeldet am, Beschreibung, Zimmer heute, nächste Anreise als Frist. Ohne Namen von Bewohnern."""
+    zeilen, zkurz, name, stufe, _st, naechste = _auftrag(stand, zid, art, heute)
+    betreff = f"FM-Auftrag: Zimmer {zkurz} – {name}" + (f" ({stufe.lower()})" if stufe else "") + \
+        (f", bis {naechste:%d.%m.}" if naechste else "")
+    text = ["Hallo,", "", "bitte um Erledigung folgenden Mangels:", ""]
+    text += [f"{k}: {v}" for k, v in zeilen]          # ohne Einrücken – Outlook setzt Proportionalschrift
+    text += ["", "Vielen Dank!", absender or ""]
+    return betreff, "\n".join(text).rstrip() + "\n"
+
+
+def fm_sammelauftrag(stand: zp.Planstand, eintraege: list[tuple[str, str]], heute: date,
+                     absender: str = "") -> tuple[str, str]:
+    """1.55: EINE Mail an FM für mehrere Mängel – je Mangel ein nummerierter Block mit allen Angaben, sortiert nach
+    Dringlichkeit und Frist (nächste Anreise); oben eine Kurzübersicht. Ohne Namen von Bewohnern."""
+    if not eintraege:
+        raise ValueError("Keine Mängel ausgewählt.")
+    if len(eintraege) == 1:
+        return fm_auftrag(stand, eintraege[0][0], eintraege[0][1], heute, absender)
+    teile = [_auftrag(stand, zid, art, heute) for zid, art in dict.fromkeys(eintraege)]
+    teile.sort(key=lambda t: (-t[4], t[5] or date.max, t[1]))
+    zimmer = list(dict.fromkeys(t[1] for t in teile))
+    frist = min((t[5] for t in teile if t[5]), default=None)
+    n_dr = sum(1 for t in teile if t[4] >= 2)
+    betreff = f"FM-Sammelauftrag: {len(teile)} Mängel in {len(zimmer)} Zimmer{'n' if len(zimmer) != 1 else ''}" + \
+        (f" ({n_dr} dringend)" if n_dr else "") + (f", erste Frist {frist:%d.%m.}" if frist else "")
+    text = ["Hallo,", "", f"bitte um Erledigung folgender {len(teile)} Mängel (nach Dringlichkeit und Frist sortiert):", ""]
+    text += [f"{i}. Zimmer {t[1]} – {t[2]}" + (f" ({t[3].lower()})" if t[3] else "") +
+             (f", bis {t[5]:%d.%m.}" if t[5] else "") for i, t in enumerate(teile, 1)]
+    for i, t in enumerate(teile, 1):
+        text += ["", f"--- {i}. Zimmer {t[0][0][1]} – {t[2]} ---"] + [f"{k}: {v}" for k, v in t[0][2:]]
+    text += ["", "Vielen Dank!", absender or ""]
+    return betreff, "\n".join(text).rstrip() + "\n"
+
+
 def fm_excel(stand: zp.Planstand, heute: date):
     from pathlib import Path
 

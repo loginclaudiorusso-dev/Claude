@@ -426,7 +426,7 @@ CSS += """
 .m-kachel-m { position: absolute; top: -6px; right: -4px; font-size: 10px; font-weight: 700; color: #16090A; background: var(--orange);
   border-radius: 7px; padding: 0 4px; line-height: 14px; }
 .m-mliste { display: flex; flex-direction: column; gap: 2px; }
-.m-mzeile { display: grid; grid-template-columns: minmax(0, 1fr) 70px 30px; align-items: center; gap: 6px; }
+.m-mzeile { display: grid; grid-template-columns: 24px minmax(0, 1fr) 70px 30px 30px; align-items: center; gap: 6px; }   /* 1.55: Markierung, Mangel, seit, behoben, FM */
 .m-mzeile .m-knopf { height: 22px; padding: 0 4px; }
 """
 

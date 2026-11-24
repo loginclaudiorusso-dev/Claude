@@ -540,14 +540,38 @@ def nachricht_neu(a) -> None:
     a.panel("Neue Nachricht", bauen)
 
 
-def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> None:
-    """1.36: Mail an FM – Entwurf in Outlook (zum Prüfen und Senden), sonst Standard-Mailprogramm."""
+FM_WARTEN = 25          # 1.55: Sekunden – antwortet Outlook nicht (z. B. Sicherheitsabfrage hinter dem Fenster)
+
+
+def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorlage: tuple[str, str] | None = None) -> None:
+    """1.36: Mail an FM – Entwurf in Outlook (zum Prüfen und Senden), sonst Standard-Mailprogramm.
+    1.55: ``vorlage`` = fertiger (Betreff, Text), z. B. der vollständige Auftrag zu einem Mangel."""
+    import asyncio
+    import json
+    import logging
+
     from nicegui import run
 
     from . import benutzer_kern
     from . import fm_mail_kern as fk
 
-    betreff0, text0 = fk.vorlage(zimmer, art, notiz, benutzer_kern.anzeige())
+    try:
+        absender_name = benutzer_kern.anzeige()
+    except Exception:                          # noqa: BLE001 – Name ist nur Komfort
+        absender_name = ""
+    betreff0, text0 = vorlage or fk.vorlage(zimmer, art, notiz, absender_name)
+
+    async def outlook(fn, *args) -> str:
+        """Outlook-Aufruf mit Zeitlimit und Hinweis – nie mehr „es passiert nichts“."""
+        a.toast("Wird an Outlook übergeben …", rueck=False)
+        try:
+            return await asyncio.wait_for(run.io_bound(fn, *args), FM_WARTEN)
+        except asyncio.TimeoutError:
+            return ("Outlook antwortet nicht. Bitte in der Taskleiste nach Outlook sehen (evtl. wartet dort eine "
+                    "Sicherheitsabfrage) – oder „Text kopieren“ und die Mail selbst in Outlook einfügen.")
+        except Exception as exc:               # noqa: BLE001
+            logging.getLogger(__name__).exception("Mail an FM")
+            return f"Outlook-Fehler: {exc}"
 
     def bauen():
         ui.label("Gesendet wird über Ihr Outlook – aus dem gemeinsamen Postfach, wenn unten eins eingetragen ist, "
@@ -572,8 +596,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
         async def senden():                    # 1.38: direkt über das eigene Outlook senden (landet in „Gesendet“)
             if not await merken():
                 return
-            fehler = await run.io_bound(fk.senden, an.value or "", betreff.value or "", text.value or "",
-                                        (von.value or "").strip())
+            fehler = await outlook(fk.senden, an.value or "", betreff.value or "", text.value or "",
+                                   (von.value or "").strip())
             if fehler:
                 a.toast(fehler, fehler=True)
                 return
@@ -586,8 +610,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
         async def los():
             if not await merken():
                 return
-            fehler = await run.io_bound(fk.entwurf, an.value or "", betreff.value or "", text.value or "",
-                                        (von.value or "").strip())
+            fehler = await outlook(fk.entwurf, an.value or "", betreff.value or "", text.value or "",
+                                   (von.value or "").strip())
             if fehler and fk.adresse():
                 ui.navigate.to(fk.mailto(an.value or "", betreff.value or "", text.value or ""))
                 a.toast(f"{fehler} Geöffnet im Standard-Mailprogramm.", rueck=False)
@@ -599,9 +623,16 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None) -> N
             a.panel_zu()
             if nach:
                 await nach()
+        def kopieren():
+            t = json.dumps((betreff.value or "") + "\n\n" + (text.value or ""))
+            ui.run_javascript("(t=>{const f=()=>{const e=document.createElement('textarea');e.value=t;"
+                              "document.body.appendChild(e);e.select();document.execCommand('copy');e.remove();};"
+                              f"try{{navigator.clipboard.writeText(t).catch(f);}}catch(_){{f();}}}})({t})")
+            a.toast("Betreff und Text kopiert – in Outlook mit Strg+V einfügen", rueck=False)
         with ui.element("div").classes("m-paktionen"):
             knopf("Senden", senden, "primaer", "send", "Direkt über Ihr Outlook senden")
             knopf("In Outlook öffnen", los, "", "open_in_new", "Erst in Outlook ansehen, dort senden")
+            knopf("Text kopieren", kopieren, "leise", "content_copy", "Betreff und Text in die Zwischenablage")
             knopf("Abbrechen", a.panel_zu, "leise")
         ui.label("Postfach und FM-Adresse werden für den Standort gemerkt (gilt für alle PCs).").classes("m-zweite")
     a.panel("Mail an FM", bauen)

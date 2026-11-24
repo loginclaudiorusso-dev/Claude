@@ -64,4 +64,4 @@ def test_oberflaeche_bietet_fm_und_archiv():
     q = (Path(qm.__file__).parent / "qr_ui.py").read_text(encoding="utf-8")
     assert "Übernehmen & an FM" in q and "Erledigte archivieren" in q and "fm_mail(a, wo, art, notiz, nach=nach)" in q
     h = (Path(qm.__file__).parent / "seite_heute.py").read_text(encoding="utf-8")
-    assert 'def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None)' in h
+    assert 'def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None' in h
