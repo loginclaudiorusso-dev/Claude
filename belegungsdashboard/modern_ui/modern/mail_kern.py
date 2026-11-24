@@ -26,10 +26,16 @@ from datetime import date, timedelta
 from belegung import mails
 
 _G = r"[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+"
-_BEREICH = re.compile(r"(?<![\d.])(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4}|\d{2})?\s*(?:–|—|-|bis(?:\s+(?:zum|einschließlich))?)\s*"
+_BEREICH = re.compile(r"(?<![\d.])(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4}|\d{2})?\s*,?\s*(?:–|—|-|bis)"
+                      # 1.57: bis zu zwei Wörter dazwischen – „6.12., bis Freitagnachmittag, 11.12.26“
+                      r"(?:\s*,?\s*[A-Za-zÄÖÜäöüß]+\s*,?){0,2}\s*"
                       r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4}|\d{2})?(?![\d])")
-_UNTERBRINGUNG = re.compile(r"unterbringung|internatsplatz|zimmer\s*(?:anfrage|reservier|benötig|gebraucht)|"
-                            r"(?:benötigt|braucht)\s+(?:ein\s+)?zimmer|unterkunft", re.I)
+_UNTERBRINGUNG = re.compile(r"unterbringung|internatsplatz|zimmer\s*(?:anfrage|reservier|benötig|gebraucht|buchung)|"
+                            r"(?:benötigt|braucht)\s+(?:ein\s+)?zimmer|unterkunft|"
+                            # 1.57: „Bitte um Bereitstellung von Zimmer und Essensmarken“, „Zimmer bereitstellen“
+                            r"bereitstellung\s+(?:von\s+|eines\s+)?(?:einem\s+)?zimmers?|zimmer\s+(?:\w+\s+)?bereitstell", re.I)
+_ESSEN = re.compile(r"essensmarken|verpflegung|mittagessen", re.I)
+_ERPROBUNG = re.compile(r"erprobung|hospitation|probewoche|schnupper", re.I)
 _UWT = re.compile(r"\bUWT(?:ler(?:in)?)?\b|umsch[üu]l(?:er|erin|ung)", re.I)
 _NAME_WORT_NICHT = {"hallo", "liebe", "lieber", "sehr", "guten", "zusätzliche", "zusaetzliche", "unterbringung",
                     "anfrage", "anmeldung", "uwtler", "uwt", "aw", "wg", "re", "fw", "betreff"}
@@ -179,8 +185,12 @@ def erkennen(betreff: str, text: str, heute: date | None = None):
                 teile[-1] += f" {beginn:%d.%m.}–{bis:%d.%m.%Y}"
             if anreise_so and von:
                 teile.append(f"Anreise {_TAGE[von.weekday()]} {von:%d.%m.%Y}")
-            if re.search(r"nahtlos|anschließend|direkt\s+im\s+anschluss", klein):
+            if re.search(r"nahtlos|anschließend\b|direkt\s+im\s+anschluss", klein):
                 teile.append("nahtlos im Anschluss")
+            if _ERPROBUNG.search(alles):
+                teile.append("Erprobung/Hospitation")
+            if _ESSEN.search(alles):
+                teile.append("Essensmarken gewünscht")
         if e2.bestaetigung:
             teile.append("Bestätigung erbeten")
         if e2.kostenuebernahme:
@@ -475,3 +485,52 @@ def ki_einschaetzung(betreff: str, text: str, heute: date | None = None) -> str:
         return backend.antworte(frage, [], ds, heute).strip()
     except Exception as exc:                          # noqa: BLE001 – Komfort; die Regeln oben gelten trotzdem
         return f"KI nicht erreichbar: {exc}"
+
+
+# ---- 1.57: Antwort an den Absender mit Zimmer und Zeitraum --------------------------------------------------------
+
+def _anrede_absender(absender: str) -> str:
+    """„Beispiel, Erika“ / „Erika Beispiel <…>“ → „Erika Beispiel“ (ohne Herr/Frau – das Geschlecht steht nicht
+    sicher in der Mail)."""
+    a = re.sub(r"<[^>]*>|\S+@\S+", "", absender or "").strip().strip('"')
+    if "," in a:
+        n, v = [t.strip() for t in a.split(",", 1)]
+        a = f"{v} {n}".strip()
+    return a
+
+
+def antwort_text(e, schritte: list, treffer, stand, absender: str = "", unterschrift: str = "") -> str:
+    """Antwort-Entwurf nach dem Umsetzen: für wen, welcher Zeitraum, welches Zimmer (mit Lage), ggf. Essensmarken.
+    Rein – das Zimmer kommt aus dem angehakten Schritt „Zimmer reservieren“, sonst aus der gefundenen Buchung."""
+    zid = next((s.daten.get("zimmer") for s in schritte if s.art == "zimmer" and s.an and s.daten.get("zimmer")), "")
+    if not zid and treffer is not None and getattr(treffer, "zimmer", ""):
+        zid = treffer.zimmer
+    z = stand.lage.zimmer.get(zid) if (zid and stand is not None) else None
+    zimmer = (f"Zimmer {z.kurz} ({zp_flur(z)})" if z is not None else f"Zimmer {zid.removeprefix('GS-')}") if zid else ""
+    name = (treffer.name if treffer is not None and getattr(treffer, "name", "") else e.name) or ""
+    if "," in name:
+        n, v = [t.strip() for t in name.split(",", 1)]
+        name = n if e.geschlecht in ("m", "w") else f"{v} {n}"
+    wer = {"m": f"Herrn {name}", "w": f"Frau {name}"}.get(e.geschlecht, name) if name else "die angefragte Person"
+    zeit = ""
+    if e.von and e.bis:
+        zeit = f" vom {_TAGE[e.von.weekday()]} {e.von:%d.%m.} bis {_TAGE[e.bis.weekday()]} {e.bis:%d.%m.%Y}"
+    elif e.von:
+        zeit = f" ab {_TAGE[e.von.weekday()]} {e.von:%d.%m.%Y}"
+    gruss = _anrede_absender(absender)
+    zeilen = [f"Hallo {gruss}," if gruss else "Hallo,", ""]
+    if zimmer:
+        zeilen.append(f"für {wer} ist{zeit} {zimmer} bereitgestellt.")
+    else:
+        zeilen.append(f"wir haben die Anfrage für {wer}{zeit} erhalten – das Zimmer teilen wir Ihnen noch mit.")
+    if (e.zusammenfassung or "").find("Essensmarken") >= 0:
+        zeilen.append("Die Essensmarken liegen zur Anreise bereit.")
+    zeilen.append("Den Schlüssel gibt es bei der Anreise im Internat.")
+    zeilen += ["", "Viele Grüße", unterschrift or ""]
+    return "\n".join(zeilen).rstrip() + "\n"
+
+
+def zp_flur(z) -> str:
+    from belegung import zimmerplan as zp
+
+    return zp.flur_text(z)

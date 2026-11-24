@@ -33,6 +33,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_postfach_v154_filter_antworten.py` – 1.54 – Filter mit Zimmer-/Namenskontext, Absender-Regeln, Antworten/Weiterleiten
 - `test_fm_v155_mangel_auftrag.py` – 1.55 – FM-Auftrag zu einem Mangel (alle Angaben, keine Bewohnernamen), Sammelmail, abgesicherter Klick
 - `test_belegungsplan_v156_frei.py` – 1.56 – Heatmap „Frei“ (Stufen, frei ab, Mindestdauer, Sortieren/Filtern), Datum wählen, Legende
+- `test_postfach_v157_erkennen_antwort.py` – 1.57 – Bereitstellung als Anmeldung, Zeitraum mit Wörtern, Antwort mit Zimmer, Mailfenster
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

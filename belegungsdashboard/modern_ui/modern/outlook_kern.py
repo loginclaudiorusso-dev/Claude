@@ -651,12 +651,63 @@ def mail_panel(a, m: Mail) -> None:
             if inh is None:
                 return
             m.adresse = m.adresse or inh.adresse
+            geladen["inh"] = inh
             text_box.clear()
             with text_box:
                 ui.label(f"Von: {inh.von} <{inh.adresse}>" if inh.adresse else f"Von: {inh.von}").classes("m-zweite")
                 ui.label(f"An: {inh.an}" + (f" · Cc: {inh.cc}" if inh.cc else "")).classes("m-zweite")
                 ui.label(inh.text or "(kein Text)").classes("m-ptext").style("white-space:pre-wrap;margin-top:8px")
-        ui.timer(0.05, laden, once=True)
+        geladen: dict = {}
+
+        async def nach_laden():
+            await laden()
+            if geladen.get("inh") is not None:
+                await erkennen()
+        ui.timer(0.05, nach_laden, once=True)
+
+        # 1.57: Erkennen und Übernehmen wie im KI-Assistenten – danach steht die Antwort mit dem Zimmer bereit
+        ui.label("Erkennen & übernehmen").classes("m-abschnitt")
+        erg = ui.element("div").classes("m-plan-liste m-pf-erkannt")
+        with erg:
+            ui.label("Wird nach dem Laden erkannt …").classes("m-zweite")
+
+        async def erkennen():
+            from types import SimpleNamespace
+
+            from .seite_assistenz import mail_erkennen
+
+            inh = geladen.get("inh")
+            if inh is None:
+                return
+            erg.clear()
+            try:
+                await mail_erkennen(a, erg, SimpleNamespace(value=m.betreff), SimpleNamespace(value=f"{inh.von} <{inh.adresse}>"),
+                                    SimpleNamespace(value=inh.text or ""), nach=umgesetzt)
+            except Exception as exc:                   # noqa: BLE001 – Erkennen ist Komfort
+                erg.clear()
+                with erg:
+                    ui.label(f"Erkennen nicht möglich: {exc}").classes("m-zweite m-warn")
+
+        async def umgesetzt(e, schritte, treffer):
+            from belegung import zimmerplan as zp
+
+            from . import benutzer_kern
+            from . import mail_kern
+
+            stand = await run.io_bound(zp.laden)
+            try:
+                wer = benutzer_kern.anzeige()
+            except Exception:                          # noqa: BLE001
+                wer = ""
+            art.value = "antworten"
+            text.value = mail_kern.antwort_text(e, schritte, treffer, stand, m.absender, wer)
+            zim = next((s_.text.split(": ", 1)[-1] for s_ in schritte if s_.art == "zimmer" and s_.an and s_.daten.get("zimmer")),
+                       "")
+            erg.clear()
+            with erg:
+                ui.label("✓ Übernommen" + (f" – Zimmer {zim}" if zim else "") + ". Die Antwort steht unten bereit: prüfen "
+                         "und senden.").classes("m-ptext m-ok")
+            a.toast("Übernommen – die Antwort mit Zimmer steht unten bereit: prüfen und senden", rueck=False)
 
         ui.label("Antworten").classes("m-abschnitt")
         art = ui.select({"antworten": "Antworten", "allen": "Allen antworten", "weiterleiten": "Weiterleiten"},
@@ -665,7 +716,7 @@ def mail_panel(a, m: Mail) -> None:
         an = ui.input("An (beim Weiterleiten)").classes("m-feld w-full").props("dense outlined dark")
         an.bind_visibility_from(art, "value", lambda v: v == "weiterleiten")
         text = ui.textarea("Ihr Text (steht über der zitierten Mail)").classes("m-feld w-full m-mail-antwort").props(
-            "dense outlined dark rows=4")
+            "dense outlined dark rows=4 autogrow")
 
         def an_fm():
             art.value = "weiterleiten"

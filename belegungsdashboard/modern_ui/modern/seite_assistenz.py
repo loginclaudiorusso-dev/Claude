@@ -167,18 +167,7 @@ def _mails(a) -> None:
                 erg = ui.element("div").classes("m-plan-liste")
 
                 async def erkennen():
-                    if not (text.value or betreff.value):
-                        return
-                    liste = await run.io_bound(mail_kern.buchungen, betreff.value or "", text.value or "")
-                    if liste:                             # 1.09: mehrere Gästehaus-Vormerkungen in einer Mail
-                        stand = await run.io_bound(zp.laden)
-                        sch = await run.io_bound(mail_kern.schritte, liste, stand)
-                        _buchungen_ergebnis(a, erg, liste, sch, betreff, absender, text)
-                        return
-                    e = await run.io_bound(mail_kern.erkennen, betreff.value or "", text.value or "")
-                    personen, _ = await run.io_bound(anreiseliste.laden)
-                    treffer = await run.io_bound(mails.zuordnen, e, zp.laden(), personen)
-                    _mail_ergebnis(a, erg, e, treffer, betreff, absender, text)
+                    await mail_erkennen(a, erg, betreff, absender, text)
 
                 async def outlook():
                     from . import outlook_kern as _ok           # 0.91: ohne Starten von Outlook, mit COM-Anmeldung
@@ -258,7 +247,25 @@ async def _eingang_erledigt(a, x) -> None:
     await a.aendern(lambda: (_schritt("Mail erledigt", aktion, [mails.DATEI]), "Mail als erledigt markiert")[1])
 
 
-def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
+async def mail_erkennen(a, box, betreff, absender, text, nach=None) -> None:
+    """Mail erkennen und Vorschlag mit „Umsetzen“ in ``box`` zeigen. ``betreff``/``absender``/``text`` haben ``.value``
+    (Eingabefelder oder einfache Halter). 1.57: ``nach(e, schritte, treffer)`` läuft nach erfolgreichem Umsetzen –
+    z. B. die Antwort mit dem Zimmer vorbereiten (Postfach)."""
+    if not (text.value or betreff.value):
+        return
+    liste = await run.io_bound(mail_kern.buchungen, betreff.value or "", text.value or "")
+    if liste:                                         # 1.09: mehrere Gästehaus-Vormerkungen in einer Mail
+        stand = await run.io_bound(zp.laden)
+        sch = await run.io_bound(mail_kern.schritte, liste, stand)
+        _buchungen_ergebnis(a, box, liste, sch, betreff, absender, text)
+        return
+    e = await run.io_bound(mail_kern.erkennen, betreff.value or "", text.value or "")
+    personen, _ = await run.io_bound(anreiseliste.laden)
+    treffer = await run.io_bound(mails.zuordnen, e, zp.laden(), personen)
+    _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach)
+
+
+def _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach=None) -> None:
     box.clear()
     zustand = {"treffer": treffer[0] if treffer else None, "schritte": []}
     with box:
@@ -300,6 +307,8 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text) -> None:
                                absender.value or "", zustand["treffer"]):
                 betreff.value = absender.value = text.value = ""
                 box.clear()
+                if nach is not None:                  # 1.57: z. B. Antwort mit Zimmer vorbereiten
+                    await nach(e, zustand["schritte"], zustand["treffer"])
 
         async def ablegen(status: str):
             await run.io_bound(mails.ablegen, e, betreff.value or "", text.value or "", absender.value or "", status)
