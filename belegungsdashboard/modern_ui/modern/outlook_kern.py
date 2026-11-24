@@ -36,6 +36,7 @@ class Mail:
     eintrag: str = ""            # 1.02: Outlook-EntryID – zum Öffnen in Outlook
     ablage: str = ""             # StoreID des Postfachs (freigegebene Postfächer)
     bezug: str = ""              # 1.47: warum die Mail mit Zimmern zu tun hat („Zimmer 2-101“, „Schlüssel“ …), "" = nicht
+    adresse: str = ""            # 1.54: Absenderadresse (für „Absender immer/nie zeigen“)
 
     @property
     def wann(self) -> str:
@@ -46,31 +47,115 @@ class Mail:
 # Feste Regeln (Stichwörter), keine KI: lieber eine Mail zu viel als eine zu wenig. Reihenfolge = Vorrang der Begründung.
 
 BEZUG = [
-    ("Zimmer", re.compile(r"\b(?:zimmer|zi\.|raum|appartement|apartment)\s*(?:nr\.?\s*)?[a-z]?\d{1,2}[-./ ]?\d{2,3}\b"
-                          r"|\b\d-\d{3}\b", re.I)),
-    ("Schlüssel", re.compile(r"schl[üu]ssel|transponder|schlie(?:ß|ss)(?:anlage|zylinder)|zylinder|ausgesperrt", re.I)),
-    ("Defekt", re.compile(r"defekt|kaputt|mangel|m[äa]ngel|reparatur|heizung|fenster|rollo|dusche|toilette|\bwc\b|"
-                          r"waschbecken|verstopf|tropf|undicht|schimmel|wasserschaden|lampe|licht geht|steckdose|"
-                          r"hausmeister|facility|\bfm\b", re.I)),
-    ("Anreise", re.compile(r"anreise|anreisen|ankunft|anreist|einzug|zimmerbuchung|unterbringung|[üu]bernachtung|"
-                           r"hospitant|g[äa]stezimmer|\bgast\b|g[äa]ste", re.I)),
-    ("Abreise", re.compile(r"abreise|abreisen|auszug|zieht aus|vorzeitig|abbruch|nichtanreise|storn", re.I)),
-    ("Belegung", re.compile(r"belegung|zimmer|umzug|umziehen|\bbett(?:en)?\b|mietvertrag|\bmieter", re.I)),
-    ("Reinigung", re.compile(r"reinigung|bettw[äa]sche|endreinigung|sauber|putz", re.I)),
+    ("Zimmer", re.compile(r"\b(?:zimmer|zi\.?|raum|appartement|apartment|app\.)\s*(?:nr\.?\s*)?[a-z]?\d{1,2}[-./ ]?\d{2,4}\b"
+                          r"|\b\d(?:\.\d)?-\d{3,4}\b", re.I)),
+    ("Schlüssel", re.compile(r"schl[üu]ssel|transponder|schlie(?:ß|ss)(?:anlage|zylinder)|zylinder|ausgesperrt|"
+                             r"chipkarte|zugangskarte", re.I)),
+    ("Defekt", re.compile(r"defekt|kaputt|mangel|m[äa]ngel|reparatur|heizung|fenster|rollo|jalousie|dusche|toilette|"
+                          r"\bwc\b|waschbecken|verstopf|tropf|undicht|schimmel|wasserschaden|lampe|licht|steckdose|"
+                          r"hausmeister|facility|\bfm\b|matratze|k[üu]hlschrank|wlan|internet|t[üu]r\b|schrank", re.I)),
+    ("Anreise", re.compile(r"anreise|anreisen|ankunft|anreist|einzug|zimmerbuchung|unterbringung|unterkunft|"
+                           r"[üu]bernachtung|hospitant|g[äa]stezimmer|\bgast\b|g[äa]ste|check-?in|bezieht|"
+                           r"wohnheim|internatsplatz|unterkunft", re.I)),
+    ("Abreise", re.compile(r"abreise|abreisen|auszug|zieht aus|ausziehen|vorzeitig|abbruch|nichtanreise|storn|"
+                           r"check-?out|abmeldung|abgemeldet|beendet die ma(?:ß|ss)nahme", re.I)),
+    ("Belegung", re.compile(r"belegung|zimmer|umzug|umziehen|\bbett(?:en)?\b|mietvertrag|\bmieter|kaution|"
+                            r"einzelzimmer|doppelzimmer|allergiker|tier\b|hund\b|katze", re.I)),
+    ("Reinigung", re.compile(r"reinigung|bettw[äa]sche|endreinigung|sauber|putz|w[äa]sche|waschmaschine|trockner|"
+                             r"zimmerkontrolle|zimmerabnahme|[üu]bergabe", re.I)),
 ]
 
 
-def zimmerbezug(betreff: str, text: str = "") -> str:
-    """Hat die Mail mit Zimmern zu tun? Begründung („Zimmer 2-101“, „Schlüssel“ …) oder "". Betreff zählt zuerst."""
-    for quelle in (betreff or "", (text or "")[:3000]):
-        for name, muster in BEZUG:
-            m = muster.search(quelle)
-            if m:
-                if name == "Zimmer":
-                    nr = re.search(r"[a-z]?\d{1,2}[-./ ]?\d{2,3}", m.group(0), re.I)
-                    return f"Zimmer {nr.group(0)}" if nr else "Zimmer"
+@dataclass
+class Kontext:
+    """1.54: was das Programm kennt – Zimmernummern des Standorts und Namen der Bewohner/Anreisenden."""
+    zimmer: re.Pattern | None = None
+    namen: re.Pattern | None = None
+
+
+def _trenner(kurz: str) -> str:
+    # „2-101“ auch als „2 101“, „2.101“, „2/101“; „3.2-105“ auch als „3.2 105“
+    teile = re.split(r"[-./ ]", kurz)
+    return r"[-./ ]?".join(re.escape(t) for t in teile if t)
+
+
+def kontext_bauen(zimmer_kurz: list[str], namen: list[str]) -> Kontext:
+    zs = sorted({k for k in zimmer_kurz if k and any(c.isdigit() for c in k)}, key=len, reverse=True)
+    nn = sorted({n.strip() for n in namen if len(n.strip()) >= 4}, key=len, reverse=True)
+    return Kontext(re.compile(r"(?<![\w.])(?:" + "|".join(_trenner(k) for k in zs) + r")(?![\w])") if zs else None,
+                   re.compile(r"\b(?:" + "|".join(re.escape(n) for n in nn) + r")\b") if nn else None)
+
+
+def kontext_laden(tage: int = 60) -> Kontext:
+    """Zimmer des aktiven Standorts und Nachnamen aller, die gerade da sind oder in ``tage`` Tagen kommen/gehen."""
+    from datetime import timedelta
+
+    from belegung import zimmerplan as zp
+
+    stand = zp.laden()
+    heute = date.today()
+    namen = []
+    for bs in stand.lage.belegungen.values():
+        for b in bs:
+            if b.art in ("belegt", "geplant") and b.name and b.bis >= heute - timedelta(days=7) and \
+                    b.von <= heute + timedelta(days=tage) and b.name != zp.PIVOT_NAME:
+                namen.append(b.name.split(",")[0].strip())
+    for b in stand.bedarf:
+        if b.bis >= heute - timedelta(days=7) and b.von <= heute + timedelta(days=tage):
+            namen.append(b.name.split(",")[0].strip())
+    return kontext_bauen([z.kurz for z in stand.zimmer if z.aktiv], namen)
+
+
+def zimmerbezug(betreff: str, text: str = "", kontext: Kontext | None = None) -> str:
+    """Hat die Mail mit Zimmern zu tun? Begründung („Zimmer 2-101“, „Bewohner: Muster“, „Schlüssel“ …) oder "".
+    Betreff zählt zuerst; bekannte Zimmernummern und Namen (``kontext``) vor den Stichwörtern."""
+    for quelle in (betreff or "", (text or "")[:6000]):
+        if kontext is not None and kontext.zimmer is not None and (m := kontext.zimmer.search(quelle)):
+            return f"Zimmer {m.group(0)}"
+        for _name, muster in BEZUG[:1]:
+            if m := muster.search(quelle):
+                nr = re.search(r"[a-z]?\d(?:\.\d)?[-./ ]?\d{2,4}", m.group(0), re.I)
+                return f"Zimmer {nr.group(0)}" if nr else "Zimmer"
+        if kontext is not None and kontext.namen is not None and (m := kontext.namen.search(quelle)):
+            return f"Bewohner: {m.group(0)}"
+        for name, muster in BEZUG[1:]:
+            if muster.search(quelle):
                 return name
     return ""
+
+
+# ---- 1.54: Absender immer bzw. nie zeigen (für den ganzen Standort) ------------------------------------------------
+
+ABSENDER = "postfach_absender"
+
+
+def absender_regeln() -> dict[str, list[str]]:
+    d = speicher.einstellungen().get(ABSENDER) or {}
+    return {k: [str(x).lower() for x in (d.get(k) or [])] for k in ("immer", "nie")} if isinstance(d, dict) else \
+        {"immer": [], "nie": []}
+
+
+def absender_setzen(adresse: str, art: str | None) -> str:
+    """``art``: immer | nie | None (Regel entfernen)."""
+    adresse = (adresse or "").strip().lower()
+    if not adresse:
+        raise ValueError("Diese Mail hat keine Absenderadresse.")
+    r = absender_regeln()
+    for k in r:
+        r[k] = [x for x in r[k] if x != adresse]
+    if art in r:
+        r[art].append(adresse)
+    speicher.einstellung_setzen(ABSENDER, r)
+    _ZWISCHEN["zeit"] = 0.0
+    return {"immer": f"Mails von {adresse} werden immer gezeigt", "nie": f"Mails von {adresse} werden ausgeblendet"} \
+        .get(art or "", f"Regel für {adresse} entfernt")
+
+
+def _regel(adresse: str, regeln: dict) -> str | None:
+    a = (adresse or "").lower()
+    if not a:
+        return None
+    return "immer" if a in regeln["immer"] else "nie" if a in regeln["nie"] else None
 
 
 NUR_ZIMMER = "postfach_nur_zimmer"           # je Person (netz_kern.persoenlich), Standard: an
@@ -150,10 +235,21 @@ def _outlook(text: str = "Outlook ist nicht geöffnet – die Vorschau erscheint
         raise ValueError(text) from exc
 
 
-DURCHSUCHEN = 120                           # 1.47: so viele neueste Mails werden für „nur Zimmer“ angesehen
+DURCHSUCHEN = 250                           # 1.47/1.54: so viele neueste Mails werden für „nur Zimmer“ angesehen
 
 
-def lesen(pfad: str, anzahl: int = ANZAHL, filtern: bool = False) -> list[Mail]:
+def _adresse(m) -> str:
+    try:
+        if str(getattr(m, "SenderEmailType", "") or "") == "EX":
+            ex = m.Sender.GetExchangeUser()
+            if ex is not None and ex.PrimarySmtpAddress:
+                return str(ex.PrimarySmtpAddress)
+        return str(m.SenderEmailAddress or "")
+    except Exception:                                 # noqa: BLE001
+        return ""
+
+
+def lesen(pfad: str, anzahl: int = ANZAHL, filtern: bool = False, kontext: Kontext | None = None) -> list[Mail]:
     """Die neuesten Mails des Ordners – nur lesen. ValueError mit verständlichem Text, wenn es nicht geht.
     ``filtern`` (1.47): nur Mails mit Zimmerbezug, dafür bis zu ``DURCHSUCHEN`` Mails ansehen."""
     pythoncom, ol = _outlook()
@@ -167,6 +263,7 @@ def lesen(pfad: str, anzahl: int = ANZAHL, filtern: bool = False) -> list[Mail]:
         items = f.Items
         items.Sort("[ReceivedTime]", True)
         erg: list[Mail] = []
+        regeln = absender_regeln() if filtern else {"immer": [], "nie": []}
         m = items.GetFirst()
         gesehen = 0
         while m is not None and len(erg) < anzahl and gesehen < (DURCHSUCHEN if filtern else anzahl * 4):
@@ -174,14 +271,17 @@ def lesen(pfad: str, anzahl: int = ANZAHL, filtern: bool = False) -> list[Mail]:
             try:
                 if getattr(m, "Class", 0) == 43:      # olMail
                     betreff = str(m.Subject or "(ohne Betreff)")
-                    bezug = zimmerbezug(betreff)
-                    if not bezug and filtern:         # Text nur lesen, wenn der Betreff nichts verrät
-                        bezug = zimmerbezug("", str(m.Body or "")[:3000])
+                    adresse = _adresse(m) if filtern else ""
+                    regel = _regel(adresse, regeln) if filtern else None
+                    bezug = "" if regel == "nie" else ("Absender immer" if regel == "immer" else
+                                                       zimmerbezug(betreff, "", kontext))
+                    if not bezug and filtern and regel != "nie":     # Text nur lesen, wenn der Betreff nichts verrät
+                        bezug = zimmerbezug("", str(m.Body or "")[:6000], kontext)
                     if bezug or not filtern:
                         rt = m.ReceivedTime
                         erg.append(Mail(datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute), betreff,
                                         str(m.SenderName or ""), bool(m.UnRead), str(getattr(m, "EntryID", "") or ""),
-                                        ablage, bezug))
+                                        ablage, bezug, adresse))
             except Exception:                         # noqa: BLE001 – eine kaputte Mail stoppt die Vorschau nicht
                 pass
             m = items.GetNext()
@@ -205,6 +305,81 @@ def oeffnen(eintrag: str, ablage: str = "") -> str:
         return ""
     except Exception:                                 # noqa: BLE001
         return "Die Mail wurde in Outlook nicht gefunden (verschoben oder gelöscht?) – bitte neu laden."
+    finally:
+        pythoncom.CoUninitialize()
+
+
+# ---- 1.54: Mail im Programm lesen, beantworten, weiterleiten (über das laufende Outlook) ----------------------------
+
+@dataclass
+class Inhalt:
+    betreff: str
+    von: str
+    adresse: str
+    an: str
+    cc: str
+    zeit: str
+    text: str
+
+
+def mail_lesen(eintrag: str, ablage: str = "") -> Inhalt:
+    """Text und Kopf einer Mail – nur lesen (Outlook markiert sie dabei nicht als gelesen)."""
+    pythoncom, ol = _outlook("Outlook ist nicht geöffnet – bitte Outlook starten, dann noch einmal klicken.")
+    try:
+        ns = ol.GetNamespace("MAPI")
+        try:
+            m = ns.GetItemFromID(eintrag, ablage) if ablage else ns.GetItemFromID(eintrag)
+        except Exception as exc:                      # noqa: BLE001
+            raise ValueError("Die Mail wurde in Outlook nicht gefunden (verschoben oder gelöscht?).") from exc
+        rt = m.ReceivedTime
+        return Inhalt(str(m.Subject or ""), str(m.SenderName or ""), _adresse(m), str(m.To or ""), str(m.CC or ""),
+                      f"{rt.day:02d}.{rt.month:02d}.{rt.year} {rt.hour:02d}:{rt.minute:02d}",
+                      str(m.Body or "")[:30000])
+    finally:
+        pythoncom.CoUninitialize()
+
+
+def text_davor(html: str, text: str) -> str:
+    """Den eigenen Text vor die zitierte Mail setzen (HTML, Zeilenumbrüche bleiben)."""
+    from html import escape
+
+    if not (text or "").strip():
+        return html
+    block = "<div style=\"font-family:Calibri,Arial,sans-serif;font-size:11pt\">" + \
+        escape(text.strip()).replace("\n", "<br>") + "</div><br>"
+    if re.search(r"<body[^>]*>", html or "", re.I):
+        return re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + block, html, count=1, flags=re.I)
+    return block + (html or "")
+
+
+def _antwort(eintrag: str, ablage: str, art: str, text: str, an: str = "", senden: bool = False, von: str = "") -> str:
+    """art: antworten | allen | weiterleiten. Rückgabe "" = erledigt, sonst Grund."""
+    from . import fm_mail_kern as fk
+
+    if art == "weiterleiten" and not (an or "").strip():
+        return "Bitte eine Adresse für die Weiterleitung eintragen."
+    try:
+        pythoncom, ol = _outlook("Outlook ist nicht geöffnet – bitte Outlook starten und noch einmal versuchen.")
+    except ValueError as exc:
+        return str(exc)
+    try:
+        ns = ol.GetNamespace("MAPI")
+        try:
+            m = ns.GetItemFromID(eintrag, ablage) if ablage else ns.GetItemFromID(eintrag)
+        except Exception:                             # noqa: BLE001
+            return "Die Mail wurde in Outlook nicht gefunden (verschoben oder gelöscht?)."
+        neu = m.ReplyAll() if art == "allen" else m.Forward() if art == "weiterleiten" else m.Reply()
+        if art == "weiterleiten":
+            neu.To = an.strip()
+        neu.HTMLBody = text_davor(str(neu.HTMLBody or ""), text)
+        fk._als_postfach(ol, neu, von)
+        if senden:
+            neu.Send()
+        else:
+            neu.Display(False)
+        return ""
+    except Exception as exc:                          # noqa: BLE001
+        return f"Outlook konnte die Mail nicht {'senden' if senden else 'anlegen'}: {exc}"
     finally:
         pythoncom.CoUninitialize()
 
@@ -237,8 +412,14 @@ def vorschau(neu: bool = False, anzahl: int = ANZAHL, filtern: bool = False) -> 
     if (not neu and _ZWISCHEN["pfad"] == (pfad, anzahl, filtern)
             and time.monotonic() - _ZWISCHEN["zeit"] < NEU_LADEN_S):
         return _ZWISCHEN["erg"]
+    kontext = None
+    if filtern:
+        try:
+            kontext = kontext_laden()                 # 1.54: Zimmernummern und Namen des Standorts
+        except Exception:                             # noqa: BLE001 – ohne Kontext: nur Stichwörter
+            kontext = None
     try:
-        erg = (lesen(pfad, anzahl, filtern), "")
+        erg = (lesen(pfad, anzahl, filtern, kontext) if kontext is not None else lesen(pfad, anzahl, filtern), "")
     except ValueError as exc:
         erg = ([], str(exc))
     except Exception as exc:                          # noqa: BLE001 – Outlook-Fehler nie bis zur Oberfläche durchreichen
@@ -429,7 +610,7 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
                 return
             for m in mails:
                 z = ui.element("button").classes("m-tz-mail" + (" neu" if m.ungelesen else ""))
-                attr(z, title=f"{m.betreff} – in Outlook öffnen", type="button")
+                attr(z, title=f"{m.betreff} – lesen und antworten", type="button")
                 with z:
                     ui.label(m.wann).classes("m-tz-mzeit")
                     with ui.element("div").classes("m-tz-mtext"):
@@ -437,9 +618,95 @@ def block(a, anzahl: int = ANZAHL, postfach: bool = False) -> None:
                         ui.label(m.absender + (f" · {m.bezug}" if m.bezug and zustand["nur"] else "")).classes("m-zweite")
                     if m.ungelesen:
                         ui.label("ungelesen").classes("m-pille akzent")
-                z.on("click", lambda m=m: _oeffnen(m))
+                z.on("click", lambda m=m: mail_panel(a, m))       # 1.54: im Programm lesen und antworten
             ungelesen = sum(1 for m in mails if m.ungelesen)
-            ui.label(f"Klick öffnet die Mail in Outlook · {ungelesen} ungelesen unter den neuesten {len(mails)}"
+            ui.label(f"Klick öffnet die Mail · {ungelesen} ungelesen unter den neuesten {len(mails)}"
                      + (" mit Zimmerbezug" if zustand["nur"] else "") + f" · Stand {datetime.now():%H:%M}").classes("m-tz-meta")
 
     ui.timer(0.05, _laden, once=True)
+
+
+def mail_panel(a, m: Mail) -> None:
+    """1.54: Mail rechts lesen; antworten, allen antworten oder weiterleiten – gesendet über Outlook (aus dem
+    gemeinsamen Postfach, wenn unter „Mail an FM“ eins eingetragen ist), oder erst in Outlook öffnen."""
+    from nicegui import run, ui
+
+    from . import fm_mail_kern as fk
+    from .ui_bausteine import knopf
+
+    def bauen():
+        ui.label(f"{m.absender} · {m.wann}" + (f" · {m.bezug}" if m.bezug else "")).classes("m-zweite")
+        text_box = ui.element("div").classes("m-mail-text")
+        with text_box:
+            ui.label("Lädt …").classes("m-zweite")
+
+        async def laden():
+            try:
+                inh = await run.io_bound(mail_lesen, m.eintrag, m.ablage)
+            except ValueError as exc:
+                text_box.clear()
+                with text_box:
+                    ui.label(str(exc)).classes("m-zweite m-warn")
+                return
+            if inh is None:
+                return
+            m.adresse = m.adresse or inh.adresse
+            text_box.clear()
+            with text_box:
+                ui.label(f"Von: {inh.von} <{inh.adresse}>" if inh.adresse else f"Von: {inh.von}").classes("m-zweite")
+                ui.label(f"An: {inh.an}" + (f" · Cc: {inh.cc}" if inh.cc else "")).classes("m-zweite")
+                ui.label(inh.text or "(kein Text)").classes("m-ptext").style("white-space:pre-wrap;margin-top:8px")
+        ui.timer(0.05, laden, once=True)
+
+        ui.label("Antworten").classes("m-abschnitt")
+        art = ui.select({"antworten": "Antworten", "allen": "Allen antworten", "weiterleiten": "Weiterleiten"},
+                        value="antworten", label="Art").classes("m-feld").props(
+            'dense outlined dark popup-content-class="m-popup"')
+        an = ui.input("An (beim Weiterleiten)").classes("m-feld w-full").props("dense outlined dark")
+        an.bind_visibility_from(art, "value", lambda v: v == "weiterleiten")
+        text = ui.textarea("Ihr Text (steht über der zitierten Mail)").classes("m-feld w-full m-mail-antwort").props(
+            "dense outlined dark rows=4")
+
+        def an_fm():
+            art.value = "weiterleiten"
+            an.value = fk.adresse()
+            if not an.value:
+                a.toast("Noch keine FM-Adresse gespeichert – unter Übersicht → „Mail an FM“ eintragen.", fehler=True)
+
+        async def los(senden: bool):
+            fehler = await run.io_bound(_antwort, m.eintrag, m.ablage, art.value, text.value or "", an.value or "",
+                                        senden, fk.absender())
+            if fehler:
+                a.toast(fehler, fehler=True)
+                return
+            a.toast("Gesendet über Outlook" if senden else "In Outlook geöffnet – dort prüfen und senden", rueck=False)
+            a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Senden", lambda: los(True), "primaer", "send", "Direkt über Outlook senden")
+            knopf("In Outlook öffnen", lambda: los(False), "", "open_in_new", "Fertig vorbereitet in Outlook öffnen")
+            knopf("An FM", an_fm, "leise", "engineering", "Weiterleiten an die gespeicherte FM-Adresse")
+        if fk.absender():
+            ui.label(f"Gesendet wird aus dem Postfach {fk.absender()}.").classes("m-zweite")
+
+        ui.label("Filter „Nur Zimmer-Mails“").classes("m-abschnitt")
+
+        async def regel(art_):
+            try:
+                a.toast(await run.io_bound(absender_setzen, m.adresse, art_), rueck=False)
+            except ValueError as exc:
+                a.toast(str(exc), fehler=True)
+
+        async def original():
+            f = await run.io_bound(oeffnen, m.eintrag, m.ablage)
+            if f:
+                a.toast(f, fehler=True)
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Absender immer zeigen", lambda: regel("immer"), "leise", "visibility")
+            knopf("Absender nie zeigen", lambda: regel("nie"), "leise", "visibility_off")
+            knopf("Regel entfernen", lambda: regel(None), "leise", "close")
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Original in Outlook", original, "leise", "open_in_new")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel(m.betreff[:60] or "Mail", bauen)

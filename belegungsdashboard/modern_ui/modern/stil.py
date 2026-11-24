@@ -1079,6 +1079,9 @@ button.m-tz-mail:hover { background: var(--fl2); }
 button.m-tz-mail:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
 .m-tz-abk { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
 .m-tz-ab .m-tz-abk .m-knopf { margin-left: 0; }
+.m-mail-text { flex: none; min-height: 180px; max-height: 42vh; overflow-y: auto; padding: 8px 10px;
+  border: 1px solid var(--rand); border-radius: 6px; background: var(--fl2); margin: 8px 0; }
+.m-mail-text .q-field, .m-mail-antwort textarea { min-height: 0; }
 .m-pf-filter { font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
   border-radius: 12px; border: 1px solid var(--rand); background: transparent; color: var(--text2); cursor: pointer; }
 .m-pf-filter .q-icon { font-size: 15px; }
