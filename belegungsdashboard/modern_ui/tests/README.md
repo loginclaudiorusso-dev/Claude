@@ -32,6 +32,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_zimmer_v153_emr_sperre.py` – 1.53 – EMR-Reservierung ist keine Sperre, echte Sperren bleiben (rot)
 - `test_postfach_v154_filter_antworten.py` – 1.54 – Filter mit Zimmer-/Namenskontext, Absender-Regeln, Antworten/Weiterleiten
 - `test_fm_v155_mangel_auftrag.py` – 1.55 – FM-Auftrag zu einem Mangel (alle Angaben, keine Bewohnernamen), Sammelmail, abgesicherter Klick
+- `test_belegungsplan_v156_frei.py` – 1.56 – Heatmap „Frei“ (Stufen, frei ab, Mindestdauer, Sortieren/Filtern), Datum wählen, Legende
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

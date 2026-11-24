@@ -46,12 +46,50 @@ def zs_daten(a) -> None:
 
         a.daten = fk.raster(a.stand, a.zs_start, a.fl_wochen)
         return
+    if a.zs_modus == "frei":                  # 1.56: freie Zimmer der nächsten Monate
+        from belegung import maengel as mg
+
+        from . import frei_kern as fr
+
+        unbew = {m.zimmer for m in mg.offen() if m.unbewohnbar}
+        a.daten = fr.raster(a.stand, a.zs_start, fr.MONATE.get(a.fr_monate, 26), a.fr_haus, unbew,
+                            ab=max(a.zs_start, a.heute), mindest=7 * max(1, a.fr_min))
+        return
     if a.zs_flur and not a.zs_flur.startswith(f"{a.zs_haus}|"):
         a.zs_flur = ""
     a.daten = sk.zeitstrahl(a.stand, a.zs_haus, a.zs_start, a.zs_tage, a.heute, a.zs_flur) if a.zs_haus else []
 
 
-ZS_MODUS = {"zimmer": "Zimmer", "flure": "Flure"}
+ZS_MODUS = {"zimmer": "Zimmer", "flure": "Flure", "frei": "Frei"}
+
+_DE_LOCALE = ('{"days":["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"],'
+              '"daysShort":["So","Mo","Di","Mi","Do","Fr","Sa"],"months":["Januar","Februar","März","April","Mai","Juni",'
+              '"Juli","August","September","Oktober","November","Dezember"],"monthsShort":["Jan","Feb","Mär","Apr","Mai",'
+              '"Jun","Jul","Aug","Sep","Okt","Nov","Dez"],"firstDayOfWeek":1}')
+
+
+def _datum_waehlen(a, band: bool = False) -> None:
+    """1.56: Datum direkt wählen (Kalender) – der Belegungsplan springt dorthin (Flure/Frei: auf die Woche)."""
+    from . import band_ui as bu
+
+    async def gewaehlt(e) -> None:
+        if not e.value:
+            return
+        try:
+            d = date.fromisoformat(str(e.value).replace("/", "-"))
+        except ValueError:
+            return
+        if a.zs_modus != "zimmer":
+            d -= timedelta(days=d.weekday())
+        await a.setzen(nur_seite=a.zs_modus != "zimmer", zs_start=d)
+
+    tipp = "Datum wählen – der Plan beginnt an diesem Tag"
+    b = bu.klein(f"{a.zs_start:%d.%m.%Y}", "calendar_ltr", "blau", tipp=tipp, pfeil=True) if band else \
+        knopf(f"{a.zs_start:%d.%m.%Y}", None, "leise", "event", tipp)
+    with b:
+        with ui.menu().props('class="m-menue"'):
+            ui.date(value=a.zs_start.isoformat(), on_change=gewaehlt).props(
+                f"mask=YYYY-MM-DD minimal today-btn :locale='{_DE_LOCALE}'")
 
 
 def _zs_filter(a, art: str | None) -> None:
@@ -89,6 +127,7 @@ def _zs_band(a, ende, n_bel: int, zahl: dict) -> None:
                              tipp="Eine Woche weiter")
                 bu.klein("Heute", "calendar_today", "blau",
                          lambda: a.setzen(zs_start=a.heute - timedelta(days=a.heute.weekday())))
+                _datum_waehlen(a, band=True)
             with bu.stapel():
                 for t, text in ((14, "2 Wochen"), (28, "4 Wochen"), (56, "8 Wochen")):
                     bu.klein(text, "calendar_date", "blau", lambda t=t: a.setzen(zs_tage=t), an=a.zs_tage == t)
@@ -96,6 +135,8 @@ def _zs_band(a, ende, n_bel: int, zahl: dict) -> None:
             bu.gross("Zimmer", "door", "teal", lambda: a.setzen(nur_seite=True, zs_modus="zimmer"), an=a.zs_modus == "zimmer")
             bu.gross("Flure", "arrow_routing", "teal", lambda: a.setzen(nur_seite=True, zs_modus="flure"),
                      an=a.zs_modus == "flure")
+            bu.gross("Frei", "bed", "gruen", lambda: a.setzen(nur_seite=True, zs_modus="frei"),
+                     an=a.zs_modus == "frei", tipp="Welche Zimmer sind in den nächsten Monaten frei? (Heatmap)")
         with bu.gruppe("Filter – nur Zimmer mit …"):
             for art, text in sk.ZS_ARTEN.items():
                 sym, farbe = ZS_SYMBOL[art]
@@ -121,6 +162,9 @@ def zs_zeichnen(a) -> None:
     if a.zs_modus == "flure":
         _flure_zeichnen(a)
         return
+    if a.zs_modus == "frei":
+        _frei_zeichnen(a)
+        return
     from . import menueband_ui
 
     ende_ = a.zs_start + timedelta(days=a.zs_tage - 1)
@@ -135,6 +179,7 @@ def zs_zeichnen(a) -> None:
         knopf("", lambda: a.setzen(zs_start=a.zs_start - timedelta(days=7)), "leise", "chevron_left", "Eine Woche zurück")
         knopf("Heute", lambda: a.setzen(zs_start=a.heute - timedelta(days=a.heute.weekday())), "leise")
         knopf("", lambda: a.setzen(zs_start=a.zs_start + timedelta(days=7)), "leise", "chevron_right", "Eine Woche weiter")
+        _datum_waehlen(a)
     ende = a.zs_start + timedelta(days=a.zs_tage - 1)
     with a.leiste:
         segmente(ZS_MODUS, a.zs_modus, lambda m: a.setzen(nur_seite=True, zs_modus=m))
@@ -191,24 +236,30 @@ def _flure_zeichnen(a) -> None:
         knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start - timedelta(days=7)), "leise", "chevron_left", "Eine Woche zurück")
         knopf("Heute", lambda: a.setzen(nur_seite=True, zs_start=a.heute - timedelta(days=a.heute.weekday())), "leise")
         knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start + timedelta(days=7)), "leise", "chevron_right", "Eine Woche weiter")
+        _datum_waehlen(a)
     flure = a.daten or []
     with a.leiste:
         segmente(ZS_MODUS, a.zs_modus, lambda m: a.setzen(nur_seite=True, zs_modus=m))
         zs = fk.zusammenfassung(flure)
         ui.html(f'<span class="m-kpi"><b>{len(flure)}</b> Flure<span class="m-punktt">·</span>diese Woche: '
                 f'<b>{zs["ok"]}</b> mit 1 Welle, <b>{zs["warn"]}</b> mit 2, <b>{zs["krit"]}</b> mit 3+</span>', sanitize=False)
-        ui.html('<span class="m-legende" title="Abreisewelle: Auszüge im selben Reinigungsfenster (Wochenende zählt zum '
-                'Montag, höchstens zwei Werktage). Gewertet werden lange Aufenthalte; kurze (EMR, UWT …) und Mieter '
-                'stehen klein daneben."><i class="fl-ok"></i>1 Welle<i class="fl-warn"></i>2<i class="fl-krit"></i>3+'
-                '</span>', sanitize=False).style("margin-left: auto")
+        ui.element("span").style("margin-left: auto")
         segmente({4: "4 Wochen", 8: "8 Wochen", 12: "12 Wochen"}, a.fl_wochen, lambda w: a.setzen(nur_seite=True, fl_wochen=w))
     with a.inhalt:
         if not flure:
             leer("Keine Zimmer im Gebäudeplan.")
             return
-        ui.label("Je Flur und Woche: zu wie vielen Abreisewellen die belegten Zimmer gehören – wenige Wellen heißt "
-                 "wenige Reinigungsanlässe. Klick auf ein Feld zeigt die Wellen mit Zimmern.").classes("m-ptext").style(
-            "margin: 12px 20px 0")
+        hm_legende(
+            "Je Flur und Woche: zu wie vielen Abreisewellen die lang belegten Zimmer gehören. Eine Abreisewelle = Auszüge "
+            "im selben Reinigungsfenster (Wochenende zählt zum Montag, höchstens zwei Werktage). Wenige Wellen = wenige "
+            "Reinigungstermine.",
+            [("ok", "1 Welle", "gut – der Flur wird auf einmal frei"),
+             ("warn", "2 Wellen", "zwei Reinigungstermine"),
+             ("krit", "3+ Wellen", "zersplittert – bei neuen Zuteilungen auf diesen Flur achten"),
+             ("leer", "–", "keine lang belegten Zimmer")],
+            [("<b>2</b>", "große Zahl: Anzahl Wellen"), ("<span>5/8</span>", "lang belegte / alle Zimmer des Flurs"),
+             ("<i>2 kurz · 1 M</i>", "kurze Aufenthalte (EMR, UWT, Gäste) und Mieter – nicht gewertet")],
+            "Klick auf ein Feld zeigt die Wellen mit Zimmern.", art="fl")
         raster = ui.html(_flure_html(a, flure), sanitize=False).classes("m-fl-wrap")
         raster.on("click", lambda e: _flur_panel(a, e.args) if e.args else None,
                   js_handler="(e) => { const t = e.target.closest('[data-fl]'); emit(t ? t.dataset.fl : null); }")
@@ -240,6 +291,118 @@ def _flure_html(a, flure) -> str:
                          f'<i>{E(" · ".join(neben))}</i></button>')
     teile.append("</div>")
     return "".join(teile)
+
+
+def hm_legende(text: str, farben: list[tuple[str, str, str]], zeichen: list[tuple[str, str]], hinweis: str = "",
+               art: str = "fl") -> None:
+    """1.56: Ausführliche Legende über einer Heatmap: was wird gezählt, was heißt jede Farbe, was steht im Feld."""
+    with ui.element("div").classes(f"m-hm-legende {art}"):
+        ui.label(text).classes("m-ptext")
+        teile = ['<div class="m-hm-farben">']
+        for kl, titel, erkl in farben:
+            teile.append(f'<span class="m-hm-f"><i class="m-{art}-z {kl}"></i><b>{E(titel)}</b> {E(erkl)}</span>')
+        teile.append("</div>")
+        if zeichen:
+            teile.append('<div class="m-hm-zeichen">' + "".join(
+                f'<span class="m-hm-k"><span class="m-{art}-muster">{muster}</span>{E(erkl)}</span>'
+                for muster, erkl in zeichen) + "</div>")
+        if hinweis:
+            teile.append(f'<div class="m-zweite">{E(hinweis)}</div>')
+        ui.html("".join(teile), sanitize=False)
+
+
+def _frei_zeichnen(a) -> None:
+    """1.56: Heatmap „Frei“ – je Zimmer und Woche, wie viel frei ist; Klick springt in den Belegungsplan."""
+    from . import frei_kern as fr
+
+    with a.werkzeuge:
+        knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start - timedelta(days=7)), "leise", "chevron_left",
+              "Eine Woche zurück")
+        knopf("Heute", lambda: a.setzen(nur_seite=True, zs_start=a.heute - timedelta(days=a.heute.weekday())), "leise")
+        knopf("", lambda: a.setzen(nur_seite=True, zs_start=a.zs_start + timedelta(days=7)), "leise", "chevron_right",
+              "Eine Woche weiter")
+        _datum_waehlen(a)
+    alle = a.daten or []
+    zeilen = fr.sortieren(fr.filtern(alle, a.fr_nur, a.fr_min), a.fr_sort)
+    with a.leiste:
+        segmente(ZS_MODUS, a.zs_modus, lambda m: a.setzen(nur_seite=True, zs_modus=m))
+        z = fr.zusammenfassung(alle)
+        ui.html(f'<span class="m-kpi"><b>{z["jetzt"]}</b> diese Woche ganz frei<span class="m-punktt">·</span>'
+                f'<b>{z["spaeter"]}</b> im Zeitraum frei<span class="m-punktt">·</span><b>{z["nie"]}</b> durchgehend '
+                f'belegt</span>', sanitize=False)
+        haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in getattr(a, "zs_haeuser", [])}}
+        ui.select(haeuser, value=a.fr_haus if a.fr_haus in haeuser else "",
+                  on_change=lambda e: a.setzen(nur_seite=True, fr_haus=e.value or "")).classes("m-feld").style("width: 150px").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        ui.select({0: "beliebig lange", 4: "mind. 4 Wochen am Stück", 8: "mind. 8 Wochen", 12: "mind. 12 Wochen",
+                   26: "mind. 6 Monate"}, value=a.fr_min,
+                  on_change=lambda e: a.setzen(nur_seite=True, fr_min=int(e.value or 0))).classes("m-feld").style("width: 210px").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        sw = ui.switch("nur Zimmer mit freier Zeit", value=a.fr_nur).props("dense")
+        sw.on_value_change(lambda e: a.setzen(laden=False, fr_nur=bool(e.value)))
+        ui.element("span").style("margin-left: auto")
+        segmente(fr.SORTIERUNG, a.fr_sort, lambda s_: a.setzen(laden=False, fr_sort=s_))
+        segmente({3: "3 Monate", 6: "6 Monate", 12: "12 Monate"}, a.fr_monate,
+                 lambda m: a.setzen(nur_seite=True, fr_monate=m))
+    with a.inhalt:
+        hm_legende(
+            f"Je Zimmer und Woche ab {a.zs_start - timedelta(days=a.zs_start.weekday()):%d.%m.%Y}: wie viel ist frei? Rechts "
+            f"daneben, ab wann das Zimmer frei wird (ab {max(a.zs_start, a.heute):%d.%m.}, mindestens "
+            f"{max(1, a.fr_min)} Woche{'n' if a.fr_min > 1 else ''} am Stück – kürzere Lücken zählen nicht) und wie lange. "
+            "Geplante Belegungen und EMR-Reservierungen zählen als belegt.",
+            [("frei", "ganz frei", "alle Betten, die ganze Woche"),
+             ("teil", "teilweise frei", "einige Tage oder ein Bett im Doppelzimmer – je heller, desto weniger frei"),
+             ("voll", "belegt", "kein Bett frei"),
+             ("sperr", "gesperrt", "Renovierung oder Mangel „nicht bewohnbar“")],
+            [], "Klick auf ein Feld öffnet den Belegungsplan des Hauses ab dieser Woche.", art="fr")
+        if not zeilen:
+            leer("Kein Zimmer passt – „mind. … Wochen“ verringern oder „nur Zimmer mit freier Zeit“ ausschalten.")
+            return
+        raster = ui.html(_frei_html(a, zeilen), sanitize=False).classes("m-fl-wrap")
+        raster.on("click", lambda e: _frei_klick(a, e.args) if e.args else None,
+                  js_handler="(e) => { const t = e.target.closest('[data-fr]'); emit(t ? t.dataset.fr : null); }")
+
+
+def _frei_html(a, zeilen) -> str:
+    from . import frei_kern as fr
+
+    n = len(zeilen[0].zellen)
+    teile = [f'<div class="m-fr" style="--wochen:{n}"><div class="m-fl-kopf"></div>']
+    for i, c in enumerate(zeilen[0].zellen):
+        kl = " heute" if c.woche <= a.heute <= c.woche + timedelta(days=6) else ""
+        neu_monat = i == 0 or c.woche.month != zeilen[0].zellen[i - 1].woche.month
+        txt = f"{fr_monat(c.woche)}" if neu_monat else ""
+        teile.append(f'<div class="m-fl-kopf{kl}" title="KW {c.woche.isocalendar()[1]} · ab {c.woche:%d.%m.%Y}">'
+                     f'{txt}<br><span>{c.woche.isocalendar()[1]}</span></div>')
+    teile.append('<div class="m-fl-kopf">frei ab</div>')
+    haus = None
+    sortiert = a.fr_sort == "zimmer"
+    for r in zeilen:
+        if sortiert and r.haus != haus:
+            haus = r.haus
+            teile.append(f'<div class="m-fl-haus">Haus {E(haus)}</div>')
+        teile.append(f'<div class="m-fr-lab" title="Haus {E(r.haus)} · {E(r.flur)}"><b>{E(r.kurz)}</b><span>{E(r.flur)}'
+                     f'{" · DZ" if r.betten > 1 else ""}</span></div>')
+        for c in r.zellen:
+            titel = (f"{r.kurz} · KW {c.woche.isocalendar()[1]} ({c.woche:%d.%m.} – {c.woche + timedelta(days=6):%d.%m.})"
+                     f"\n{fr.STUFE[c.stufe]} · {c.frei} von {c.moeglich} Bett-Nächten frei")
+            stil = f' style="--anteil:{c.anteil:.2f}"' if c.stufe == "teil" else ""
+            teile.append(f'<button class="m-fr-z {c.stufe}"{stil} data-fr="{E(r.haus)}#{c.woche.isoformat()}" '
+                         f'title="{E(titel)}"></button>')
+        teile.append(f'<div class="m-fr-txt{" gut" if r.ganz_frei_ab else ""}">{E(r.text)}</div>')
+    teile.append("</div>")
+    return "".join(teile)
+
+
+def fr_monat(d: date) -> str:
+    return ("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")[d.month - 1]
+
+
+async def _frei_klick(a, arg: str) -> None:
+    haus, _, woche = str(arg).partition("#")
+    if not woche:
+        return
+    await a.setzen(nur_seite=True, zs_modus="zimmer", zs_haus=haus, zs_flur="", zs_start=date.fromisoformat(woche))
 
 
 async def _flur_panel(a, arg: str) -> None:

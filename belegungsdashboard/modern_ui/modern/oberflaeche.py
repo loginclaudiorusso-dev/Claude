@@ -94,6 +94,8 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.zs_haus, self.zs_tage, self.zs_haeuser = "", 28, []
         self.zs_start = self.heute - timedelta(days=self.heute.weekday())
         self.zs_modus, self.zs_flur, self.fl_wochen = "zimmer", "", 8   # Zeitstrahl: Zimmer | Flure (Abreisewellen)
+        # 1.56: „Frei“ – freie Zimmer der nächsten Monate (Monate, Sortierung, nur freie, mind. Wochen am Stück, Haus)
+        self.fr_monate, self.fr_sort, self.fr_nur, self.fr_min, self.fr_haus = 6, "frueh", True, 0, ""
         self.rg_zeitraum, self.rg_filter = "woche", "offen"
         self.rg_zimmer = ""
         self.dg_details = False                   # 0.89: „Einfach“ – Details (Diagramm-Karte) eingeblendet?                       # 0.86: Reinigungsliste nur für ein Zimmer (Klick auf den Besen)
