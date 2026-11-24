@@ -791,6 +791,8 @@ def mail_parsen(betreff: str, text: str, eintrag: str = "", empfangen: datetime 
     """Eine Power-Automate-Mail → Roh (None, wenn es keine ist). Robust gegen Leerzeilen, Groß/klein, HTML-Reste."""
     t = re.sub(r"<[^>]+>", "\n", str(text or "")).replace("\r", "")
     t = re.sub(r"&nbsp;", " ", t)
+    if "INNTERNAT-HO" in t.upper():                     # 1.51: Bestätigung der Hausordnung – keine Mängelmeldung
+        return None
     if MAIL_KENNUNG not in t.upper() and MAIL_KENNUNG not in str(betreff or "").upper():
         return None
     schluessel = r"(?:ID|Zeit|Zimmer|Code|Art|Beschreibung)\s*:"
@@ -954,10 +956,13 @@ def ordner_lesen(pfad: str, anzahl: int = ORDNER_MAX) -> Ergebnis:
     erg = Ergebnis()
     for mt, x in dateien[:anzahl]:
         try:
-            # 1.45: die Kennzeile INNTERNAT-QR ist in der Datei nicht nötig – der Ordner gehört nur INNternat
-            r = mail_parsen(MAIL_KENNUNG, _text_datei(x), x.stem, datetime.fromtimestamp(mt).replace(second=0, microsecond=0))
+            text = _text_datei(x)
         except OSError:                                 # z. B. gerade von OneDrive gesperrt – beim nächsten Mal
             continue
+        if "INNTERNAT-HO" in text.upper():              # 1.51: Hausordnung – liest hausordnung_kern
+            continue
+        # 1.45: die Kennzeile INNTERNAT-QR ist in der Datei nicht nötig – der Ordner gehört nur INNternat
+        r = mail_parsen(MAIL_KENNUNG, text, x.stem, datetime.fromtimestamp(mt).replace(second=0, microsecond=0))
         if r is not None:
             erg.zeilen.append(r)
         else:

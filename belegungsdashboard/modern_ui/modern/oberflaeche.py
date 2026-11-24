@@ -50,11 +50,11 @@ def _stempel() -> tuple:
 
     from belegung import maengel as mg
 
-    from . import mietbindung, qr_meldungen_kern
+    from . import hausordnung_kern, mietbindung, qr_meldungen_kern
 
     # 1.48: auch Mängel, QR-Meldungen und die automatische Verlängerung – Änderungen anderer PCs erscheinen live
     for name in aenderungen.dateien_mit_plan() + [rl.DATEI, tm.DATEI, mt.DATEI, zp.REINIGUNG_MANUELL, nk.DATEI, mg.DATEI,
-                                                  qr_meldungen_kern.DATEI, mietbindung.AUTO_DATEI]:
+                                                  qr_meldungen_kern.DATEI, mietbindung.AUTO_DATEI, hausordnung_kern.DATEI]:
         p = speicher.pfad(name)
         erg.append(p.stat().st_mtime if p.exists() else 0)
     return tuple(erg)

@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (Stand 1.46)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.51)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -153,6 +153,45 @@ denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, er
   Kollegen freigeben („Freigeben“ → „Verknüpfung zu Meine Dateien hinzufügen“). Tragen Sie ihn dort ebenfalls ein.
   Doppelte Meldungen entstehen dabei nicht.
 
+## Teil 6 – Hausordnung mit eigenem QR-Code (ab 1.51)
+Jedes Zimmer bekommt ein zweites Etikett „Hausordnung“. Wer dort wohnt, liest die Ordnung am Handy und bestätigt mit
+einem Haken. INNternat ordnet die Bestätigung der Person zu, die gerade im Zimmer wohnt. **Zieht sie aus, ist das
+Zimmer für die nächste Person automatisch wieder „offen“.** Mieter sind ausgenommen, sie haben ihren Mietvertrag.
+
+H1. Legen Sie Hausordnung und Internatsordnung als PDF in SharePoint oder OneDrive ab. Freigeben → **„Jeder mit dem
+    Link kann anzeigen“** → Link kopieren.
+H2. Neues Formular in Forms, z. B. „Hausordnung Internat“:
+    - In der **Beschreibung** die beiden Links einfügen („Hausordnung: …“, „Internatsordnung: …“).
+    - Frage **„Zimmer“** (Text) und Frage **„Code (bitte nicht ändern)“** (Text) – wie beim Mängel-Formular.
+    - Frage **„Name“** (Text, Pflicht).
+    - Frage **„Gelesen“** (Auswahl, Pflicht) mit genau einer Antwort: „Ich habe die Hausordnung und die
+      Internatsordnung gelesen“.
+    - Kurzer Datenschutzhinweis in der Beschreibung (der Name wird gespeichert).
+H3. **„…“ → „Vorausgefüllte URL abrufen“**: bei „Zimmer“ `ZIMMER`, bei „Code“ `CODE` eintragen → Link kopieren.
+H4. In INNternat **Zimmer & Haus → QR-Meldungen → „Einrichten & Etiketten“ → „4 · Hausordnung“**: Link einfügen,
+    **„Link speichern“**, dann **„Etiketten drucken“** (zuerst „Probe: 1 Etikett“ wählen und mit dem Handy testen).
+H5. Power Automate: Einen **zweiten Flow** wie in Teil 1 anlegen (Trigger und „Antwortdetails abrufen“ mit dem
+    Hausordnung-Formular), dann **„OneDrive for Business – Datei erstellen“** wie in Variante C:
+    - **Ordnerpfad:** derselbe Ordner `/INNternat-QR`.
+    - **Dateiname:** `ho-` + „Antwort-ID“ + `.txt`
+    - **Dateiinhalt** (jede Zeile mit Enter beenden, eckige Klammern = Blitz-Menü):
+
+```
+INNTERNAT-HO
+ID: [Antwort-ID]
+Zeit: [Übermittlungszeit]
+Zimmer: [Zimmer]
+Code: [Code (bitte nicht ändern)]
+Name: [Name]
+Gelesen: [Gelesen]
+ENDE
+```
+
+    Die erste Zeile `INNTERNAT-HO` ist hier **Pflicht** – daran erkennt INNternat, dass es keine Mängelmeldung ist.
+H6. In INNternat unter **Zimmer & Haus → QR-Meldungen → „Hausordnung offen“** sehen Sie alle, die heute im Haus sind
+    oder in den nächsten 7 Tagen einziehen, mit „bestätigt am …“ oder „offen“. **„Von Hand bestätigen“** für Papier,
+    **„Zurücknehmen“** für einen Irrtum.
+
 ## Wenn etwas nicht klappt
 | Was Sie sehen | Was zu tun ist |
 |---|---|
@@ -165,6 +204,7 @@ denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, er
 | Variante C: Datei liegt im Ordner, INNternat zeigt nichts | Verwaltung → Automatisierung: Steht „Unlesbare Dateien“ in der Prüfanzeige, den Dateiinhalt im Flow prüfen (jede Angabe in eine eigene Zeile, links „ID:“, „Zimmer:“ …). Danach „Jetzt einlesen“. |
 | Beim Scannen bleibt „Code“ im Formular leer | Der gespeicherte Formular-Link enthält keinen Platzhalter CODE. Vorausgefüllten Link neu holen (Teil 0), bei der Code-Frage `CODE` eintragen, in INNternat speichern, Etiketten neu drucken. Alte Etiketten haben keinen Code. |
 | Variante C: „QR-Ordner nicht gefunden“ | Kopieren Sie den Pfad aus der Explorer-Adresszeile, ohne Anführungszeichen. Er gilt je PC. |
+| Hausordnung bestätigt, INNternat zeigt „offen“ | Erste Zeile `INNTERNAT-HO` im Dateiinhalt? Zimmer/Code vorausgefüllt? Wohnt die Person laut INNternat in diesem Zimmer (sonst „Von Hand bestätigen“)? |
 | Meldung doppelt | Nur einen Eingang nutzen (Outlook **oder** Excel), Excel-Pfad leeren. |
 
 **Wichtig:**

@@ -47,6 +47,7 @@ def knopf_leiste(a) -> None:
 # ---- 1.31: Unterpunkt „QR-Meldungen“ --------------------------------------------------------------------------------
 
 FILTER = {"neu": "neu", "uebernommen": "übernommen", "verworfen": "verworfen", qm.ARCHIV: "Archiv"}
+HAUSORDNUNG = "hausordnung"                         # 1.51: Bestätigungen der Hausordnung (eigener QR-Code)
 STUFE_SYMBOL = {"ok": ("check_circle", "m-ok"), "warn": ("warning_amber", "m-warn"), "krit": ("error", "m-krit"),
                 "info": ("info", "m-zweite")}
 
@@ -62,13 +63,24 @@ def ansicht_daten(a) -> None:
     except Exception as exc:                            # noqa: BLE001 – die Prüfung selbst darf nie die Seite blockieren
         diag = [qm.Punkt("krit", "Prüfung", f"Prüfung nicht möglich: {exc}")]
     a.qr_neu = [m for m in alle if m.status == "neu"]
-    a.daten = {"alle": alle, "diag": diag}
+    from . import hausordnung_kern as hk
+
+    try:
+        ho = hk.status(a.stand, a.heute) if a.stand is not None else []
+    except Exception:                                   # noqa: BLE001
+        ho = []
+    a.daten = {"alle": alle, "diag": diag, "ho": ho}
 
 
 async def _jetzt_einlesen(a) -> None:
+    from . import hausordnung_kern as hk
+
     erg = await run.io_bound(qm.einlesen, None, True)
     if erg is None:
         return
+    ho = await run.io_bound(hk.einlesen)
+    if ho and ho[0]:
+        a.toast(f"{ho[0]} Bestätigung(en) der Hausordnung eingelesen", rueck=False)
     neu, fehler = erg
     if fehler:
         a.toast(fehler, fehler=True)
@@ -86,11 +98,14 @@ def ansicht_zeichnen(a) -> None:
     def passt(m, k):
         return bool(m.archiviert) if k == qm.ARCHIV else (m.status == k and not m.archiviert)
     n = {k: sum(1 for m in alle if passt(m, k)) for k in FILTER}
+    ho = d.get("ho") or []
+    ho_offen = [z for z in ho if not z.bestaetigt and z.von <= a.heute]
     with a.leiste:
         kennzahlen([("neu", n["neu"], "neu", "warn" if n["neu"] else "neutral"),
                     ("uebernommen", n["uebernommen"], "übernommen", "ok"),
                     ("verworfen", n["verworfen"], "verworfen", "neutral"),
-                    (qm.ARCHIV, n[qm.ARCHIV], "Archiv", "neutral")],
+                    (qm.ARCHIV, n[qm.ARCHIV], "Archiv", "neutral"),
+                    (HAUSORDNUNG, len(ho_offen), "Hausordnung offen", "warn" if ho_offen else "ok")],
                    filt, lambda k: a.setzen(qr_filter=k, laden=False))
         a.status_info = f"{n['neu']} neue Meldung(en) per QR-Code"
         knopf("Einrichten & Etiketten", lambda: fenster(a), "leise", "settings",
@@ -100,6 +115,10 @@ def ansicht_zeichnen(a) -> None:
             knopf(f"Erledigte archivieren ({n['uebernommen'] + n['verworfen']})",
                   lambda: a.aendern(qm.archivieren, qm.erledigte_ids()), "leise", "inventory_2",
                   "Übernommene und verworfene Meldungen ins Archiv legen (Rückgängig möglich)")
+    if filt == HAUSORDNUNG:
+        with a.inhalt:
+            _hausordnung(a, ho)
+        return
     with a.inhalt:
         _pruefanzeige(diag)
         zeigen = [m for m in alle if passt(m, filt)]
@@ -332,11 +351,40 @@ def fenster(a) -> None:
 
         with ui.element("div").classes("m-paktionen"):
             knopf("Etiketten drucken", drucken, "primaer", "print")
-            knopf("Schließen", a.panel_zu, "leise")
         ui.label("A4, 12 Etiketten je Seite (6 × 6 cm). Tipp: laminieren oder auf wetterfeste Etiketten drucken.") \
             .classes("m-ptext")
 
-    a.panel("QR-Codes für Mängelmeldungen", bauen)
+        # 1.51: Hausordnung – eigenes Formular, eigener QR-Code
+        from . import hausordnung_kern as hk
+
+        ui.label("4 · Hausordnung (eigener QR-Code)").classes("m-abschnitt")
+        ui.label(f"Zweites Formular in Forms: Beschreibung mit den Links zu Hausordnung und Internatsordnung, Fragen "
+                 f"„Zimmer“ und „Code“ (vorausgefüllt mit {qm.PLATZHALTER} und {qm.CODE_PLATZHALTER} wie oben), „Name“ und "
+                 "ein Pflicht-Haken „Ich habe die Hausordnung gelesen“. Power Automate legt die Antwort mit der ersten "
+                 "Zeile INNTERNAT-HO in denselben QR-Ordner (siehe Anleitung, Teil 6).").classes("m-ptext")
+        ho_link = ui.input(value=hk.link(), label="Vorausgefüllter Link des Hausordnung-Formulars").classes(
+            "m-feld w-full").props("dense outlined dark")
+
+        async def ho_drucken():
+            zs = [(z.id, z.kurz) for z in a.stand.zimmer if z.aktiv and (was.value in ("", "probe") or z.haus == was.value)]
+            if was.value == "probe":
+                zs = zs[:1]
+            try:
+                html = await run.io_bound(qm.etiketten_html, hk.link(), zs, "Hausordnung",
+                                          "Bitte lesen und bestätigen")
+            except ValueError as exc:
+                a.toast("Zuerst den Hausordnung-Link speichern." if "Forms-Link" in str(exc) else str(exc), fehler=True)
+                return
+            from .seiten import html_drucken
+
+            html_drucken(a, html, "Hausordnung-Etiketten")
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Link speichern", lambda: a.aendern(hk.link_setzen, ho_link.value or ""), "", "link")
+            knopf("Etiketten drucken", ho_drucken, "", "print")
+            knopf("Schließen", a.panel_zu, "leise")
+
+    a.panel("QR-Codes: Mängel und Hausordnung", bauen)
 
 
 async def takt() -> None:
@@ -354,6 +402,11 @@ async def takt() -> None:
             erg = await run.io_bound(qm.einlesen)
             if erg is None:                # 1.29.1: Programm wird gerade beendet
                 return
+            from . import hausordnung_kern as hk
+
+            ho = await run.io_bound(hk.einlesen)          # 1.51: Bestätigungen der Hausordnung
+            if ho and ho[1]:
+                log.warning("Hausordnung: %s", ho[1])
             _, fehler = erg
             if fehler:
                 log.warning("QR-Meldungen: %s", fehler)
@@ -385,3 +438,50 @@ def an_fm(a, m: qm.Meldung) -> None:
     async def nach():
         await a.aendern(qm.fm_vermerken, m.id)
     fm_mail(a, wo, art, notiz, nach=nach)
+
+
+# ---- 1.51: Hausordnung ----------------------------------------------------------------------------------------------
+
+HO_SPALTEN = "110px minmax(180px, 1.5fr) 190px minmax(170px, 1fr) 190px"
+
+
+def _hausordnung(a, zeilen: list) -> None:
+    from . import hausordnung_kern as hk
+
+    ui.label("Hausordnung und Internatsordnung – eigener QR-Code je Zimmer (Einrichten & Etiketten → 4). Die Bestätigung "
+             "gilt für den Aufenthalt: Zieht jemand aus, ist das Zimmer für die nächste Person wieder offen. Mieter sind "
+             "ausgenommen (Mietvertrag).").classes("m-ptext")
+    if not hk.link():
+        ui.label("Noch kein Hausordnung-Formular eingetragen – unter „Einrichten & Etiketten“ → 4.").classes("m-zweite m-warn")
+    if not zeilen:
+        leer("Niemand im Haus oder in den nächsten 7 Tagen erwartet.")
+        return
+    with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{HO_SPALTEN}"):
+        for t in ("Zimmer", "Name", "Aufenthalt", "Hausordnung", ""):
+            ui.label(t)
+    for z in zeilen:
+        with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{HO_SPALTEN}"):
+            ui.label(zkurz(z.zimmer)).classes("m-mono")
+            ui.label(z.name).classes("m-name")
+            ui.label(f"{z.von:%d.%m.} – {z.bis:%d.%m.%Y}").classes("m-mono")
+            if z.bestaetigt:
+                ui.label(f"bestätigt {_zeit(z.bestaetigt)} ({z.quelle})").classes("m-zweite m-ok")
+            else:
+                ui.label("offen" if z.von <= a.heute else f"offen · zieht {z.von:%d.%m.} ein").classes(
+                    "m-zweite" + (" m-warn" if z.von <= a.heute else ""))
+            with ui.element("div").classes("m-paktionen").style("padding:0"):
+                if z.bestaetigt:
+                    knopf("Zurücknehmen", lambda z=z: a.aendern(hk.zuruecknehmen, z.bid), "leise", "undo",
+                          "Bestätigung entfernen – die Person steht wieder auf „offen“")
+                else:
+                    knopf("Von Hand bestätigen", lambda z=z: a.aendern(hk.von_hand, z.zimmer, z.person, z.name), "leise",
+                          "task_alt", "z. B. auf Papier unterschrieben")
+
+
+def _zeit(iso: str) -> str:
+    from datetime import datetime
+
+    try:
+        return f"{datetime.fromisoformat(iso):%d.%m.%Y %H:%M}"
+    except ValueError:
+        return iso

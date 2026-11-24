@@ -28,6 +28,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_mieter_v148_vertrag_gilt.py` – 1.48 – Mietvertrag gilt vor dem Gebäudeplan; Verlängern-Optionen, automatische Verlängerung
 - `test_gaeste_v149_doppelzimmer.py` – 1.49 – Gäste & Mieter: Gast im Doppelzimmer, allein oder mit Begleitperson
 - `test_gaeste_v150_bearbeiten_symbol.py` – 1.50 – Gast bearbeiten/entfernen, Programmsymbol aus dem Logo, Ersteller sichtbar
+- `test_hausordnung_v151.py` – 1.51 – Hausordnung per QR bestätigen, gilt je Aufenthalt, Mieter ausgenommen
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 
