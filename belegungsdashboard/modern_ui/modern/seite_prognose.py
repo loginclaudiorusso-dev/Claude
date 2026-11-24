@@ -23,7 +23,7 @@ from .ui_bausteine import attr, knopf, leer, segmente
 # 1.29: aufgeteilt – diese Namen liegen jetzt in prognose_diagramm.py (hier weiter erreichbar)
 from .prognose_diagramm import (  # noqa: F401
     BACKTEST_EINFACH, BACKTEST_FARBE, BAND80, BAND95, KONTINGENT_LINIE, NETTO_TEXT, STATUS_SOCKEL, VORJAHR_FARBE,
-    _basis, _berechnung_monat, _einfach, _formatter, _fragen, _geist, _gf_option, _karten_stil, _lesbar, _lesehilfe,
+    _basis, _berechnung_monat, _einfach, alle_bewohner, _formatter, _fragen, _geist, _gf_option, _karten_stil, _lesbar, _lesehilfe,
     _option_roh, _parallel, _reserve, _rgba, _spotlights, _status, _status_karte, _szenario_aktiv, _t, _titel,
     _trend, _vergleich_roh, _vorjahr, _vorjahr_taeglich, _z, _zeitraum, _zeitraum_m, blick_daten, blick_gruppen,
     jahr_achse, option, vergleich_option, zoom,
@@ -92,7 +92,9 @@ def daten(a, ds) -> None:
     """Prognose laden und die Schalter „UWTler / Mieter einbeziehen“ einrechnen (echte Listen, Verträge, Zimmerplan).
     Ergebnisse werden je Auswahl zwischengespeichert; die anderen Standorte rechnet ``vorrechnen`` im Hintergrund."""
     stand = getattr(a, "stand", None)
-    mit = bool(a.aw_status)                 # „Nach Status“ = inklusive UWTler und Mieter, sonst reine Teilnehmer-Sicht
+    from .prognose_diagramm import alle_bewohner
+
+    mit = alle_bewohner(a)                  # 1.58: Standard mit UWTlern und Mietern (wie die Belegung); Schalter „nur TN“
     a.aw_uwt = a.aw_mieter = mit
     a.daten = dict(_daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, mit, mit))
     a.daten["alt"] = _daten_fuer(ds, stand, a.aw_standort, a.aw_brutto, a.aw_horizont, not mit, not mit)
@@ -275,7 +277,7 @@ def zeichnen(a) -> None:
             sz_raster = ui.element("div").classes("m-xsz")
         # ---- Goslar: Aufteilung UWTler / Mieter und Kontingente (Detail – steht unter dem Graph) ----------
         gs_box = None
-        gs = a.daten if a.aw_status else (a.daten.get("alt") or {})   # Goslar-Detail zeigt immer UWTler und Mieter
+        gs = a.daten if alle_bewohner(a) else (a.daten.get("alt") or {})   # Goslar-Detail zeigt immer UWTler und Mieter
         gs_sm = gs.get("sm") or []
         if a.aw_standort == GOSLAR and gs.get("sl") and bereich in ("szenario",) or (praes and a.aw_standort == GOSLAR
                                                                                     and gs.get("sl")):
@@ -349,7 +351,7 @@ def zeichnen(a) -> None:
             """Daten der Ansicht „Belegung“ (ohne UWTler/Mieter) bzw. „Nach Status“ (mit) – eine liegt immer vor."""
             if not a.daten.get("gruppen_da"):
                 return {}
-            d = a.daten if bool(a.aw_status) == mit else (a.daten.get("alt") or a.daten)
+            d = a.daten if alle_bewohner(a) == mit else (a.daten.get("alt") or a.daten)
             g = d.get("gruppen")
             kont = None
             if mit and a.aw_standort == GOSLAR and d.get("sm"):
@@ -494,7 +496,7 @@ def zeichnen(a) -> None:
                     if jetzt == "status" and v_.get("sm"):           # „inkl. UWTler und Mieter“: eigene Sätze
                         blick, alt = blick_gruppen(v_["sm"], pg_, kap_, a.daten["stichtag"], v_.get("kontingent"))
                     unter = f"{NETTO_TEXT[bool(a.aw_brutto)]} · Datenstand {a.daten['stichtag']:%d.%m.%Y}"
-                    titel_je = {"trend": f"Belegung {ort}" + (" · nur Teilnehmende" if a.daten.get("gruppen_da") else ""),
+                    titel_je = {"trend": f"Belegung {ort}" + ((" · alle Bewohner" if alle_bewohner(a) else " · nur Teilnehmende") if a.daten.get("gruppen_da") else ""),
                                 "trend-status": f"Belegung {ort} · inkl. UWTler und Mieter",
                                 "trend-standorte": "Belegung je Standort", "reserve": CHARTS["reserve"],
                                 "jahr": CHARTS["jahr"]}

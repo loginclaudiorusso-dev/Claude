@@ -90,7 +90,7 @@ SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutu
     ("einstellungen", "stammdaten"): ("document_edit", BASIS),
 }
 AKTION_SYMBOLE: dict[str, tuple] = {   # Aktionsname (Präfix) → (Fluent-Symbol, Farbe)
-    "nachricht_neu": ("people_team", VIOLETT), "fm_mail": ("send", BLAU),      # 1.36
+    "nachricht_neu": ("people_team", VIOLETT), "fm_mail": ("send", BLAU), "mn_suche": ("search", VIOLETT),       # 1.58      # 1.36
     "aw:aw_chart=trend": ("arrow_trending_lines", BLAU), "aw:aw_chart=reserve": ("battery_charge", GRUEN),
     "aw:aw_chart=jahr": ("arrow_swap", AMBER), "awt:aw_status": ("people_add", TEAL),
     "awt:aw_parallel": ("layout_column_three", TEAL), "aw:aw_brutto=false": ("person", BLAU),
@@ -325,6 +325,9 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                 p("Belegungs­prognose", "prognose", S("auswertung", "prognose"),
                                   "Vorhersage der Belegung mit Sicherheitsband"),
                                 p("Maßnahmen", "massnahmen", S("auswertung", "massnahmen"), "Teilnehmende je Maßnahme"),
+                                # 1.58: der schnellste Weg zu einer Maßnahme – Neuanmeldungen je Monat, 2 Jahre
+                                p("Maßnahme ansehen", "suche", A("mn_suche"),
+                                  "Eine Maßnahme suchen (z. B. KBM) – Neuanmeldungen je Monat, angemeldet + erwartet"),
                                 p("Zimmer-Engpässe", "engpaesse", S("auswertung", "zimmer"), "Wo Betten knapp werden")]),
         ], symbol="p:auswertung"),
         Reiter("ki", "KI-Assistent", [

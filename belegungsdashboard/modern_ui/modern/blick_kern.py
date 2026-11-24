@@ -386,12 +386,12 @@ def gf(monate_: list[date], werte: list[float | None], ist: list[bool], stand: d
     eng = next((i for i in prog if g.warn is not None and o(i) >= g.warn), None)
     if k and eng is None:
         wort = "reichlich" if max(o(i) for i in prog) < .7 * k else "genug"
-        g.titel = f"Es bleibt voraussichtlich {wort} Platz: rund {zahl(_rund(werte[hoch]))} von {zahl(k)} Plätzen belegt"
+        g.titel = f"Es bleibt voraussichtlich {wort} Platz: bis zu {zahl(werte[hoch])} von {zahl(k)} Plätzen belegt"
     elif k:
-        g.titel = (f"Es wird ab {lang(monate_[eng], stand)} eng: voraussichtlich bis zu {zahl(max(o(i) for i in prog))} "
-                   f"von {zahl(k)} Plätzen belegt")
+        g.titel = (f"Es wird ab {lang(monate_[eng], stand)} eng: voraussichtlich bis zu {zahl(werte[hoch])} "
+                   f"von {zahl(k)} Plätzen belegt")          # 1.58: dieselbe Zahl wie die Beschriftung „höchster Wert“
     else:
-        g.titel = f"Voraussichtlich rund {zahl(_rund(werte[hoch]))} Plätze belegt"
+        g.titel = f"Voraussichtlich bis zu {zahl(werte[hoch])} Plätze belegt"
     satz = (f"In den nächsten {len(prog)} Monaten schwankt die Belegung zwischen {zahl(werte[tief])} im "
             f"{lang(monate_[tief], stand)} und {zahl(werte[hoch])} im {lang(monate_[hoch], stand)}.")
     if g.warn is not None:
@@ -414,18 +414,20 @@ def gf(monate_: list[date], werte: list[float | None], ist: list[bool], stand: d
                                f"{lang(monate_[hoch], stand)} · sonst immer mehr"))
     g.zahlen.append(GfZahl("So gut lag die Prognose bisher", f"± {zahl(mae_1m)}" if mae_1m is not None else "–", "Plätze",
                            "im Mittel, einen Monat voraus" if mae_1m is not None else "noch kein Rückblick möglich"))
-    # Beschriftungen: nächster Monat, Tiefpunkt der Prognose (Sommertief?), letzter Monat
-    g.marken.append(GfMarke(i0, werte[i0], f"{MONATE_LANG[monate_[i0].month - 1]} {monate_[i0].year}: {zahl(werte[i0])}"))
-    if tief != i0:
+    # Beschriftungen (1.58): höchster und tiefster Prognosewert (Sommertief?), letzter Monat – dieselben ganzen Zahlen
+    # wie Überschrift und Kennzahlen (eine Rundung: ``zahl``). „Heute“ beschriftet die Diagramm-Funktion selbst.
+    g.marken.append(GfMarke(hoch, werte[hoch], f"{MONATE_LANG[monate_[hoch].month - 1]} {monate_[hoch].year}: "
+                            f"{zahl(werte[hoch])}", "höchster Wert"))
+    if tief != hoch:
         fenster = [werte[j] for j in range(max(0, tief - 18), tief - 6) if werte[j] is not None]
         sommer = (monate_[tief].month in (6, 7, 8) and tief >= 12 and werte[tief - 12] is not None and bool(fenster)
                   and werte[tief - 12] <= min(fenster))         # voriges Jahr lag der Tiefpunkt im selben Monat
         g.marken.append(GfMarke(tief, werte[tief], f"{MONATE_LANG[monate_[tief].month - 1]} {monate_[tief].year}: "
                                 f"{zahl(werte[tief])}", "Sommertief wie jedes Jahr" if sommer else ""))
     letzt = prog[-1]
-    if letzt not in (i0, tief):
+    if letzt not in (hoch, tief):
         g.marken.append(GfMarke(letzt, werte[letzt], f"{MONATE_KURZ[monate_[letzt].month - 1]} {monate_[letzt].year}: "
-                                f"rund {zahl(_rund(werte[letzt]))}"))
+                                f"{zahl(werte[letzt])}"))
     if g.warn is not None and eng is None:
         g.luft = _rund(g.warn - werte[hoch])
         g.luft_index = i0 + (len(prog) - 1) // 3 if len(prog) > 3 else i0

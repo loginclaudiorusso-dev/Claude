@@ -128,6 +128,8 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.aw_anim, self.aw_anim_gezeigt, self._anim_jetzt = True, False, False   # Aufbau-Animation nur beim ersten Öffnen
         self.aw_uwt, self.aw_mieter = True, True   # Prognose: UWTler / Mieter in Kurve und Kennzahlen einbeziehen
         self.aw_status = False
+        self.aw_nur_tn = False                    # 1.58: Leitungsansicht standardmäßig mit UWT und Mietern
+        self.gf_95 = False                        # 1.58: Leitungsansicht zeigt standardmäßig nur das 80-%-Band
         self.aw_parallel = False
         self.aw_bereich = "dashboard"           # Prognose: Dashboard · Szenarien & Simulation · Details & Protokoll               # bei „Gesamt“: die drei Standorte parallel                 # Prognosegraph: Gesamt oder gestapelt nach Status (UWTler · Mieter · übrige)
         self.aw_details, self.aw_vergleich_praes = False, False           # Tabelle ausführlich, Standorte in der Präsentation

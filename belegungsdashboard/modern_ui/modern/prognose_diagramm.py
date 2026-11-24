@@ -254,12 +254,20 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
     öffnet darunter die Diagramm-Karte."""
     from . import blick_kern as bk
 
+    # 1.58: Die Leitungsansicht zählt standardmäßig ALLE Bewohner (Teilnehmende, UWT, Mieter) – sonst lag „heute“ um
+    # die UWT und Mieter zu niedrig (z. B. 208 statt 253). „Nur Teilnehmende“ bleibt als Schalter.
+    nur_tn = not alle_bewohner(a)              # a.daten enthält bereits die passende Sicht (seite_prognose.daten)
     zs = ak.szenario(pg, kap, 0)
     monate_ = [z.monat for z in zs]
     ist = [z.art == "ist" for z in zs]
     werte = [z.ist if z.art == "ist" and z.ist is not None else z.erwartet for z in zs]
     lo, hi = [z.lo80 for z in zs], [z.hi80 for z in zs]
     g = bk.gf(monate_, werte, ist, a.daten["stichtag"], kap or None, lo, hi, None, pg.mae_1m)
+    heute = heute_belegt(a, nur_tn)                       # 1.58: „Heute belegt“ = heutiger Stand, nicht der Vormonat
+    if heute is not None and g.zahlen and g.zahlen[0].titel == "Heute belegt":
+        g.zahlen[0] = bk.GfZahl("Heute belegt", bk.zahl(heute), f"· {round(100 * heute / kap)} %" if kap else "Plätze",
+                                f"Stand {a.daten['stichtag']:%d.%m.%Y}" + (" · mit UWT und Mietern" if not nur_tn
+                                                                            and a.daten.get("gruppen_da") else ""))
     with ui.element("section").classes("m-gf"):
         ui.label(g.titel).classes("m-gf-titel")
         if g.untertitel:
@@ -268,9 +276,27 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
         if getattr(a, "aw_backtest", False) and pg.rueckblick:      # 0.97: Backtest auch in „Einfach“
             zusatz = {z.monat: z.vertraege for z in pg.zeilen}
             blind = {mon: p_ + zusatz.get(mon, 0.0) for mon, _i, p_ in pg.rueckblick}
-        ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"], blind)).classes("m-gf-chart")
-        ui.label("Durchschnittlich belegte Plätze je Monat · der laufende Monat ist noch nicht abgeschlossen · "
-                 "Achse beginnt bei 0, damit der Füllstand stimmt").classes("m-gf-fuss")
+        with ui.element("div").classes("m-gf-reihe"):
+            ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"], blind, bool(getattr(a, "gf_95", False))),
+                      renderer="svg").classes("m-gf-chart")
+            ab = gf_ausblick(zs, ist, a.daten["stichtag"])
+            if ab:                                         # 1.58: rechts neben dem letzten Monat
+                f_ = _ds.prognose_farben(not _ds.dunkel(themes.farben(themes.AKTIV)))
+                with ui.element("div").classes("m-gf-ausblick"):
+                    ui.label(f"In einem Jahr ({ab['monat']})").classes("m-zweite")
+                    ui.html(f'<div class="m-gf-ab"><i style="background:{f_["prognose"]};height:3px"></i>erwartet '
+                            f'<b>{ab["erwartet"]}</b></div>'
+                            f'<div class="m-gf-ab"><i style="background:{f_["band80"]}"></i>sehr wahrscheinlich '
+                            f'<b>{ab["b80"]}</b></div>'
+                            + (f'<div class="m-gf-ab"><i style="background:{f_["band95"]}"></i>fast sicher '
+                               f'<b>{ab["b95"]}</b></div>' if ab["b95"] and getattr(a, "gf_95", False) else ""),
+                            sanitize=False)
+        with ui.element("div").classes("m-zeile-flex"):
+            ui.label("Das Band wird breiter: je weiter in der Zukunft, desto unsicherer. · Durchschnittlich belegte "
+                     "Plätze je Monat · Achse ab 0, damit der Füllstand stimmt").classes("m-gf-fuss")
+            gf95 = bool(getattr(a, "gf_95", False))
+            knopf("„fast sicher“ ausblenden" if gf95 else "auch „fast sicher“ (19 von 20) zeigen",
+                  lambda: (setattr(a, "gf_95", not gf95), neu_zeichnen(False)), "leise")
     with ui.element("div").classes("m-gf-zahlen"):
         for z in g.zahlen:
             with ui.element("div").classes("m-gf-zahl"):
@@ -279,100 +305,220 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
                     ui.label(z.wert).classes("m-gf-wert")
                     ui.label(z.einheit).classes("m-gf-einheit")
                 ui.label(z.zusatz).classes("m-zweite")
-    if not a.aw_brutto and not a.aw_status:
+    if a.daten.get("gruppen_da"):
         with ui.element("div").classes("m-gf-hinweis"):
             ui.icon("info_outline")
-            ui.label("Diese Sicht zählt nur Teilnehmende. Umschüler und Mieter belegen zusätzlich Zimmer, „frei“ heißt "
-                     "hier also nicht automatisch „verfügbar“.")
-            knopf("Alle Bewohner zeigen", lambda: a.setzen(aw_status=True, dg_details=True, nur_seite=True), "")
+            ui.label("Gezählt werden nur Teilnehmende – Umschüler und Mieter belegen zusätzlich Zimmer." if nur_tn else
+                     "Gezählt werden alle Bewohner: Teilnehmende, Umschüler (UWT) und Mieter – wie in der Belegung.")
+            knopf("Alle Bewohner zählen" if nur_tn else "Nur Teilnehmende zählen",
+                  lambda: a.setzen(aw_nur_tn=not nur_tn, nur_seite=True), "")
     with ui.element("div").classes("m-zeile-flex").style("margin-top:6px"):
         knopf("Details ausblenden" if a.dg_details else "Details anzeigen (Diagramm-Karte, Rechenweg)",
               lambda: (setattr(a, "dg_details", not a.dg_details), neu_zeichnen(False)), "leise",
               "expand_less" if a.dg_details else "expand_more")
 
 
-def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None) -> dict:
-    """ECharts für die Leitungsansicht: Ist schwarz, Prognose gestrichelt, 80-%-Band hell, „voll“ und Warnzone."""
-    from . import blick_kern as bk
-    from . import themes
+GF_LEGENDE = {"ist": "Ist", "prognose": "Prognose", "band80": "sehr wahrscheinlich: in 8 von 10 Fällen",
+              "band95": "fast sicher: in 19 von 20 Fällen", "vorjahr": "gleicher Monat im Vorjahr", "eng": "Eng-Zone"}
+# Legendensymbol = Form im Diagramm: Linie, gestrichelte Linie, Feld, gepunktete Linie
+_ICON = {"linie": "path://M0,4h26v3H0z", "strich": "path://M0,4h7v3H0zM10,4h7v3h-7zM20,4h6v3h-6z",
+         "punkt": "path://M0,4h2v2H0zM6,4h2v2H6zM12,4h2v2h-2zM18,4h2v2h-2zM24,4h2v2h-2z", "feld": "rect"}
 
-    f = themes.farben(themes.AKTIV)
+
+def gf_fenster(zs, ist: list[bool], stichtag, zurueck: int = 12, vor: int = 12) -> tuple[int, int, int]:
+    """(Anfang, Heute-Index, Ende exkl.): 12 Monate zurück, 12 voraus. „Heute“ = der laufende Monat (enthält den
+    Stichtag) – dort treffen sich Ist und Prognose; ohne ihn der letzte Ist-Monat."""
+    h = next((i for i, z in enumerate(zs) if z.monat.year == stichtag.year and z.monat.month == stichtag.month), None)
+    if h is None:
+        h = max((i for i, x in enumerate(ist) if x), default=0)
+    return max(0, h - zurueck), h, min(len(zs), h + vor + 1)
+
+
+def alle_bewohner(a) -> bool:
+    """1.58: Zählt die Belegungsprognose alle Bewohner (mit UWT und Mietern)? Standard ja – „nur Teilnehmende“ ist ein
+    Schalter; die Ansicht „Nach Status“ zeigt die Gruppen ohnehin."""
+    return bool(getattr(a, "aw_status", False)) or not bool(getattr(a, "aw_nur_tn", False))
+
+
+def heute_belegt(a, nur_tn: bool) -> float | None:
+    """1.58: Heute belegte Plätze laut Datenstand (Stichtag). Die Gesamtbelegung enthält UWT und Mieter aus den Listen;
+    die Gruppen-Aufteilung ergänzt Mietverträge (alle Bewohner) bzw. zieht UWT und Mieter ab (nur Teilnehmende)."""
+    try:
+        ds = a.daten["ds"]
+        wert = float(ds.aufschluesselung(a.aw_standort, ds.stichtag, a.aw_brutto).belegt)
+        if a.daten.get("gruppen_da"):
+            andere = a.daten.get("alt") or a.daten
+            mit, ohne = (a.daten, andere) if alle_bewohner(a) else (andere, a.daten)
+            g = (ohne if nur_tn else mit).get("gruppen")
+            if g is not None:
+                wert += (g.tag(ds.stichtag) or {}).get("delta", 0.0)
+        return wert
+    except Exception:                                  # noqa: BLE001 – dann die Monatszahl wie bisher
+        return None
+
+
+def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95: bool = False,
+               hell: bool | None = None) -> dict:
+    """1.58: Belegungsprognose für Laien – feste Farben (``DIAGRAMM_FARBEN``, nie aus dem Farbschema), jede Farbe genau
+    eine Bedeutung; 80-%-Band als Fläche (95 % auf Wunsch), Vorjahr gepunktet, Eng-Zone mit Kanten, höchstens fünf
+    Beschriftungen in ganzen Zahlen; 12 Monate zurück, 12 voraus; Heute-Linie mit „so war es“ / „so wird es
+    voraussichtlich“; der laufende Monat einmal als hohler Punkt, dort treffen sich Ist und Prognose."""
+    from . import blick_kern as bk
+
+    if hell is None:
+        hell = not _ds.dunkel(themes.farben(themes.AKTIV))
+    f = _ds.prognose_farben(hell)
+    an_, h, en = gf_fenster(zs, ist, stichtag)
+    alle = {z.monat: w for z, w in zip(zs, werte)}             # auch vor dem Fenster – für „Vorjahr“
+    zs, werte, ist = zs[an_:en], werte[an_:en], ist[an_:en]
+    h -= an_
+    marken_g = [(m.index - an_, m) for m in g.marken if an_ <= m.index < en]
     labels = [f"{bk.MONATE_KURZ[z.monat.month - 1]} {z.monat.year}" for z in zs]
-    li = max((i for i, x in enumerate(ist) if x), default=None)
-    pa = g.prognose_ab
-    ende = (pa + 12) if pa is not None else len(zs)
-    zs, werte, ist, labels = zs[:ende], werte[:ende], ist[:ende], labels[:ende]
-    ist_r = [round(w, 1) if ist[i] and w is not None else None for i, w in enumerate(werte)]
-    prog_r = [round(w, 1) if (not ist[i] or i == li) and w is not None else None for i, w in enumerate(werte)]
-    lo = [round(z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
-    br = [round(z.hi80 - z.lo80, 1) if not ist[i] else None for i, z in enumerate(zs)]
-    lo95 = [round(z.lo95, 1) if not ist[i] and z.lo95 is not None else None for i, z in enumerate(zs)]       # 0.96
-    br95 = [round(z.hi95 - z.lo95, 1) if not ist[i] and z.lo95 is not None and z.hi95 is not None else None
+    r1 = lambda x: None if x is None else round(float(x), 1)          # noqa: E731 – Tooltip: eine Nachkommastelle
+    ist_r = [r1(w) if (ist[i] or i == h) else None for i, w in enumerate(werte)]
+    prog_r = [r1(w) if i >= h else None for i, w in enumerate(werte)]
+    kuenftig = lambda i, z: i > h or (i == h and not ist[i])          # noqa: E731
+    lo = [r1(z.lo80) if kuenftig(i, z) and z.lo80 is not None else None for i, z in enumerate(zs)]
+    br = [r1(z.hi80 - z.lo80) if kuenftig(i, z) and z.lo80 is not None and z.hi80 is not None else None
+          for i, z in enumerate(zs)]
+    lo95 = [r1(z.lo95) if b95 and kuenftig(i, z) and z.lo95 is not None else None for i, z in enumerate(zs)]
+    br95 = [r1(z.hi95 - z.lo95) if b95 and kuenftig(i, z) and z.lo95 is not None and z.hi95 is not None else None
             for i, z in enumerate(zs)]
-    vj = [round(werte[i - 12], 1) if pa is not None and i >= pa and i >= 12 and werte[i - 12] is not None else None
-          for i in range(len(werte))]
-    oben = max([kap or 0] + [z.hi95 or z.hi80 for z in zs if z.hi80 is not None] + [w for w in werte if w is not None])
-    linien = []
+    # Vorjahr: gleicher Monat ein Jahr vorher – nur im Prognoseteil (dort ist er der Vergleich)
+    vj = [r1(alle.get(z.monat.replace(year=z.monat.year - 1))) if i >= h else None for i, z in enumerate(zs)]
+    oben = max([kap or 0] + [(z.hi95 if b95 and z.hi95 is not None else z.hi80) or 0 for z in zs]
+               + [w for w in werte if w is not None])
+    ymax, schritt = _ds.runde_achse(oben)
+    schrift = {"color": f["text"], "fontSize": 13}
+    kasten = {"backgroundColor": f["grund"], "padding": [2, 4], "borderRadius": 3}
+    # ---- Linien und Flächen im Hintergrund: Kapazität, Eng-Zone, Heute
+    linien, flaechen = [], []
     if kap:
-        linien.append({"yAxis": kap, "lineStyle": {"color": f["text"], "type": "solid", "width": 1.5},
-                       "label": {"formatter": f"voll: {bk.zahl(kap)} Plätze", "position": "end", "color": f["text"],
-                                 "fontWeight": 600}})
-    if g.warn is not None:
-        linien.append({"yAxis": round(g.warn), "lineStyle": {"color": f["orange"], "type": "dashed"},
-                       "label": {"formatter": f"ab {bk.zahl(g.warn)} wird es eng", "position": "insideStartTop",
-                                 "color": f["orange"]}})
-    if pa is not None:
-        linien.append({"xAxis": labels[pa], "lineStyle": {"color": f["text2"], "type": "dotted"},
-                       "label": {"formatter": f"Prognose ab {stichtag:%d.%m.%Y}", "position": "end", "color": f["akzent"],
-                                 "fontWeight": 600}})
-    flaechen = []
+        linien.append({"yAxis": kap, "lineStyle": {"color": f["kapazitaet"], "type": "solid", "width": 2.5},
+                       "label": {"formatter": f"voll: {bk.zahl(kap)} Plätze", "position": "end", **schrift,
+                                 "color": f["kapazitaet"], "fontWeight": 700}})
     if g.warn is not None and kap:
-        flaechen.append([{"yAxis": round(g.warn), "itemStyle": {"color": "rgba(245,158,11,0.13)"}}, {"yAxis": kap}])
-    if pa is not None:
-        flaechen.append([{"xAxis": labels[pa], "itemStyle": {"color": "rgba(0,127,127,0.05)"}}, {"xAxis": labels[-1]}])
-    lage = {0: "top", 1: "bottom", 2: "right"}         # nächster Monat oben, Tiefpunkt unten, letzter Monat rechts
-    marken = [{"coord": [labels[m.index], round(m.wert, 1)], "value": m.text + (f"\n{m.unter}" if m.unter else ""),
-               "symbol": "circle", "symbolSize": 7,
-               "label": {"show": True, "position": lage.get(j, "top"), "formatter": "{c}", "fontWeight": 600,
-                         "color": f["text"], "lineHeight": 16, "distance": 10},
-               "itemStyle": {"color": f["akzent"]}} for j, m in enumerate(g.marken) if m.index < len(labels)]
-    if li is not None:
-        marken.append({"coord": [labels[li], round(werte[li], 1)], "symbol": "circle", "symbolSize": 9, "value": "",
-                       "label": {"show": False}, "itemStyle": {"color": "#fff", "borderColor": f["text"], "borderWidth": 2}})
-    reihen = [
-        {"name": "Ist", "type": "line", "data": ist_r, "symbol": "none", "lineStyle": {"color": f["text"], "width": 2},
-         "itemStyle": {"color": f["text"]},
-         "markLine": {"silent": True, "symbol": "none", "data": linien}, "markArea": {"silent": True, "data": flaechen}},
-        _ds.band_reihe({"name": "_u95", "type": "line", "data": lo95, "stack": "b95", "silent": True,
-                        "tooltip": {"show": False}}, f, "band95"),
-        _ds.band_reihe({"name": "in 19 von 20 Fällen", "type": "line", "data": br95, "stack": "b95", "silent": True,
-                        "areaStyle": {}}, f, "band95"),
-        _ds.band_reihe({"name": "_u", "type": "line", "data": lo, "stack": "band", "silent": True,
-                        "tooltip": {"show": False}}, f, "band"),
-        _ds.band_reihe({"name": "hier liegt der Wert in 8 von 10 Fällen", "type": "line", "data": br, "stack": "band",
-                        "silent": True, "areaStyle": {}}, f, "band"),
-        {"name": "Prognose", "type": "line", "data": prog_r, "symbol": "none",
-         "lineStyle": {"color": f["akzent"], "width": 2.5, "type": "dashed"}, "itemStyle": {"color": f["akzent"]},
+        linien.append({"yAxis": round(g.warn), "lineStyle": {"color": f["eng"], "type": "dashed", "width": 1.5},
+                       "label": {"formatter": f"eng ab {bk.zahl(g.warn)}", "position": "end", **schrift,
+                                 "color": f["kapazitaet"], "fontWeight": 600}})
+        flaechen.append([{"yAxis": round(g.warn), "itemStyle": {"color": f["eng_flaeche"]}}, {"yAxis": kap}])
+    linien.append({"xAxis": labels[h], "lineStyle": {"color": f["heute"], "type": "solid", "width": 1.5},
+                   "label": {"show": False}})
+    if h > 0:                                      # Lesehilfe über dem Diagramm: links Vergangenheit, rechts Zukunft
+        flaechen.append([{"xAxis": labels[0], "itemStyle": {"color": "transparent"},
+                          "label": {"show": True, "position": "insideTopRight", "formatter": "so war es ◂",
+                                    **schrift, "color": f["achse"]}}, {"xAxis": labels[h]}])
+    if h < len(labels) - 1:
+        flaechen.append([{"xAxis": labels[h], "itemStyle": {"color": "transparent"},
+                          "label": {"show": True, "position": "insideTopLeft", "formatter": "▸ so wird es voraussichtlich",
+                                    **schrift, "color": f["achse"]}}, {"xAxis": labels[-1]}])
+    # ---- höchstens fünf Beschriftungen: heute, höchster, tiefster, letzter Prognosemonat (+ „Vorjahr“ am Linienende)
+    lage = ["top", "bottom", "top"]
+    laufend = getattr(zs[h], "art", "") == "laufend"
+    marken = [{"coord": [labels[h], r1(werte[h])], "value": f"{labels[h]}: {bk.zahl(werte[h])}" +
+               ("\nnoch nicht abgeschlossen" if laufend else ""),
+               "symbol": "circle", "symbolSize": 11,
+               "itemStyle": {"color": f["grund"], "borderColor": f["ist"], "borderWidth": 2.5},
+               "label": {"show": True, "position": "left", "distance": 10, "formatter": "{c}", **schrift, **kasten,
+                         "fontWeight": 600, "align": "right"}}]
+    for j, (i, m) in enumerate(marken_g[:3]):
+        if i == h:
+            continue
+        marken.append({"coord": [labels[i], r1(m.wert)], "value": m.text + (f"\n{m.unter}" if m.unter else ""),
+                       "symbol": "circle", "symbolSize": 7, "itemStyle": {"color": f["prognose"]},
+                       "label": {"show": True, "position": lage[j] if i < len(labels) - 1 else "bottom", "distance": 10,
+                                 "formatter": "{c}", **schrift, **kasten, "fontWeight": 600, "lineHeight": 17}})
+    # „Vorjahr“ einmal an der Vorjahreslinie – an ihrem tiefsten Punkt, darunter (stört dort keine andere Beschriftung)
+    belegt_ = {h} | {i for i, _m in marken_g}
+    vj_i = [i for i, v in enumerate(vj) if v is not None and all(abs(i - j) > 1 for j in belegt_)]
+    vj_marke = []
+    if vj_i:                                   # dort, wo die Vorjahreslinie am deutlichsten von der Prognose abweicht
+        k_ = max(vj_i, key=lambda i: abs(vj[i] - (prog_r[i] if prog_r[i] is not None else vj[i])))
+        vj_marke = [{"coord": [labels[k_], vj[k_]], "value": "Vorjahr", "symbol": "none",
+                     "label": {"show": True, "position": "bottom" if prog_r[k_] is None or vj[k_] <= prog_r[k_] else "top",
+                               "distance": 8, "formatter": "{c}", **schrift, "color": f["vorjahr"]}}]
+    reihen = []
+    if b95:
+        reihen += [{"name": "_u95", "type": "line", "data": lo95, "stack": "b95", "symbol": "none", "silent": True,
+                    "lineStyle": {"width": 0}, "tooltip": {"show": False}, "z": 1},
+                   {"name": GF_LEGENDE["band95"], "type": "line", "data": br95, "stack": "b95", "symbol": "none",
+                    "silent": True, "lineStyle": {"width": 0}, "areaStyle": {"color": f["band95"], "opacity": 1},
+                    "itemStyle": {"color": f["band95"]}, "z": 1}]
+    reihen += [
+        {"name": "_u80", "type": "line", "data": lo, "stack": "b80", "symbol": "none", "silent": True,
+         "lineStyle": {"width": 0}, "tooltip": {"show": False}, "z": 2},
+        {"name": GF_LEGENDE["band80"], "type": "line", "data": br, "stack": "b80", "symbol": "none", "silent": True,
+         "lineStyle": {"width": 0}, "areaStyle": {"color": f["band80"], "opacity": 1}, "itemStyle": {"color": f["band80"]},
+         "z": 2},
+        {"name": GF_LEGENDE["vorjahr"], "type": "line", "data": vj, "symbol": "none", "z": 3,
+         "lineStyle": {"color": f["vorjahr"], "width": 1.5, "type": "dotted"}, "itemStyle": {"color": f["vorjahr"]},
+         "markPoint": {"silent": True, "data": vj_marke}},
+        {"name": GF_LEGENDE["ist"], "type": "line", "data": ist_r, "symbol": "none", "z": 4,
+         "lineStyle": {"color": f["ist"], "width": 3}, "itemStyle": {"color": f["ist"]},
+         "markLine": {"silent": True, "symbol": "none", "data": linien},
+         "markArea": {"silent": True, "data": flaechen}},
+        {"name": GF_LEGENDE["prognose"], "type": "line", "data": prog_r, "symbol": "none", "z": 5,
+         "lineStyle": {"color": f["prognose"], "width": 3, "type": "dashed"}, "itemStyle": {"color": f["prognose"]},
          "markPoint": {"silent": True, "data": marken}},
-        {"name": "gleicher Monat im Vorjahr", "type": "line", "data": vj, "symbol": "none",
-         "lineStyle": {"color": f["text2"], "width": 1, "opacity": .6}, "itemStyle": {"color": f["text2"]}},
     ]
+    if g.warn is not None and kap:                 # nur für die Legende (Feld = Fläche der Eng-Zone)
+        reihen.append({"name": GF_LEGENDE["eng"], "type": "line", "data": [], "silent": True,
+                       "itemStyle": {"color": f["eng_flaeche"], "borderColor": f["eng"], "borderWidth": 1.5}})
+    legende = [{"name": GF_LEGENDE["ist"], "icon": _ICON["linie"]}, {"name": GF_LEGENDE["prognose"], "icon": _ICON["strich"]},
+               {"name": GF_LEGENDE["band80"], "icon": _ICON["feld"]}]
+    if b95:
+        legende.append({"name": GF_LEGENDE["band95"], "icon": _ICON["feld"]})
+    legende.append({"name": GF_LEGENDE["vorjahr"], "icon": _ICON["punkt"]})
+    if g.warn is not None and kap:
+        legende.append({"name": GF_LEGENDE["eng"], "icon": _ICON["feld"]})
     if blind:                                          # 0.97: so lag die Vorhersage einen Monat vorher
-        bt = BACKTEST_FARBE[not _ds.dunkel(f)]
-        reihen.append({"name": BACKTEST_EINFACH, "type": "line", "symbol": "diamond", "symbolSize": 8,
-                       "data": [round(blind[z.monat], 1) if z.monat in blind else None for z in zs],
+        bt = BACKTEST_FARBE[hell]
+        reihen.append({"name": BACKTEST_EINFACH, "type": "line", "symbol": "diamond", "symbolSize": 8, "z": 6,
+                       "data": [r1(blind[z.monat]) if z.monat in blind else None for z in zs],
                        "color": bt, "itemStyle": {"color": bt}, "lineStyle": {"color": bt, "width": 2, "type": [3, 3]}})
-    return {"animation": False, "grid": {"left": 48, "right": 150, "top": 46, "bottom": 34},
-            "legend": {"top": 0, "left": 0, "data": ["Ist", "Prognose", "hier liegt der Wert in 8 von 10 Fällen",
-                                                     "in 19 von 20 Fällen", "gleicher Monat im Vorjahr"]
-                    + ([BACKTEST_EINFACH] if blind else []),
-                       "textStyle": {"color": f["text2"]}, "itemWidth": 22},
-            "tooltip": {"trigger": "axis"},
+        legende.append({"name": BACKTEST_EINFACH, "icon": "diamond"})
+    tip = {"labels": labels, "ist": ist_r, "prog": prog_r, "lo": lo, "br": br, "lo95": lo95, "br95": br95, "vj": vj,
+           "h": h, "kap": kap or 0}
+    formatter = ("(ps) => { const d = " + json.dumps(tip) + "; const i = ps[0].dataIndex; "
+                 "const z = v => v == null ? '–' : v.toLocaleString('de-DE', {maximumFractionDigits: 1}); "
+                 "let s = '<b>' + d.labels[i] + '</b>' + (i === d.h ? ' · laufender Monat' : '') + '<br>'; "
+                 "if (d.ist[i] != null && i < d.h) s += 'Ist: <b>' + z(d.ist[i]) + '</b> Plätze<br>'; "
+                 "if (d.prog[i] != null && i >= d.h) s += 'Prognose: <b>' + z(d.prog[i]) + '</b> Plätze<br>'; "
+                 "if (d.lo[i] != null) s += 'sehr wahrscheinlich: ' + z(d.lo[i]) + ' – ' + z(d.lo[i] + d.br[i]) + '<br>'; "
+                 "if (d.lo95[i] != null) s += 'fast sicher: ' + z(d.lo95[i]) + ' – ' + z(d.lo95[i] + d.br95[i]) + '<br>'; "
+                 "if (d.vj[i] != null) s += 'Vorjahr: ' + z(d.vj[i]) + '<br>'; "
+                 "if (d.kap) { const w = (i < d.h ? d.ist[i] : d.prog[i]); "
+                 "if (w != null) s += 'frei: ' + z(d.kap - w) + ' von ' + z(d.kap); } return s; }")
+    return {"m_eigen": True, "animation": False, "backgroundColor": f["grund"],
+            "textStyle": {"fontFamily": "Segoe UI, Inter, sans-serif", "fontSize": 13, "color": f["text"]},
+            "grid": {"left": 56, "right": 150, "top": 64, "bottom": 40},
+            "legend": {"top": 0, "left": 0, "right": 0, "data": legende, "selectedMode": False, "itemWidth": 26,
+                       "itemHeight": 12, "itemGap": 18, "textStyle": {"color": f["text"], "fontSize": 13}},
+            "tooltip": {"trigger": "axis", "confine": True, ":formatter": formatter, "backgroundColor": f["grund"],
+                        "borderColor": f["achse"], "textStyle": {"color": f["text"], "fontSize": 13},
+                        "axisPointer": {"type": "line", "lineStyle": {"color": f["achse"], "type": "dashed"}}},
             "xAxis": {"type": "category", "data": labels, "boundaryGap": False,
-                      "axisLabel": {"color": f["text2"], "interval": 5}, "axisLine": {"lineStyle": {"color": f["rand"]}}},
-            "yAxis": {"type": "value", "min": 0, "max": round(oben * 1.02), "splitNumber": 4,
-                      "axisLabel": {"color": f["text2"]}, "splitLine": {"lineStyle": {"color": f["rand"], "opacity": .5}}},
+                      "axisLabel": {"color": f["achse"], "fontSize": 13, "interval": 2},
+                      "axisLine": {"lineStyle": {"color": f["achse"]}}, "axisTick": {"show": False}},
+            "yAxis": {"type": "value", "min": 0, "max": ymax, "interval": schritt,
+                      "axisLabel": {"color": f["achse"], "fontSize": 13, ":formatter": "(v) => v.toLocaleString('de-DE')"},
+                      "splitLine": {"lineStyle": {"color": f["gitter"]}}},
             "series": reihen}
+
+
+def gf_ausblick(zs, ist, stichtag) -> dict | None:
+    """Block rechts: „In einem Jahr: erwartet N · sehr wahrscheinlich N–N · fast sicher N–N“ (letzter Monat im Fenster)."""
+    _an, _h, en = gf_fenster(zs, ist, stichtag)
+    if not zs or en < 1:
+        return None
+    z = zs[en - 1]
+    if z.art == "ist" or z.erwartet is None:
+        return None
+    from . import blick_kern as bk
+
+    return {"monat": f"{bk.MONATE_LANG[z.monat.month - 1]} {z.monat.year}", "erwartet": bk.zahl(z.erwartet),
+            "b80": f"{bk.zahl(z.lo80)}–{bk.zahl(z.hi80)}" if z.lo80 is not None else "",
+            "b95": f"{bk.zahl(z.lo95)}–{bk.zahl(z.hi95)}" if z.lo95 is not None and z.hi95 is not None else ""}
 
 
 def blick_gruppen(sm, pg, kap: int, stichtag, kont: dict | None):

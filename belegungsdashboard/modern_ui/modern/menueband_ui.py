@@ -77,6 +77,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from .seite_heute import nachricht_neu
 
         nachricht_neu(a)
+    elif name == "mn_suche":                                # 1.58: Maßnahme ansehen – Seite mit Suchfeld oben
+        from .seite_massnahmen import SCHNELL
+
+        await a.oeffnen("auswertung", "massnahmen", mn_ansicht="neu", **SCHNELL)
     elif name == "fm_mail":                                 # 1.36: Mail an FM (Outlook-Entwurf)
         from .seite_heute import fm_mail
 

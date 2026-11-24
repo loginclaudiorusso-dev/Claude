@@ -82,14 +82,39 @@ def befehle(a, text: str) -> list[tuple[str, str, str, tuple]]:
     if bk.ist_frage(q):
         erg.append((f"Fragen: „{q}“", "Antwort aus den Daten (Start → Assistenz → Fragen & Zahlen)", "help_center",
                     ("frage", q)))
+    erg += massnahmen_treffer(a, q)                  # 1.58: „KBM“ → Neuanmeldungen dieser Maßnahme
     erg += [(b.titel, b.bereich, b.icon, b.ziel) for b in bk.suchen(q, kat)]
     return erg
+
+
+def massnahmen_treffer(a, q: str, anzahl: int = 3) -> list[tuple[str, str, str, tuple]]:
+    """1.58: Maßnahmen, deren Name den Suchtext enthält – direkt zu „Neuanmeldungen je Monat“ dieser Maßnahme."""
+    q = q.strip().lower()
+    if len(q) < 2:
+        return []
+    namen = getattr(a, "_mn_namen", None)
+    if namen is None:
+        try:
+            from . import massnahmen_kern as mk
+
+            namen = [f for f, g, _t in mk.familien_liste(None, a.heute) if g != "ohne"]
+        except Exception:                              # noqa: BLE001 – ohne Maßnahmen-Pivot keine Treffer
+            namen = []
+        a._mn_namen = namen
+    treffer = sorted((f for f in namen if q in f.lower()), key=lambda f: (not f.lower().startswith(q), len(f)))
+    return [(f"Neuanmeldungen {f}", "Maßnahme je Monat · 2 Jahre · angemeldet + erwartet", "school",
+             ("massnahme", f)) for f in treffer[:anzahl]]
 
 
 async def ausfuehren(a, ziel: tuple) -> None:
     from . import menueband_ui
 
     art = ziel[0]
+    if art == "massnahme":                           # 1.58
+        from .seite_massnahmen import massnahme_zeigen
+
+        await massnahme_zeigen(a, ziel[1])
+        return
     if art in ("seite", "aktion"):
         if art == "seite" and ziel[1] == "zimmer" and ziel[3].get("karte"):
             await a.oeffnen("zimmer", karte=ziel[3]["karte"])

@@ -39,7 +39,7 @@ def _reihe():
 def test_leitungsansicht_reichlich_platz():
     ms, werte, ist, lo, hi = _reihe()
     g = bk.gf(ms, werte, ist, date(2026, 11, 10), 900, lo, hi, None, 11.0)
-    assert g.titel.startswith("Es bleibt voraussichtlich reichlich Platz: rund ") and "von 900 Plätzen belegt" in g.titel
+    assert g.titel.startswith("Es bleibt voraussichtlich reichlich Platz: bis zu ") and "von 900 Plätzen belegt" in g.titel   # 1.58: dieselbe Zahl wie die Beschriftung
     assert "wird nicht erreicht" in g.untertitel and g.warn == pytest.approx(765)
     assert [z.titel for z in g.zahlen] == ["Heute belegt", "Nächster Monat erwartet", "Knappster Monat",
                                            "So gut lag die Prognose bisher"]

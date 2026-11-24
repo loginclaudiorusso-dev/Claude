@@ -76,4 +76,4 @@ def test_kennzahlen_in_belegung():
     assert sa._ansicht(SimpleNamespace(ansicht_von=lambda s, d: "lage")) == "belegung"
     aus = {r.key: r for r in mb.reiter(mbu._ansichten())}["auswertung"]
     assert [p.text.replace("­", "") for g in aus.gruppen for p in g.punkte] == [
-        "Belegung", "Belegungsprognose", "Maßnahmen", "Zimmer-Engpässe"]
+        "Belegung", "Belegungsprognose", "Maßnahmen", "Maßnahme ansehen", "Zimmer-Engpässe"]   # 1.58

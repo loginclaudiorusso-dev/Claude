@@ -30,6 +30,9 @@ if not getattr(EChart, "_m_ohne_rand", False):
         return themes.farben(themes.AKTIV)
 
     def _init_neu(self, options, *args, **kwargs):
+        if isinstance(options, dict) and options.get("m_eigen"):   # 1.58: eigenes, festes Design (Belegungsprognose)
+            _init_alt(self, options, *args, **kwargs)
+            return
         try:                                                 # 1.12: Diagrammentwurf (Typ, Elemente) gilt für JEDES Diagramm
             from . import themes
 
@@ -48,7 +51,7 @@ if not getattr(EChart, "_m_ohne_rand", False):
     def _update_neu(self, *args, **kwargs):
         # 0.97: Die Optionen sind „beobachtete“ Wörterbücher – jede Änderung ruft update() erneut auf. Darum hier eine
         # Sperre gegen Wiedereintritt (sonst Endlosschleife) und Änderungen nur, wo sich wirklich etwas ändert.
-        if not getattr(self, "_m_lesbar_laeuft", False):
+        if not getattr(self, "_m_lesbar_laeuft", False) and not (self._props.get("options") or {}).get("m_eigen"):
             self._m_lesbar_laeuft = True
             try:
                 _ds.lesbar(self._props.get("options"), _t())
@@ -342,7 +345,13 @@ body.m-dk-vollbild { overflow: hidden; }
   padding: 22px 26px 14px; display: flex; flex-direction: column; gap: 6px; }
 .m-gf-titel { font-size: 24px; font-weight: 600; line-height: 1.25; color: var(--text); }
 .m-gf-unter { font-size: 15px; color: var(--text2); }
-.m-gf-chart { height: 420px !important; width: 100%; margin-top: 8px; }
+.m-gf-chart { height: 460px !important; width: 100%; margin-top: 8px; flex: 1 1 auto; min-width: 0; }
+.m-gf-reihe { display: flex; gap: 14px; align-items: center; }
+.m-gf-ausblick { flex: 0 0 250px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.m-gf-ab { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.m-gf-ab b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.m-gf-ab i { display: inline-block; width: 18px; height: 12px; border-radius: 2px; flex: none; }
+@media (max-width: 1100px) { .m-gf-reihe { flex-direction: column; align-items: stretch; } .m-gf-ausblick { flex-basis: auto; } }
 .m-gf-fuss { font-size: 12.5px; color: var(--text2); }
 .m-gf-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
 @media (max-width: 1000px) { .m-gf-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

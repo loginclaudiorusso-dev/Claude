@@ -23,6 +23,9 @@ CSS = r"""
 .m-mn-suche { margin: 0 16px 8px; }
 .m-mn-schnell { display: flex; gap: 8px; padding: 0 16px 8px; border-bottom: 1px solid var(--rand); }
 .m-mn-liste { max-height: 380px; overflow-y: auto; padding: 6px 8px; }
+.m-mn-schnellwahl { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+.m-mn-sw-symbol { font-size: 22px; color: var(--akzent); }
+.m-mn-sw-feld { min-width: 320px; max-width: 460px; flex: 1 1 320px; }
 .m-mn-zeile { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px;
   padding: 2px 8px; border-radius: 6px; cursor: pointer; min-height: 36px; }
 .m-mn-zeile:hover { background: var(--fl2); }
@@ -322,6 +325,7 @@ def zeichnen(a) -> None:
             leer("Für diese Auswahl gibt es keine Daten.")
             return
         with ui.element("div").classes("m-rv"):
+            _schnellwahl(a, d)                           # 1.58: eine Maßnahme suchen → sofort ihr Verlauf je Monat
             pv = d["stand"]["pivot"]
             monat = d["takt"] == "monat"
             reihen = mk.monatlich(None, a.heute, d["reihen"]) if monat else d["reihen"]
@@ -365,6 +369,29 @@ def zeichnen(a) -> None:
             _plan_tabelle(a, d)
             _test(a, d)
             _versteckt(a, d)
+
+
+SCHNELL = {"mn_takt": "monat", "mn_darstellung": "ein", "mn_vor": 4}     # je Monat · ein Diagramm · 2 Jahre
+
+
+async def massnahme_zeigen(a, f: str | None) -> None:
+    """1.58: Schnellzugang – eine Maßnahme je Monat, ein Diagramm, 2 Jahre (Neuanmeldungen). ``None`` = wieder alle."""
+    await a.oeffnen("auswertung", "massnahmen", mn_ansicht="neu", mn_auswahl=[f] if f else [],
+                    **(SCHNELL if f else {"mn_darstellung": None}))
+
+
+def _schnellwahl(a, d: dict) -> None:
+    """1.58: Gut sichtbar über dem Diagramm: Maßnahme tippen (z. B. „KBM“) → genau diese Maßnahme je Monat."""
+    namen = {f: f for f, _g, _t in d["liste"]}
+    eine = d["auswahl"][0] if len(d["auswahl"]) == 1 else None
+    with ui.element("div").classes("m-mn-schnellwahl"):
+        ui.icon("search").classes("m-mn-sw-symbol")
+        ui.select(namen, value=eine, with_input=True, clearable=True, label="Maßnahme ansehen – tippen, z. B. KBM",
+                  on_change=lambda e: massnahme_zeigen(a, e.value)).classes("m-feld m-mn-sw-feld").props(
+            'dense outlined options-dense popup-content-class="m-popup" input-debounce="0"')
+        if eine:
+            ui.label("je Monat · 2 Jahre · angemeldet + erwartet").classes("m-zweite")
+            knopf("Alle Maßnahmen", lambda: massnahme_zeigen(a, None), "leise", "close")
 
 
 def _anteile(a, d: dict) -> None:

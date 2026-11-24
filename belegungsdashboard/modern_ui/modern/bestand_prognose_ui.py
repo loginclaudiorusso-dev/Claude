@@ -108,6 +108,11 @@ def _art_band(a, md, art: str) -> None:
     k = band_ui.gross("Alle" if art == "Alle" else bp.kurzname(art), "people_team", "", pfeil=True,
                       overlay="filter", ofarbe=symbole.BLAU, tipp="Welche Maßnahme gezeigt wird")
     with k, ui.menu().props('anchor="bottom left" self="top left"').classes("m-mn-menue"):
+        # 1.58: Suchfeld – „KBM“ tippen statt scrollen; Enter wählt den ersten Treffer
+        suche = ui.input(placeholder="Maßnahme suchen, z. B. KBM …").props("dense outlined clearable autofocus").classes(
+            "m-mn-suche")
+        suche.on("click.stop", lambda: None)
+        zeilen: list = []
         with ui.element("div").classes("m-mn-liste"):
             for wert, text in [("Alle", "Alle Maßnahmen")] + [(x, bp.kurzname(x)) for x in md.arten]:
                 z = ui.element("button").classes("m-mn-zeile m-mn-wahl" + (" an" if wert == art else ""))
@@ -115,6 +120,20 @@ def _art_band(a, md, art: str) -> None:
                     ui.element("span").classes("m-bg-punkt")
                     ui.label(text).classes("m-mn-name")
                 z.on("click", lambda w=wert: a.setzen(mn_art=w, laden=False))
+                zeilen.append((wert, text, z))
+
+        def filtern(e) -> None:
+            q = str(e.value or "").lower().strip()
+            for wert, text, z in zeilen:
+                z.set_visibility(not q or q in text.lower() or q in str(wert).lower())
+
+        async def erster() -> None:
+            q = str(suche.value or "").lower().strip()
+            treffer = next((w for w, t, _z in zeilen if q and (q in t.lower() or q in str(w).lower())), None)
+            if treffer is not None:
+                await a.setzen(mn_art=treffer, laden=False)
+        suche.on_value_change(filtern)
+        suche.on("keydown.enter", erster)
 
 
 def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
@@ -173,8 +192,23 @@ def _fluss_ansicht(a, d, art: str, richtung: str, leitung: bool) -> None:
                         "symbol": "none", "silent": True, "lineStyle": {"opacity": 0},
                         "color": t["akzent"], "itemStyle": {"color": t["akzent"], "opacity": .35},
                         "areaStyle": {"color": t["akzent"], "opacity": .16}}]
-        for r_ in reihen:                        # 1.20: Zählwerte je Monat bleiben Säulen – kein Umstellen, kein Glätten
-            r_["m_fest"] = True
+        from . import themes
+
+        linie = (themes.AKTIV or {}).get("dg_typ") in ("linie", "flaeche") if isinstance(themes.AKTIV, dict) else False
+        for r_ in reihen:
+            if linie and r_["name"] == "davon fest angemeldet":     # eigene Form: gepunktet, nicht wie „Ist“
+                farbe = r_["itemStyle"]["color"]
+                r_.update(type="line", symbol="none", m_fest=True, lineStyle={"color": farbe, "width": 2, "type": "dotted"})
+                for k_ in ("barMaxWidth", "barGap", "label"):
+                    r_.pop(k_, None)
+            elif linie and r_["type"] == "bar":  # 1.58: „Diagrammtyp: Linie“ gilt auch hier (vorher blieben es Säulen)
+                r_.pop("stack", None)
+                r_.pop("label", None)            # Werte im Tooltip – keine Zahl an jedem Punkt
+                if r_["name"] == "erwartet" and n_ist and hist[n_ist - 1] is not None:
+                    r_["data"] = list(r_["data"])
+                    r_["data"][n_ist - 1] = hist[n_ist - 1]         # Prognose schließt an das letzte Ist an
+            else:                                # 1.20: sonst bleiben Zählwerte je Monat Säulen – kein Umstellen
+                r_["m_fest"] = True
         opt = {"animation": False, "grid": {"left": 44, "right": 20, "top": 40, "bottom": 30},
                "legend": {"top": 0, "data": ["Ist", "erwartet"]
                           + (["davon fest angemeldet"] if any(r_["name"] == "davon fest angemeldet" for r_ in reihen) else [])

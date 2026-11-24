@@ -638,3 +638,33 @@ def legende_gross(opt: dict) -> None:
             if not isinstance(lg.get(k), (int, float)) or lg[k] < mind:
                 lg[k] = mind
 
+
+
+# ---- 1.58: Belegungsprognose – feste Diagrammfarben (NICHT aus dem Farbschema) ----------------------------------------
+# Jede Farbe hat genau eine Bedeutung; deckend (keine Transparenz), Kontraste zum Diagrammgrund geprüft:
+# Ist 18:1 / 15:1 · Prognose 5,2:1 / 8,8:1 · Vorjahr 4,7:1 / 6,2:1 (hell / dunkel).
+DIAGRAMM_FARBEN = {
+    "hell": {"grund": "#FFFFFF", "ist": "#101818", "prognose": "#007A78", "band80": "#A8DCDA", "band95": "#DDF1F0",
+             "vorjahr": "#6B7576", "eng": "#B07800", "eng_flaeche": "#FFF6E0", "kapazitaet": "#8A5A00",
+             "text": "#101818", "achse": "#333F3F", "gitter": "#E3E8E8", "heute": "#333F3F"},
+    "dunkel": {"grund": "#1E2328", "ist": "#F5F7F7", "prognose": "#3DD6D0", "band80": "#1F5C5A", "band95": "#2B4A4C",
+               "vorjahr": "#9AA4A6", "eng": "#F0B429", "eng_flaeche": "#3A3220", "kapazitaet": "#F0B429",
+               "text": "#F5F7F7", "achse": "#C9D1D3", "gitter": "#2E353B", "heute": "#C9D1D3"},
+}
+
+
+def prognose_farben(hell: bool) -> dict:
+    """Feste Farben der Belegungsprognose – hängen nur von hell/dunkel ab, nie vom Farbschema."""
+    return dict(DIAGRAMM_FARBEN["hell" if hell else "dunkel"])
+
+
+def runde_achse(oben: float) -> tuple[int, int]:
+    """(Maximum, Schritt): runde Schritte (…, 50, 100, 200 …), das Maximum ein ganzes Vielfaches darüber – kein
+    Teilstrich bei einem krummen Wert, etwas Luft über der Kapazität."""
+    oben = max(float(oben or 0), 1.0)
+    schritt = next(s for s in (5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 10 ** 9)
+                   if s >= oben / 6)
+    hoch = -(-oben // schritt) * schritt
+    if hoch - oben < .04 * hoch:            # die Kapazitätslinie soll nicht an der Oberkante kleben
+        hoch += schritt
+    return int(hoch), int(schritt)
