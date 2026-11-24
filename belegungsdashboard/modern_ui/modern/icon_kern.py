@@ -41,6 +41,29 @@ def finden() -> Path | None:
     return None
 
 
+_URI: dict = {"schluessel": None, "uri": ""}
+
+
+def data_uri() -> str:
+    """1.51.1: Symbol als data-URI (für Titelleiste und Browser-Symbol) – gemerkt, bis sich die Datei ändert."""
+    import base64
+
+    p = finden()
+    if p is None:
+        return ""
+    try:
+        st = p.stat()
+    except OSError:
+        return ""
+    schluessel = (str(p), st.st_mtime, st.st_size)
+    if _URI["schluessel"] != schluessel:
+        try:
+            _URI.update(schluessel=schluessel, uri="data:image/png;base64," + base64.b64encode(p.read_bytes()).decode())
+        except OSError:
+            return ""
+    return _URI["uri"]
+
+
 def ico_aus_png(png: bytes) -> bytes:
     """Eine .ico-Datei mit genau diesem PNG (Windows Vista und neuer zeigen PNG-Symbole direkt)."""
     if png[:8] != b"\x89PNG\r\n\x1a\n":

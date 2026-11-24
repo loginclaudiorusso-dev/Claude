@@ -1084,7 +1084,13 @@ async def startseite() -> None:
     if erster or standort_kern.aktiv().kurz not in erlaubt:
         g = standort_kern.gemerkt()
         await run.io_bound(standort_kern.waehlen, g if g in erlaubt else erlaubt[0], False)
-    ui.page_title(f"Belegung – {standort_kern.aktiv().name}")
+    ui.page_title(f"INNternat – {standort_kern.aktiv().name}")
+    from . import icon_kern
+
+    if uri := await run.io_bound(icon_kern.data_uri):     # 1.51.1: eigenes Logo als Symbol (Fenster, Taskleiste)
+        ui.add_head_html(f'<link rel="icon" type="image/png" href="{uri}"><link rel="shortcut icon" href="{uri}">'
+                         "<script>document.querySelectorAll('link[rel~=\"icon\"]').forEach(l => "
+                         "{ if (!l.href.startsWith('data:')) l.remove(); });</script>")   # NiceGUI-Standardsymbol weg
     a = Ansicht()                                        # 1.34: nur noch das Menüband (Leitstand entfällt)
     a.aufbauen()
     try:

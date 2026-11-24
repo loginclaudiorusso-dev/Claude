@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.51)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.51.1)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -49,6 +49,7 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - Bereich „Gäste & Mieter“: Gäste-Liste, „Neuer Gast“ mit Doppelzimmer (allein oder mit Begleitperson) und Zimmerwahl (1.49)
 - Gast bearbeiten/entfernen (Begleitperson zieht mit), eigenes Logo als Programmsymbol, Ersteller in Statusleiste und „Über INNternat“ (1.50)
 - Hausordnung per eigenem QR-Code bestätigen; gilt je Aufenthalt (nach Auszug wieder offen), Liste „Hausordnung offen“, von Hand bestätigen (1.51)
+- Eigenes Logo in der Titelleiste und als Fenster-/Taskleistensymbol (1.51.1)
 - Mails mit mehreren Gästehaus-Vormerkungen: je Zeile eine Buchung, fest/vorgemerkt, Zimmer gemeinsam vorgeschlagen (1.09)
 - Maßnahmen-Auswahl wird übernommen, eigene Skala als Standard (1.08)
 - Kontext-Reiter Maßnahmen einheitlich: Gruppe Ansicht links, Filter als flache Felder, Pflege & Wechsel direkt dahinter, Symbole mit zweitem Zeichen (1.07)

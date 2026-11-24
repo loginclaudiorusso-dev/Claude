@@ -395,6 +395,10 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                     with k:
                         ui.icon(icon)
                     k.on("click", lambda z=ziel: ausfuehren(a, z))
+            from . import icon_kern
+
+            if uri := icon_kern.data_uri():           # 1.51.1: eigenes Logo vor dem Namen
+                ui.html(f'<img class="m-ob-logo" src="{uri}" alt="">')
             ui.label("INNternat").classes("m-ob-app")
             st = ui.element("button").classes("m-ob-tk breit m-ob-standort")    # Standort nur hier (Regel 2)
             attr(st, title="Standort wechseln")
@@ -580,6 +584,8 @@ body.lay-office .m-inhalt { padding-bottom: 26px; }
 .m-ob-glocke { position: relative; }
 .m-ob-glocke .m-ob-zahl { top: 1px; right: -2px; }
 .m-ob-app { font-weight: 600; letter-spacing: .1px; white-space: nowrap; }
+.m-ob-logo { height: 24px; width: 24px; object-fit: contain; background: #fff; border-radius: 5px; padding: 1px;
+  margin-left: 4px; flex: none; }
 .m-ob-suche { display: inline-flex; align-items: center; gap: 8px; height: 28px; width: min(460px, 40vw); margin-left: 14px;
   padding: 0 10px; border-radius: 4px; background: rgba(255,255,255,.16) !important; color: rgba(255,255,255,.92) !important;
   border: 1px solid rgba(255,255,255,.25) !important; text-align: left; }
