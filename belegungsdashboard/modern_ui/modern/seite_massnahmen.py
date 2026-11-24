@@ -12,6 +12,7 @@ from nicegui import ui
 
 from . import diagramm_stil as _ds
 from . import massnahmen_kern as mk
+from . import massnahmen_lage as ml
 from .ui_bausteine import attr, knopf, leer, segmente, tabelle
 
 MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
@@ -87,7 +88,10 @@ def daten(a) -> None:
     darstellung = getattr(a, "mn_darstellung", None) or ("ein" if len(arten) <= EIN_DIAGRAMM_BIS else "je")
     a.daten = {"stand": mk.stand(), "vor": vor, "liste": wahl_liste, "auswahl": auswahl, "arten": arten,
                "darstellung": darstellung, "skala": getattr(a, "mn_skala", "eigen"),
-               "reihen": {f: reihen[f] for f in arten if f in reihen}, "tests": tests, "verfahren": verfahren,
+               # 1.59: wirtschaftliche Lage als Annahme (nur auf die offene Nachbuchung)
+               "reihen": ml.anwenden({f: reihen[f] for f in arten if f in reihen}, getattr(a, "mn_lage", 0),
+                                     a.heute.year + 1),
+               "lage": ml.begrenzen(getattr(a, "mn_lage", 0)), "tests": tests, "verfahren": verfahren,
                "auto": not getattr(a, "mn_verfahren", None), "versteckt": versteckt, "alle": alle_zeigen, "eigen": eigen,
                "quelle": mk.pickup_kurve(vl).quelle, "plan_jahr": a.heute.year + 1,
                "stufe": 95 if getattr(a, "mn_stufe", 80) == 95 else 80,
@@ -392,6 +396,19 @@ def _schnellwahl(a, d: dict) -> None:
         if eine:
             ui.label("je Monat · 2 Jahre · angemeldet + erwartet").classes("m-zweite")
             knopf("Alle Maßnahmen", lambda: massnahme_zeigen(a, None), "leise", "close")
+    # 1.59: Annahme zur wirtschaftlichen Lage – wie das Management-Szenario der Belegungsprognose
+    with ui.element("div").classes("m-mn-schnellwahl"):
+        ui.icon("science").classes("m-mn-sw-symbol")
+        ui.label("Wirtschaftliche Lage:").classes("m-name")
+        lage = d.get("lage", 0)
+        segmente({k: v for k, v in ml.LAGEN.items()}, lage if lage in ml.LAGEN else None,
+                 lambda v: a.setzen(mn_lage=v, nur_seite=True))
+        eigen = ui.number("eigene %", value=lage, min=-ml.GRENZE, max=ml.GRENZE, step=1, format="%d").classes(
+            "m-feld").props("dense outlined dark suffix=%").style("width:110px")
+        eigen.on("change", lambda: a.setzen(mn_lage=ml.begrenzen(eigen.value), nur_seite=True)
+                 if ml.begrenzen(eigen.value) != lage else None)
+        if lage:
+            ui.label(ml.text(lage)).classes("m-xs-banner").style("white-space:normal")
 
 
 def _anteile(a, d: dict) -> None:

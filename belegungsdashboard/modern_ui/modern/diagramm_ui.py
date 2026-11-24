@@ -346,14 +346,23 @@ body.m-dk-vollbild { overflow: hidden; }
 .m-gf-titel { font-size: 24px; font-weight: 600; line-height: 1.25; color: var(--text); }
 .m-gf-unter { font-size: 15px; color: var(--text2); }
 .m-gf-chart { height: 460px !important; width: 100%; margin-top: 8px; flex: 1 1 auto; min-width: 0; }
-.m-gf-reihe { display: flex; gap: 14px; align-items: center; }
+.m-gf-reihe { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.m-gf-reihe .m-gf-chart { flex: 1 1 560px; }
+.m-gf-reihe.kompakt .m-gf-chart { height: 400px !important; }
+.m-gf-reihe.kompakt .m-gf-ausblick { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; gap: 6px 18px; }
+.m-gf-legende { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 13px; color: var(--text); }
+.m-gf-legende span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.m-gfl-linie { display: inline-block; width: 24px; height: 0; }
+.m-gfl-feld { display: inline-block; width: 18px; height: 12px; border-radius: 2px; box-sizing: border-box; }
+.m-gfl-raute { display: inline-block; width: 8px; height: 8px; transform: rotate(45deg); margin: 0 4px; }
 .m-gf-ausblick { flex: 0 0 250px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .m-gf-ab { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .m-gf-ab b { margin-left: auto; font-variant-numeric: tabular-nums; }
 .m-gf-ab i { display: inline-block; width: 18px; height: 12px; border-radius: 2px; flex: none; }
 @media (max-width: 1100px) { .m-gf-reihe { flex-direction: column; align-items: stretch; } .m-gf-ausblick { flex-basis: auto; } }
 .m-gf-fuss { font-size: 12.5px; color: var(--text2); }
-.m-gf-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.m-gf-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 14px; }
+.m-gf-zahl .m-zweite { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
 @media (max-width: 1000px) { .m-gf-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .m-gf-zahl { border: 1px solid var(--ob-rand, var(--rand)); border-radius: 8px; background: var(--ob-fl, var(--fl));
   padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }

@@ -727,6 +727,13 @@ def mail_panel(a, m: Mail) -> None:
         async def los(senden: bool):
             fehler = await run.io_bound(_antwort, m.eintrag, m.ablage, art.value, text.value or "", an.value or "",
                                         senden, fk.absender())
+            from . import versand_protokoll as vp      # 1.59: nachvollziehbar, was verschickt wurde
+
+            await run.io_bound(vp.eintragen, {"antworten": "antwort", "allen": "allen"}.get(art.value, "weiterleitung"),
+                               "Outlook gesendet" if senden else "Outlook-Entwurf",
+                               an.value if art.value == "weiterleiten" else (m.adresse or m.absender),
+                               ("WG: " if art.value == "weiterleiten" else "AW: ") + (m.betreff or ""), text.value or "",
+                               f"Fehler: {fehler}" if fehler else "ok", fk.absender())
             if fehler:
                 a.toast(fehler, fehler=True)
                 return

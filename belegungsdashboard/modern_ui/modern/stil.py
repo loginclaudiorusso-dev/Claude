@@ -820,6 +820,7 @@ body.praesentation .m-kopf, body.praesentation .m-leiste { display: none !import
 """
 CSS += """
 /* 0.12 – Prognose: Backtest-/Status-Schalter, Management-Szenario, Goslar-Aufteilung */
+.m-xs-zusatz { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }   /* 1.59 */
 .m-xg-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
 .m-xg-status.aus .m-segm { pointer-events: none; }
 .m-xg-fuss i.l.sz { border-top: 3px dotted var(--orange); opacity: .8; } .m-xg-fuss i.l.kont { border-top: 1.5px dashed var(--text2); }

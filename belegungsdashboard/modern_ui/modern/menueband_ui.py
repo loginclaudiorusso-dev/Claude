@@ -77,6 +77,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from .seite_heute import nachricht_neu
 
         nachricht_neu(a)
+    elif name == "versandprotokoll":                        # 1.59: wer hat wann was an wen verschickt
+        from . import versand_ui
+
+        await versand_ui.panel(a)
     elif name == "mn_suche":                                # 1.58: Maßnahme ansehen – Seite mit Suchfeld oben
         from .seite_massnahmen import SCHNELL
 

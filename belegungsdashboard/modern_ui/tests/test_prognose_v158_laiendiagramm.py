@@ -107,10 +107,27 @@ def test_nahtstelle_ist_und_prognose_treffen_sich():
 
 
 def test_legende_symbole_passen_zur_form():
+    """1.59: Legende als HTML über dem Diagramm – Linie, gestrichelt, Feld, gepunktet; bricht in schmalen Spalten um."""
     o, _ = _opt()
-    ic = {d["name"]: d["icon"] for d in o["legend"]["data"]}
-    assert ic["Ist"] != ic["Prognose"] and ic[pd_.GF_LEGENDE["band80"]] == "rect" and ic["Eng-Zone"] == "rect"
-    assert o["legend"]["selectedMode"] is False
+    assert o["legend"] == {"show": False}
+    h = pd_.gf_legende_html(True, False, True, True, True)
+    f = ds.DIAGRAMM_FARBEN["hell"]
+    assert f"border-top:3px solid {f['ist']}" in h and f"border-top:3px dashed {f['prognose']}" in h
+    assert f"background:{f['band80']}" in h and "dotted" in h and "Eng-Zone" in h
+    assert "Szenario (Simulation)" in h and pd_.BACKTEST_EINFACH in h
+    assert pd_.GF_LEGENDE["band95"] not in h
+
+
+def test_kompakt_und_szenario():
+    zs, werte, ist = _zeilen()
+    g = bk.gf([z.monat for z in zs], werte, ist, STICHTAG, 250, [z.lo80 for z in zs], [z.hi80 for z in zs], None, 3.0)
+    szen = [None if a else w * .9 for w, a in zip(werte, ist)]
+    o = pd_._gf_option(zs, werte, ist, g, 250, STICHTAG, None, False, True, True, szen)
+    reihe = {se["name"]: se for se in o["series"]}
+    s_ = reihe[pd_.GF_LEGENDE["szenario"]]
+    assert s_["lineStyle"]["color"] == ds.DIAGRAMM_FARBEN["hell"]["szenario"] and s_["data"][11] is None
+    assert o["xAxis"]["axisLabel"]["hideOverlap"] is True and ":formatter" in o["xAxis"]["axisLabel"]
+    assert len(_texte(o)) <= 4                                   # schmal: weniger Beschriftungen
 
 
 def test_alle_bewohner_standard():

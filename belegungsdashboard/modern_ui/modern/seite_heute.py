@@ -554,6 +554,7 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
 
     from . import benutzer_kern
     from . import fm_mail_kern as fk
+    from . import versand_protokoll as vp
 
     try:
         absender_name = benutzer_kern.anzeige()
@@ -598,6 +599,8 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
                 return
             fehler = await outlook(fk.senden, an.value or "", betreff.value or "", text.value or "",
                                    (von.value or "").strip())
+            await run.io_bound(vp.eintragen, "fm", "Outlook gesendet", an.value or "", betreff.value or "",
+                               text.value or "", f"Fehler: {fehler}" if fehler else "ok", (von.value or "").strip())
             if fehler:
                 a.toast(fehler, fehler=True)
                 return
@@ -612,6 +615,9 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
                 return
             fehler = await outlook(fk.entwurf, an.value or "", betreff.value or "", text.value or "",
                                    (von.value or "").strip())
+            await run.io_bound(vp.eintragen, "fm", "Standard-Mailprogramm" if fehler and fk.adresse() else
+                               "Outlook-Entwurf", an.value or "", betreff.value or "", text.value or "",
+                               "ok" if not fehler or fk.adresse() else f"Fehler: {fehler}", (von.value or "").strip())
             if fehler and fk.adresse():
                 ui.navigate.to(fk.mailto(an.value or "", betreff.value or "", text.value or ""))
                 a.toast(f"{fehler} Geöffnet im Standard-Mailprogramm.", rueck=False)

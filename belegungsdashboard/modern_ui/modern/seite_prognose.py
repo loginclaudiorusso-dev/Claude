@@ -242,8 +242,15 @@ def zeichnen(a) -> None:
         with a.werkzeuge:
             with bu.gruppe("Ansicht"):
                 for k_, (sym, farbe) in BEREICH_SYMBOL.items():
-                    bu.gross(BEREICHE.get(k_, k_), sym, farbe, lambda k_=k_: a.setzen(aw_bereich=k_, laden=False),
-                             an=a.aw_bereich == k_)
+                    # 1.59: nochmal klicken schließt Szenarien bzw. Details wieder (zurück zum Dashboard)
+                    bu.gross(BEREICHE.get(k_, k_), sym, farbe,
+                             lambda k_=k_: a.setzen(aw_bereich="dashboard" if a.aw_bereich == k_ else k_, laden=False),
+                             an=a.aw_bereich == k_,
+                             tipp=(f"{BEREICHE.get(k_, k_)} – nochmal klicken: zurück zum Dashboard"
+                                   if k_ != "dashboard" else "Dashboard"))
+                bu.gross("Rückblick", "history", "amber",
+                         lambda: a.setzen(aw_backtest=not a.aw_backtest, laden=False), an=bool(a.aw_backtest),
+                         tipp="Rückblick (Backtest) ein/aus: so lag die Vorhersage einen Monat vorher")
             with bu.gruppe("Wechsel"):
                 bu.gross("Teilnehmer je Maßnahme", "people_team", "blau",
                          lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose",
@@ -485,7 +492,9 @@ def zeichnen(a) -> None:
                     pg_, kap_ = c()["pg"], zustand["kap"]
                     halter = None
                     if km == "einfach":              # 0.89: Leitungsansicht; „Details“ öffnet die Karte darunter
-                        _einfach(a, pg_, kap_, konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort), graph_zeichnen)
+                        sz_ = bereich == "szenario"        # 1.59: schmale Spalte neben dem Szenario, Szenario-Kurve
+                        _einfach(a, pg_, kap_, konfig.STANDORT_LABEL.get(a.aw_standort, a.aw_standort), graph_zeichnen,
+                                 zustand["offset"] if sz_ else 0.0, sz_, getattr(a, "aw_zusatz", None) if sz_ else None)
                         halter = ui.element("div").classes("m-einfach-details" + (" offen" if a.dg_details else ""))
                         halter.__enter__()
                     if km == "karte":                # 0.95: drei Fragen, Antwort in Worten
@@ -587,7 +596,10 @@ def zeichnen(a) -> None:
             sz_box = ui.element("section").classes("m-block m-xs")
 
         def alles_neu():
-            chart_neu()
+            if km == "einfach" and not praes:        # 1.59: Leitungsansicht – Szenario-Kurve und Zahlen neu aufbauen
+                graph_zeichnen(False)
+            else:
+                chart_neu()
             szenario_zeichnen()
 
         sanierung = a.daten.get("sanierung")
@@ -602,7 +614,8 @@ def zeichnen(a) -> None:
         def szenario_zeichnen():
             """Management-Szenario: Schnell-Pills, Plus/Minus-Stepper, Vergleich Ausgang ↔ Szenario."""
             kap, off = zustand["kap"], zustand["offset"]
-            aktiv = kap != kap_echt or bool(off)
+            extra = list(getattr(a, "aw_zusatz", None) or [])
+            aktiv = kap != kap_echt or bool(off) or bool(extra)
             sz_box.clear()
             sz_box.classes(add="aktiv" if aktiv else "", remove="" if aktiv else "aktiv")
             with sz_box:
@@ -612,6 +625,9 @@ def zeichnen(a) -> None:
                     ui.label("Was wäre, wenn … – wirkt nur auf die Prognosemonate; Ist bleibt Ist").classes("m-zweite")
                     if aktiv:
                         ui.label("SIMULATION – keine echten Daten").classes("m-xs-banner")
+                    knopf("", lambda: a.setzen(aw_bereich="dashboard", laden=False), "leise", "close",
+                          "Szenarien schließen – zurück zum Dashboard (das Szenario bleibt eingestellt)").style(
+                        "margin-left:auto")                  # 1.59
                 # Schnellszenarien
                 with ui.element("div").classes("m-xs-pills"):
                     _pill("Ausgangslage", "restart_alt", not aktiv, lambda: setzen(kap_echt, 0.0),
@@ -654,8 +670,9 @@ def zeichnen(a) -> None:
                         for d in (1, 5):
                             knopf(f"+{d}", lambda d=d: setzen(offset=zustand["offset"] + d), "leise klein", "", f"Auslastung +{d} %")
                         ui.label(f"% auf die Prognosemonate · ± {OFFSET_MAX} %").classes("m-zweite")
+                _zusatz_planen(a, extra, alles_neu)          # 1.59: Mieter, Events, Gruppen planen
                 with ui.element("div").classes("m-xs-vergleich"):
-                    _sz_vergleich(pg, zustand, a.aw_horizont)
+                    _sz_vergleich(pg, zustand, a.aw_horizont, extra)
                 ui.label("Im Graph läuft das Szenario als transparente Schattenkurve über der echten Prognose. Nur Kapazität und "
                          "Auslastung haben eine belastbare Grundlage im Modell; andere Annahmen (z. B. Verweildauer) werden nicht "
                          "scheinbar genau simuliert. Gespeichert wird nichts.").classes("m-zweite").style("white-space:normal")
@@ -1003,8 +1020,54 @@ def _kpi_karte(k: an.Kpi) -> None:
             ui.label(k.hinweis).classes("m-xk-hinweis")
 
 
-def _sz_vergleich(pg, zustand, horizont) -> None:
-    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"], horizont)
+def _zusatz_planen(a, extra: list, neu) -> None:
+    """1.59: Zusätzliche Belegungen im Szenario – z. B. 5 Mieter ab Januar für 12 Monate, eine Tagung mit 20 Plätzen im
+    Mai. Wirken additiv auf die Prognosemonate (Anteil der Tage je Monat); gespeichert wird nichts."""
+    from . import szenario_zusatz as sz
+
+    ui.label("Zusätzliche Belegung planen").classes("m-name").style("margin-top:10px")
+    for i, z in enumerate(extra):
+        with ui.element("div").classes("m-paktionen").style("align-items:center;gap:6px"):
+            ui.icon("add_circle_outline").style("color:var(--akzent)")
+            ui.label(z.text).classes("m-ptext")
+
+            def weg(i=i):
+                liste = list(getattr(a, "aw_zusatz", None) or [])
+                liste.pop(i)
+                a.aw_zusatz = liste
+                neu()
+            knopf("", weg, "leise", "close", "Diese Planung entfernen")
+    with ui.element("div").classes("m-xs-zusatz"):
+        art = ui.select(sz.ARTEN, value="mieter", label="Was").classes("m-feld").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"').style("width:150px")
+        name = ui.input("Bezeichnung (optional)").classes("m-feld").props("dense outlined dark").style("width:170px")
+        n = ui.number("Plätze", value=5, min=1, max=2000, step=1, format="%d").classes("m-feld").props(
+            "dense outlined dark").style("width:90px")
+        naechster = (a.heute.replace(year=a.heute.year + 1, month=1, day=1) if a.heute.month == 12 else
+                     a.heute.replace(month=a.heute.month + 1, day=1))
+        von = ui.input("ab", value=naechster.isoformat()).classes(
+            "m-feld").props("dense outlined dark type=date").style("width:150px")
+        dauer = ui.number("Monate", value=12, min=0, max=60, step=1, format="%d").classes("m-feld").props(
+            "dense outlined dark").style("width:90px")
+
+        def dazu():
+            from datetime import date as _d
+
+            try:
+                z = sz.neu(art.value, name.value or "", n.value, _d.fromisoformat(von.value), int(dauer.value or 0))
+            except (ValueError, TypeError) as exc:
+                a.toast(str(exc) if str(exc) else "Bitte ein gültiges Datum eintragen.", fehler=True)
+                return
+            a.aw_zusatz = list(getattr(a, "aw_zusatz", None) or []) + [z]
+            neu()
+        knopf("Hinzufügen", dazu, "", "add", "Zur Simulation hinzufügen – Graph und Vergleich rechnen sofort neu")
+    ui.label("Beispiele: 5 Mieter ab Januar für 12 Monate · Tagung mit 20 Plätzen für 1 Monat · Gruppe 15 Plätze "
+             "3 Monate. Zählt zusätzlich zur Prognose, je Monat anteilig nach Tagen.").classes("m-zweite").style(
+        "white-space:normal")
+
+
+def _sz_vergleich(pg, zustand, horizont, extra: list | None = None) -> None:
+    zeilen = an.szenario_vergleich(pg, zustand["kap"], zustand["offset"], horizont, extra)
     with ui.element("div").classes("m-xs-tab"):
         for t in ("", "Ausgang (echt)", "Szenario"):
             ui.label(t).classes("m-zweite")

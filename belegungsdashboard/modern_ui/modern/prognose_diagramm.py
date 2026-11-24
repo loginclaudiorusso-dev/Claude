@@ -248,7 +248,8 @@ def _lesbar(o: dict, c: dict) -> dict:
     return o
 
 
-def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
+def _einfach(a, pg, kap: int, ort: str, neu_zeichnen, offset: float = 0.0, kompakt: bool = False,
+             extra: list | None = None) -> None:
     """0.91 (Entwurf Seite 4): „Einfach“ für die Geschäftsführung – die Aussage als Überschrift, ein Satz darunter, das
     Diagramm ab 0 mit „voll“ und Warnzone, wenige Beschriftungen, vier Zahlen, ein Hinweis zur Sicht. „Details anzeigen“
     öffnet darunter die Diagramm-Karte."""
@@ -276,8 +277,18 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
         if getattr(a, "aw_backtest", False) and pg.rueckblick:      # 0.97: Backtest auch in „Einfach“
             zusatz = {z.monat: z.vertraege for z in pg.zeilen}
             blind = {mon: p_ + zusatz.get(mon, 0.0) for mon, _i, p_ in pg.rueckblick}
-        with ui.element("div").classes("m-gf-reihe"):
-            ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"], blind, bool(getattr(a, "gf_95", False))),
+        # 1.59: Szenario (Auslastung ±%, zusätzliche Belegungen) als eigene Kurve über der echten Prognose
+        szen = None
+        if offset or extra:
+            from . import szenario_zusatz as sz_
+
+            plus = sz_.je_monat(extra or [], monate_)
+            szen = [None if z.art == "ist" else z.erwartet + p_ for z, p_ in zip(ak.szenario(pg, kap, offset), plus)]
+        hell_ = not _ds.dunkel(themes.farben(themes.AKTIV))
+        gf95 = bool(getattr(a, "gf_95", False))
+        ui.html(gf_legende_html(hell_, gf95, g.warn is not None and bool(kap), bool(szen), bool(blind)), sanitize=False)
+        with ui.element("div").classes("m-gf-reihe" + (" kompakt" if kompakt else "")):
+            ui.echart(_gf_option(zs, werte, ist, g, kap, a.daten["stichtag"], blind, gf95, None, kompakt, szen),
                       renderer="svg").classes("m-gf-chart")
             ab = gf_ausblick(zs, ist, a.daten["stichtag"])
             if ab:                                         # 1.58: rechts neben dem letzten Monat
@@ -294,9 +305,12 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
         with ui.element("div").classes("m-zeile-flex"):
             ui.label("Das Band wird breiter: je weiter in der Zukunft, desto unsicherer. · Durchschnittlich belegte "
                      "Plätze je Monat · Achse ab 0, damit der Füllstand stimmt").classes("m-gf-fuss")
-            gf95 = bool(getattr(a, "gf_95", False))
             knopf("„fast sicher“ ausblenden" if gf95 else "auch „fast sicher“ (19 von 20) zeigen",
                   lambda: (setattr(a, "gf_95", not gf95), neu_zeichnen(False)), "leise")
+            bt = bool(getattr(a, "aw_backtest", False))           # 1.59: Rückblick hier ein- und ausschalten
+            knopf("Rückblick ausblenden" if bt else "Rückblick: so lag die Vorhersage",
+                  lambda: (setattr(a, "aw_backtest", not bt), neu_zeichnen(False)), "leise", "history",
+                  "Zeigt, was die Prognose einen Monat vorher für jeden Monat vorhergesagt hat (Backtest)")
     with ui.element("div").classes("m-gf-zahlen"):
         for z in g.zahlen:
             with ui.element("div").classes("m-gf-zahl"):
@@ -319,7 +333,27 @@ def _einfach(a, pg, kap: int, ort: str, neu_zeichnen) -> None:
 
 
 GF_LEGENDE = {"ist": "Ist", "prognose": "Prognose", "band80": "sehr wahrscheinlich: in 8 von 10 Fällen",
-              "band95": "fast sicher: in 19 von 20 Fällen", "vorjahr": "gleicher Monat im Vorjahr", "eng": "Eng-Zone"}
+              "band95": "fast sicher: in 19 von 20 Fällen", "vorjahr": "gleicher Monat im Vorjahr", "eng": "Eng-Zone",
+              "szenario": "Szenario (Simulation)"}
+
+
+def gf_legende_html(hell: bool, b95: bool, eng: bool, szen: bool, backtest: bool) -> str:
+    """1.59: Legende als HTML – Symbol = Form im Diagramm; bricht bei schmaler Spalte um statt das Diagramm zu überdecken."""
+    f = _ds.prognose_farben(hell)
+    linie = lambda farbe, art="solid", b=3: (f'<i class="m-gfl-linie" style="border-top:{b}px {art} {farbe}"></i>')  # noqa: E731
+    feld = lambda farbe, rand="": f'<i class="m-gfl-feld" style="background:{farbe};{rand}"></i>'  # noqa: E731
+    teile = [(linie(f["ist"]), GF_LEGENDE["ist"]), (linie(f["prognose"], "dashed"), GF_LEGENDE["prognose"]),
+             (feld(f["band80"]), GF_LEGENDE["band80"])]
+    if b95:
+        teile.append((feld(f["band95"]), GF_LEGENDE["band95"]))
+    teile.append((linie(f["vorjahr"], "dotted", 2), GF_LEGENDE["vorjahr"]))
+    if eng:
+        teile.append((feld(f["eng_flaeche"], f"border:1.5px solid {f['eng']}"), GF_LEGENDE["eng"]))
+    if szen:
+        teile.append((linie(f["szenario"], "dashed"), GF_LEGENDE["szenario"]))
+    if backtest:
+        teile.append((f'<i class="m-gfl-raute" style="background:{BACKTEST_FARBE[hell]}"></i>', BACKTEST_EINFACH))
+    return '<div class="m-gf-legende">' + "".join(f'<span>{s}{t}</span>' for s, t in teile) + "</div>"
 # Legendensymbol = Form im Diagramm: Linie, gestrichelte Linie, Feld, gepunktete Linie
 _ICON = {"linie": "path://M0,4h26v3H0z", "strich": "path://M0,4h7v3H0zM10,4h7v3h-7zM20,4h6v3h-6z",
          "punkt": "path://M0,4h2v2H0zM6,4h2v2H6zM12,4h2v2h-2zM18,4h2v2h-2zM24,4h2v2h-2z", "feld": "rect"}
@@ -358,7 +392,7 @@ def heute_belegt(a, nur_tn: bool) -> float | None:
 
 
 def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95: bool = False,
-               hell: bool | None = None) -> dict:
+               hell: bool | None = None, kompakt: bool = False, szen: list | None = None) -> dict:
     """1.58: Belegungsprognose für Laien – feste Farben (``DIAGRAMM_FARBEN``, nie aus dem Farbschema), jede Farbe genau
     eine Bedeutung; 80-%-Band als Fläche (95 % auf Wunsch), Vorjahr gepunktet, Eng-Zone mit Kanten, höchstens fünf
     Beschriftungen in ganzen Zahlen; 12 Monate zurück, 12 voraus; Heute-Linie mit „so war es“ / „so wird es
@@ -374,6 +408,7 @@ def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95:
     h -= an_
     marken_g = [(m.index - an_, m) for m in g.marken if an_ <= m.index < en]
     labels = [f"{bk.MONATE_KURZ[z.monat.month - 1]} {z.monat.year}" for z in zs]
+    kurz_ = [f"{bk.MONATE_KURZ[z.monat.month - 1]} {str(z.monat.year)[2:]}" for z in zs]     # Achse: „Feb 26“
     r1 = lambda x: None if x is None else round(float(x), 1)          # noqa: E731 – Tooltip: eine Nachkommastelle
     ist_r = [r1(w) if (ist[i] or i == h) else None for i, w in enumerate(werte)]
     prog_r = [r1(w) if i >= h else None for i, w in enumerate(werte)]
@@ -389,7 +424,7 @@ def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95:
     oben = max([kap or 0] + [(z.hi95 if b95 and z.hi95 is not None else z.hi80) or 0 for z in zs]
                + [w for w in werte if w is not None])
     ymax, schritt = _ds.runde_achse(oben)
-    schrift = {"color": f["text"], "fontSize": 13}
+    schrift = {"color": f["text"], "fontSize": 12 if kompakt else 13}
     kasten = {"backgroundColor": f["grund"], "padding": [2, 4], "borderRadius": 3}
     # ---- Linien und Flächen im Hintergrund: Kapazität, Eng-Zone, Heute
     linien, flaechen = [], []
@@ -415,13 +450,13 @@ def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95:
     # ---- höchstens fünf Beschriftungen: heute, höchster, tiefster, letzter Prognosemonat (+ „Vorjahr“ am Linienende)
     lage = ["top", "bottom", "top"]
     laufend = getattr(zs[h], "art", "") == "laufend"
-    marken = [{"coord": [labels[h], r1(werte[h])], "value": f"{labels[h]}: {bk.zahl(werte[h])}" +
+    marken = [{"coord": [labels[h], r1(werte[h])], "value": f"{kurz_[h] if kompakt else labels[h]}: {bk.zahl(werte[h])}" +
                ("\nnoch nicht abgeschlossen" if laufend else ""),
                "symbol": "circle", "symbolSize": 11,
                "itemStyle": {"color": f["grund"], "borderColor": f["ist"], "borderWidth": 2.5},
                "label": {"show": True, "position": "left", "distance": 10, "formatter": "{c}", **schrift, **kasten,
                          "fontWeight": 600, "align": "right"}}]
-    for j, (i, m) in enumerate(marken_g[:3]):
+    for j, (i, m) in enumerate(marken_g[:2 if kompakt else 3]):     # schmal: nur höchster und tiefster Wert
         if i == h:
             continue
         marken.append({"coord": [labels[i], r1(m.wert)], "value": m.text + (f"\n{m.unter}" if m.unter else ""),
@@ -461,22 +496,17 @@ def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95:
          "lineStyle": {"color": f["prognose"], "width": 3, "type": "dashed"}, "itemStyle": {"color": f["prognose"]},
          "markPoint": {"silent": True, "data": marken}},
     ]
-    if g.warn is not None and kap:                 # nur für die Legende (Feld = Fläche der Eng-Zone)
-        reihen.append({"name": GF_LEGENDE["eng"], "type": "line", "data": [], "silent": True,
-                       "itemStyle": {"color": f["eng_flaeche"], "borderColor": f["eng"], "borderWidth": 1.5}})
-    legende = [{"name": GF_LEGENDE["ist"], "icon": _ICON["linie"]}, {"name": GF_LEGENDE["prognose"], "icon": _ICON["strich"]},
-               {"name": GF_LEGENDE["band80"], "icon": _ICON["feld"]}]
-    if b95:
-        legende.append({"name": GF_LEGENDE["band95"], "icon": _ICON["feld"]})
-    legende.append({"name": GF_LEGENDE["vorjahr"], "icon": _ICON["punkt"]})
-    if g.warn is not None and kap:
-        legende.append({"name": GF_LEGENDE["eng"], "icon": _ICON["feld"]})
+    if szen:                                       # 1.59: Szenario (Simulation) als eigene Kurve – violett, gestrichelt
+        sz = szen[an_:en]
+        reihen.append({"name": GF_LEGENDE["szenario"], "type": "line", "z": 6, "symbol": "none",
+                       "data": [r1(v) if v is not None and i >= h else None for i, v in enumerate(sz)],
+                       "lineStyle": {"color": f["szenario"], "width": 2.5, "type": [6, 4]},
+                       "itemStyle": {"color": f["szenario"]}})
     if blind:                                          # 0.97: so lag die Vorhersage einen Monat vorher
         bt = BACKTEST_FARBE[hell]
-        reihen.append({"name": BACKTEST_EINFACH, "type": "line", "symbol": "diamond", "symbolSize": 8, "z": 6,
+        reihen.append({"name": BACKTEST_EINFACH, "type": "line", "symbol": "diamond", "symbolSize": 7, "z": 6,
                        "data": [r1(blind[z.monat]) if z.monat in blind else None for z in zs],
-                       "color": bt, "itemStyle": {"color": bt}, "lineStyle": {"color": bt, "width": 2, "type": [3, 3]}})
-        legende.append({"name": BACKTEST_EINFACH, "icon": "diamond"})
+                       "color": bt, "itemStyle": {"color": bt}, "lineStyle": {"color": bt, "width": 1.5, "type": [3, 3]}})
     tip = {"labels": labels, "ist": ist_r, "prog": prog_r, "lo": lo, "br": br, "lo95": lo95, "br95": br95, "vj": vj,
            "h": h, "kap": kap or 0}
     formatter = ("(ps) => { const d = " + json.dumps(tip) + "; const i = ps[0].dataIndex; "
@@ -491,14 +521,16 @@ def _gf_option(zs, werte, ist, g, kap, stichtag, blind: dict | None = None, b95:
                  "if (w != null) s += 'frei: ' + z(d.kap - w) + ' von ' + z(d.kap); } return s; }")
     return {"m_eigen": True, "animation": False, "backgroundColor": f["grund"],
             "textStyle": {"fontFamily": "Segoe UI, Inter, sans-serif", "fontSize": 13, "color": f["text"]},
-            "grid": {"left": 56, "right": 150, "top": 64, "bottom": 40},
-            "legend": {"top": 0, "left": 0, "right": 0, "data": legende, "selectedMode": False, "itemWidth": 26,
-                       "itemHeight": 12, "itemGap": 18, "textStyle": {"color": f["text"], "fontSize": 13}},
+            # 1.59: Legende steht als HTML über dem Diagramm (bricht bei schmaler Spalte sauber um)
+            "grid": {"left": 48, "right": 104 if kompakt else 150, "top": 34, "bottom": 34},
+            "legend": {"show": False},
             "tooltip": {"trigger": "axis", "confine": True, ":formatter": formatter, "backgroundColor": f["grund"],
                         "borderColor": f["achse"], "textStyle": {"color": f["text"], "fontSize": 13},
                         "axisPointer": {"type": "line", "lineStyle": {"color": f["achse"], "type": "dashed"}}},
             "xAxis": {"type": "category", "data": labels, "boundaryGap": False,
-                      "axisLabel": {"color": f["achse"], "fontSize": 13, "interval": 2},
+                      "axisLabel": {"color": f["achse"], "fontSize": 12 if kompakt else 13, "hideOverlap": True,
+                                    "interval": 3 if kompakt else 2,
+                                    **({":formatter": "(v) => v.slice(0, -4) + v.slice(-2)"} if kompakt else {})},
                       "axisLine": {"lineStyle": {"color": f["achse"]}}, "axisTick": {"show": False}},
             "yAxis": {"type": "value", "min": 0, "max": ymax, "interval": schritt,
                       "axisLabel": {"color": f["achse"], "fontSize": 13, ":formatter": "(v) => v.toLocaleString('de-DE')"},

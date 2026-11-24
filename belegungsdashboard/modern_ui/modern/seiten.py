@@ -1221,6 +1221,10 @@ def _mail_panel(a, m) -> None:
                 a.toast("Bitte eine E-Mail-Adresse eintragen.", fehler=True)
                 return
             link = await run.io_bound(sk.mail_oeffnen, an.value.strip(), betreff.value, text.value)
+            from . import versand_protokoll as vp      # 1.59
+
+            await run.io_bound(vp.eintragen, "mieter", "Standard-Mailprogramm" if link else "Outlook-Entwurf",
+                               an.value.strip(), betreff.value or "", text.value or "")
             if link and not _datei_oeffnen(link):
                 ui.navigate.to(link)
             if await a.aendern(sk.mieter_mail_vermerken, m.nr, an.value.strip()):

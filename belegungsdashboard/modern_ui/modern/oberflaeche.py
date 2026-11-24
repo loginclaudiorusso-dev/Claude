@@ -387,6 +387,9 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from . import diagramm_ui
 
         ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
+        from . import versand_ui
+
+        ui.add_css(versand_ui.CSS)              # 1.59: Versandprotokoll
         from . import anteile_ui
 
         ui.add_css(anteile_ui.CSS)             # 0.96: Anteils-Diagramme (Ring, Kreis, 100 %)

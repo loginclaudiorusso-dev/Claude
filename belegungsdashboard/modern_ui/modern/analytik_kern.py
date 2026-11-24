@@ -281,10 +281,32 @@ class SzVergleich:
     schlechter: bool
 
 
-def szenario_vergleich(pg: ak.Prognose, kap: int, offset: float, horizont: int = 12) -> list[SzVergleich]:
-    """Echte Werte gegen Szenario – über den gewählten Zeitraum (``horizont``)."""
+def mit_extra(zeilen: list, kap: int, extra: list | None) -> list:
+    """1.59: Szenario-Zeilen plus zusätzliche Belegungen (Mieter, Events …) je Monat – Erwartung, Band und Stufe."""
+    if not extra:
+        return zeilen
+    from dataclasses import replace
+
+    from . import szenario_zusatz as sz
+
+    erg = []
+    for z, p in zip(zeilen, sz.je_monat(extra, [z.monat for z in zeilen])):
+        if not p or z.art == "ist":
+            erg.append(z)
+            continue
+        hi = (z.hi80 or z.erwartet) + p
+        st, tx = ak.einschaetzung(hi, kap)
+        erg.append(replace(z, erwartet=z.erwartet + p, lo80=(z.lo80 or 0) + p, hi80=hi,
+                           lo95=None if z.lo95 is None else z.lo95 + p, hi95=None if z.hi95 is None else z.hi95 + p,
+                           reserve=(kap - z.erwartet - p) if kap else None, stufe=st))
+    return erg
+
+
+def szenario_vergleich(pg: ak.Prognose, kap: int, offset: float, horizont: int = 12,
+                       extra: list | None = None) -> list[SzVergleich]:
+    """Echte Werte gegen Szenario – über den gewählten Zeitraum (``horizont``); 1.59: mit zusätzlichen Belegungen."""
     a = [z for z in ak.szenario(pg, pg.kapazitaet or 0, 0) if z.art != "ist"][:horizont]
-    b = [z for z in ak.szenario(pg, kap, offset) if z.art != "ist"][:horizont]
+    b = [z for z in mit_extra(ak.szenario(pg, kap, offset), kap, extra) if z.art != "ist"][:horizont]
     if not a or not b:
         return []
     sa, sb = max(a, key=lambda z: z.erwartet), max(b, key=lambda z: z.erwartet)
@@ -300,7 +322,7 @@ def szenario_vergleich(pg: ak.Prognose, kap: int, offset: float, horizont: int =
         SzVergleich("Kleinste Reserve", f"{_z(ra.reserve)} · {ak.monat_text(ra.monat)}" if k0 else "–",
                     f"{_z(rb.reserve)} · {ak.monat_text(rb.monat)}" if kap else "–", (rb.reserve or 0) < (ra.reserve or 0)),
         SzVergleich("Monate an der Warnschwelle", f"{ea} von {len(a)}", f"{eb} von {len(b)}", eb > ea),
-    ]
+    ] + ([SzVergleich("Zusätzliche Belegung", "–", f"{len(extra)} Planung(en)", True)] if extra else [])
 
 
 # ---------------------------------------------------------------------------------------

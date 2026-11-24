@@ -646,10 +646,10 @@ def legende_gross(opt: dict) -> None:
 DIAGRAMM_FARBEN = {
     "hell": {"grund": "#FFFFFF", "ist": "#101818", "prognose": "#007A78", "band80": "#A8DCDA", "band95": "#DDF1F0",
              "vorjahr": "#6B7576", "eng": "#B07800", "eng_flaeche": "#FFF6E0", "kapazitaet": "#8A5A00",
-             "text": "#101818", "achse": "#333F3F", "gitter": "#E3E8E8", "heute": "#333F3F"},
+             "text": "#101818", "achse": "#333F3F", "gitter": "#E3E8E8", "heute": "#333F3F", "szenario": "#7A3FB8"},
     "dunkel": {"grund": "#1E2328", "ist": "#F5F7F7", "prognose": "#3DD6D0", "band80": "#1F5C5A", "band95": "#2B4A4C",
                "vorjahr": "#9AA4A6", "eng": "#F0B429", "eng_flaeche": "#3A3220", "kapazitaet": "#F0B429",
-               "text": "#F5F7F7", "achse": "#C9D1D3", "gitter": "#2E353B", "heute": "#C9D1D3"},
+               "text": "#F5F7F7", "achse": "#C9D1D3", "gitter": "#2E353B", "heute": "#C9D1D3", "szenario": "#C39BFF"},
 }
 
 

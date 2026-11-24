@@ -110,7 +110,7 @@ def test_verwaltung_buendelt_einrichten():
     rs = {r.key: r for r in _feste()}
     texte = [p.text.replace("­", "") for g in rs["verwaltung"].gruppen for p in g.punkte]
     assert texte == ["Daten einlesen", "Zimmer-Stammdaten", "Benutzer & Rechte", "Einstellungen", "Automatisierung",
-                     "Änderungsverlauf"]
+                     "Änderungsverlauf", "Versandprotokoll"]   # 1.59
     assert mb.A("automatisierung") in [p.ziel for g in rs["verwaltung"].gruppen for p in g.punkte]
     assert "qr_ui.fenster(a)" in (Path(mbu.__file__)).read_text(encoding="utf-8")
 
