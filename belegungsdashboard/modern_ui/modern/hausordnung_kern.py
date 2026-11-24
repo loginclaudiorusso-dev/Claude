@@ -345,3 +345,45 @@ def aushang_html(links: dict[str, str], logo: str = "", standort: str = "") -> s
             + f"<div class='r'>{bloecke}</div>"
             + "<div class='h'>Mit der Handy-Kamera scannen – das Dokument öffnet sich im Browser.<br>"
               "Bitte lesen Sie es aufmerksam. Bei Fragen hilft Ihnen der Internatsdienst.</div></body></html>")
+
+
+# ---- 1.53: Zimmer-Aushang – Mängel-QR und Ordnungen auf einem Blatt -------------------------------------------------
+
+def zimmer_aushang_html(maengel_link: str, zimmer: list[tuple[str, str]], links: dict[str, str], logo: str = "",
+                        standort: str = "") -> str:
+    """Je Zimmer ein halbes A4-Blatt (A5 quer, zwei je Seite zum Teilen): Träger-Logo, Zimmernummer, QR „Etwas kaputt?“
+    (Mängel-Formular mit Zimmer und Prüfcode) und je ein QR für Hausordnung und Internatsordnung."""
+    from html import escape
+
+    from . import qr_meldungen_kern as qm
+    from .qr_kern import svg
+
+    if not maengel_link:
+        raise ValueError("Zuerst den Formular-Link für die Mängelmeldung speichern (1 · Formular-Link).")
+    ordnungen = [(AUSHANG[k], v) for k, v in links.items() if v and k in AUSHANG]
+    g = qm.geheim() if qm.CODE_PLATZHALTER in maengel_link else ""
+    blaetter = []
+    for zid, kurz in zimmer:
+        url = qm.zimmer_link(maengel_link, kurz, qm.code_fuer(zid, g) if g else "")
+        qrs = [("Etwas kaputt?", "Hier melden – anonym", url)] + [(t, "lesen", u) for t, u in ordnungen]
+        bloecke = "".join(f'<div class="b"><div class="q">{svg(u, modul=1)}</div><div class="t">{escape(t)}</div>'
+                          f'<div class="z">{escape(z)}</div></div>' for t, z, u in qrs)
+        blaetter.append(
+            "<div class='s'><div class='k'>" + (f"<img src='{logo}' alt=''>" if logo else "<span></span>")
+            + f"<div class='n'><small>Zimmer</small>{escape(kurz)}</div></div>"
+            + f"<div class='r'>{bloecke}</div>"
+            + f"<div class='f'>{escape(standort)} · Mit der Handy-Kamera scannen – bei Fragen hilft der Internatsdienst."
+              "</div></div>")
+    return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>Zimmer-Aushang</title><style>"
+            "@page{size:A4 portrait;margin:8mm}body{font-family:Segoe UI,Arial,sans-serif;margin:0;color:#1f2a33}"
+            ".s{height:136mm;box-sizing:border-box;padding:7mm 8mm;border-bottom:0.3mm dashed #999;break-inside:avoid;"
+            "display:flex;flex-direction:column;justify-content:space-between}"
+            ".s:nth-child(2n){border-bottom:none;break-after:page}"
+            ".k{display:flex;justify-content:space-between;align-items:center}.k img{height:20mm}"
+            ".n{font-size:30pt;font-weight:700;text-align:right;line-height:1}.n small{display:block;font-size:11pt;"
+            "font-weight:400;color:#45525c}"
+            ".r{display:flex;justify-content:space-around;align-items:flex-start;gap:6mm}"
+            ".b{text-align:center;width:56mm}.q svg{width:48mm;height:48mm}"
+            ".t{font-size:14pt;font-weight:700;margin-top:2mm}.z{font-size:9.5pt;color:#45525c}"
+            ".f{font-size:9pt;color:#45525c;text-align:center}"
+            "</style><body>" + "".join(blaetter) + "</body></html>")

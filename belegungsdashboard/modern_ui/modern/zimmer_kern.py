@@ -152,9 +152,10 @@ def liste(stand: zp.Planstand, f: zl.Filter, tag: date) -> list[LZeile]:
     for r in _sortiert(stand, f, tag):
         z = r.zimmer
         st = mg.stufe(r.maengel)
-        zu = zustand(r.status, z.id in stand.lage.unbewohnbar)
+        status = _status(stand, r, tag)                 # 1.53: EMR-Zimmer nicht als gesperrt
+        zu = zustand(status, z.id in stand.lage.unbewohnbar)
         erg.append(LZeile(z.id, z.kurz, zp.flur_text(z).split(" · ", 1)[-1], zl.merkmal_kurz(z), zl.reno_text(z) or "",
-                          r.boden or "", r.heute, "nicht_nutzbar" if zu == "nicht_nutzbar" else r.status, ", ".join(sorted({mg.NAMEN.get(m.art, m.art) for m in r.maengel})),
+                          r.boden or "", r.heute, "nicht_nutzbar" if zu == "nicht_nutzbar" else status, ", ".join(sorted({mg.NAMEN.get(m.art, m.art) for m in r.maengel})),
                           st, z.notiz))
     return erg
 
@@ -257,8 +258,9 @@ def _kkarte(stand: zp.Planstand, r, tag: date) -> KKarte:
     merkmale = [x for x in (f"renoviert {zl.reno_text(z)}" if z.renoviert else "", r.boden, "Tier" if z.tiere else "",
                             "Bad über den Flur" if z.nur_maenner else "", "Gäste" if z.gaeste else "") if x]
     st = mg.stufe(r.maengel)
-    zu = zustand(r.status, z.id in stand.lage.unbewohnbar)
-    k = KKarte(z.id, z.kurz, z.betten, "nicht_nutzbar" if zu == "nicht_nutzbar" else r.status, " · ".join(merkmale), st,
+    status = _status(stand, r, tag)                     # 1.53: EMR-Zimmer nicht als gesperrt
+    zu = zustand(status, z.id in stand.lage.unbewohnbar)
+    k = KKarte(z.id, z.kurz, z.betten, "nicht_nutzbar" if zu == "nicht_nutzbar" else status, " · ".join(merkmale), st,
                " · ".join(m.text for m in sorted(r.maengel, key=lambda m: -m.stufe)),
                any(getattr(m, "unbewohnbar", False) for m in r.maengel))
     for b in r.belegungen:
@@ -774,7 +776,15 @@ class MZeile:
 
 
 def _status_heute(stand: zp.Planstand, heute: date) -> dict[str, str]:
-    return {z.id: stand.lage.status_am(z.id, heute)[0] for z in stand.zimmer if z.aktiv}
+    return {z.id: status_anzeige(stand.lage, z.id, heute)[0] for z in stand.zimmer if z.aktiv}
+
+
+def _status(stand: zp.Planstand, r, tag: date) -> str:
+    """Status einer Zimmerlisten-Zeile – bei EMR-Reservierung nach den Bewohnern statt „gesperrt“."""
+    if r.status != "gesperrt":
+        return r.status
+    st, _bs, emr = status_anzeige(stand.lage, r.zimmer.id, tag)
+    return st if emr else r.status
 
 
 def maengel_liste(stand: zp.Planstand, heute: date) -> list[MZeile]:
@@ -847,6 +857,7 @@ class Kachel:
     arten: frozenset = frozenset()   # Arten der offenen Mängel (für den Mangelart-Filter)
     nicht_fertig: str = ""           # frei, aber nicht bezugsfertig: Grund (Reinigung offen, dringender Mangel)
     strittig: str = ""               # eigene Planung widerspricht dem Gebäudeplan (Text) – Zimmer erst klären
+    emr: bool = False                # 1.53: EMR-Zimmer (laut Gebäudeplan für EMR reserviert) – Schraffur, nicht gesperrt
 
 
 def _seither_bezogen(stand: zp.Planstand, zid: str, gereinigt: date, tag: date) -> bool:
@@ -873,6 +884,55 @@ def nicht_bezugsfertig(stand: zp.Planstand, tag: date) -> dict[str, str]:
             and stand.lage.status_am(zid, tag)[0] in ("frei", "teilweise")}
 
 
+# ---- 1.53: EMR-Zimmer sind nicht gesperrt, sondern für EMR reserviert ---------------------------------------------
+# Im Gebäudeplan stehen EMR-Zimmer mit einem Status wie „Reserviert … EMR“ statt „belegt“ – das Programm las das als
+# Sperre (grau, „nicht nutzbar“, ohne Namen). Für die Anzeige gilt jetzt: Eine Sperre, deren Text „EMR“ enthält, ist
+# eine EMR-Reservierung – das Zimmer zählt nach seinen Bewohnern (belegt/teilweise/geplant/frei), die Namen aus dem
+# Gebäudeplan-Text erscheinen beim Überfahren. Echte Sperren (Renovierung u. a.) bleiben „nicht nutzbar“.
+
+import re as _re  # noqa: E402
+
+_EMR = _re.compile(r"\bEMR\b", _re.I)
+_PERSON = _re.compile(r"^(.+?)\s*\(([^()]*)\)$")
+
+
+def emr_sperre(b) -> bool:
+    return b.art == "gesperrt" and bool(_EMR.search(f"{b.grund} {b.name} {b.massnahme}"))
+
+
+def _emr_name(b) -> str:
+    """Name aus dem Sperrtext „Status: Nachname, Vorname (Maßnahme)“ – "" wenn dort niemand steht."""
+    text = (b.grund.split(":", 1)[1] if ":" in b.grund else "").strip()
+    m = _PERSON.match(text)
+    kandidat = (m.group(1) if m else text).strip()
+    if not kandidat or _EMR.fullmatch(kandidat) or ("," not in kandidat and " " not in kandidat):
+        return ""
+    return kandidat
+
+
+def status_anzeige(lage, zid: str, tag: date) -> tuple[str, list, bool]:
+    """(Status, Belegungen, EMR-Zimmer?) – wie ``Lage.status_am``, aber EMR-Reservierungen sind keine Sperre."""
+    status, bs = lage.status_am(zid, tag)
+    emr = [b for b in bs if emr_sperre(b)]
+    if not emr or any(b.art == "gesperrt" and b not in emr for b in bs):
+        return status, bs, bool(emr)
+    rest = [b for b in bs if b not in emr]
+    personen = [b for b in rest if b.art in ("belegt", "geplant")]
+    bekannt = {b.name for b in personen}
+    for b in emr:
+        if (n := _emr_name(b)) and n not in bekannt:
+            neu = zp.Belegung(zid, b.von, b.bis, "belegt", n, "EMR")
+            personen.append(neu)
+            rest.append(neu)
+            bekannt.add(n)
+    betten = lage.zimmer[zid].betten
+    if not personen:
+        return "frei", rest, True
+    if len(personen) < betten:
+        return "teilweise", rest, True
+    return ("geplant" if all(b.art == "geplant" for b in personen) else "belegt"), rest, True
+
+
 def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kachel]]]:
     """Haus → Etage-Text → Kacheln (am Tag ``tag``)."""
     offen = mg.offen_je_zimmer()
@@ -888,16 +948,16 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
         if x.von <= tag <= x.bis or tag < x.von:
             strittig.setdefault(x.geplant, f"strittig: laut Planung {x.name}, im Gebäudeplan in {kurz(x.gebucht)}")
     for z in sorted((z for z in stand.zimmer if z.aktiv), key=lambda z: (zp._haus_sort(z.haus), zp._etage_sort(z.etage), z.nummer)):
-        status, bs = stand.lage.status_am(z.id, tag)
+        status, bs, emr = status_anzeige(stand.lage, z.id, tag)
         ms = offen.get(z.id, [])
         namen = ", ".join(zp.anzeige_name(b.name) for b in bs if b.art in ("belegt", "geplant") and b.name != zp.PIVOT_NAME)
-        titel = f"{z.kurz} · {status}" + (f" · {namen}" if namen else "") + \
+        titel = f"{z.kurz} · {status}" + (" · EMR-Zimmer" if emr else "") + (f" · {namen}" if namen else "") + \
             ("\nMängel: " + ", ".join(mg.NAMEN.get(m.art, m.art) for m in ms) if ms else "") + \
             (f"\nNicht bezugsfertig: {unfertig[z.id]}" if z.id in unfertig else "")
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
             Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar,
                    titel + (f"\n⚠ {strittig[z.id]} – bitte klären" if z.id in strittig else ""),
-                   frozenset(m.art for m in ms), unfertig.get(z.id, ""), strittig.get(z.id, "")))
+                   frozenset(m.art for m in ms), unfertig.get(z.id, ""), strittig.get(z.id, ""), emr))
     return erg
 
 

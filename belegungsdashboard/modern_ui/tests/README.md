@@ -29,6 +29,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_gaeste_v149_doppelzimmer.py` – 1.49 – Gäste & Mieter: Gast im Doppelzimmer, allein oder mit Begleitperson
 - `test_gaeste_v150_bearbeiten_symbol.py` – 1.50 – Gast bearbeiten/entfernen, Programmsymbol aus dem Logo, Ersteller sichtbar
 - `test_hausordnung_v151.py` – 1.51/1.52 – Hausordnung per QR bestätigen (je Aufenthalt) bzw. als Aushang mit QR-Code
+- `test_zimmer_v153_emr_sperre.py` – 1.53 – EMR-Reservierung ist keine Sperre, echte Sperren bleiben (rot)
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

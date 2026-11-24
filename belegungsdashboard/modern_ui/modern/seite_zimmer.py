@@ -1048,7 +1048,7 @@ def _uebersicht(a) -> None:
                                         and (pf is None or k.zimmer in pf)
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus") \
                                         + (" nn" if zu[k.zimmer] == "nicht_nutzbar" else "") \
-                                        + (" strittig" if k.strittig else "")
+                                        + (" strittig" if k.strittig else "") + (" emr" if k.emr else "")
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=("Doppelzimmer: ein Bett belegt bzw. zugeteilt, ein Bett frei\n" if k.status == "teilweise"
                                                    else "") + k.titel)
@@ -1070,8 +1070,9 @@ LEGENDE = (("frei", "", "frei – mindestens ein Bett frei"),
            ("teilweise", "", "Doppelzimmer – ein Bett frei"),
            ("geplant", "", "geplant – Einzug steht bevor"),
            ("belegt", "", "belegt – alle Betten belegt"),
-           ("nn", "", "nicht nutzbar – gesperrt laut Gebäudeplan"),
-           ("nn unbew", "", "nicht nutzbar – Mangel macht es unbewohnbar"))
+           ("belegt emr", "", "EMR-Zimmer (schraffiert) – Farbe zeigt, ob belegt"),
+           ("nn", "", "gesperrt laut Gebäudeplan (z. B. Renovierung)"),
+           ("nn unbew", "", "unbewohnbar – Mangel"))
 ZEICHEN = (("!", "offener Mangel (! leicht · !! mittel · !!! dringend)"),
            ("besen", "nicht bezugsfertig – Reinigung offen"),
            ("?", "Gebäudeplan widerspricht der Planung"))

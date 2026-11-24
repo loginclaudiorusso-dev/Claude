@@ -242,10 +242,12 @@ body.pro .m-kachel-m { background: var(--s-warn-fg); color: var(--fls); }
    Schrift, geplant violett gestrichelt, nicht nutzbar dunkelgrau gestreift, wegen Mangel unbewohnbar rot gestreift. */
 body.pro { --zi-frei: #D3EDC4; --zi-frei-rand: #2F6F14; --zi-frei-text: #173D07; --zi-belegt: #1D5BB8; --zi-belegt-text: #FFFFFF;
   --zi-halb: #7FA6E0; --zi-geplant: #EEE7FB; --zi-geplant-rand: #6D3FC0; --zi-geplant-text: #44207F;
-  --zi-nn1: #66767A; --zi-nn2: #849396; --zi-nn-text: #FFFFFF; --zi-mangel1: #A3342A; --zi-mangel2: #C0574D; --zi-mangel-rand: #7A1A12; }
+  --zi-nn1: #E4E7E8; --zi-nn2: #D3D8DA; --zi-nn-text: #FFFFFF; --zi-sperr-text: #B42318; --zi-mangel1: #A3342A;
+  --zi-mangel2: #C0574D; --zi-mangel-rand: #7A1A12; }
 body.pro.mod-dunkel { --zi-frei: #2D5A20; --zi-frei-rand: #9AD96E; --zi-frei-text: #EEF9E6; --zi-belegt: #3D74C2; --zi-belegt-text: #FFFFFF;
   --zi-halb: #3D74C2; --zi-geplant: #30264A; --zi-geplant-rand: #B9A0F0; --zi-geplant-text: #E3D8FA;
-  --zi-nn1: #46524F; --zi-nn2: #5A6764; --zi-nn-text: #F1F5F4; --zi-mangel1: #7A2D27; --zi-mangel2: #964038; --zi-mangel-rand: #FF8A80; }
+  --zi-nn1: #2E3634; --zi-nn2: #3A4441; --zi-nn-text: #F1F5F4; --zi-sperr-text: #FF8A80; --zi-mangel1: #7A2D27;
+  --zi-mangel2: #964038; --zi-mangel-rand: #FF8A80; }
 body.pro .m-kachel { font-weight: 600; }
 body.pro .m-kachel.frei, body.pro .m-legende i.frei { background: var(--zi-frei); color: var(--zi-frei-text);
   border: 1.5px solid var(--zi-frei-rand); box-shadow: none; }
@@ -258,7 +260,10 @@ body.pro .m-kachel.belegt, body.pro .m-legende i.belegt { background: var(--zi-b
 body.pro .m-kachel.geplant, body.pro .m-legende i.geplant { background: var(--zi-geplant); color: var(--zi-geplant-text);
   border: 2px dashed var(--zi-geplant-rand); }
 body.pro .m-kachel.nn, body.pro .m-kachel.gesperrt { background: repeating-linear-gradient(135deg, var(--zi-nn1) 0 5px, var(--zi-nn2) 5px 10px);
-  color: var(--zi-nn-text); border: 1.5px solid var(--zi-nn1); box-shadow: none; }
+  color: var(--zi-sperr-text); border: 2px solid var(--zi-sperr-text); box-shadow: none; font-weight: 700; }
+/* 1.53: EMR-Zimmer – Farbe des Zustands (frei/belegt …), darüber eine helle Schraffur */
+body.pro .m-kachel.emr:not(.nn) { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 3px,
+  transparent 3px 8px); }
 body.pro .m-kachel.nn.unbew { background: repeating-linear-gradient(135deg, var(--zi-mangel1) 0 5px, var(--zi-mangel2) 5px 10px);
   color: #FFFFFF; border: 2px solid var(--zi-mangel-rand); }
 body.pro .m-kachel.aus { opacity: .22; }

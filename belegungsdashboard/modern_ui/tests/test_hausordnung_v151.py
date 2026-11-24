@@ -104,3 +104,15 @@ def test_abhaken_nur_mit_formular():
 
     q = (Path(hk.__file__).parent / "qr_ui.py").read_text(encoding="utf-8")
     assert 'if d.get("ho_formular") else []' in q and "Aushang drucken" in q
+
+
+def test_zimmer_aushang(goslar):
+    qm.link_setzen("https://forms.office.com/r/demo?a=ZIMMER&b=CODE")
+    with pytest.raises(ValueError):
+        hk.zimmer_aushang_html("", [("GS-2-101", "2-101")], {})
+    html = hk.zimmer_aushang_html(qm.link(), [("GS-2-101", "2-101"), ("GS-2-102", "2-102")],
+                                  {"hausordnung": "https://example.org/ho.pdf", "internatsordnung": "https://example.org/io.pdf"},
+                                  "", "Internat Goslar")
+    assert html.count("<svg") == 6 and html.count("class='s'") == 2 and "Etwas kaputt?" in html and "2-102" in html
+    nur_maengel = hk.zimmer_aushang_html(qm.link(), [("GS-2-101", "2-101")], {})
+    assert nur_maengel.count("<svg") == 1

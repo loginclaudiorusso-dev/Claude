@@ -42,6 +42,21 @@ def finden() -> Path | None:
 
 
 _URI: dict = {"schluessel": None, "uri": ""}
+TRAEGER_DATEI = "INNtegrativ_Logo.png"           # 1.53: Logo des Trägers für Aushänge (liegt im Datenordner)
+
+
+def bild_uri(name: str) -> str:
+    """Ein Bild aus dem Datenordner (wie das Logo gesucht) als data-URI, "" wenn es fehlt."""
+    import base64
+
+    for o in _orte():
+        p = o / name
+        try:
+            if p.is_file() and 0 < p.stat().st_size < 3_000_000:
+                return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
+        except OSError:
+            continue
+    return ""
 
 
 def data_uri() -> str:

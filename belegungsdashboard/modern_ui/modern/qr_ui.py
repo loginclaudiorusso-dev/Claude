@@ -388,11 +388,35 @@ def fenster(a) -> None:
 
             html_drucken(a, html, "Aushang_Hausordnung")
 
+        async def zimmer_aushang():
+            """1.53: je Zimmer ein Blatt – Mängel-QR und Hausordnung/Internatsordnung, mit Träger-Logo."""
+            from . import icon_kern
+            from .standort_kern import aktiv
+
+            zs = [(z.id, z.kurz) for z in a.stand.zimmer if z.aktiv and (was.value in ("", "probe") or z.haus == was.value)]
+            if was.value == "probe":
+                zs = zs[:1]
+            logo = await run.io_bound(icon_kern.bild_uri, icon_kern.TRAEGER_DATEI) or await run.io_bound(icon_kern.data_uri)
+            try:
+                html = await run.io_bound(hk.zimmer_aushang_html, qm.link(), zs, hk.aushang(), logo,
+                                          f"Internat {aktiv().name}")
+            except ValueError as exc:
+                a.toast(str(exc), fehler=True)
+                return
+            from .seiten import html_drucken
+
+            html_drucken(a, html, "Zimmer_Aushang")
+
         with ui.element("div").classes("m-paktionen"):
             knopf("Links speichern", lambda: a.aendern(hk.aushang_setzen, f_ho.value or "", f_io.value or ""), "",
                   "link")
-            knopf("Aushang drucken", aushang_drucken, "primaer", "print")
+            knopf("Aushang Flur", aushang_drucken, "primaer", "print", "A4-Aushang für den Flur: je Dokument ein QR-Code")
+            knopf("Zimmer-Aushang", zimmer_aushang, "", "print",
+                  "Je Zimmer ein halbes A4-Blatt: QR „Etwas kaputt?“ und QR-Codes zu Hausordnung und Internatsordnung "
+                  "– Auswahl der Zimmer wie bei den Etiketten (3)")
             knopf("Schließen", a.panel_zu, "leise")
+        ui.label("Zimmer-Aushang: zwei Zimmer je A4-Seite (an der Linie teilen), oben das Logo des Trägers – dafür "
+                 "„INNtegrativ_Logo.png“ in den Ordner „Daten“ legen.").classes("m-zweite")
         ui.label("Tipp: Die Links lassen sich zusätzlich in die Beschreibung des Mängel-Formulars setzen – dann sind "
                  "die Ordnungen auch über das Etikett am Zimmer erreichbar.").classes("m-zweite")
 
