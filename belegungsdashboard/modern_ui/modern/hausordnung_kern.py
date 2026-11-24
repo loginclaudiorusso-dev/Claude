@@ -1,4 +1,7 @@
-"""1.51: Hausordnung bestätigen – eigener QR-Code je Zimmer, Bestätigung gilt für die Person, die dort wohnt.
+"""1.52: Hausordnung und Internatsordnung als **Aushang im Flur** – A4-Blatt mit QR-Code(s) zum Dokument
+(SharePoint/OneDrive-Link), kein Formular, kein Abhaken (``aushang``, ``aushang_setzen``, ``aushang_html``).
+
+1.51 (bleibt verfügbar, in der Oberfläche nur sichtbar, wenn ein Hausordnung-Formular eingetragen ist): Hausordnung bestätigen – eigener QR-Code je Zimmer, Bestätigung gilt für die Person, die dort wohnt.
 
 * Zweites Formular in Forms (Zimmer und Code vorausgefüllt wie bei den Mängeln, dazu Name und der Haken „gelesen“).
   Power Automate legt je Antwort eine Datei in denselben OneDrive-Ordner wie die QR-Meldungen – mit der Kennung
@@ -283,3 +286,62 @@ def zuruecknehmen(bid: str) -> str:
         _schreiben(d)
     _schritt("Hausordnung-Bestätigung zurückgenommen", tun, [DATEI])
     return "Bestätigung zurückgenommen – die Person steht wieder auf „offen“"
+
+
+# ---- 1.52: Aushang im Flur ------------------------------------------------------------------------------------------
+
+AUSHANG = {"hausordnung": "Hausordnung", "internatsordnung": "Internatsordnung"}
+
+
+def aushang() -> dict[str, str]:
+    d = _lesen().get("aushang") or {}
+    return {k: str(d.get(k) or "") for k in AUSHANG} if isinstance(d, dict) else {k: "" for k in AUSHANG}
+
+
+def aushang_setzen(hausordnung: str, internatsordnung: str) -> str:
+    """Links zu den Dokumenten speichern (gilt für alle PCs des Standorts)."""
+    from .kern import _schritt
+
+    neu = {"hausordnung": (hausordnung or "").strip(), "internatsordnung": (internatsordnung or "").strip()}
+    for k, v in neu.items():
+        if v and not re.match(r"^https://", v, re.I):
+            raise ValueError(f"{AUSHANG[k]}: bitte den vollständigen Link einfügen (beginnt mit https://).")
+
+    def tun():
+        d = _lesen()
+        d["aushang"] = neu
+        _schreiben(d)
+    _schritt("Aushang Hausordnung", tun, [DATEI])
+    n = sum(1 for v in neu.values() if v)
+    return f"{n} Link(s) für den Aushang gespeichert" if n else "Links für den Aushang entfernt"
+
+
+def aushang_html(links: dict[str, str], logo: str = "", standort: str = "") -> str:
+    """A4 hochkant: Überschrift, je Dokument ein großer QR-Code mit Beschriftung, kurzer Hinweis."""
+    from html import escape
+
+    from .qr_kern import svg
+
+    eintraege = [(AUSHANG[k], v) for k, v in links.items() if v and k in AUSHANG]
+    if not eintraege:
+        raise ValueError("Bitte zuerst mindestens einen Link (Hausordnung oder Internatsordnung) speichern.")
+    gross = len(eintraege) == 1
+    bloecke = "".join(
+        f'<div class="b"><div class="q">{svg(url, modul=1)}</div><div class="t">{escape(titel)}</div></div>'
+        for titel, url in eintraege)
+    titel = " und ".join(t for t, _u in eintraege)
+    return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>Aushang</title><style>"
+            "@page{size:A4 portrait;margin:14mm}body{font-family:Segoe UI,Arial,sans-serif;margin:0;color:#1f2a33;"
+            "text-align:center}"
+            ".k{display:flex;align-items:center;justify-content:center;gap:6mm;margin-top:6mm}.k img{height:26mm}"
+            "h1{font-size:30pt;margin:8mm 0 2mm}.u{font-size:14pt;color:#45525c;margin-bottom:10mm}"
+            ".r{display:flex;justify-content:center;gap:14mm;flex-wrap:wrap}"
+            f".q svg{{width:{'120mm' if gross else '78mm'};height:{'120mm' if gross else '78mm'}}}"
+            ".t{font-size:18pt;font-weight:700;margin-top:3mm}"
+            ".h{font-size:12pt;color:#45525c;margin-top:12mm;line-height:1.5}"
+            "</style><body>"
+            + (f"<div class='k'><img src='{logo}' alt=''></div>" if logo else "")
+            + f"<h1>{escape(titel)}</h1><div class='u'>{escape(standort) if standort else ''}</div>"
+            + f"<div class='r'>{bloecke}</div>"
+            + "<div class='h'>Mit der Handy-Kamera scannen – das Dokument öffnet sich im Browser.<br>"
+              "Bitte lesen Sie es aufmerksam. Bei Fragen hilft Ihnen der Internatsdienst.</div></body></html>")

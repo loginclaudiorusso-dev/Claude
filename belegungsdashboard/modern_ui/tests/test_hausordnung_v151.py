@@ -81,3 +81,26 @@ def test_mieter_ausgenommen_und_link(goslar):
     assert hk.link().endswith("a=ZIMMER&b=CODE")
     with pytest.raises(ValueError):
         hk.link_setzen("forms.office.com/x")
+
+
+# ---- 1.52: Aushang im Flur statt Abhaken ----------------------------------------------------------------------------
+
+def test_aushang_links_und_blatt(goslar):
+    assert hk.aushang() == {"hausordnung": "", "internatsordnung": ""}
+    with pytest.raises(ValueError):
+        hk.aushang_html(hk.aushang())                          # ohne Link kein Blatt
+    with pytest.raises(ValueError):
+        hk.aushang_setzen("sharepoint/hausordnung.pdf", "")
+    assert "2 Link(s)" in hk.aushang_setzen("https://example.org/ho.pdf", "https://example.org/io.pdf")
+    html = hk.aushang_html(hk.aushang(), "", "Internat Goslar")
+    assert html.count("<svg") == 2 and "Hausordnung und Internatsordnung" in html and "Internat Goslar" in html
+    hk.aushang_setzen("https://example.org/ho.pdf", "")
+    eins = hk.aushang_html(hk.aushang())
+    assert eins.count("<svg") == 1 and "120mm" in eins
+
+
+def test_abhaken_nur_mit_formular():
+    from pathlib import Path
+
+    q = (Path(hk.__file__).parent / "qr_ui.py").read_text(encoding="utf-8")
+    assert 'if d.get("ho_formular") else []' in q and "Aushang drucken" in q

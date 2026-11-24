@@ -1,4 +1,4 @@
-# QR-Meldungen über Power Automate – Anleitung (Stand 1.51)
+# QR-Meldungen über Power Automate – Anleitung (Stand 1.52)
 
 **Warum:** Die Forms-Excel-Datei auf dem PC wird nur aktualisiert, wenn OneDrive sie synchronisiert, und das passiert
 oft nicht. Darum schickt Power Automate jetzt **je Antwort eine Mail mit festem Aufbau**. Eine Outlook-Regel legt
@@ -153,7 +153,23 @@ denn INNternat merkt sich die Antwort-ID. Wechseln Sie später doch auf Mail, er
   Kollegen freigeben („Freigeben“ → „Verknüpfung zu Meine Dateien hinzufügen“). Tragen Sie ihn dort ebenfalls ein.
   Doppelte Meldungen entstehen dabei nicht.
 
-## Teil 6 – Hausordnung mit eigenem QR-Code (ab 1.51)
+## Teil 6 – Hausordnung und Internatsordnung als Aushang im Flur (ab 1.52)
+Kein Formular, kein Abhaken, kein Power Automate nötig – ein A4-Aushang mit QR-Code zum Dokument.
+
+A1. Hausordnung und Internatsordnung als PDF in SharePoint oder OneDrive ablegen. Freigeben → **„Jeder mit dem Link
+    kann anzeigen“** → Link kopieren.
+A2. In INNternat **Zimmer & Haus → QR-Meldungen → „Einrichten & Etiketten“ → „4 · Hausordnung und
+    Internatsordnung (Aushang im Flur)“** die beiden Links einfügen.
+A3. **„Aushang drucken“**: A4-Blatt mit Logo, Überschrift und je Dokument einem großen QR-Code. Mit dem Handy
+    testen, dann in den Fluren aushängen.
+A4. Ändert sich ein Dokument: in SharePoint/OneDrive **„Neue Version hochladen“** (nicht als neue Datei) – der Link
+    und damit der Aushang bleiben gültig.
+Tipp: Die Links zusätzlich in die Beschreibung des Mängel-Formulars setzen – dann sind die Ordnungen auch über das
+Etikett am Zimmer erreichbar.
+
+### Teil 6b – Optional: Bestätigung je Zimmer (eigenes Formular, ab 1.51)
+Nur nötig, wenn das Lesen doch bestätigt werden soll. Die Liste „Hausordnung offen“ erscheint in INNternat nur, wenn
+ein Hausordnung-Formular eingetragen ist.
 Jedes Zimmer bekommt ein zweites Etikett „Hausordnung“. Wer dort wohnt, liest die Ordnung am Handy und bestätigt mit
 einem Haken. INNternat ordnet die Bestätigung der Person zu, die gerade im Zimmer wohnt. **Zieht sie aus, ist das
 Zimmer für die nächste Person automatisch wieder „offen“.** Mieter sind ausgenommen, sie haben ihren Mietvertrag.

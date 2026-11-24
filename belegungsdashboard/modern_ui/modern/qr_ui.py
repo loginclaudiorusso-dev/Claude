@@ -69,7 +69,7 @@ def ansicht_daten(a) -> None:
         ho = hk.status(a.stand, a.heute) if a.stand is not None else []
     except Exception:                                   # noqa: BLE001
         ho = []
-    a.daten = {"alle": alle, "diag": diag, "ho": ho}
+    a.daten = {"alle": alle, "diag": diag, "ho": ho, "ho_formular": bool(hk.link())}
 
 
 async def _jetzt_einlesen(a) -> None:
@@ -105,7 +105,8 @@ def ansicht_zeichnen(a) -> None:
                     ("uebernommen", n["uebernommen"], "übernommen", "ok"),
                     ("verworfen", n["verworfen"], "verworfen", "neutral"),
                     (qm.ARCHIV, n[qm.ARCHIV], "Archiv", "neutral"),
-                    (HAUSORDNUNG, len(ho_offen), "Hausordnung offen", "warn" if ho_offen else "ok")],
+                    *([(HAUSORDNUNG, len(ho_offen), "Hausordnung offen", "warn" if ho_offen else "ok")]
+                      if d.get("ho_formular") else [])],                # 1.52: nur mit Bestätigungs-Formular
                    filt, lambda k: a.setzen(qr_filter=k, laden=False))
         a.status_info = f"{n['neu']} neue Meldung(en) per QR-Code"
         knopf("Einrichten & Etiketten", lambda: fenster(a), "leise", "settings",
@@ -354,35 +355,46 @@ def fenster(a) -> None:
         ui.label("A4, 12 Etiketten je Seite (6 × 6 cm). Tipp: laminieren oder auf wetterfeste Etiketten drucken.") \
             .classes("m-ptext")
 
-        # 1.51: Hausordnung – eigenes Formular, eigener QR-Code
+        # 1.52: Hausordnung und Internatsordnung als Aushang im Flur (QR-Code zum Dokument, kein Abhaken)
         from . import hausordnung_kern as hk
 
-        ui.label("4 · Hausordnung (eigener QR-Code)").classes("m-abschnitt")
-        ui.label(f"Zweites Formular in Forms: Beschreibung mit den Links zu Hausordnung und Internatsordnung, Fragen "
-                 f"„Zimmer“ und „Code“ (vorausgefüllt mit {qm.PLATZHALTER} und {qm.CODE_PLATZHALTER} wie oben), „Name“ und "
-                 "ein Pflicht-Haken „Ich habe die Hausordnung gelesen“. Power Automate legt die Antwort mit der ersten "
-                 "Zeile INNTERNAT-HO in denselben QR-Ordner (siehe Anleitung, Teil 6).").classes("m-ptext")
-        ho_link = ui.input(value=hk.link(), label="Vorausgefüllter Link des Hausordnung-Formulars").classes(
-            "m-feld w-full").props("dense outlined dark")
+        ui.label("4 · Hausordnung und Internatsordnung (Aushang im Flur)").classes("m-abschnitt")
+        ui.label("Dokumente als PDF in SharePoint oder OneDrive ablegen → „Freigeben“ → „Jeder mit dem Link kann "
+                 "anzeigen“ → Link kopieren und hier einfügen. „Aushang drucken“ erstellt ein A4-Blatt mit großem "
+                 "QR-Code je Dokument. Ändert sich das Dokument, bleibt der Link gleich – der Aushang muss nicht neu "
+                 "gedruckt werden (in SharePoint „Neue Version hochladen“ statt neue Datei).").classes("m-ptext")
+        links = hk.aushang()
+        f_ho = ui.input(value=links["hausordnung"], label="Link Hausordnung").classes("m-feld w-full").props(
+            "dense outlined dark")
+        f_io = ui.input(value=links["internatsordnung"], label="Link Internatsordnung").classes("m-feld w-full").props(
+            "dense outlined dark")
 
-        async def ho_drucken():
-            zs = [(z.id, z.kurz) for z in a.stand.zimmer if z.aktiv and (was.value in ("", "probe") or z.haus == was.value)]
-            if was.value == "probe":
-                zs = zs[:1]
+        async def aushang_drucken():
+            from . import icon_kern
+
+            from .standort_kern import aktiv
+
+            if (f_ho.value or "", f_io.value or "") != (links["hausordnung"], links["internatsordnung"]):
+                if not await a.aendern(hk.aushang_setzen, f_ho.value or "", f_io.value or ""):
+                    return
+                links.update(hausordnung=f_ho.value or "", internatsordnung=f_io.value or "")
             try:
-                html = await run.io_bound(qm.etiketten_html, hk.link(), zs, "Hausordnung",
-                                          "Bitte lesen und bestätigen")
+                html = await run.io_bound(hk.aushang_html, hk.aushang(), await run.io_bound(icon_kern.data_uri),
+                                          f"Internat {aktiv().name}")
             except ValueError as exc:
-                a.toast("Zuerst den Hausordnung-Link speichern." if "Forms-Link" in str(exc) else str(exc), fehler=True)
+                a.toast(str(exc), fehler=True)
                 return
             from .seiten import html_drucken
 
-            html_drucken(a, html, "Hausordnung-Etiketten")
+            html_drucken(a, html, "Aushang_Hausordnung")
 
         with ui.element("div").classes("m-paktionen"):
-            knopf("Link speichern", lambda: a.aendern(hk.link_setzen, ho_link.value or ""), "", "link")
-            knopf("Etiketten drucken", ho_drucken, "", "print")
+            knopf("Links speichern", lambda: a.aendern(hk.aushang_setzen, f_ho.value or "", f_io.value or ""), "",
+                  "link")
+            knopf("Aushang drucken", aushang_drucken, "primaer", "print")
             knopf("Schließen", a.panel_zu, "leise")
+        ui.label("Tipp: Die Links lassen sich zusätzlich in die Beschreibung des Mängel-Formulars setzen – dann sind "
+                 "die Ordnungen auch über das Etikett am Zimmer erreichbar.").classes("m-zweite")
 
     a.panel("QR-Codes: Mängel und Hausordnung", bauen)
 
