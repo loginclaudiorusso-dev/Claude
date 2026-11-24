@@ -1271,3 +1271,7 @@ _leistung.installieren()                           # 1.36: schneller (Zimmer-Ver
 from . import mietbindung as _mietbindung  # noqa: E402
 
 _mietbindung.einrichten()                          # 1.48: Mietvertrag gilt – Gebäudeplan überstimmt Mieter-Zimmer nicht mehr
+
+from . import gaeste_kern as _gaeste  # noqa: E402
+
+_gaeste.installieren()                             # 1.49: Gäste-Paare im Doppelzimmer (Begleitperson)

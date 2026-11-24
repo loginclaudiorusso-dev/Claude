@@ -26,6 +26,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_start_v147_alte_version.py` – 1.47 – Start erkennt und beendet eine ältere Version im Hintergrund
 - `test_postfach_v147_zimmer_fm_absender.py` – 1.47 – Postfach nur mit Zimmerbezug; FM-Mail aus dem gemeinsamen Postfach
 - `test_mieter_v148_vertrag_gilt.py` – 1.48 – Mietvertrag gilt vor dem Gebäudeplan; Verlängern-Optionen, automatische Verlängerung
+- `test_gaeste_v149_doppelzimmer.py` – 1.49 – Gäste & Mieter: Gast im Doppelzimmer, allein oder mit Begleitperson
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

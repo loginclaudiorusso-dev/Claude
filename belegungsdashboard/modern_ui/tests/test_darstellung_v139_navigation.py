@@ -73,7 +73,7 @@ def test_jede_ansicht_erreichbar():
     for seite, views in mbu._ansichten().items():
         for k in views:
             assert (seite, k) in ziele or (seite, k) in IN_DER_SEITE, (seite, k)
-    assert {("mieter", None), ("daten", None)} <= ziele
+    assert {("mieter", "mieter"), ("mieter", "gaeste"), ("daten", None)} <= ziele   # 1.49: Gäste & Mieter
     for seite in register.SEITEN:
         assert any(z[0] == seite for z in ziele), seite
     root = Path(mb.__file__).parent

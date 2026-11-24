@@ -31,7 +31,7 @@ def test_jede_ansicht_erreichbar():
     for seite, views in ANS.items():
         for k in views:
             assert (seite, k) in erreicht or (seite, None) in erreicht and k == next(iter(views)), (seite, k)
-    assert {("mieter", None), ("daten", None)} <= erreicht
+    assert {("mieter", "mieter"), ("mieter", "gaeste"), ("daten", None)} <= erreicht   # 1.49: Gäste & Mieter
 
 
 def test_jeder_befehl_nur_einmal():

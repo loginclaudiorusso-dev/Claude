@@ -14,16 +14,16 @@ LAYOUT = "office"
 
 def _ansichten() -> dict:
     from . import (seite_anreisen, seite_assistenz, seite_auswertung, seite_einstellungen, seite_inventar,
-                   seite_steuerung, seite_termine, seite_zimmer)
+                   seite_steuerung, seite_termine, seite_zimmer, seiten)
 
     return {"anreisen": seite_anreisen.ANSICHTEN, "zimmer": seite_zimmer.ANSICHTEN, "termine": seite_termine.ANSICHTEN,
             "reinigung": {"liste": "Reinigungsliste", "last": "Reinigungsvorschau", "facility": "Facility-Checks"},
             "assistenz": seite_assistenz.ANSICHTEN, "auswertung": seite_auswertung.ANSICHTEN,
             "steuerung": seite_steuerung.ANSICHTEN, "inventar": seite_inventar.ANSICHTEN,
-            "einstellungen": seite_einstellungen.ANSICHTEN}
+            "einstellungen": seite_einstellungen.ANSICHTEN, "mieter": seiten.MT_ANSICHTEN}
 
 
-STANDARD_ANSICHT = {"anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung": "liste", "termine": "liste",
+STANDARD_ANSICHT = {"mieter": "mieter", "anreisen": "zuteilen", "zimmer": "uebersicht", "reinigung": "liste", "termine": "liste",
                     "assistenz": "auftraege", "auswertung": "belegung", "steuerung": "cockpit", "inventar": "gegenstaende",
                     "einstellungen": "allgemein"}
 

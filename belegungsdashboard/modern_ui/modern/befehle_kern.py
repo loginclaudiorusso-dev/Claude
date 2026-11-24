@@ -83,8 +83,10 @@ WORTE = {
 EXTRA = [
     ("Neuer Termin", "event", ("panel", "termine", "liste", "termin_neu"), ("termin anlegen", "wiedervorlage anlegen",
                                                                           "erinnerung"), "Planung → Kalender"),
-    ("Neuer Mieter / Mietvertrag", "person_add", ("panel", "mieter", None, "mieter_neu"), ("mieter anlegen", "vertrag anlegen",
-                                                                                       "mietvertrag neu"), "Anreisen → Mieter"),
+    ("Neuer Mieter / Mietvertrag", "person_add", ("panel", "mieter", "mieter", "mieter_neu"), ("mieter anlegen", "vertrag anlegen",
+                                                                                           "mietvertrag neu"), "Anreisen → Gäste & Mieter"),
+    ("Neuer Gast (auch Doppelzimmer)", "person_add", ("panel", "mieter", "gaeste", "gast_neu"),
+     ("gast anlegen", "hospitant", "besuch", "doppelzimmer", "begleitperson"), "Anreisen → Gäste & Mieter"),
     ("Wochenblatt drucken", "print", ("panel", "reinigung", "liste", "wochenblatt"), ("aushang", "hausmeister", "wochenplan"),
      "Zimmer & Haus → Reinigung"),
     ("QR-Codes am Zimmer (Meldung per Handy)", "qr_code_2", ("panel", "zimmer", "qr", "qr"),

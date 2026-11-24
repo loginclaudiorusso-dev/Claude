@@ -106,6 +106,10 @@ async def ausfuehren(a, ziel: tuple) -> None:
             from .seiten import mieter_neu_panel
 
             mieter_neu_panel(a)
+        elif name == "gast_neu":
+            from .seiten import gast_neu_panel
+
+            gast_neu_panel(a)
         elif name == "notfall":
             from .seite_zimmer import notfall_drucken
 

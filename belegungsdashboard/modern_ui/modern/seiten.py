@@ -641,11 +641,21 @@ def html_drucken(a, text: str, name: str) -> None:
 # Mieter
 # =======================================================================================
 
+MT_ANSICHTEN = {"gaeste": "Gäste", "mieter": "Mieter"}      # 1.49: Bereich „Gäste & Mieter“
+
+
 def mt_daten(a) -> None:
     from belegung import mieter as mt
 
     from . import mietbindung as mb
 
+    if a.ansicht_von("mieter", "mieter") == "gaeste":
+        from belegung import zimmerplan as zp
+
+        from . import gaeste_kern as gk
+
+        a.daten = gk.liste(zp.laden(), a.heute)
+        return
     a.daten = sk.mieter(a.heute)
     try:                                       # 1.48: automatische Verlängerung je Vertrag, fällige
         a.mt_auto = mb.auto()
@@ -658,6 +668,12 @@ MT_SPALTEN = "28px 70px minmax(160px, 1.3fr) 90px 190px minmax(120px, 1fr) minma
 
 
 def mt_zeichnen(a) -> None:
+    ansicht = a.ansicht_von("mieter", "mieter")
+    with a.werkzeuge:
+        segmente(MT_ANSICHTEN, ansicht, lambda v: a.oeffnen("mieter", ansicht=v))
+    if ansicht == "gaeste":
+        _gaeste_zeichnen(a)
+        return
     vertraege, weitere = a.daten
     offen = [m for m in vertraege if m.mail_offen]
     with a.leiste:
@@ -1289,3 +1305,102 @@ def _wochenblatt_panel(a) -> None:
 
     a.panel("Wochenblatt", bauen)
 
+
+
+# ---- 1.49: Gäste ------------------------------------------------------------------------------------------------------
+
+GA_SPALTEN = "minmax(180px, 1.4fr) 200px 120px minmax(160px, 1fr) minmax(140px, 1fr) 150px"
+
+
+def _gaeste_zeichnen(a) -> None:
+    from . import gaeste_kern as gk
+    from .kern import kurz
+
+    gs: list[gk.GZeile] = a.daten or []
+    with a.leiste:
+        kennzahlen([("da", sum(1 for g in gs if g.von <= a.heute <= g.bis), "heute im Haus", "ok"),
+                    ("kommen", sum(1 for g in gs if g.von > a.heute), "kommen noch", "neutral"),
+                    ("ohne", sum(1 for g in gs if not g.zimmer and g.bis >= a.heute), "ohne Zimmer", "warn")],
+                   None, lambda _f: None)
+        knopf("Neuer Gast", lambda: gast_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
+    with a.inhalt:
+        ui.label("Gäste (Hospitanten, Besuch …) – auch im Doppelzimmer, allein oder mit Begleitperson. Doppelzimmer gibt "
+                 "es für Gäste und UWT; zwei Gäste teilen sich eins nur, wenn sie als Paar angelegt sind.").classes("m-ptext")
+        if not gs:
+            leer("Keine Gäste in den nächsten Wochen – „Neuer Gast“ legt einen an.")
+            return
+        with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{GA_SPALTEN}"):
+            for t in ("Name", "Zeitraum", "Zimmer", "Doppelzimmer", "Bemerkung", ""):
+                ui.label(t)
+        for g in gs:
+            with ui.element("div").classes("m-raster m-zeile" + (" fertig" if g.bis < a.heute else "")).style(
+                    f"grid-template-columns:{GA_SPALTEN}"):
+                ui.label(g.name).classes("m-name")
+                ui.label(f"{g.von:%d.%m.} – {g.bis:%d.%m.%Y}").classes("m-mono")
+                ui.label(kurz(g.zimmer) if g.zimmer else "noch keins").classes("m-mono" if g.zimmer else "m-zweite m-warn")
+                ui.label(f"mit {g.begleitung}" if g.begleitung else ("allein" if g.dz_wunsch else "–")).classes("m-zweite")
+                ui.label(g.bemerkung or "").classes("m-zweite")
+                with ui.element("div").classes("m-paktionen").style("padding:0"):
+                    if not g.zimmer and g.bis >= a.heute:
+                        knopf("Zimmer zuteilen", lambda g=g: a.oeffnen("anreisen", ansicht="zuteilen",
+                                                                       kennung=g.von.isoformat(), filter="alle"),
+                              "leise", "meeting_room", "Unter Anreisen → Zuteilen ein Zimmer wählen")
+
+
+def gast_neu_panel(a) -> None:
+    """1.49: Gast anlegen – auf Wunsch im Doppelzimmer, allein oder mit Begleitperson, gleich mit Zimmer."""
+    from datetime import timedelta
+
+    from . import gaeste_kern as gk
+
+    def bauen():
+        ui.label("Der Gast steht danach auch in der Anreiseliste (Gruppe „Gast“). Doppelzimmer gibt es nur für Gäste "
+                 "(und UWT) – mit Begleitperson werden beide angelegt und teilen sich das Zimmer.").classes("m-ptext")
+        name = ui.input("Name (Nachname, Vorname)").classes("m-feld w-full").props("dense outlined dark")
+        g1 = ui.select({"": "–", "w": "weiblich", "m": "männlich", "d": "divers"}, value="", label="Geschlecht").classes(
+            "m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        an = ui.input("Anreise", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+        ab = ui.input("Abreise", value=(a.heute + timedelta(days=2)).isoformat()).classes("m-feld").props(
+            "dense outlined dark type=date")
+        bem = ui.input("Bemerkung (z. B. Hospitation, Firma)").classes("m-feld w-full").props("dense outlined dark")
+        dz = ui.checkbox("Doppelzimmer").props("dense dark")
+        mit = ui.input("Begleitperson (Nachname, Vorname) – optional").classes("m-feld w-full").props("dense outlined dark")
+        g2 = ui.select({"": "–", "w": "weiblich", "m": "männlich", "d": "divers"}, value="",
+                       label="Geschlecht Begleitperson").classes("m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        zim = ui.select({}, label="Zimmer (optional – sonst später unter Zuteilen)", with_input=True, clearable=True).classes(
+            "m-feld w-full").props('dense outlined dark popup-content-class="m-popup"')
+
+        def daten():
+            try:
+                return date.fromisoformat(an.value), date.fromisoformat(ab.value)
+            except (TypeError, ValueError):
+                return None, None
+
+        async def zimmer_laden():
+            v, b = daten()
+            if not v or not b or b <= v:
+                zim.set_options({})
+                return
+            optionen = await run.io_bound(gk.zimmer_frei, v, b, bool(dz.value), bool(dz.value and (mit.value or "").strip()),
+                                          g1.value or "")
+            if optionen is None:
+                return
+            zim.set_options(optionen, value=zim.value if zim.value in optionen else None)
+        for f in (an, ab, dz, mit):
+            f.on_value_change(zimmer_laden)
+        ui.timer(0.05, zimmer_laden, once=True)
+
+        async def speichern():
+            v, b = daten()
+            if not v or not b:
+                a.toast("Bitte An- und Abreise wählen.", fehler=True)
+                return
+            if await a.aendern(gk.anlegen, name.value or "", v, b, g1.value or "", bem.value or "", bool(dz.value),
+                               mit.value or "", g2.value or "", zim.value or ""):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Gast anlegen", speichern, "primaer", "person_add")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Neuer Gast", bauen)

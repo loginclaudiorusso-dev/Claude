@@ -14,7 +14,7 @@ NAV = [
     ("reinigung", "Reinigung", "cleaning_services", "Zimmer & Haus"),
     ("termine", "Kalender", "event", "Planung"),
     ("assistenz", "KI-Assistent", "auto_awesome", "KI-Assistent"),
-    ("mieter", "Mieter", "key", "Anreisen"),
+    ("mieter", "Gäste & Mieter", "key", "Anreisen"),          # 1.49: Gäste dazu
     ("auswertung", "Auswertung", "insights", "Auswertung"),
     ("daten", "Daten einlesen", "upload_file", "Verwaltung"),
     ("inventar", "Inventar", "inventory_2", "Zimmer & Haus"),
