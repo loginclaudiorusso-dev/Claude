@@ -835,6 +835,10 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                             "; ".join(f"{x.name}: Planung {kurz(x.geplant)}, Gebäudeplan {kurz(x.gebucht)}" for x in sts[:2])
                             + (" …" if len(sts) > 2 else "") + " – bis zur Klärung wird das geplante Zimmer niemandem angeboten",
                             Aktion("strittig", "Klären")))
+    if stand is not None and "mieter_plan" not in weg and (k := mieter_plan_karte(stand, heute)) is not None:
+        erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
+    if "mieter_auto" not in weg and (k := mieter_auto_karte(heute)) is not None:
+        erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
     if "qr" not in weg and (k := qr_karte()) is not None:          # 1.28: Meldungen per QR-Code
         erg.insert(len([x for x in erg if x.stufe == "dringend"]) if k.stufe == "dringend" else len(erg), k)
     if stand is not None and "allergie" not in weg:
@@ -842,6 +846,44 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
         if k is not None:
             erg.insert(0 if k.stufe == "dringend" else len([x for x in erg if x.stufe == "dringend"]), k)
     return erg
+
+
+def mieter_plan_karte(stand: zp.Planstand, heute: date) -> Karte | None:
+    """1.48: Der Gebäudeplan führt Mieter in einem anderen Zimmer als im Vertrag – es gilt der Vertrag."""
+    from belegung import mieter as mt
+
+    from . import mietbindung as mb
+
+    try:
+        ab = mb.abweichungen(stand.plan, mt.laden(), heute)
+    except Exception:                          # noqa: BLE001 – Zusatz
+        return None
+    if not ab:
+        return None
+    return Karte("mieter_plan", "bald",
+                 f"{len(ab)} Mieter{'n' if len(ab) == 1 else ''} im Gebäudeplan in anderem Zimmer als im Mietvertrag",
+                 "; ".join(f"{x.name}: Vertrag {kurz(x.vertrag)}, Gebäudeplan {kurz(x.gebaeudeplan)}" for x in ab[:3])
+                 + (" …" if len(ab) > 3 else "") + " – im Programm gilt der Mietvertrag; bitte den Gebäudeplan korrigieren",
+                 zweite=Aktion("mieter_plan", "Mieter ansehen", "mieter"))
+
+
+def mieter_auto_karte(heute: date) -> Karte | None:
+    """1.48: Verträge mit „automatisch verlängern“, deren Ende näher rückt."""
+    from belegung import mieter as mt
+
+    from . import mietbindung as mb
+
+    try:
+        fs = mb.auto_faellig(mt.laden(), heute)
+    except Exception:                          # noqa: BLE001
+        return None
+    if not fs:
+        return None
+    return Karte("mieter_auto", "bald",
+                 f"{len(fs)} Mietvertr{'ag' if len(fs) == 1 else 'äge'} automatisch verlängern",
+                 "; ".join(f"MV {f.nr} {f.name} ({kurz(f.zimmer)}) bis {f.bis:%d.%m.} → {f.neu:%d.%m.%Y}" for f in fs[:3])
+                 + (" …" if len(fs) > 3 else "") + " – unter Mieter mit einem Klick die Nebenabrede erstellen",
+                 zweite=Aktion("mieter_auto", "Zu den Mietern", "mieter"))
 
 
 def qr_karte() -> Karte | None:
@@ -1225,3 +1267,7 @@ _prognose_fix.installieren()                       # 1.26: Prognose am Monatslet
 from . import leistung_kern as _leistung  # noqa: E402
 
 _leistung.installieren()                           # 1.36: schneller (Zimmer-Vergleich, nach_planung nur einmal je Stand)
+
+from . import mietbindung as _mietbindung  # noqa: E402
+
+_mietbindung.einrichten()                          # 1.48: Mietvertrag gilt – Gebäudeplan überstimmt Mieter-Zimmer nicht mehr

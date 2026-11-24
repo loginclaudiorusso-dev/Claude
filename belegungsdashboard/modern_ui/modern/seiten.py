@@ -642,7 +642,16 @@ def html_drucken(a, text: str, name: str) -> None:
 # =======================================================================================
 
 def mt_daten(a) -> None:
+    from belegung import mieter as mt
+
+    from . import mietbindung as mb
+
     a.daten = sk.mieter(a.heute)
+    try:                                       # 1.48: automatische Verlängerung je Vertrag, fällige
+        a.mt_auto = mb.auto()
+        a.mt_faellig = {f.nr: f for f in mb.auto_faellig(mt.laden(), a.heute, a.mt_auto)}
+    except Exception:                          # noqa: BLE001
+        a.mt_auto, a.mt_faellig = {}, {}
 
 
 MT_SPALTEN = "28px 70px minmax(160px, 1.3fr) 90px 190px minmax(120px, 1fr) minmax(170px, 1fr) 76px"
@@ -681,7 +690,14 @@ def mt_zeichnen(a) -> None:
                             ui.label(m.email).classes("m-zweite")
                     ui.label(m.zimmer).classes("m-mono")
                     ui.label(f"{m.von:%d.%m.%Y} – {m.bis:%d.%m.%Y}").classes("m-mono")
-                    ui.label(m.status).classes("m-zweite")
+                    with ui.element("div"):
+                        ui.label(m.status).classes("m-zweite")
+                        auto_n = (getattr(a, "mt_auto", None) or {}).get(m.nr)
+                        if (f := (getattr(a, "mt_faellig", None) or {}).get(m.nr)) is not None:
+                            knopf(f"Verlängern bis {f.neu:%d.%m.%Y}", lambda m=m, f=f: _verlaengern_direkt(a, m.nr, f.neu),
+                                  "gruen", "update", f"Automatische Verlängerung um {f.monate} Monate: Nebenabrede erstellen")
+                        elif auto_n and m.bis >= a.heute:
+                            ui.label(f"automatisch +{auto_n} Monate").classes("m-zweite")
                     with ui.element("div").classes("m-hinweis"):
                         if m.mail_offen:
                             knopf("Mail vorbereiten", lambda m=m: _mail_panel(a, m), "gruen", "mail")
@@ -691,10 +707,7 @@ def mt_zeichnen(a) -> None:
                         elif m.bis >= a.heute:
                             knopf("Mail", lambda m=m: _mail_panel(a, m), "leise", "mail", "Mail zum Vertragsende vorbereiten")
                     with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
-                        knopf("", lambda m=m: vertrag_bearbeiten_panel(a, m.nr), "leise", "edit",
-                              "Vertrag bearbeiten (z. B. falsches Zimmer) …")
-                        knopf("", lambda m=m: verlaengern_panel(a, m), "leise", "update", "Verlängern (Nebenabrede) …")
-                        knopf("", lambda m=m: _unterlagen(a, m.nr), "leise", "description", "Unterlagen neu erstellen")
+                        _mt_optionen(a, m)                 # 1.48: ein Menü statt drei kleiner Symbole
         if weitere and a.mt_filter in (None, "weitere"):
             ui.label("Weitere Mieter laut Gebäudeplan (ohne Vertrag in diesem Programm)").classes("m-abschnitt")
             for name, zimmer, zeit in weitere:
@@ -940,7 +953,36 @@ def vertrag_bearbeiten_panel(a, nr: str) -> None:
     a.panel(f"Vertrag bearbeiten · MV {mv.nr}", bauen, breit=True)
 
 
-def verlaengern_panel(a, m) -> None:
+def _mt_optionen(a, m) -> None:
+    """1.48: „Optionen“ je Vertrag – Verlängern, automatisch verlängern, bearbeiten, Unterlagen, Mail."""
+    from . import mietbindung as mb
+
+    auto_n = (getattr(a, "mt_auto", None) or {}).get(m.nr)
+    with knopf("Optionen", None, "leise", "more_horiz", "Mietvertrag verlängern, bearbeiten, Unterlagen …"):
+        with ui.menu().props('dark class="m-menue"'):
+            ui.menu_item("Mietvertrag verlängern …", lambda m=m: verlaengern_panel(a, m))
+            for n in mb.MONATE:
+                ui.menu_item(f"Um {n} Monate verlängern (bis {mb.neues_ende(m.bis, n):%d.%m.%Y})",
+                             lambda m=m, n=n: verlaengern_panel(a, m, n))
+            ui.separator()
+            for n in mb.MONATE:
+                ui.menu_item(("✓ " if auto_n == n else "") + f"Automatisch verlängern: je {n} Monate",
+                             lambda m=m, n=n: a.aendern(mb.auto_setzen, m.nr, n))
+            if auto_n:
+                ui.menu_item("Automatische Verlängerung aus", lambda m=m: a.aendern(mb.auto_setzen, m.nr, None))
+            ui.separator()
+            ui.menu_item("Vertrag bearbeiten (z. B. Zimmer) …", lambda m=m: vertrag_bearbeiten_panel(a, m.nr))
+            ui.menu_item("Unterlagen neu erstellen", lambda m=m: _unterlagen(a, m.nr))
+            ui.menu_item("Mail zum Vertragsende …", lambda m=m: _mail_panel(a, m))
+
+
+async def _verlaengern_direkt(a, nr: str, bis) -> None:
+    from . import mieter_kern as mk
+
+    await _mit_datei(a, mk.verlaengern, nr, bis)
+
+
+def verlaengern_panel(a, m, monate: int | None = None) -> None:
     from belegung import mieter as mt
 
     from . import mieter_kern as mk
@@ -948,8 +990,13 @@ def verlaengern_panel(a, m) -> None:
     def bauen():
         ui.label(f"{m.name} · Zimmer {m.zimmer} · bisher bis {m.bis:%d.%m.%Y}. Erstellt die Nebenabrede (Word und PDF) "
                  "und verlängert den Eintrag im Zimmerplan.").classes("m-ptext")
-        bis = ui.input("Neues Mietende", value=mt.standard_ende(m.bis + timedelta(days=1)).isoformat()).classes(
-            "m-feld").props("dense outlined dark type=date")
+        from . import mietbindung as mb
+
+        start = mb.neues_ende(m.bis, monate) if monate else mt.standard_ende(m.bis + timedelta(days=1))
+        bis = ui.input("Neues Mietende", value=start.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+        with ui.element("div").classes("m-paktionen"):         # 1.48: schnell +3/+6/+12 Monate
+            for n in mb.MONATE:
+                knopf(f"+{n} Monate", lambda n=n: bis.set_value(mb.neues_ende(m.bis, n).isoformat()), "leise", "add")
 
         async def los():
             try:
