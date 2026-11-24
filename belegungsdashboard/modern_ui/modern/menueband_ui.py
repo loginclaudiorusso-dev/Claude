@@ -484,7 +484,10 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                     ui.icon("account_circle")
                     ui.label(wer)
                 kb.on("click", lambda: ausfuehren(a, ("aktion", "konto")))
-            ui.label(f"Version {__version__}")
+            from . import impressum
+
+            ve = ui.label(f"Version {__version__} · {impressum.kurz()}")      # 1.50: wer das Programm erstellt hat
+            attr(ve, title=f"INNternat {__version__} – {impressum.zeile()}")
             with ui.element("div").classes("m-ob-zoom"):    # wie in Word/Excel: Ansicht-Schalter und Zoom unten rechts
                 an = {"dichte": a.design.get("dichte") == "kompakt", "vollbild": bool(a.design.get("vollbild")),
                       "modus": a.design.get("helligkeit", "hell") != "hell"}

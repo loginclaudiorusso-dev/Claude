@@ -1309,7 +1309,7 @@ def _wochenblatt_panel(a) -> None:
 
 # ---- 1.49: Gäste ------------------------------------------------------------------------------------------------------
 
-GA_SPALTEN = "minmax(180px, 1.4fr) 200px 120px minmax(160px, 1fr) minmax(140px, 1fr) 150px"
+GA_SPALTEN = "minmax(180px, 1.4fr) 200px 120px minmax(160px, 1fr) minmax(140px, 1fr) 140px"
 
 
 def _gaeste_zeichnen(a) -> None:
@@ -1340,11 +1340,9 @@ def _gaeste_zeichnen(a) -> None:
                 ui.label(kurz(g.zimmer) if g.zimmer else "noch keins").classes("m-mono" if g.zimmer else "m-zweite m-warn")
                 ui.label(f"mit {g.begleitung}" if g.begleitung else ("allein" if g.dz_wunsch else "–")).classes("m-zweite")
                 ui.label(g.bemerkung or "").classes("m-zweite")
-                with ui.element("div").classes("m-paktionen").style("padding:0"):
-                    if not g.zimmer and g.bis >= a.heute:
-                        knopf("Zimmer zuteilen", lambda g=g: a.oeffnen("anreisen", ansicht="zuteilen",
-                                                                       kennung=g.von.isoformat(), filter="alle"),
-                              "leise", "meeting_room", "Unter Anreisen → Zuteilen ein Zimmer wählen")
+                with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
+                    knopf("Bearbeiten", lambda g=g: gast_bearbeiten_panel(a, g.schluessel), "leise", "edit",
+                          "Name, Zeitraum, Doppelzimmer und Zimmer ändern – oder den Gast entfernen")
 
 
 def gast_neu_panel(a) -> None:
@@ -1404,3 +1402,81 @@ def gast_neu_panel(a) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel("Neuer Gast", bauen)
+
+
+def gast_bearbeiten_panel(a, schluessel: str) -> None:
+    """1.50: Gast bearbeiten – Name, Zeitraum, Geschlecht, Bemerkung, Doppelzimmer, Zimmer; Gast entfernen."""
+    from . import gaeste_kern as gk
+    from .kern import kurz
+
+    try:
+        g = gk.gast(schluessel)
+    except ValueError as exc:
+        a.toast(str(exc), fehler=True)
+        return
+    ohne = frozenset([g.schluessel] + [k for k, _n in g.begleitung])
+    geschlechter = {"": "–", "w": "weiblich", "m": "männlich", "d": "divers"}
+
+    def bauen():
+        if not g.in_liste:
+            ui.label("Dieser Gast stammt aus einer eingelesenen Liste – Änderungen bitte dort.").classes("m-ptext m-warn")
+        if g.begleitung:
+            ui.label("Im Doppelzimmer mit " + ", ".join(n for _k, n in g.begleitung)
+                     + " – Zeitraum und Zimmer gelten für beide.").classes("m-ptext")
+        name = ui.input("Name (Nachname, Vorname)", value=g.name).classes("m-feld w-full").props("dense outlined dark")
+        ge = ui.select(geschlechter, value=g.geschlecht if g.geschlecht in geschlechter else "", label="Geschlecht").classes(
+            "m-feld").props('dense outlined dark popup-content-class="m-popup"')
+        an = ui.input("Anreise", value=g.anreise.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+        ab = ui.input("Abreise", value=g.abreise.isoformat() if g.abreise else "").classes("m-feld").props(
+            "dense outlined dark type=date")
+        bem = ui.input("Bemerkung", value=g.bemerkung).classes("m-feld w-full").props("dense outlined dark")
+        dz = ui.checkbox("Doppelzimmer" + (" (ohne Haken: Paar trennen, beide wohnen allein)" if g.begleitung else ""),
+                         value=g.doppelzimmer).props("dense dark")
+        start = {"": "– kein Zimmer (freigeben) –"}
+        if g.zimmer:
+            start[g.zimmer] = f"{kurz(g.zimmer)} · bisher"
+        zim = ui.select(start, value=g.zimmer or "", label="Zimmer", with_input=True).classes("m-feld w-full").props(
+            'dense outlined dark popup-content-class="m-popup"')
+
+        def daten():
+            try:
+                return date.fromisoformat(an.value), date.fromisoformat(ab.value)
+            except (TypeError, ValueError):
+                return None, None
+
+        async def zimmer_laden():
+            v, b = daten()
+            if not v or not b or b <= v:
+                return
+            frei = await run.io_bound(gk.zimmer_frei, v, b, bool(dz.value), bool(dz.value and g.begleitung),
+                                      ge.value or "", ohne)
+            if frei is None:
+                return
+            optionen = {**start, **frei}
+            zim.set_options(optionen, value=zim.value if zim.value in optionen else (g.zimmer or ""))
+        for f in (an, ab, dz):
+            f.on_value_change(zimmer_laden)
+        ui.timer(0.05, zimmer_laden, once=True)
+
+        async def speichern():
+            v, b = daten()
+            if not v or not b:
+                a.toast("Bitte An- und Abreise wählen.", fehler=True)
+                return
+            neu_zimmer = None if (zim.value or "") == (g.zimmer or "") else (zim.value or "")
+            if await a.aendern(gk.bearbeiten, g.schluessel, name.value or "", v, b, ge.value or "", bem.value or "",
+                               bool(dz.value), neu_zimmer):
+                a.panel_zu()
+
+        async def entfernen():
+            if await a.aendern(gk.entfernen, g.schluessel):
+                a.panel_zu()
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Speichern", speichern, "primaer", "save")
+            knopf("Abbrechen", a.panel_zu, "leise")
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Gast entfernen", entfernen, "leise", "delete",
+                  "Gast löschen, das Zimmer wird frei (Rückgängig möglich)")
+
+    a.panel(f"Gast bearbeiten · {g.name}", bauen)

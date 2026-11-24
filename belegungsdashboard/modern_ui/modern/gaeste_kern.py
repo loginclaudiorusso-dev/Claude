@@ -70,7 +70,7 @@ def installieren() -> None:
     zp.angaben_anwenden, zp.passt = _angaben_anwenden, _passt
 
 
-def entfernen() -> None:
+def deinstallieren() -> None:
     if _ORIG:
         zp.angaben_anwenden, zp.passt = _ORIG.pop("angaben"), _ORIG.pop("passt")
 
@@ -116,9 +116,10 @@ def liste(stand, heute: date, tage_zurueck: int = 7) -> list[GZeile]:
 
 # ---- Zimmerauswahl --------------------------------------------------------------------------------------------------
 
-def zimmer_frei(von: date, bis: date, doppelzimmer: bool = False, zu_zweit: bool = False, geschlecht: str = "") -> dict[str, str]:
+def zimmer_frei(von: date, bis: date, doppelzimmer: bool = False, zu_zweit: bool = False, geschlecht: str = "",
+                ohne: frozenset[str] = frozenset()) -> dict[str, str]:
     """{Zimmer-ID: Text} – Zimmer, die für einen Gast im Zeitraum frei sind. ``zu_zweit``: nur Doppelzimmer mit zwei
-    freien Betten; ``doppelzimmer``: Doppelzimmer zuerst."""
+    freien Betten; ``doppelzimmer``: Doppelzimmer zuerst; ``ohne``: diese Personen zählen nicht (beim Bearbeiten)."""
     from .kern import kurz
 
     stand = zp.laden()
@@ -129,9 +130,9 @@ def zimmer_frei(von: date, bis: date, doppelzimmer: bool = False, zu_zweit: bool
         _DZ.discard(b.schluessel)
     erg = []
     for z in stand.zimmer:
-        if zp.passt(stand.lage, z, b) is not None:
+        if zp.passt(stand.lage, z, b, ohne) is not None:
             continue
-        frei = stand.lage.freie_betten(z.id, von, bis)
+        frei = stand.lage.freie_betten(z.id, von, bis, ohne)
         if zu_zweit and (z.betten < 2 or frei < 2):
             continue
         erg.append(((0 if (doppelzimmer or zu_zweit) and z.betten > 1 else 1, not z.gaeste, z.id),
@@ -197,3 +198,135 @@ def _anlegen(name: str, anreise: date, abreise: date, geschlecht: str = "", beme
     wer = name + (f" und {begleitung}" if begleitung else "")
     wo = f" in {kern.kurz(zimmer)}" if zimmer else " – Zimmer unter Anreisen → Zuteilen wählen"
     return f"Gast {wer} angelegt ({anreise:%d.%m.} – {abreise:%d.%m.%Y}){wo}"
+
+
+# ---- 1.50: Bearbeiten und Entfernen --------------------------------------------------------------------------------
+
+@dataclass
+class Gast:
+    schluessel: str
+    name: str
+    anreise: date
+    abreise: date | None
+    geschlecht: str
+    bemerkung: str
+    zimmer: str
+    doppelzimmer: bool
+    begleitung: list[tuple[str, str]]       # [(Schlüssel, Name)] – das Paar
+    in_liste: bool                          # nur Gäste aus der Anreiseliste lassen sich hier ändern
+
+
+def gast(schluessel: str) -> Gast:
+    from belegung import anreiseliste
+
+    stand = zp.laden()
+    b = next((x for x in stand.bedarf if x.schluessel == schluessel), None)
+    if b is None:
+        raise ValueError("Diesen Gast gibt es nicht mehr – bitte neu laden.")
+    personen, _ = anreiseliste.laden()
+    p = next((x for x in personen if x.schluessel == schluessel), None)
+    angaben = zp.angaben_laden()
+    paar = [(x.schluessel, x.name) for x in stand.bedarf if gast_paar(b) and x is not b and x.dz == b.dz]
+    return Gast(schluessel, b.name, p.anreise if p else b.von, p.abreise if p else b.bis, b.geschlecht, b.bemerkung,
+                _zimmer_von(stand, schluessel), bool(paar) or bool((angaben.get(schluessel) or {}).get("dz_wunsch")),
+                paar, p is not None)
+
+
+def bearbeiten(*args, **kwargs) -> str:
+    from .kern import unter_sperre
+
+    return unter_sperre(_bearbeiten)(*args, **kwargs)
+
+
+def _bearbeiten(schluessel: str, name: str, anreise: date, abreise: date, geschlecht: str = "", bemerkung: str = "",
+                doppelzimmer: bool = False, zimmer: str | None = None) -> str:
+    """Gast ändern (ein Schritt, rückgängig machbar). Die Begleitperson zieht mit: gleicher Zeitraum, gleiches Zimmer.
+    ``zimmer``: None = unverändert, "" = Zimmer freigeben, sonst das neue Zimmer. Ohne Haken „Doppelzimmer“ wird ein
+    Paar getrennt (beide wohnen dann allein)."""
+    from dataclasses import replace as ersetzen
+
+    from belegung import anreiseliste, speicher
+
+    from . import kern
+
+    alt = gast(schluessel)
+    if not alt.in_liste:
+        raise ValueError("Dieser Gast kommt aus einer eingelesenen Liste – bitte dort ändern.")
+    name = _name(name)
+    if abreise is None or abreise <= anreise:
+        raise ValueError("Bitte eine Abreise nach der Anreise angeben.")
+    personen, _ = anreiseliste.laden()
+    nach = {x.schluessel: x for x in personen}
+    p = nach[schluessel]
+    neu = ersetzen(p, name=name, anreise=anreise, abreise=abreise, geschlecht=geschlecht, bemerkung=bemerkung.strip(),
+                   abreise_quelle="hand")
+    partner = [(nach[k], ersetzen(nach[k], anreise=anreise, abreise=abreise, abreise_quelle="hand"))
+               for k, _n in alt.begleitung if k in nach] if doppelzimmer else []
+    getrennt = [k for k, _n in alt.begleitung] if not doppelzimmer else []
+    alle_neu = [(p, neu)] + partner
+
+    def aktion():
+        for a_, n_ in alle_neu:
+            anreiseliste.person_speichern(n_, a_.schluessel)
+            zp.person_umbenannt(a_.schluessel, n_.schluessel)
+        angaben = zp.angaben_laden()
+        for a_, n_ in alle_neu:                      # Angaben unter dem (evtl. neuen) Schlüssel weiterführen
+            e = dict(angaben.pop(a_.schluessel, {}) or {})
+            e["gruppe"] = GRUPPE
+            if n_ is neu:
+                if geschlecht:
+                    e["geschlecht"] = geschlecht
+                else:
+                    e.pop("geschlecht", None)
+                e.pop("dz_wunsch", None)
+                if doppelzimmer and not partner:
+                    e["dz_wunsch"] = True
+                if not doppelzimmer:
+                    e.pop("dz", None)
+            angaben[n_.schluessel] = e
+        for k in getrennt:                           # Paar getrennt: auch die Begleitperson wohnt nun allein
+            if k in angaben:
+                angaben[k].pop("dz", None)
+        speicher.schreiben(zp.PERSONEN_ANGABEN, angaben)
+        if zimmer is not None and zimmer != alt.zimmer or (zimmer is None and alt.zimmer and (
+                anreise, abreise) != (alt.anreise, alt.abreise)):
+            ziel = alt.zimmer if zimmer is None else zimmer
+            keys = {n_.schluessel for _a, n_ in alle_neu}
+            zp.zuweisungen_entfernen(keys, "Gäste")
+            if ziel:
+                for _a, n_ in alle_neu:
+                    st = zp.laden()
+                    zp.zuweisungen_speichern([kern._zuteilung(st, n_.schluessel, ziel)], "Gäste")
+    kern._schritt(f"Gast {name} geändert", aktion, [anreiseliste.DATEI, zp.PERSONEN_ANGABEN])
+    extra = f" (mit {', '.join(n for _k, n in alt.begleitung)})" if partner else ""
+    wo = "" if zimmer is None else (f" – Zimmer {kern.kurz(zimmer)}" if zimmer else " – Zimmer freigegeben")
+    return f"Gast {name}{extra} gespeichert ({anreise:%d.%m.} – {abreise:%d.%m.%Y}){wo}"
+
+
+def entfernen(schluessel: str) -> str:
+    from .kern import unter_sperre
+
+    return unter_sperre(_entfernen)(schluessel)
+
+
+def _entfernen(schluessel: str) -> str:
+    """Gast löschen (Zimmer wird frei). Eine Begleitperson bleibt und wohnt dann allein."""
+    from belegung import anreiseliste, speicher
+
+    from . import kern
+
+    g = gast(schluessel)
+    if not g.in_liste:
+        raise ValueError("Dieser Gast kommt aus einer eingelesenen Liste – bitte dort entfernen.")
+
+    def aktion():
+        anreiseliste.person_loeschen(schluessel)
+        zp.person_geloescht(schluessel)
+        angaben = zp.angaben_laden()
+        angaben.pop(schluessel, None)
+        for k, _n in g.begleitung:
+            if k in angaben:
+                angaben[k].pop("dz", None)
+        speicher.schreiben(zp.PERSONEN_ANGABEN, angaben)
+    kern._schritt(f"Gast {g.name} entfernt", aktion, [anreiseliste.DATEI, zp.PERSONEN_ANGABEN])
+    return f"Gast {g.name} entfernt" + (f" – {g.begleitung[0][1]} wohnt nun allein" if g.begleitung else "")

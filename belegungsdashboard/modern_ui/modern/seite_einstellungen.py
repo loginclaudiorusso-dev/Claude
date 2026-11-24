@@ -415,8 +415,25 @@ def _stamm_panel(a, z) -> None:
 
 # ---- Sicherung & Verlauf ----------------------------------------------------------------
 
+def _ueber() -> None:
+    """1.50: Über INNternat – Logo, Version und wer das Programm erstellt hat."""
+    from . import __version__, impressum
+    from .ansicht_navigation import _logo
+
+    with ui.element("section").classes("m-block m-ueber"):
+        with ui.element("div").style("display:flex;gap:18px;align-items:center;flex-wrap:wrap"):
+            if logo := _logo():
+                ui.html(f'<img src="{logo}" alt="INNternat" style="height:84px;width:auto">')
+            with ui.element("div"):
+                ui.label("INNternat").classes("m-btitel").style("font-size:1.35em")
+                ui.label(f"Version {__version__}").classes("m-zweite")
+                ui.label(impressum.zeile()).classes("m-ptext").style("font-weight:600")
+                ui.label(f"© {impressum.JAHR} {impressum.AUTOR}").classes("m-zweite")
+
+
 def _sicherung(a) -> None:
     with a.inhalt:
+        _ueber()
         with ui.element("div").classes("m-zwei"):
             with ui.element("section").classes("m-block"):
                 ui.label("Datensicherung").classes("m-btitel")

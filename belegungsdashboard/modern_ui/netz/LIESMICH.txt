@@ -79,6 +79,12 @@ Benutzer und Anmeldung (ab 1.33)
   öffnen kann, kann die Dateien lesen. Deshalb den Netzwerkordner nur für die INNternat-Nutzer
   freigeben (IT).
 
+Logo und Programmsymbol (ab 1.50)
+---------------------------------
+"INNternat_Logo.png" und "INNternat_Icon.png" in den Ordner "Daten" legen: Das Logo erscheint unter
+Informationen & Sicherung, das Symbol im Fenster, in der Taskleiste und (nach dem nächsten Start) auf der
+Desktop-Verknüpfung. Beide Dateien bleiben bei Updates erhalten.
+
 Update einspielen (nur hier, in diesem Ordner)
 ----------------------------------------------
 Immer das Paket "INNternat.zip" verwenden (nicht das Test-Paket - das legt eine getrennte Test-Installation an).

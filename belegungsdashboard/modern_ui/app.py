@@ -144,6 +144,16 @@ def main() -> None:
     # leer neu aufgebaut zu werden („nur noch Hintergrund“).
     einstellungen = dict(title="Belegung", dark=True, reload=False, language="de",
                          show_welcome_message=False, host="127.0.0.1", reconnect_timeout=30)
+    from modern import icon_kern
+
+    symbol = icon_kern.finden()                    # 1.50: eigenes Logo als Programmsymbol (liegt im Datenordner)
+    if symbol is not None:
+        einstellungen["favicon"] = symbol
+        if HAUPTPROZESS and sys.platform == "win32":
+            import threading
+
+            threading.Thread(target=icon_kern.windows_einrichten, args=(LOKAL, os.environ.get("VERKNUEPFUNG") or "INNternat"),
+                             name="innternat-symbol", daemon=True).start()
     minimiert = "--minimiert" in sys.argv          # „Mit Windows starten“: als Symbol in der Taskleiste, meldet Fälliges
     if nativ:
         if minimiert:
