@@ -36,7 +36,10 @@ def test_farbige_symbole_vorhanden_und_ersatz_greift():
     h = sy.html("sparkle", sy.BLAU, True, variante="farbig")          # 1.40: ohne eigenes Piktogramm
     assert "farbig" in h and "linearGradient" in h and "m-sym-f" not in h
     assert "farbig" not in sy.html("sparkle", sy.BLAU, True, variante="fluent")
-    assert "pikto" in sy.html("calendar", sy.BLAU, True, variante="farbig")   # eigenes Bild hat Vorrang
+    # 1.64: „Farbig“ wirkt jetzt auch dort, wo es ein eigenes Piktogramm gibt (vorher blieb die Wahl wirkungslos)
+    assert "farbig" in sy.html("calendar", sy.BLAU, True, variante="farbig")
+    assert "farbig" in sy.html("p:kalender", "", True, variante="farbig")
+    assert "pikto" in sy.html("calendar", sy.BLAU, True, variante="fluent")
     from modern import piktogramme as pk
 
     ohne = next(n for n in sy.alle() if not sy.farbig(n) and n not in pk.ERSATZ)

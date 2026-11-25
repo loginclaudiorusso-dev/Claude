@@ -85,10 +85,14 @@ FARB_STANDARD = {"farbe": "petrol", "farbe_eigen": "#007F7F", "titelleiste": "fa
             "dg_gitter": True, "dg_legende": "oben", "dg_anim": True, "leitung": True, "band_zu": False,
             "knopfstil": "klar", "symbolstil": "linie", "kontrast": False,
             "helligkeit": "hell", "faerbung": "akzent", "dg_modus": "karte", "nav": "band",
-            "dg_anteil": "ring", "dg_anteil_zeit": "saeule100", "werkzeuge_oben": True, "symbole": "fluent"}
+            "dg_anteil": "ring", "dg_anteil_zeit": "saeule100", "werkzeuge_oben": True, "symbole": "fluent",
+            "symbol_farben": "bereich"}
 # 1.34: zwei Symbol-Varianten im Menüband – die bisherigen (Fluent, zweifarbig) oder farbige, realistischere
 SYMBOLE = {"fluent": ("Klar (zweifarbig)", "Die bisherigen Symbole: feine Kontur mit zarter Bedeutungsfarbe"),
            "farbig": ("Farbig (realistischer)", "Vollfarbige Symbole mit Verlauf und Tiefe, wie in Microsoft 365")}
+# 1.64: Farbe der zweifarbigen Symbole – je Registerkarte eine dezente Bereichsfarbe oder nur Signalfarben
+SYMBOL_FARBEN = {"bereich": ("Je Bereich", "Jede Registerkarte hat ihre eigene dezente Farbe (Anreisen grün, Zimmer blau …)"),
+                 "signal": ("Nur Signalfarben", "Ein Akzent für alle – Farbe nur für ok, Achtung und kritisch")}
 # 0.89: Darstellung der Auswertungs-Diagramme – je nach Publikum wählbar (gilt je PC)
 DG_MODI = {"karte": ("Karte", "Diagramm-Karte mit Knöpfen, „Auf einen Blick“ und einheitlichem Stil"),
            "klassisch": ("Klassisch", "Wie bis Version 0.86: Diagramm mit Legende unten und Leiste darunter"),
@@ -174,6 +178,7 @@ def farben_bereinigen(d: dict) -> dict:
     e["dg_modus"] = d.get("dg_modus") if d.get("dg_modus") in DG_MODI else "karte"
     e["nav"] = "band"                                           # 1.34: Seitenleiste entfällt
     e["symbole"] = d.get("symbole") if d.get("symbole") in SYMBOLE else "fluent"
+    e["symbol_farben"] = d.get("symbol_farben") if d.get("symbol_farben") in SYMBOL_FARBEN else "bereich"   # 1.64
     alt = d.get("dg_anteil")                                    # bis 1.22 eine Einstellung für beide Diagramme
     e["dg_anteil"] = alt if alt in ("ring", "kreis") else "ring"
     zeit = d.get("dg_anteil_zeit") or (alt if alt in ("saeule100", "flaeche100") else None)

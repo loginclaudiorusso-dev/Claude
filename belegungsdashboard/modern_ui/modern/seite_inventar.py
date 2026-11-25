@@ -209,7 +209,7 @@ def _verteilen_panel(a, g) -> None:
             'dense outlined dark options-dense use-chips popup-content-class="m-popup"')
         haus.on_value_change(lambda e: setattr(wahl, "value", [zid for zid, z in zimmer.items() if z.haus == e.value]) if e.value else None)
         anzahl = ui.number("Anzahl je Zimmer", value=1, min=1, step=1, format="%d").classes("m-feld").props("dense outlined dark")
-        je_bett = ui.switch("je Bett (Doppelzimmer doppelt)").props("dense color=indigo-4")
+        je_bett = ui.switch("je Bett (Doppelzimmer doppelt)").props("dense color=primary")
 
         async def rein():
             if await a.aendern(verteilen, g.id, [(zid, zimmer[zid].betten) for zid in (wahl.value or [])],

@@ -1086,8 +1086,8 @@ LEGENDE = (("frei", "", "frei – mindestens ein Bett frei"),
            ("geplant", "", "geplant – Einzug steht bevor"),
            ("belegt", "", "belegt – alle Betten belegt"),
            ("belegt emr", "", "EMR-Zimmer (schraffiert) – Farbe zeigt, ob belegt"),
-           ("nn", "", "gesperrt laut Gebäudeplan (z. B. Renovierung)"),
-           ("nn unbew", "", "unbewohnbar – Mangel"))
+           ("nn", "", "gesperrt – geplant laut Gebäudeplan (z. B. Renovierung)"),
+           ("nn unbew", "", "unbewohnbar – Mangel (rot = handeln)"))
 ZEICHEN = (("!", "offener Mangel (! leicht · !! mittel · !!! dringend)"),
            ("besen", "nicht bezugsfertig – Reinigung offen"),
            ("?", "Gebäudeplan widerspricht der Planung"))

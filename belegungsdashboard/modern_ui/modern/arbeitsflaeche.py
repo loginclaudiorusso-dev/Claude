@@ -159,6 +159,19 @@ body.lay-office .m-center.offen { transform: none !important; visibility: visibl
 body.lay-office .m-center.offen.breit, body.lay-office .m-center.breit { width: var(--af-pb, PANEL_BREITpx) !important; }
 body.lay-office:has(.m-center.offen) .m-inhalt { margin-right: var(--af-pb, PANEL_BREITEpx); }
 body.lay-office:has(.m-center.offen.breit) .m-inhalt { margin-right: var(--af-pb, PANEL_BREITpx); }
+/* 1.64: eine ruhige Linie der Ecken – Knöpfe und Felder 6 px, Karten, Blöcke, Panels und Menüs 10 px, Chips rund.
+   Schalter und Häkchen (Quasar „primary“) folgen der gewählten Akzentfarbe. */
+body.lay-office { --r: 6px; --r2: 10px; --q-primary: var(--akzent); }
+body.lay-office:not(.knopf-weich):not(.knopf-kraeftig) .m-knopf { border-radius: var(--r) !important; }
+body.lay-office .m-feld .q-field__control, body.lay-office .q-field--outlined .q-field__control { border-radius: var(--r) !important; }
+body.lay-office .m-block, body.lay-office .m-karte, body.lay-office .m-zi-legende, body.lay-office .q-menu,
+body.lay-office .m-popup, body.lay-office .q-dialog .m-palette, body.lay-office section.m-chat { border-radius: var(--r2) !important; }
+body.lay-office .q-menu .q-item, body.lay-office .m-popup .q-item { border-radius: var(--r); }
+/* 1.64: das schwebende Chat-Fenster rückt neben ein offenes Panel – sonst deckt es Speichern/Abbrechen zu */
+@media (min-width: 1100px) {
+  body.lay-office:has(.m-center.offen) section.m-chat { right: calc(var(--af-pb, PANEL_BREITEpx) + 16px); }
+  body.lay-office:has(.m-center.offen.breit) section.m-chat { right: calc(var(--af-pb, PANEL_BREITpx) + 16px); }
+}
 body.lay-office .m-center .m-ckopf { min-height: 44px; padding: 6px 8px 6px 16px; }
 body.lay-office .m-center .m-ckopf .m-titel { font-size: 16px; font-weight: 600; }
 /* ---------- Heute: Sprung-Kacheln · links Aufgaben 60 % · rechts freie Zimmer, 7 Tage, Outlook ---------- */
@@ -166,7 +179,7 @@ body.lay-office .m-tz { padding: 12px 16px 24px !important; gap: 16px; max-width
 body.lay-office .m-tz-zahlen { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px !important;
   margin: 0 !important; }
 body.lay-office .m-tz-zahl-k { position: relative; display: block !important; height: auto !important; padding: 10px 40px 10px 16px !important;
-  border-radius: 8px !important; border: 1px solid var(--rand) !important; background: var(--ob-fl) !important; text-align: left; }
+  border-radius: var(--r2) !important; border: 1px solid var(--rand) !important; background: var(--ob-fl) !important; text-align: left; }
 body.lay-office .m-tz-zahl-k:hover { border-color: var(--ob-akzent) !important; }
 body.lay-office .m-tz-zahl-k::after { content: "chevron_right"; font-family: "Material Icons Outlined"; font-feature-settings: "liga";
   font-size: 20px; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); }
@@ -178,7 +191,7 @@ body.lay-office .m-tz-zahl-k .m-tz-zahl-u { display: block !important; font-size
 body.lay-office .m-tz-zahl-k.null { opacity: 1 !important; }
 body.lay-office .m-tz-raster { grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr) !important; gap: 16px !important; }
 body.lay-office .m-tz-links, body.lay-office .m-tz-rechts > section, body.lay-office .m-tz-rechts > div {
-  background: var(--ob-fl); border: 1px solid var(--rand); border-radius: 8px; padding: 12px 16px; }
+  background: var(--ob-fl); border: 1px solid var(--rand); border-radius: var(--r2); padding: 12px 16px; }
 body.lay-office .m-tz-rechts { gap: 16px !important; }
 body.lay-office .m-tz-ab { font-size: 14px !important; font-weight: 600 !important; color: var(--text) !important; align-items: center !important; }
 body.lay-office .m-tz-meta { font-size: 12px; font-weight: 400; color: var(--text2); }

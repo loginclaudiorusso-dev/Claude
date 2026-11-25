@@ -476,7 +476,7 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                     continue
                 hier = not r.kontext and r.key != tab and r.key == mb.reiter_von(a.seite, _ansichten(),
                                                                                   a.ansicht.get(a.seite))
-                rb = ui.element("button").classes("m-ob-tab" + (" an" if r.key == tab else "")
+                rb = ui.element("button").classes(f"m-ob-tab rb-{r.key}" + (" an" if r.key == tab else "")
                                                   + (" kontext" if r.kontext else "") + (" hier" if hier else ""))
                 if hier:                                     # Orientierung: hier liegt die offene Seite
                     attr(rb, title="Hier liegt die gerade offene Seite")
@@ -495,7 +495,14 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                 with rb:
                     ui.label(seiten_reiter_titel(a))
                 rb.on("click", lambda: _tab(a, "seite"))
-        with ui.element("div").classes("m-ob-band" + (" m-ob-band-seite" if tab == "seite" else "")):
+        seite_rb = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))      # 1.64: Bereichsfarbe der Symbole
+        if getattr(a, "body", None) is not None and getattr(a, "_rb_klasse", None) != f"seite-rb-{seite_rb}":
+            if getattr(a, "_rb_klasse", None):
+                a.body.classes(remove=a._rb_klasse)
+            a._rb_klasse = f"seite-rb-{seite_rb}"
+            a.body.classes(add=a._rb_klasse)
+        with ui.element("div").classes("m-ob-band rb-" + (seite_rb if tab == "seite" else aktuell.key)
+                                       + (" m-ob-band-seite" if tab == "seite" else "")):
             ansicht = a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, ""))
             for g in aktuell.gruppen:
                 if mb.gruppe_sichtbar(g, a.seite, ansicht):

@@ -108,7 +108,7 @@ def _vorschau(a, box, eingabe) -> None:
                 for h in v.hinweise:
                     ui.label(h).classes("m-zweite").style("color:var(--orange); white-space:normal")
                 for akt in v.aktionen:
-                    cb = ui.checkbox(akt.text, value=akt.an).props("dense dark color=indigo-4")
+                    cb = ui.checkbox(akt.text, value=akt.an).props("dense dark color=primary")
                     cb.on_value_change(lambda e, akt=akt: setattr(akt, "an", e.value))
 
         async def ausfuehren():
@@ -329,7 +329,7 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach=None) -> No
             schritte_box.clear()
             with schritte_box:
                 for s in zustand["schritte"]:
-                    cb = ui.checkbox(s.text, value=s.an).props("dense dark color=indigo-4")
+                    cb = ui.checkbox(s.text, value=s.an).props("dense dark color=primary")
                     cb.on_value_change(lambda ev, s=s: setattr(s, "an", ev.value))
 
         neu_vorschlag(zustand["treffer"])
@@ -393,7 +393,7 @@ def _buchungen_ergebnis(a, box, liste, schritte, betreff, absender, text) -> Non
                 for h in b.hinweise:
                     ui.label(h).classes("m-zweite").style("color:var(--orange);white-space:normal")
                 for s_ in sch:
-                    cb = ui.checkbox(s_.text, value=s_.an).props("dense dark color=indigo-4")
+                    cb = ui.checkbox(s_.text, value=s_.an).props("dense dark color=primary")
                     cb.on_value_change(lambda ev, s_=s_: setattr(s_, "an", ev.value))
 
         async def umsetzen():

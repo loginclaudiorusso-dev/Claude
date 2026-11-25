@@ -671,7 +671,7 @@ def _zkl_panel(a) -> None:
                 ui.label(zkl.ARTEN.get(art, art)).classes("m-ktitel")
                 for p in (x for x in punkte if x.art == art):
                     cb = ui.checkbox(f"{zkurz(p.zimmer)}: {p.text}", value=p.schluessel in gewaehlt).props(
-                        "dense dark color=indigo-4")
+                        "dense dark color=primary")
                     cb.on_value_change(lambda e, k=p.schluessel: gewaehlt.add(k) if e.value else gewaehlt.discard(k))
 
             async def los():

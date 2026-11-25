@@ -44,6 +44,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_export_ziel_v163.py` – 1.63 – Exporte: belegt → freier Name, gesperrt → persönlicher Ordner, klare Meldung
 - `test_termin_zimmer_v163.py` – 1.63 – Zimmer zu An-/Abreise-Terminen (Tooltip, Kurztext, EMR, ohne Zimmer)
 - `test_haus_v163.py` – 1.63 – Abwesenheiten, Schlüssel, Aktuell im Haus, Notfallliste mit Abwesenden, Kündigung
+- `test_grafik_v164.py` – 1.64 – farbige Symbole/Piktogramme, neue Motive, Bereichsfarben/Signal, ruhige Sperre, Chat neben Panel, keine Farb-Altlasten
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

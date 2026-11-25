@@ -251,7 +251,7 @@ def _panel(a, k: bk.Konto | None) -> None:
             start = ui.input("Startpasswort", value=bk.start_passwort()).classes("m-feld w-full").props(FELD)
             ui.label("Nur nötig ohne Windows-Konto. Bitte der Person persönlich geben, nicht per Mail.").classes("m-zweite")
         else:
-            aktiv = ui.switch("Konto aktiv (aus = gesperrt)", value=k.aktiv).props("dense color=indigo-4")
+            aktiv = ui.switch("Konto aktiv (aus = gesperrt)", value=k.aktiv).props("dense color=primary")
 
         def standorte():
             return [s for s, h in haken.items() if h.value]

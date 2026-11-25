@@ -130,11 +130,11 @@ def _windows(a) -> None:
     with ui.element("div").classes("m-schalter"):
         ui.switch("Windows-Meldungen: fällige Termine, offene Reinigung vor Anreise, Facility-Checks",
                   value=melder.an(), on_change=lambda e: _schalten(a, meldungen_setzen, e.value)
-                  ).props("dense color=indigo-4")
+                  ).props("dense color=primary")
     with ui.element("div").classes("m-schalter"):
         sw = ui.switch("Mit Windows starten (minimiert) – meldet Fälliges, ohne dass man das Programm öffnet",
                        value=melder.autostart_aktiv(), on_change=lambda e: _schalten(a, autostart_setzen, e.value)
-                       ).props("dense color=indigo-4")
+                       ).props("dense color=primary")
         if not melder.autostart_moeglich():
             sw.props("disable")
             ui.label("Nur unter Windows.").classes("m-zweite")
@@ -289,7 +289,7 @@ def _allgemein(a) -> None:
                 with ui.element("div").classes("m-einst"):
                     ui.label(sk.EINSTELLUNGEN["reinigung_anreisetag"][0]).classes("m-ptext")
                     ui.switch(value=d["bool"]["reinigung_anreisetag"], on_change=lambda e: a.aendern(
-                        sk.einstellung_setzen, "reinigung_anreisetag", e.value)).props("dense color=indigo-4")
+                        sk.einstellung_setzen, "reinigung_anreisetag", e.value)).props("dense color=primary")
             with ui.element("section").classes("m-block"):
                 ui.label("Erinnerungen").classes("m-btitel")
                 for k, text in ERINNERUNG.items():
@@ -408,7 +408,7 @@ def _stamm_panel(a, z) -> None:
     def bauen():
         betten = ui.number("Betten", value=z.betten, min=1, max=4, step=1, format="%d").classes("m-feld").props("dense outlined dark")
         flur = ui.input("Flur", value=z.flur).classes("m-feld").props("dense outlined dark")
-        schalter = {k: ui.switch(FELDER[k], value=getattr(z, k)).props("dense color=indigo-4")
+        schalter = {k: ui.switch(FELDER[k], value=getattr(z, k)).props("dense color=primary")
                     for k in ("aktiv", "tiere", "nur_maenner", "gaeste")}
         notiz = ui.input("Hinweis", value=z.notiz).classes("m-feld").props("dense outlined dark")
         reno = ui.input(FELDER["renoviert"], value=z.renoviert).classes("m-feld").props("dense outlined dark")

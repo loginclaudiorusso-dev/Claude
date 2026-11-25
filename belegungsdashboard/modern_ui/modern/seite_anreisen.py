@@ -330,7 +330,7 @@ async def person_panel(a, schluessel: str) -> None:
         g = ui.select({"": "unbekannt", "w": "weiblich", "m": "männlich", "d": "divers"}, value=p.geschlecht,
                       label="Geschlecht" + (" (aus dem Vornamen geschätzt)" if p.geschlecht_geschaetzt else "")).classes(
             "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
-        tier = ui.switch("kommt mit Tier", value=p.tier).props("dense color=indigo-4")
+        tier = ui.switch("kommt mit Tier", value=p.tier).props("dense color=primary")
         gr_vorher = ank.gruppe_auswahl(p.gruppe)
         gr = ui.select(ank.GRUPPEN, value=gr_vorher, label="Gruppe").classes(
             "m-feld").props('dense outlined dark popup-content-class="m-popup"')
@@ -363,7 +363,7 @@ async def person_panel(a, schluessel: str) -> None:
                 knopf("Person entfernen", lambda: _entfernen(a, p), "leise", "delete")
             ui.label("Erinnerung an die Abreise").classes("m-ktitel")
             kan = ank.kanaele()
-            er_an = ui.switch("erinnern", value=p.erinnerung_tage is not None).props("dense color=indigo-4")
+            er_an = ui.switch("erinnern", value=p.erinnerung_tage is not None).props("dense color=primary")
             with ui.element("div").classes("m-zweispaltig"):
                 er_tage = ui.number("Tage vorher (0 = am Abreisetag)", value=p.erinnerung_tage if p.erinnerung_tage is not None else 2,
                                     min=0, max=60, step=1, format="%d").classes("m-feld").props("dense outlined dark")
@@ -425,7 +425,7 @@ def optimieren_panel(a) -> None:
                 return
             for i, v in enumerate(vs):
                 with ui.element("div").classes("m-plan-u"):
-                    cb = ui.checkbox(v.text, value=i in gewaehlt).props("dense dark color=indigo-4")
+                    cb = ui.checkbox(v.text, value=i in gewaehlt).props("dense dark color=primary")
                     cb.on_value_change(lambda e, i=i: gewaehlt.add(i) if e.value else gewaehlt.discard(i))
                     ui.label(f"{v.zeitraum} · " + "; ".join(v.gruende[:3])).classes("m-zweite")
                     if not v.umsetzbar:

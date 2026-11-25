@@ -141,10 +141,45 @@ FARBIG_ERSATZ = {
     "list": "list_bar", "location": "location_ripple", "money": "coin_multiple", "new": "add_starburst",
     "open": "arrow_square", "person_alert": "person_warning", "person_arrow_right": "person_available",
     "person_question_mark": "person_tentative", "play": "fast_forward_circle", "prohibited": "dismiss_circle",
-    "qr_code": "scan_type", "search": "search_visual", "share": "share_ios", "slide_play": "video",
+    "search": "search_visual", "share": "share_ios", "slide_play": "video",
     "sparkle": "bot_sparkle", "table_arrow_up": "table", "tag": "ribbon",
     "task_list_square_ltr": "text_bullet_list_square", "tasks_app": "clipboard_task",
     "weather_sunny": "weather_sunny_low", "wrench_settings": "wrench_screwdriver",
+}
+# 1.64: eigene Piktogramme (``p:…``, Menüband und Kontextkarten) → farbiges Motiv. Ohne Eintrag bleibt es zweifarbig.
+PIKTO_FARBIG = {
+    "uebersicht": "board", "anreisen": "people_add", "abreisen": "people_home", "zimmer": "building_home",
+    "planung": "calendar_clock", "auswertung": "data_trending", "ki": "bot_sparkle", "verwaltung": "settings",
+    "datei": "document", "nachrichten": "mail", "nachricht_neu": "send", "fm_mail": "wrench_screwdriver",
+    "aufgaben": "clipboard_task", "zuteilen": "person_add", "teilnehmer": "people_list",
+    "datenabgleich": "arrow_sync", "mieter": "document_text", "zimmeruebersicht": "apps",
+    "zimmerliste": "list_bar", "defekt": "warning",   # Reinigung, QR: kein passendes farbiges Motiv
+    "facility": "clipboard_task", "inventar": "briefcase", "belegungsplan": "chart_multiple",
+    "kalender": "calendar", "reinigungsvorschau": "calendar_data_bar", "renovierung": "wrench",
+    "kennzahlen": "gauge", "belegung": "data_bar_vertical_ascending", "prognose": "arrow_trending_lines",
+    "massnahmen": "certificate", "engpaesse": "alert_urgent", "auftraege": "bot_sparkle",
+    "schnellauskunft": "lightbulb", "mails_ki": "mail", "daten_einlesen": "arrow_square_down",
+    "stammdaten": "document_edit", "benutzer": "person_key", "einstellungen": "settings", "verlauf": "history",
+    "automatisierung": "settings", "drucken": "document_text", "exportieren": "share_ios", "info": "question_circle",
+    "konto": "person", "suche": "search_visual", "glocke": "alert", "hilfe": "question_circle",
+    "standort": "location_ripple",
+    "a_heute": "calendar_checkmark", "a_tag": "calendar", "a_woche": "calendar_data_bar", "a_monat": "calendar",
+    "a_zeitraum": "calendar", "a_geplant": "calendar_clock", "a_naechste": "calendar_clock",
+    "a_letzte": "calendar_sync", "a_person": "person", "a_personen": "people", "a_personenliste": "people_list",
+    "a_team": "people_team", "a_person_neu": "person_add", "a_notfall": "person_warning",
+    "a_person_weiter": "person_available", "a_person_frage": "person_tentative", "a_haus_ok": "home",
+    "a_schluessel": "person_key", "a_frei": "checkmark_circle", "a_alle_ok": "checkmark_circle",
+    "a_bezugsfertig": "ribbon_star", "a_sicherheit": "ribbon", "a_gesperrt": "dismiss_circle", "a_warnung": "warning",
+    "a_dringend": "alert_urgent", "a_offen": "clock", "a_neu": "add_starburst", "a_schloss": "lock_closed",
+    "a_mangel": "wrench", "a_mangelart": "wrench_screwdriver", "a_tuer": "building_home", "a_gebaeude": "building",
+    "a_haus": "building_home", "a_haeuser": "building_multiple", "a_mail": "mail", "a_linie": "data_line",
+    "a_flaeche": "data_area", "a_saeulen": "data_bar_vertical_ascending", "a_anteile": "data_pie",
+    "a_trend": "arrow_trending_lines", "a_reserve": "gauge", "a_vorjahr": "calendar_sync", "a_vergleich": "board",
+    "a_ebenen": "board", "a_legende": "ribbon", "a_tacho": "gauge", "a_szenarien": "options",
+    "a_praesentation": "video", "a_auswahl": "text_bullet_list_square", "a_protokoll": "clipboard_task",
+    "a_pruefbericht": "clipboard_task", "a_pdf": "document_text", "a_export": "table", "a_kopieren": "document_add",
+    "a_bearbeiten": "edit", "a_anzeigen": "search_visual", "a_neu_plus": "add_circle", "a_aufraeumen": "document_folder",
+    "a_einlesen": "arrow_sync", "a_hochladen": "arrow_square",
 }
 VARIANTE = {"art": "fluent"}          # gilt im ganzen Programm (ein Prozess = eine Person); setzt die Oberfläche
 VORSCHAU = (("calendar", BLAU), ("people", BLAU), ("building_multiple", BLAU), ("warning", AMBER), ("wrench", AMBER))
@@ -152,7 +187,11 @@ VORSCHAU = (("calendar", BLAU), ("people", BLAU), ("building_multiple", BLAU), (
 
 @lru_cache(maxsize=None)
 def farbig(name: str, stufe: str = "g") -> str:
-    """SVG-Text der farbigen Fassung ("" = gibt es nicht)."""
+    """SVG-Text der farbigen Fassung ("" = gibt es nicht). 1.64: auch für eigene Piktogramme („p:kalender“)."""
+    if name.startswith("p:"):
+        name = PIKTO_FARBIG.get(name[2:], "")
+        if not name:
+            return ""
     p = FARBIG_ORDNER / f"{FARBIG_ERSATZ.get(name, name)}.{stufe}.svg"
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
@@ -176,6 +215,14 @@ def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", ov
     Fassung, wenn es sie gibt (ohne Angabe gilt ``VARIANTE``)."""
     from . import piktogramme
 
+    # 1.64: „Farbig (realistischer)“ zuerst – vorher bog jedes Symbol auf ein Piktogramm um, die Wahl blieb wirkungslos
+    if (variante or VARIANTE["art"]) == "farbig" and (bunt := farbig(name, "g" if gross else "k")):
+        inhalt = f'<span class="m-sym-c">{bunt}</span>'
+        if overlay and gross:
+            of = FARBEN.get(ofarbe, ofarbe) or BLAU
+            inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
+        return (f'<span class="m-sym {"gross" if gross else "klein"} farbig {klasse}" data-n="{name}" '
+                f'aria-hidden="true">{inhalt}</span>')
     if not name.startswith("p:") and name in piktogramme.ERSATZ:    # 1.40: auch Kontext- und Werkzeugkarten eigen
         name = "p:" + piktogramme.ERSATZ[name]
     if name.startswith("p:"):                       # 1.39: eigenes Piktogramm (Farben aus CSS, kein zweites Set)
@@ -187,12 +234,6 @@ def html(name: str, farbe: str = BASIS, gross: bool = True, klasse: str = "", ov
         return (f'<span class="m-sym {"gross" if gross else "klein"} pikto {klasse}" data-n="{name}"{stil} '
                 f'aria-hidden="true">{inhalt}</span>')
     farbe = FARBEN.get(farbe, farbe)
-    if (variante or VARIANTE["art"]) == "farbig" and (bunt := farbig(name, "g" if gross else "k")):
-        inhalt = f'<span class="m-sym-c">{bunt}</span>'
-        if overlay and gross:
-            of = FARBEN.get(ofarbe, ofarbe) or BLAU
-            inhalt += f'<span class="m-sym-ov" style="color:{_html.escape(of)}">{svg(overlay, "k", "f")}</span>'
-        return f'<span class="m-sym {"gross" if gross else "klein"} farbig {klasse}" data-n="{name}" aria-hidden="true">{inhalt}</span>'
     if gross:
         flaeche = (f'<span class="m-sym-f" style="color:{_html.escape(farbe)}">{svg(name, "g", "f")}</span>'
                    if farbe else "")

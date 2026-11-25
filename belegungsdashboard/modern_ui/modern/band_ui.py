@@ -135,14 +135,11 @@ body.ob-seite-an .m-kz .m-kpi { display: block; white-space: normal; max-width: 
 /* 1.07: Auswahl als flache Office-Felder statt Optionspunkte */
 .m-bg-k.m-bg-wahl { height: 22px; border-radius: 4px; padding: 0 9px; border: 0; font-size: 12.5px; color: var(--sym-basis, #334155); }
 .m-bg-wahl .m-bg-punkt { display: none; }
-.m-bg-k.m-bg-wahl.an { background: #e0f2fe; color: #0369a1; font-weight: 600; border: 0; }
-body:not(.hell) .m-bg-k.m-bg-wahl.an { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
+.m-bg-k.m-bg-wahl.an { background: var(--ob-an, #D3E8E8); color: var(--ob-akzent, #007F7F); font-weight: 600; border: 0; }   /* 1.64 */
 .m-bg-tr { align-self: stretch; width: 1px; background: #e2e8f0; margin: 4px 3px 2px; flex: none; }
 body:not(.hell) .m-bg-tr { background: rgba(255, 255, 255, .09); }
-.m-bg-ansicht .m-bg-g.an { background: #e0f2fe; border-color: #bae6fd; }
-.m-bg-ansicht .m-bg-g.an .m-bg-text { color: #0369a1; font-weight: 600; }
-body:not(.hell) .m-bg-ansicht .m-bg-g.an { background: rgba(56, 189, 248, .18); border-color: rgba(56, 189, 248, .35); }
-body:not(.hell) .m-bg-ansicht .m-bg-g.an .m-bg-text { color: #7dd3fc; }
+.m-bg-ansicht .m-bg-g.an { background: var(--ob-an, #D3E8E8); border-color: color-mix(in srgb, var(--ob-akzent, #007F7F) 35%, transparent); }
+.m-bg-ansicht .m-bg-g.an .m-bg-text { color: var(--ob-akzent, #007F7F); font-weight: 600; }
 /* lose Bausteine (ohne eigene Gruppe) im Seiten-Band: gleiche Luft wie in Gruppen */
 body.ob-seite-an .m-kz > .m-leiste > .m-bg-g, body.ob-seite-an .m-kz .m-werkzeuge > .m-bg-g,
 body.ob-seite-an .m-kz > .m-leiste > .m-bg-st, body.ob-seite-an .m-kz .m-werkzeuge > .m-bg-st { margin: 0 3px; }

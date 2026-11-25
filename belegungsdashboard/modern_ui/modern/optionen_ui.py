@@ -212,6 +212,12 @@ def _anzeige(a, d: dict, setzen) -> None:
                     ui.html(sy.html(name, farbe, True, variante=k), sanitize=False)
                 ui.label(text)
             b.on("click", lambda k=k: setzen(symbole=k))
+    from .darstellung_modell import SYMBOL_FARBEN                         # 1.64
+
+    _titel("Farbe der zweifarbigen Symbole", "„Je Bereich“: jede Registerkarte in ihrer eigenen dezenten Farbe – so "
+           "verschwimmen die Schaltflächen nicht. „Nur Signalfarben“: ein Akzent für alle, Farbe nur für ok/Achtung/kritisch.")
+    _wahl({k: t for k, (t, _x) in SYMBOL_FARBEN.items()}, d.get("symbol_farben", "bereich"),
+          lambda x: setzen(symbol_farben=x))
     _titel("Menüband", "„Groß“ ist angenehm auf Touch-Bildschirmen und für große Monitore.")
     _wahl({False: "Normal", True: "Groß"}, d["band_gross"], lambda x: setzen(band_gross=x))
     _titel("Werkzeuge der Seite", "„Im Menüband“: Filter und Knöpfe jeder Seite stehen in einer eigenen "

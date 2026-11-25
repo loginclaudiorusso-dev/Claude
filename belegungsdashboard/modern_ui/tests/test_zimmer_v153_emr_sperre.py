@@ -58,4 +58,5 @@ def test_legende_und_farben():
 
     assert any("EMR-Zimmer" in t for _k, _z, t in sz.LEGENDE)
     css = (Path(zk.__file__).parent / "themes.py").read_text(encoding="utf-8")
-    assert "--zi-sperr-text: #B42318" in css and ".m-kachel.emr" in css
+    # 1.64: geplante Sperre ruhig schiefergrau (kein Rot mehr); Rot nur für unbewohnbar (Mangel)
+    assert "--zi-sperr-text: #4B5A5F" in css and "--zi-mangel-rand: #7A1A12" in css and ".m-kachel.emr" in css

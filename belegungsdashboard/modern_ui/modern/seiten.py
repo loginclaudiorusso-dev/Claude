@@ -1003,9 +1003,9 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
         ui.timer(0.05, nummer_holen, once=True)
         zimmer = ui.select({}, label="Zimmer", with_input=True).classes("m-feld").props(
             'dense outlined dark options-dense popup-content-class="m-popup"')
-        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")
-        kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=indigo-4")
-        flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=indigo-4")
+        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=primary")
+        kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=primary")
+        flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=primary")
         attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")
         trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
                             "ich habe es geprüft", value=bool(vorgabe)).props("dense color=orange")
@@ -1090,10 +1090,10 @@ def vertrag_bearbeiten_panel(a, nr: str) -> None:
             mail = ui.input("E-Mail (optional)", value=mv.email).classes("m-feld").props("dense outlined dark")
         zimmer = ui.select({mv.zimmer: mv.zimmer_kurz}, value=mv.zimmer, label="Zimmer", with_input=True).classes(
             "m-feld").props('dense outlined dark options-dense popup-content-class="m-popup"')
-        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=indigo-4")
-        kaution = ui.switch("Mietsicherheit (Kaution) vereinbart", value=mv.kaution).props("dense color=indigo-4")
-        flex = ui.switch("Flexibler Mietvertrag", value=mv.nr in mk.flexible()).props("dense color=indigo-4")
-        neu_erstellen = ui.switch("Unterlagen gleich neu erstellen (PDF)", value=True).props("dense color=indigo-4")
+        alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=primary")
+        kaution = ui.switch("Mietsicherheit (Kaution) vereinbart", value=mv.kaution).props("dense color=primary")
+        flex = ui.switch("Flexibler Mietvertrag", value=mv.nr in mk.flexible()).props("dense color=primary")
+        neu_erstellen = ui.switch("Unterlagen gleich neu erstellen (PDF)", value=True).props("dense color=primary")
         trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
                             "ich habe es geprüft").props("dense color=orange")
         jahr_hinweis = ui.element("div").classes("m-zeile-flex").style("gap:8px; flex-wrap:wrap")
