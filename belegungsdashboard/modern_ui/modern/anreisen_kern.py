@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
-from belegung import anreiseliste, cockpit, drucklisten, eintragen, speicher
+from belegung import anreiseliste, drucklisten, eintragen, speicher
 from belegung import termine as tm
 from belegung import umzug as um
 from belegung import zimmerplan as zp
@@ -39,17 +39,31 @@ class AZeile:
     zimmer_id: str
     naechste: str
     art: str
+    hinweis: str = ""         # 1.65: z. B. „laut Anreiseliste – im Plan noch bis 28.12.“
 
 
 def abreisen(stand: zp.Planstand, von: date, bis: date) -> list[AZeile]:
-    return [AZeile(f"{WT[a.tag.weekday()]} {a.tag:%d.%m.}", a.name, a.massnahme, kurz(a.zimmer), a.zimmer,
-                   f"{WT[a.naechste.weekday()]} {a.naechste:%d.%m.}" if a.naechste else "–", a.art)
-            for a in cockpit.abreiseliste(stand, von, bis)]
+    """1.65: Plan UND Anreiseliste (abreise_kern) – EMR mit geänderter Abreise fehlen nicht mehr."""
+    from . import abreise_kern as abk
+
+    erg = []
+    for a in abk.abreisen(stand, von, bis):
+        hinweis = ""
+        if a.art == abk.ART_LISTE:
+            pb = abk.plan_bis(stand.lage, a.zimmer, a.schluessel, a.name) if a.zimmer else None
+            hinweis = ("laut Anreiseliste" + (f" – im Plan noch bis {pb:%d.%m.}" if pb and pb != a.tag else "")
+                       + ("" if a.zimmer else " – kein Zimmer im Plan"))
+        erg.append(AZeile(f"{WT[a.tag.weekday()]} {a.tag:%d.%m.}", a.name, a.massnahme, kurz(a.zimmer) if a.zimmer else "–",
+                          a.zimmer, f"{WT[a.naechste.weekday()]} {a.naechste:%d.%m.}" if a.naechste else "–", a.art,
+                          hinweis))
+    return erg
 
 
 def abreisen_druck(stand: zp.Planstand, von: date, bis: date) -> str:
     titel = f"{von:%d.%m.%Y}" if von == bis else f"{von:%d.%m.} – {bis:%d.%m.%Y}"
-    return drucklisten.abreiseliste_html(cockpit.abreiseliste(stand, von, bis), titel)
+    from . import abreise_kern as abk
+
+    return drucklisten.abreiseliste_html(abk.abreisen(stand, von, bis), titel)
 
 
 # ---- Eintragen ins RIOS-Daten -------------------------------------------------------

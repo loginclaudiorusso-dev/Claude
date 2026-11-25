@@ -109,7 +109,9 @@ def erstellen(stand, heute: date) -> Briefing:
         except Exception:                      # noqa: BLE001 – Zusatz
             teil += f" – {a.mit_zimmer} mit Zimmer"
         z.append(teil)
-    ab = cockpit.abreisen(stand, heute, 1)
+    from . import abreise_kern as abk
+
+    ab = abk.abreisen(stand, heute, heute + timedelta(days=1))          # 1.65: auch laut Anreiseliste
     n_heute = sum(1 for x in ab if x.tag == heute)
     z.append(f"ABREISEN: heute {n_heute}, morgen {len(ab) - n_heute}")
     eilig, offen = cockpit.reinigung_heute(stand, heute)

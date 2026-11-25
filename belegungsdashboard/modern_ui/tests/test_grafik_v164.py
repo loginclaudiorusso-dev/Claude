@@ -61,3 +61,11 @@ def test_keine_farb_altlasten():
     assert "#e0f2fe" not in band and "#0369a1" not in band and "var(--ob-an" in band
     af = (MODERN / "arbeitsflaeche.py").read_text(encoding="utf-8")
     assert "--q-primary: var(--akzent)" in af and "--r: 6px; --r2: 10px" in af
+
+
+def test_eigene_farbige_symbole_v165():
+    """1.65: eigene farbige Motive – keine gleichen Bilder in einer Gruppe (Einstellungen ≠ Automatisierung)."""
+    for k in ("zimmeruebersicht", "zimmerliste", "reinigung", "reinigungsvorschau", "facility", "defekt", "qr",
+              "inventar", "einstellungen", "automatisierung", "a_bett"):
+        assert sy.PIKTO_FARBIG[k].startswith("inn_") and "linearGradient" in sy.farbig("p:" + k), k
+    assert sy.farbig("p:einstellungen") != sy.farbig("p:automatisierung")

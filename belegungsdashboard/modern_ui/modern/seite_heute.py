@@ -34,8 +34,10 @@ def tag_daten(stand, heute: date) -> Tag:
     t = Tag(cockpit.zimmer_heute(stand, heute))
     for a in cockpit.anreisen(stand, heute, 7):
         t.anreisen.append((a.tag.isoformat(), f"{WT[a.tag.weekday()]} {a.tag:%d.%m.} · {a.text}", a.personen, a.mit_zimmer))
-    for a in cockpit.abreisen(stand, heute, 1):
-        t.abreisen.append(("heute" if a.tag == heute else "morgen", a.name, kurz(a.zimmer)))
+    from . import abreise_kern as abk                  # 1.65: auch Abreisen laut Anreiseliste
+
+    for a in abk.abreisen(stand, heute, heute + timedelta(days=1)):
+        t.abreisen.append(("heute" if a.tag == heute else "morgen", a.name, kurz(a.zimmer) if a.zimmer else "–"))
     dringend, offen = cockpit.reinigung_heute(stand, heute)
     t.reinigung = (len(dringend), len(offen))
     from .kern import kennzahlen
@@ -68,7 +70,9 @@ def _woche(stand, heute: date) -> list[dict]:
     for a in cockpit.anreisen(stand, heute, 7):
         an.setdefault(a.tag, []).append(a)
     ab: dict[date, int] = {}
-    for x in cockpit.abreisen(stand, heute, 6):
+    from . import abreise_kern as abk
+
+    for x in abk.abreisen(stand, heute, heute + timedelta(days=6)):
         ab[x.tag] = ab.get(x.tag, 0) + 1
     erg = []
     for i in range(7):

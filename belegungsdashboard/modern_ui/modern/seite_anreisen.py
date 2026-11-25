@@ -132,13 +132,17 @@ def abreisen_zeichnen(a) -> None:
                 with ui.element("div"):
                     ui.element("div").classes("m-ampel " + ("akzent" if z.art == "geplant" else "ok"))
                 ui.label(z.tag).classes("m-mono")
-                ui.label(z.name).classes("m-name")
+                with ui.element("div"):
+                    ui.label(z.name).classes("m-name")
+                    if z.hinweis:                       # 1.65: Abreise laut Anreiseliste, Plan läuft länger
+                        ui.label(z.hinweis).classes("m-zweite").style("color:var(--orange)")
                 ui.label(z.massnahme).classes("m-zweite")
                 ui.label(z.zimmer).classes("m-mono")
                 ui.label(z.naechste).classes("m-mono")
             from . import seite_zimmer
 
-            r.on("click", lambda z=z: seite_zimmer.karte_oeffnen(a, z.zimmer_id))
+            if z.zimmer_id:
+                r.on("click", lambda z=z: seite_zimmer.karte_oeffnen(a, z.zimmer_id))
 
 
 async def _ab_drucken(a) -> None:
