@@ -122,7 +122,10 @@ def aktualisieren(stand: zp.Planstand) -> set[tuple[str, str]]:
 
 
 def setzen(wert: bool) -> str:
+    from .benutzer_kern import admin_pruefen
     from .kern import _schritt
+
+    admin_pruefen("Die Belegungsregeln ändern")          # 1.61
 
     _schritt("Haus 6: Aufteilung " + ("an" if wert else "aus"), lambda: speicher.einstellung_setzen(EINSTELLUNG, bool(wert)),
              [speicher.EINSTELLUNGEN])

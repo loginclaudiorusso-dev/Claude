@@ -45,7 +45,7 @@ class ZsZeile:
 
 
 def haeuser(stand: zp.Planstand) -> list[str]:
-    return sorted({z.haus for z in stand.zimmer if z.aktiv}, key=zp._haus_sort)
+    return sorted({z.haus for z in stand.zimmer if z.aktiv}, key=lambda h: (zp._haus_sort(h), h))   # 1.61: A, B … stabil
 
 
 def zeitstrahl(stand: zp.Planstand, haus: str, start: date, tage: int = 28, heute: date | None = None,

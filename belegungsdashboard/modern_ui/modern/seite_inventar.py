@@ -14,7 +14,14 @@ from .ui_bausteine import attr, kennzahlen, knopf, leer, segmente
 from .standort_kern import kurz as zkurz
 
 ANSICHTEN = {"gegenstaende": "Gegenstände", "zimmer": "Je Zimmer", "haeuser": "Je Haus"}   # 1.39: „Übersicht“ nur einmal
-HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]
+HAEUSER = ["2", "3.1", "3.2", "3.3", "6"]      # nur Rückfall, wenn kein Gebäudeplan geladen ist
+
+
+def _hs(a) -> list[str]:
+    """1.61: Häuser des aktiven Standorts (vorher fest die Goslarer Häuser)."""
+    from .seiten_kern import haeuser
+
+    return (haeuser(a.stand) if getattr(a, "stand", None) is not None else []) or HAEUSER
 
 
 def daten(a) -> None:
@@ -77,7 +84,7 @@ def zeichnen(a) -> None:
             with ui.menu().props('dark class="m-menue"'):
                 ui.menu_item("Inventarliste drucken (alle Häuser)",
                              lambda: seiten.html_drucken(a, iv.druck_html(inv, a.daten["zimmer"]), "Inventarliste"))
-                for h in HAEUSER:
+                for h in _hs(a):
                     ui.menu_item(f"Inventarliste Haus {h} drucken", lambda h=h: seiten.html_drucken(
                         a, iv.druck_html(inv, a.daten["zimmer"], h), f"Inventarliste_Haus_{h}"))
                 ui.separator()
@@ -115,7 +122,7 @@ def _gegenstaende(a, inv: iv.Inventar) -> None:
 def _zimmer(a, inv: iv.Inventar) -> None:
     sp = "90px minmax(120px, .8fr) minmax(240px, 2fr) 90px"
     with a.leiste:
-        segmente({"": "Alle Häuser", **{h: f"Haus {h}" for h in HAEUSER}}, a.iv_haus, lambda h: a.setzen(iv_haus=h, laden=False))
+        segmente({"": "Alle Häuser", **{h: f"Haus {h}" for h in _hs(a)}}, a.iv_haus, lambda h: a.setzen(iv_haus=h, laden=False))
         suche = ui.input(placeholder="Zimmer oder Gegenstand …", value=a.iv_text).classes("m-feld m-sucheingabe").props(
             "dense outlined dark clearable")
         suche.on("keydown.enter", lambda: a.setzen(iv_text=suche.value or "", laden=False))
@@ -266,20 +273,20 @@ def _haeuser(a, inv: iv.Inventar) -> None:
                    lambda k: a.oeffnen("inventar", ansicht="zimmer", iv_ohne=True) if k == "ohne" else None,
                    {"ohne": "ohne Gästezimmer – Klick: diese Zimmer zeigen",
                     "zuviel": ", ".join(zu_viel)})
-    sp = "minmax(180px, 1.6fr) " + " ".join(["70px"] * len(HAEUSER)) + " 90px 90px 90px"
+    sp = "minmax(180px, 1.6fr) " + " ".join(["70px"] * len(_hs(a))) + " 90px 90px 90px"
     with a.inhalt:
         if not inv.gegenstaende:
             leer("Noch keine Gegenstände.")
             return
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-            for t in ["Gegenstand"] + [f"H{h}" for h in HAEUSER] + ["in Zimmern", "Bestand", "im Lager"]:
+            for t in ["Gegenstand"] + [f"H{h}" for h in _hs(a)] + ["in Zimmern", "Bestand", "im Lager"]:
                 ui.label(t)
         for g in inv.gegenstaende:
             h = je_haus.get(g.id, {})
             frei = inv.frei(g.id)
             with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{sp}"):
                 ui.label(g.name).classes("m-name")
-                for x in HAEUSER:
+                for x in _hs(a):
                     ui.label(str(h.get(x) or "")).classes("m-mono")
                 ui.label(str(inv.verteilt(g.id))).classes("m-mono")
                 ui.label("–" if g.bestand is None else str(g.bestand)).classes("m-mono")

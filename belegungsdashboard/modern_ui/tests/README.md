@@ -38,6 +38,8 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_massnahmen_v158_schnellzugang.py` – 1.58 – Maßnahme in Strg+K, Schnellzugang, Suche und Linie in der Teilnehmer-Prognose
 - `test_szenarien_v159.py` – 1.59 – zusätzliche Belegung je Monat, Szenario-Vergleich, wirtschaftliche Lage, Versandprotokoll
 - `test_fm_ticket_v160.py` – 1.60 – Ticketnummern je Jahr, Betreff/Text, Suche, Status, Anlegen/Zurücknehmen
+- `test_ki_erkennung_v161.py` – 1.61 – KI-Mail-Erkennung: aus als Standard, nur lokal, Prüfen/Zusammenführen, Prompt, Beispiele
+- `test_audit_v161.py` – 1.61 – Zimmerbefehl je Standort, Häuser aus Gebäudeplan, Gäste-Filter, Druck überall, Admin-Prüfung
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

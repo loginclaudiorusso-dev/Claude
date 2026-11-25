@@ -200,15 +200,33 @@ def vorschlaege(befehle: list[Befehl]) -> list[Befehl]:
     return erg
 
 
-def zimmer_befehl(text: str) -> tuple[str, str] | None:
-    """„2-408 Mangel“ → ("2-408", "Mangel melden"); nur mit einem Stichwort (sonst greift die normale Zimmersuche)."""
+def zimmer_befehl(text: str, zimmer_ids=None) -> tuple[str, str] | None:
+    """„2-408 Mangel“ → ("2-408", "Mangel melden"); nur mit einem Stichwort (sonst greift die normale Zimmersuche).
+    1.61: mit ``zimmer_ids`` auch für andere Standorte („A 103 Mangel“, „a103 sperren“) – über
+    ``standort_kern.zimmer_aus_text``; Rückgabe dann die Kurzform des Zimmers."""
     m = ZIMMER_RE.search(text)
-    if not m:
+    if m:
+        rest, code = norm(ZIMMER_RE.sub(" ", text)), f"{m.group(1)}-{m.group(2).upper()}"
+    elif zimmer_ids:
+        from .standort_kern import kurz, zimmer_aus_text
+
+        woerter = text.split()
+        code = rest = None
+        for n in (3, 2, 1):                            # „A 202 R“, „A 103“, „a103“
+            for i in range(len(woerter) - n + 1):
+                zid = zimmer_aus_text(zimmer_ids, " ".join(woerter[i:i + n]))
+                if zid:
+                    code, rest = kurz(zid), norm(" ".join(woerter[:i] + woerter[i + n:]))
+                    break
+            if code:
+                break
+        if not code:
+            return None
+    else:
         return None
-    rest = norm(ZIMMER_RE.sub(" ", text))
     for stamm, was in ZIMMER_WORTE.items():
         if stamm in rest:
-            return f"{m.group(1)}-{m.group(2).upper()}", was
+            return code, was
     return None
 
 

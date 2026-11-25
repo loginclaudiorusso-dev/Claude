@@ -1488,8 +1488,18 @@ def _gaeste_zeichnen(a) -> None:
         kennzahlen([("da", sum(1 for g in gs if g.von <= a.heute <= g.bis), "heute im Haus", "ok"),
                     ("kommen", sum(1 for g in gs if g.von > a.heute), "kommen noch", "neutral"),
                     ("ohne", sum(1 for g in gs if not g.zimmer and g.bis >= a.heute), "ohne Zimmer", "warn")],
-                   None, lambda _f: None)
+                   getattr(a, "ga_filter", None) or None,          # 1.61: Kacheln filtern (vorher ohne Wirkung)
+                   lambda f: a.setzen(ga_filter="" if getattr(a, "ga_filter", "") == f else f, laden=False))
+        such = ui.input(placeholder="Gast suchen …", value=getattr(a, "ga_text", "")).props("dense outlined clearable").classes(
+            "m-feld").style("width:200px")
+        from .ui_bausteine import live_suche
+
+        live_suche(such, lambda v: a.setzen(ga_text=v or "", laden=False), "ga_text")
+        knopf("Drucken", lambda: html_drucken(a, gaeste_druck_html(gaeste_filtern(gs, a.heute, getattr(a, "ga_filter", ""),
+                                                                                   getattr(a, "ga_text", ""))), "Gaeste"),
+              "leise", "print", "Gästeliste (mit Filter) drucken oder als PDF speichern")
         knopf("Neuer Gast", lambda: gast_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
+    gs = gaeste_filtern(gs, a.heute, getattr(a, "ga_filter", ""), getattr(a, "ga_text", ""))
     with a.inhalt:
         ui.label("Gäste (Hospitanten, Besuch …) – auch im Doppelzimmer, allein oder mit Begleitperson. Doppelzimmer gibt "
                  "es für Gäste und UWT; zwei Gäste teilen sich eins nur, wenn sie als Paar angelegt sind.").classes("m-ptext")
@@ -1510,6 +1520,36 @@ def _gaeste_zeichnen(a) -> None:
                 with ui.element("div").classes("m-paktionen").style("padding:0; flex-wrap:nowrap"):
                     knopf("Bearbeiten", lambda g=g: gast_bearbeiten_panel(a, g.schluessel), "leise", "edit",
                           "Name, Zeitraum, Doppelzimmer und Zimmer ändern – oder den Gast entfernen")
+
+
+def gaeste_filtern(gs: list, heute: date, filt: str = "", text: str = "") -> list:
+    """1.61: Kachel-Filter (da | kommen | ohne) und Freitext (Name, Zimmer, Bemerkung, Begleitung)."""
+    q = (text or "").lower().strip()
+    erg = []
+    for g in gs:
+        if filt == "da" and not (g.von <= heute <= g.bis):
+            continue
+        if filt == "kommen" and not g.von > heute:
+            continue
+        if filt == "ohne" and not (not g.zimmer and g.bis >= heute):
+            continue
+        if q and q not in " ".join(str(x or "") for x in (g.name, g.zimmer, g.bemerkung, g.begleitung)).lower():
+            continue
+        erg.append(g)
+    return erg
+
+
+def gaeste_druck_html(gs: list) -> str:
+    from html import escape
+
+    from .kern import kurz
+
+    zeilen = "".join(f"<tr><td>{escape(g.name)}</td><td>{g.von:%d.%m.%Y} – {g.bis:%d.%m.%Y}</td>"
+                     f"<td>{escape(kurz(g.zimmer)) if g.zimmer else '–'}</td><td>{escape(g.begleitung or '')}</td>"
+                     f"<td>{escape(g.bemerkung or '')}</td></tr>" for g in gs)
+    return ("<style>body{font-family:sans-serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;"
+            "padding:4px 6px;text-align:left}</style><h1>Gäste</h1><table><tr><th>Name</th><th>Zeitraum</th><th>Zimmer</th>"
+            f"<th>Begleitung</th><th>Bemerkung</th></tr>{zeilen}</table>")
 
 
 def gast_neu_panel(a) -> None:

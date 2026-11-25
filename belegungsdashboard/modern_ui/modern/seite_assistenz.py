@@ -261,8 +261,36 @@ async def mail_erkennen(a, box, betreff, absender, text, nach=None) -> None:
         return
     e = await run.io_bound(mail_kern.erkennen, betreff.value or "", text.value or "")
     personen, _ = await run.io_bound(anreiseliste.laden)
+    e = await _ki_erkennen(e, betreff.value or "", text.value or "", personen, box)
     treffer = await run.io_bound(mails.zuordnen, e, zp.laden(), personen)
     _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach)
+
+
+KI_WARTEN = 60                                        # Sekunden – lokale Modelle brauchen auf Büro-PCs etwas
+
+
+async def _ki_erkennen(e, betreff: str, text: str, personen, box):
+    """1.61: Ist die KI-Mail-Erkennung an (lokal, standardmäßig aus), das Regel-Ergebnis mit dem geprüften Formular
+    des Modells zusammenführen. Fehler oder Zeitüberschreitung → Regel-Ergebnis mit Hinweis."""
+    import asyncio
+
+    from . import ki_erkennung
+
+    if not await run.io_bound(ki_erkennung.an):
+        return e
+    with box:
+        warte = ui.label("Die lokale KI liest die Mail …").classes("m-zweite m-ki-einschaetzung")
+    massn = sorted({p.massnahme for p in personen if getattr(p, "massnahme", "")})
+    try:
+        ki = await asyncio.wait_for(run.io_bound(ki_erkennung.fragen, betreff, text, date.today(), massn), KI_WARTEN)
+        return ki_erkennung.zusammenfuehren(e, ki, date.today(), massn)
+    except Exception as exc:                          # noqa: BLE001 – Regeln bleiben immer als Rückfall
+        grund = "Zeitüberschreitung" if isinstance(exc, asyncio.TimeoutError) else str(exc)[:120]
+        e.unsicher.append(f"KI nicht erreichbar ({grund}) – Regel-Erkennung verwendet.")
+        e.quelle = "Regeln"
+        return e
+    finally:
+        warte.delete()
 
 
 def _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach=None) -> None:
@@ -271,6 +299,10 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach=None) -> No
     with box:
         h = date.today()                               # 1.41: welcher Tag ist heute – „heute“ in der Mail bezieht sich darauf
         ui.label(f"Heute ist {mail_kern.WOCHENTAGE[h.weekday()]}, {h:%d.%m.%Y}").classes("m-zweite")
+        quelle = getattr(e, "quelle", "")
+        if quelle:                                     # 1.61: woher kommt der Vorschlag
+            ui.label("Erkannt mit KI (lokal) – geprüft" if quelle.startswith("KI") else "Erkannt mit Regeln").classes(
+                "m-pille " + ("ok" if quelle.startswith("KI") else "warn"))
         ui.label(f"Erkannt: {mails.ARTEN.get(e.art, e.art)}" + (f" · {e.name}" if e.name else "") +
                  (f" · {e.massnahme}" if e.massnahme else "") + (f" · TN {e.tn_id}" if e.tn_id else "") +
                  (f" · {e.von:%d.%m.%Y}" if e.von else "") + (f" – {e.bis:%d.%m.%Y}" if e.bis else "")).classes("m-name")
@@ -305,6 +337,10 @@ def _mail_ergebnis(a, box, e, treffer, betreff, absender, text, nach=None) -> No
         async def umsetzen():
             if await a.aendern(_mail_umsetzen, e, zustand["schritte"], betreff.value or "", text.value or "",
                                absender.value or "", zustand["treffer"]):
+                if getattr(e, "quelle", ""):          # 1.61: bestätigtes Ergebnis als Beispiel für die KI merken
+                    from . import ki_erkennung
+
+                    await run.io_bound(ki_erkennung.beispiel_merken, betreff.value or "", text.value or "", e)
                 betreff.value = absender.value = text.value = ""
                 box.clear()
                 if nach is not None:                  # 1.57: z. B. Antwort mit Zimmer vorbereiten

@@ -108,6 +108,19 @@ async def _ausgabe(a, key: str) -> None:
         await seite_zimmer._drucken(a, "liste_ohne")
     elif key == "fm":
         await seite_zimmer._drucken(a, "fm")
+    elif key == "notfall":                              # 1.61
+        await seite_zimmer.notfall_drucken(a)
+    elif key == "inventar":
+        from belegung import inventar as iv
+
+        seiten.html_drucken(a, iv.druck_html(iv.laden(), [z for z in a.stand.zimmer if z.aktiv]), "Inventarliste")
+    elif key == "gaeste":
+        from . import gaeste_kern as gk
+
+        gs = a.daten if isinstance(a.daten, list) else []
+        seiten.html_drucken(a, seiten.gaeste_druck_html(seiten.gaeste_filtern(
+            [g for g in gs if isinstance(g, gk.GZeile)], a.heute, getattr(a, "ga_filter", ""),
+            getattr(a, "ga_text", ""))), "Gaeste")
 
 
 def drucken(a) -> None:

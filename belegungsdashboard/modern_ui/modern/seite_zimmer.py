@@ -209,12 +209,19 @@ ZL_SYMBOL = {"frei": ("checkmark_circle", "gruen"), "geplant": ("calendar_clock"
              "nicht_nutzbar": ("prohibited", "rot")}
 
 
+def _haeuser(a) -> list[str]:
+    """1.61: Häuser des aktiven Standorts aus dem Gebäudeplan (vorher fest die Goslarer Häuser)."""
+    from .seiten_kern import haeuser
+
+    return haeuser(a.stand) if a.stand is not None else []
+
+
 def _filterband(a, ansicht: str) -> None:
     """1.00: Werkzeuge von Liste und Karten als Office-Gruppen im Menüband."""
     from . import band_ui as bu
     from .ui_bausteine import live_suche
 
-    haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}
+    haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in _haeuser(a)}}
     n = a.daten["n"]
     with a.werkzeuge:
         with bu.gruppe("Auswahl"):
@@ -271,7 +278,7 @@ def _filterleiste(a, ansicht: str) -> None:
     # 0.74: EINE Kontextzeile – Haus als Auswahl, Stichtag ‹ › als Kontext, Zustände als Filter-Chips, seltene Filter
     # (auch die Schnellfilter Mängel, Vinyl …) unter „Filter“, Drucken/Export unter ⋯; die Zahlen stehen in der Statusleiste
     with a.werkzeuge:
-        haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in ("2", "3.1", "3.2", "3.3", "6")}}
+        haeuser = {"": "Alle Häuser", **{h: f"Haus {h}" for h in _haeuser(a)}}
         ui.select(haeuser, value=a.zl_haus if a.zl_haus in haeuser else "", on_change=lambda e: a.setzen(zl_haus=e.value or "")
                   ).classes("m-hauswahl").props('dense outlined dark options-dense popup-content-class="m-popup"').style(
             "width: 150px")

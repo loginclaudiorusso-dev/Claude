@@ -16,11 +16,13 @@ def test_hilfe_fuer_jede_seite():
 
 
 def test_druckausgaben_bekannt():
-    bekannt = {"anreise", "schluessel", "schilder", "abreise", "reinigung", "wochenblatt", "zimmer_liste", "zimmer_ohne", "fm"}
+    bekannt = {"anreise", "schluessel", "schilder", "abreise", "reinigung", "wochenblatt", "zimmer_liste", "zimmer_ohne", "fm",
+               "inventar", "gaeste", "notfall"}                       # 1.61: Inventar, Gäste, Notfallliste
     for liste in hk.DRUCK.values():
         assert liste and {k for _t, k in liste} <= bekannt
-    assert hk.druckausgaben("heute", None) == []
-    assert [t for t, _k in hk.druckausgaben("anreisen", "zuteilen")] == ["Anreiseliste", "Schlüsselliste", "Zimmerschilder"]
+    assert [k for _t, k in hk.druckausgaben("heute", None)] == ["notfall"]          # 1.61: Notfallliste überall
+    assert [t for t, _k in hk.druckausgaben("anreisen", "zuteilen")][:3] == ["Anreiseliste", "Schlüsselliste",
+                                                                             "Zimmerschilder"]
 
 
 def test_glocke_hilfe_drucken_an_einer_stelle():

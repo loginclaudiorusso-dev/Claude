@@ -234,6 +234,13 @@ def anzeige() -> str:
     return k.name if k else ""
 
 
+def admin_pruefen(was: str) -> None:
+    """1.61: Heikle Änderungen (Sicherung zurückspielen, Stammdaten, Regeln, Zimmer anlegen, KI-Mail-Erkennung) nur
+    für Administratoren – sobald Benutzerkonten eingerichtet sind. Ohne Konten bleibt alles wie bisher erlaubt."""
+    if eingerichtet() and not ist_admin():
+        raise ValueError(f"{was} darf nur ein Administrator.")
+
+
 def _admin_noetig() -> None:
     if eingerichtet() and not (aktuell() and aktuell().admin):
         raise ValueError("Nur ein Administrator darf Benutzer verwalten.")

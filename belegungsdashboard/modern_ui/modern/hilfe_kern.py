@@ -109,8 +109,17 @@ DRUCK = {
     ("zimmer", "uebersicht"): [("Zimmerliste mit Bewohnern", "zimmer_liste"), ("Zimmerliste ohne Namen", "zimmer_ohne"),
                                ("FM-Mängelbericht", "fm")],
     ("zimmer", "maengel"): [("FM-Mängelbericht", "fm")],
+    # 1.61: fehlende Ansichten ergänzt
+    ("zimmer", "liste"): [("Zimmerliste mit Bewohnern", "zimmer_liste"), ("Zimmerliste ohne Namen", "zimmer_ohne")],
+    ("zimmer", "karten"): [("Zimmerliste mit Bewohnern", "zimmer_liste"), ("Zimmerliste ohne Namen", "zimmer_ohne")],
+    ("inventar", "gegenstaende"): [("Inventarliste", "inventar")],
+    ("inventar", "zimmer"): [("Inventarliste", "inventar")],
+    ("inventar", "haeuser"): [("Inventarliste", "inventar")],
+    ("mieter", "gaeste"): [("Gästeliste", "gaeste")],
 }
+# 1.61: im Notfall muss die Liste von überall erreichbar sein – nicht nur aus der Zimmerübersicht
+IMMER = [("Notfallliste – wer ist im Haus?", "notfall")]
 
 
 def druckausgaben(seite: str, ansicht: str | None) -> list[tuple[str, str]]:
-    return DRUCK.get((seite, ansicht or ""), [])
+    return DRUCK.get((seite, ansicht or ""), []) + IMMER

@@ -142,7 +142,10 @@ def ist_zusatz(zid: str) -> bool:
 
 
 def hinzufuegen_schritt(haus: str, etage: str, nr: str, betten: int = 1) -> str:
+    from .benutzer_kern import admin_pruefen
     from .kern import _schritt
+
+    admin_pruefen("Zimmer anlegen")                       # 1.61
 
     out = []
     _schritt(f"Zimmer angelegt: {haus}-{nr}", lambda: out.append(hinzufuegen(haus, etage, nr, betten)), [DATEI])

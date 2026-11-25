@@ -73,7 +73,7 @@ def befehle(a, text: str) -> list[tuple[str, str, str, tuple]]:
     if not q:
         return [(b.titel, b.bereich, b.icon, b.ziel) for b in bk.vorschlaege(kat)]
     erg = []
-    if (zb := bk.zimmer_befehl(q)) is not None and a.stand is not None:
+    if a.stand is not None and (zb := bk.zimmer_befehl(q, [z.id for z in a.stand.zimmer])) is not None:
         code, was = zb
         z = next((z for z in a.stand.zimmer if z.kurz.upper() == code.upper()), None)
         if z is not None:

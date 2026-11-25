@@ -33,7 +33,7 @@ def daten(a) -> None:
         e = speicher.einstellungen()
         a.daten = {"zahlen": {k: int(e.get(k, s) or s) for k, (_t, s, _a, _b) in ZAHLEN.items()},
                    "bool": sk.einstellungen(), "termine": tm.einstellungen(), "grenzen": eintragen.grenzen(),
-                   "ki": e.get("ki", {})}
+                   "ki": e.get("ki", {}), "ki_mail": bool((e.get("ki_mail") or {}).get("an"))}
     elif ansicht == "benutzer":                    # 1.33
         from . import benutzer_ui
 
@@ -331,6 +331,30 @@ def _allgemein(a) -> None:
                                                                           effort.value, url.value or "", lmod.value or "",
                                                                           schl.value or None), "", "check")
                     knopf("Verbindung testen", lambda: _ki_testen(a), "leise", "bolt")
+                # 1.61: Mails mit dem lokalen Modell erkennen – standardmäßig aus, nur lokal (keine Mail verlässt den PC)
+                ui.label("Mails mit KI erkennen").classes("m-abschnitt")
+                ui.label("Statt nur fester Regeln liest das lokale Modell die Mail und füllt Art, Person, Zeitraum und "
+                         "Maßnahme aus. Das Programm prüft jede Angabe (Datum plausibel, Maßnahme bekannt) und zeigt "
+                         "Abweichungen zu den Regeln an. Übernommen wird nie automatisch. Nur mit „lokales Modell“ – "
+                         "Einschalten erst nach Freigabe durch die Geschäftsführung.").classes("m-ptext")
+                sw_mail = ui.switch("Mails mit lokaler KI erkennen", value=d.get("ki_mail", False)).props("dense")
+
+                still = {"an": False}                   # Zurücksetzen des Schalters löst keine zweite Änderung aus
+
+                async def mail_ki(ev):
+                    from . import ki_erkennung
+
+                    if still["an"]:
+                        still["an"] = False
+                        return
+                    if ev.value and backend.value != "lokal":
+                        still["an"] = True
+                        sw_mail.value = False
+                        a.toast("Erst oben „lokales Modell“ wählen und speichern – Mails gehen nicht in die Cloud.",
+                                fehler=True)
+                        return
+                    await a.aendern(ki_erkennung.setzen, bool(ev.value))
+                sw_mail.on_value_change(mail_ki)
 
 
 # ---- Stammdaten -------------------------------------------------------------------------
@@ -341,6 +365,10 @@ FELDER = {"betten": "Betten", "flur": "Flur", "nur_maenner": "Bad über den Flur
 
 
 def stammdaten_setzen(zid: str, werte: dict) -> str:
+    from .benutzer_kern import admin_pruefen
+
+    admin_pruefen("Stammdaten ändern")                  # 1.61
+
     def aktion():
         st = zp.laden()
         for z in st.zimmer:
@@ -488,6 +516,13 @@ def _wieder(a, s) -> None:
                  "zurück.").classes("m-ptext")
 
         async def los():
+            from .benutzer_kern import admin_pruefen
+
+            try:
+                admin_pruefen("Eine Sicherung zurückspielen")       # 1.61
+            except ValueError as exc:
+                a.toast(str(exc), fehler=True)
+                return
             n = await run.io_bound(datensicherung.wiederherstellen, s)
             a.panel_zu()
             await a.laden()
