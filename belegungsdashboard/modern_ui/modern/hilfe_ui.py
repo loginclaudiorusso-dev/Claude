@@ -211,8 +211,10 @@ async def exportieren(a) -> None:
         dlg.close()
         try:
             text, pfad = await run.io_bound(ek.speichern, tabellen, titel, a.heute)
-        except PermissionError:
-            a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+        except PermissionError as exc:
+            from .export_ziel import meldung
+
+            a.toast(meldung(exc), fehler=True)   # 1.63
             return
         except Exception as exc:                # noqa: BLE001
             a.toast(f"Nicht gespeichert: {exc}", fehler=True)

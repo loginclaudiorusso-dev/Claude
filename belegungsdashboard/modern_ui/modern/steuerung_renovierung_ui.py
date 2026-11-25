@@ -142,12 +142,11 @@ def _renovierung(a) -> None:
         knopf("Annahmen & Angebote …", lambda: _annahmen(a), "", "request_quote")
 
         async def export():
-            from pathlib import Path
+            from . import export_ziel as ez
 
             try:
-                pfad = Path(rk.speicher.einstellungen().get("export_ordner") or rk.speicher.pfad("Exporte")) \
-                    / f"Renovierungsplan_{jahr}.xlsx"
-                await run.io_bound(rk.excel, a.stand, jahr, pfad, d["zeilen"])
+                pfad = await run.io_bound(ez.speichern, f"Renovierungsplan_{jahr}.xlsx",
+                                          lambda p: rk.excel(a.stand, jahr, p, d["zeilen"]), "Exporte")
             except Exception as exc:             # noqa: BLE001
                 a.toast(f"Nicht gespeichert: {exc}", fehler=True)
                 return

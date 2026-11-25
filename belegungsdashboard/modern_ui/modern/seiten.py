@@ -797,7 +797,12 @@ def html_drucken(a, text: str, name: str) -> None:
     if _datei_oeffnen(str(pfad)):
         a.toast("Druckansicht geöffnet – dort drucken oder als PDF speichern", rueck=False)
     else:
-        ui.navigate.to(f"/druck/{pfad.name}", new_tab=True)
+        ablage = getattr(a, "dialog_ablage", None)     # 1.63: übersteht das Neuzeichnen (z. B. nach dem Speichern)
+        if ablage is not None:
+            with ablage:
+                ui.navigate.to(f"/druck/{pfad.name}", new_tab=True)
+        else:
+            ui.navigate.to(f"/druck/{pfad.name}", new_tab=True)
 
 
 # =======================================================================================
@@ -820,6 +825,12 @@ def mt_daten(a) -> None:
         a.daten = gk.liste(zp.laden(), a.heute)
         return
     a.daten = sk.mieter(a.heute)
+    try:                                       # 1.63: Kündigungen
+        from . import kuendigung_kern as kk
+
+        a.mt_kuendigungen = kk.laden()
+    except Exception:                          # noqa: BLE001
+        a.mt_kuendigungen = {}
     try:                                       # 1.48: automatische Verlängerung je Vertrag, fällige
         a.mt_auto = mb.auto()
         a.mt_faellig = {f.nr: f for f in mb.auto_faellig(mt.laden(), a.heute, a.mt_auto)}
@@ -871,6 +882,10 @@ def mt_zeichnen(a) -> None:
                     ui.label(f"{m.von:%d.%m.%Y} – {m.bis:%d.%m.%Y}").classes("m-mono")
                     with ui.element("div"):
                         ui.label(m.status).classes("m-zweite")
+                        if (kd := (getattr(a, "mt_kuendigungen", None) or {}).get(m.nr)) is not None:     # 1.63
+                            from . import kuendigung_kern as kk
+
+                            ui.label(kk.status_text(kd)).classes("m-pille warn")
                         auto_n = (getattr(a, "mt_auto", None) or {}).get(m.nr)
                         if (f := (getattr(a, "mt_faellig", None) or {}).get(m.nr)) is not None:
                             knopf(f"Verlängern bis {f.neu:%d.%m.%Y}", lambda m=m, f=f: _verlaengern_direkt(a, m.nr, f.neu),
@@ -889,7 +904,7 @@ def mt_zeichnen(a) -> None:
                         _mt_optionen(a, m)                 # 1.48: ein Menü statt drei kleiner Symbole
         if weitere and a.mt_filter in (None, "weitere"):
             ui.label("Weitere Mieter laut Gebäudeplan (ohne Vertrag in diesem Programm)").classes("m-abschnitt")
-            for name, zimmer, zeit in weitere:
+            for name, zimmer, zeit, zid, w_von, w_bis in weitere:
                 with ui.element("div").classes("m-raster m-zeile").style(f"grid-template-columns:{MT_SPALTEN}"):
                     ui.label("")
                     ui.label("–").classes("m-mono")
@@ -897,7 +912,12 @@ def mt_zeichnen(a) -> None:
                     ui.label(zimmer).classes("m-mono")
                     ui.label(zeit).classes("m-mono")
                     ui.label("")
-                    ui.label("")
+                    with ui.element("div"):               # 1.63: aus dem Gebäudeplan einen Vertrag machen
+                        from . import kuendigung_kern as kk
+
+                        knopf("Vertrag anlegen", lambda n=name, z=zid, v=w_von, b=w_bis: mieter_neu_panel(
+                            a, kk.vorgabe(n, z, v, b)), "leise", "post_add",
+                              "Neuen Mietvertrag mit Name, Zimmer und Zeitraum aus dem Gebäudeplan vorbereiten")
                     ui.label("")
 
 
@@ -923,7 +943,8 @@ async def _unterlagen(a, nr: str) -> None:
     await _mit_datei(a, mk.unterlagen_neu, nr)
 
 
-def mieter_neu_panel(a) -> None:
+def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
+    """``vorgabe`` (1.63): Werte aus dem Gebäudeplan (Vorname, Nachname, Zimmer, von, bis)."""
     from belegung import mieter as mt
     from belegung import speicher
 
@@ -936,10 +957,12 @@ def mieter_neu_panel(a) -> None:
             anrede = ui.select(mk.ANREDEN, value="Frau", label="Anrede").classes("m-feld").props(
                 'dense outlined dark options-dense popup-content-class="m-popup"')
             nr = ui.input("Vertragsnummer", value=mt.naechste_nummer()).classes("m-feld").props("dense outlined dark")
-            vor = ui.input("Vorname").classes("m-feld").props("dense outlined dark")
-            nach = ui.input("Nachname").classes("m-feld").props("dense outlined dark")
-            von = ui.input("Mietbeginn", value=a.heute.isoformat()).classes("m-feld").props("dense outlined dark type=date")
-            bis = ui.input("Mietende", value=mt.standard_ende(a.heute).isoformat()).classes("m-feld").props(
+            vg = vorgabe or {}
+            vor = ui.input("Vorname", value=vg.get("vorname", "")).classes("m-feld").props("dense outlined dark")
+            nach = ui.input("Nachname", value=vg.get("nachname", "")).classes("m-feld").props("dense outlined dark")
+            von = ui.input("Mietbeginn", value=(vg.get("von") or a.heute).isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+            bis = ui.input("Mietende", value=(vg.get("bis") or mt.standard_ende(a.heute)).isoformat()).classes("m-feld").props(
                 "dense outlined dark type=date")
             miete = ui.number("Miete (€)", value=mt.STANDARD_MIETE, min=0, step=10).classes("m-feld").props("dense outlined dark")
             flaeche = ui.number("Fläche (m²)", value=mt.STANDARD_FLAECHE, min=1, step=1, format="%d").classes("m-feld").props(
@@ -985,17 +1008,27 @@ def mieter_neu_panel(a) -> None:
         flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=indigo-4")
         attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")
         trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
-                            "ich habe es geprüft").props("dense color=orange")
+                            "ich habe es geprüft", value=bool(vorgabe)).props("dense color=orange")
+        if vorgabe:                                   # 1.63: das Zimmer ist durch genau diesen Mieter (Gebäudeplan) belegt
+            ui.label("Das Zimmer ist laut Gebäudeplan durch diese Person belegt – deshalb ist „trotzdem nehmen“ schon "
+                     "angehakt. Bitte Name und Zeitraum kurz prüfen.").classes("m-zweite")
 
         async def zimmer_fuellen():
             try:
                 v, b = date.fromisoformat(von.value), date.fromisoformat(bis.value)
             except (TypeError, ValueError):
                 return
-            zimmer.set_options(await run.io_bound(mk.zimmer_auswahl, v, b, anrede.value, bool(alle.value)), value=zimmer.value
-                               if zimmer.value else None)
+            opt = await run.io_bound(mk.zimmer_auswahl, v, b, anrede.value, bool(alle.value), vorgabe_person)
+            wunsch = zimmer.value or (vorgabe or {}).get("zimmer")
+            if wunsch and wunsch not in opt:             # 1.63: Zimmer aus dem Gebäudeplan immer anbieten
+                opt = {wunsch: f"{zkurz(wunsch)} (laut Gebäudeplan)", **opt}
+            zimmer.set_options(opt, value=wunsch or None)
+
+        vorgabe_person = ""
 
         def beginn():
+            if vorgabe:                                   # 1.63: Ende aus dem Gebäudeplan nicht überschreiben
+                return
             try:
                 bis.value = mt.standard_ende(date.fromisoformat(von.value)).isoformat()
             except (TypeError, ValueError):
@@ -1024,7 +1057,7 @@ def mieter_neu_panel(a) -> None:
             knopf("Unterlagen erstellen", erstellen, "primaer", "description")
             knopf("Abbrechen", a.panel_zu, "leise")
 
-    a.panel("Neuer Mieter", bauen, breit=True)
+    a.panel("Vertrag aus dem Gebäudeplan" if vorgabe else "Neuer Mieter", bauen, breit=True)
 
 
 def vertrag_bearbeiten_panel(a, nr: str) -> None:
@@ -1153,6 +1186,65 @@ def _mt_optionen(a, m) -> None:
             ui.menu_item("Vertrag bearbeiten (z. B. Zimmer) …", lambda m=m: vertrag_bearbeiten_panel(a, m.nr))
             ui.menu_item("Unterlagen neu erstellen", lambda m=m: _unterlagen(a, m.nr))
             ui.menu_item("Mail zum Vertragsende …", lambda m=m: _mail_panel(a, m))
+            ui.separator()                                  # 1.63
+            if m.nr in (getattr(a, "mt_kuendigungen", None) or {}):
+                ui.menu_item("Kündigungsbestätigung drucken", lambda m=m: _kuendigung_drucken(a, m.nr))
+                ui.menu_item("Kündigung zurücknehmen", lambda m=m: _kuendigung_zurueck(a, m.nr))
+            else:
+                ui.menu_item("Kündigung erfassen …", lambda m=m: kuendigung_panel(a, m))
+
+
+def kuendigung_panel(a, m) -> None:
+    """1.63: Kündigung erfassen – Eingang, zum (letzter Miettag), wer, Grund. Das Vertragsende wird vorgezogen."""
+    from . import kuendigung_kern as kk
+
+    def bauen():
+        ui.label(f"MV {m.nr} · {m.name} · Zimmer {m.zimmer} · bisher bis {m.bis:%d.%m.%Y}").classes("m-ptext")
+        with ui.element("div").classes("m-zweispaltig"):
+            eingang = ui.input("Kündigung eingegangen am", value=a.heute.isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+            zum = ui.input("Gekündigt zum (letzter Miettag)", value=m.bis.isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+        wer = ui.select({k: v for k, v in kk.WER.items()}, value="mieter", label="Kündigung").classes("m-feld").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        grund = ui.input("Grund / Notiz (optional)").classes("m-feld w-full").props("dense outlined dark")
+        ui.label("Das Vertragsende wird auf den Kündigungstermin gesetzt – das Zimmer ist im Plan danach frei. "
+                 "Zurücknehmen stellt das alte Ende wieder her.").classes("m-ptext")
+
+        async def speichern():
+            try:
+                e, z = date.fromisoformat(eingang.value), date.fromisoformat(zum.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte beide Daten wählen.", fehler=True)
+                return
+            if await a.aendern(kk.kuendigen, m.nr, z, e, wer.value, grund.value or ""):
+                a.panel_zu()
+                await _kuendigung_drucken(a, m.nr)
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Kündigung speichern und Bestätigung drucken", speichern, "primaer", "check")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel("Kündigung", bauen)
+
+
+async def _kuendigung_drucken(a, nr: str) -> None:
+    from belegung import mieter as mt
+
+    from . import kuendigung_kern as kk
+
+    k = (await run.io_bound(kk.laden)).get(nr)
+    mv = await run.io_bound(mt.nach_nummer, nr)
+    if k is None or mv is None:
+        a.toast("Keine Kündigung zu diesem Vertrag gefunden.", fehler=True)
+        return
+    html_drucken(a, kk.bestaetigung_html(mv, k), f"Kuendigung_MV{nr}")
+
+
+async def _kuendigung_zurueck(a, nr: str) -> None:
+    from . import kuendigung_kern as kk
+
+    await a.aendern(kk.zuruecknehmen, nr)
 
 
 async def _verlaengern_direkt(a, nr: str, bis) -> None:

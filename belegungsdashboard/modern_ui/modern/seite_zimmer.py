@@ -523,8 +523,10 @@ async def _kopieren(a) -> None:
 async def _excel(a) -> None:
     try:
         text, pfad = await run.io_bound(zk.belegung_excel, a.stand, a.zu_tag)
-    except PermissionError:
-        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+    except PermissionError as exc:
+        from .export_ziel import meldung
+
+        a.toast(meldung(exc), fehler=True)   # 1.63
         return
     except Exception as exc:                # noqa: BLE001
         a.toast(f"Nicht gespeichert: {exc}", fehler=True)
@@ -615,6 +617,10 @@ async def notfall_drucken(a) -> None:
 
     try:
         zs = await run.io_bound(nk.zeilen, a.stand, a.heute)
+        from . import haus_kern as hk
+
+        ids = {z.kurz: z.id for z in a.stand.zimmer}             # 1.63: Abwesende getrennt, nicht als im Haus gezählt
+        zs = nk.abwesende_markieren(zs, await run.io_bound(hk.abw_laden), a.heute, lambda k: ids.get(k, k))
     except Exception as exc:                     # noqa: BLE001
         a.toast(f"Notfallliste nicht erstellt: {exc}", fehler=True)
         return
@@ -652,8 +658,10 @@ async def _auswahl_excel(a, namen: bool, kachel: bool = False) -> None:
     try:
         zeilen = await run.io_bound(zk.druck_zeilen, a.stand, a.zu_tag, f, k, namen, mf)
         text, pfad = await run.io_bound(zk.druck_excel, zeilen, a.zu_tag, f, k, namen, mf)
-    except PermissionError:
-        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+    except PermissionError as exc:
+        from .export_ziel import meldung
+
+        a.toast(meldung(exc), fehler=True)   # 1.63
         return
     except Exception as exc:                # noqa: BLE001
         a.toast(f"Nicht gespeichert: {exc}", fehler=True)

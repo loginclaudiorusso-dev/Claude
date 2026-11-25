@@ -742,6 +742,7 @@ class Karte:
     zweite: Aktion | None = None
     hinweis: str = ""     # wenn es hier keine 1-Klick-Lösung gibt
     fall: object = None   # 0.91: genau ein Konfliktfall mit Ausweichzimmer → Knopf „6-301 zuweisen“, Detail als Vergleich
+    zimmer: list = field(default_factory=list)   # 1.63: An-/Abreise-Termin → [(Name, Zimmer-Kurz, Zimmer-ID)]
 
 
 HAUPTPROGRAMM = "Im Hauptprogramm erledigen"
@@ -845,7 +846,25 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
         k = allergie_karte(stand, heute)
         if k is not None:
             erg.insert(0 if k.stufe == "dringend" else len([x for x in erg if x.stufe == "dringend"]), k)
+    termin_zimmer_setzen(erg, stand)
     return erg
+
+
+def termin_zimmer_setzen(karten_: list, stand: zp.Planstand | None) -> None:
+    """1.63: An- und Abreise-Termine bekommen ihre Zimmer (für Tooltip, Zeile und Menü im Cockpit)."""
+    ts = [k for k in karten_ if k.id.startswith("termin:")]
+    if not ts or stand is None:
+        return
+    try:
+        from belegung import anreiseliste
+
+        from . import termin_zimmer as tz
+
+        personen, _ = anreiseliste.laden()
+        for k in ts:
+            k.zimmer = tz.zeilen(k.id, personen, stand.lage, kurz)
+    except Exception:                          # noqa: BLE001 – Zusatzinfo, die Karte bleibt
+        pass
 
 
 def mieter_plan_karte(stand: zp.Planstand, heute: date) -> Karte | None:

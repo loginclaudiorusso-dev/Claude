@@ -518,8 +518,10 @@ async def _excel(a) -> None:
     titel = next((x.titel for x in a.anreisen if x.kennung == a.kennung), "")
     try:
         text, pfad = await run.io_bound(ank.anreise_excel, a.stand, a.kennung, titel)
-    except PermissionError:
-        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+    except PermissionError as exc:
+        from .export_ziel import meldung
+
+        a.toast(meldung(exc), fehler=True)   # 1.63
         return
     except ValueError as exc:
         a.toast(str(exc), fehler=True)
@@ -596,8 +598,10 @@ def archiv_panel(a) -> None:
                 return
             try:
                 text, pfad = await run.io_bound(ank.archiv_speichern, a.stand, *zr, z["text"])
-            except PermissionError:
-                a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+            except PermissionError as exc:
+                from .export_ziel import meldung
+
+                a.toast(meldung(exc), fehler=True)   # 1.63
                 return
             except Exception as exc:          # noqa: BLE001
                 a.toast(f"Nicht gespeichert: {exc}", fehler=True)

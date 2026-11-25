@@ -290,6 +290,11 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                   "Nachrichten am Standort lesen und beantworten"),
                 p("Neue Nachricht", "nachricht_neu", A("nachricht_neu"), "Nachricht an alle am Standort schreiben"),
                 p("Mail an FM", "fm_mail", A("fm_mail"), "Mail an das Facility-Management – über Ihr Outlook")]),
+            Gruppe("Im Haus", [                          # 1.63
+                p("Aktuell im Haus", "a_personenliste", A("im_haus"),
+                  "Wer ist heute im Haus, wer ist abwesend – mit Suche und Notfallliste"),
+                p("Abwesen­heiten", "a_person_weiter", A("abwesenheiten"), "Heimfahrt, Urlaub, Krankenhaus eintragen"),
+                p("Schlüssel", "a_schluessel", A("schluessel_ausgabe"), "Schlüssel ausgeben und zurücknehmen")]),
         ], symbol="p:uebersicht"),
         Reiter("anreisen", "Anreisen", [
             Gruppe("Anreisen", [p("Zuteilen", "zuteilen", S("anreisen", "zuteilen"), "Anreisenden Zimmer zuteilen"),

@@ -97,7 +97,7 @@ def test_notfallliste_druck():
           nk.NZeile("1", "EG", "1-102", "belegt, Name unbekannt", "", None, "unbekannt", ""),
           nk.NZeile("2", "1. OG", "2-110", "Probe, Pia", "EMR", date(2026, 11, 30), "geplant", "")]
     n = nk.zaehlen(zs)
-    assert n["1"] == {"personen": 2, "geplant": 0, "zimmer": 2} and n["2"]["geplant"] == 1
+    assert n["1"] == {"personen": 2, "geplant": 0, "zimmer": 2, "abwesend": 0} and n["2"]["geplant"] == 1   # 1.63
     h = nk.druck_html(zs, datetime(2026, 11, 10, 14, 5), "Musterstadt")
     assert "Stand 10.11.2026, 14:05 Uhr" in h and "2 Personen im Haus · 1 geplant" in h
     assert "Haus 1 – 2 Personen in 2 Zimmern" in h and "Haus 2 – 0 Personen in 1 Zimmer (+1 geplant)" in h

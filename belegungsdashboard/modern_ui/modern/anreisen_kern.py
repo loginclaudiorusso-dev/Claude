@@ -312,19 +312,19 @@ def personen_liste(stand: zp.Planstand, heute: date, neu: dict) -> list[PZeile]:
 
 def anreise_excel(stand: zp.Planstand, kennung: str, titel: str = ""):
     """Zimmerliste einer Anreise als Excel (Zimmer, Etagen, freie Zimmer) – wie „Als Excel-Liste speichern“."""
-    from pathlib import Path
 
-    from belegung import speicher, zimmerexport
+    from belegung import zimmerexport
 
     zts = _zuteilungen(stand, kennung)
     if not zts:
         raise ValueError("Für diese Anreise ist noch nichts geplant.")
     tag = zts[0].bedarf.von
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / f"Zimmerliste_{tag:%Y-%m-%d}.xlsx"
-    zimmerexport.exportieren(pfad, f"Zimmerliste Anreise {tag:%d.%m.%Y}" + (f" – {titel}" if titel else ""), zts, stand.lage, tag)
-    return f"Excel gespeichert: {pfad.name}", str(pfad)
+    from . import export_ziel as ez
+
+    name = f"Zimmerliste_{tag:%Y-%m-%d}.xlsx"
+    pfad = ez.speichern(name, lambda p: zimmerexport.exportieren(
+        p, f"Zimmerliste Anreise {tag:%d.%m.%Y}" + (f" – {titel}" if titel else ""), zts, stand.lage, tag))
+    return f"Excel gespeichert: {pfad.name}{ez.hinweis(pfad, name)}", str(pfad)
 
 
 # ---------------------------------------------------------------------------------------
@@ -517,10 +517,10 @@ def archiv_excel(zeilen: list[ArchivZeile], pfad) -> int:
 
 
 def archiv_speichern(stand: zp.Planstand, von: date, bis: date, text: str = "") -> tuple[str, object]:
-    from pathlib import Path
 
     zs = archiv(stand, von, bis, text)
-    pfad = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Exporte")) / f"Anreisen_{von:%Y-%m-%d}_bis_{bis:%Y-%m-%d}.xlsx"
-    pfad.parent.mkdir(parents=True, exist_ok=True)
-    archiv_excel(zs, pfad)
-    return f"{len(zs)} Personen als Excel gespeichert", pfad
+    from . import export_ziel as ez
+
+    name = f"Anreisen_{von:%Y-%m-%d}_bis_{bis:%Y-%m-%d}.xlsx"
+    pfad = ez.speichern(name, lambda p: archiv_excel(zs, p), "Exporte")
+    return f"{len(zs)} Personen als Excel gespeichert{ez.hinweis(pfad, name, 'Exporte')}", pfad

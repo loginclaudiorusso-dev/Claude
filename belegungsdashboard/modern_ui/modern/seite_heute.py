@@ -338,12 +338,17 @@ def _postfach(a, t: Tag) -> None:
                 ui.label(f"{titel} · {len(ks)}").classes("m-pf-gruppe " + stufe)
                 for k in ks:
                     z = ui.element("button").classes(f"m-pf-zeile {k.stufe}" + (" an" if a.pf_auswahl == k.id else ""))
-                    attr(z, title=k.titel)
+                    zs = getattr(k, "zimmer", None) or []
+                    from . import termin_zimmer as tz
+
+                    attr(z, title=k.titel + ("\n\n" + tz.tooltip(zs) if zs else ""))     # 1.63: Zimmer beim Überfahren
                     with z:
                         ui.icon(_symbol(k.id)).classes(f"m-pf-symbol {k.stufe}")
                         with ui.element("div").classes("m-pf-text"):
                             ui.label(k.titel).classes("m-pf-titel")
                             ui.label(k.detail).classes("m-pf-unter")
+                            if zs:
+                                ui.label(tz.kurztext(zs)).classes("m-pf-unter m-mono")
                     z.on("click", lambda k=k: zeigen(k.id))
         with detail:
             if a.pf_auswahl == UEBERBLICK:
@@ -385,6 +390,8 @@ def _postfach(a, t: Tag) -> None:
                 return
             if not a.pf_hat_liste(k):                   # keine Fall-Liste: Text und die Knöpfe der Aufgabe
                 ui.label(k.detail).classes("m-ptext")
+                if getattr(k, "zimmer", None):          # 1.63: Zimmer der Personen – Klick öffnet die Zimmerkarte
+                    _zimmer_liste(a, k.zimmer)
                 with ui.element("div").classes("m-paktionen"):
                     if k.aktion:
                         knopf(k.aktion.text, lambda k=k: a._karte_loesen(k), "primaer")
@@ -897,3 +904,18 @@ CSS = r"""
 .m-ol-leer { padding: 6px 0 8px; white-space: normal !important; }
 .m-hz-danach { color: var(--text2); font-size: 13.5px; border-top: 1px solid var(--ob-rand, var(--rand)); padding-top: 12px; margin-top: 16px; }
 """
+
+
+def _zimmer_liste(a, zs: list) -> None:
+    """1.63: Name → Zimmer zu einem An-/Abreise-Termin, je Zimmer ein Knopf zur Zimmerkarte."""
+    ui.label("Zimmer").classes("m-abschnitt")
+    for name, zim, zid in zs:
+        with ui.element("div").classes("m-paktionen").style("align-items:center"):
+            ui.label(zim).classes("m-mono m-name").style("min-width:90px")
+            ui.label(name).classes("m-ptext")
+            if zid:
+                async def karte(zid=zid):
+                    from .seite_zimmer import karte_oeffnen
+
+                    await karte_oeffnen(a, zid)
+                knopf("", karte, "leise", "open_in_new", "Zimmerkarte öffnen")

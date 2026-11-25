@@ -294,22 +294,22 @@ def _haeuser(a, inv: iv.Inventar) -> None:
 
 
 def excel_speichern(zimmer: list) -> tuple[str, str]:
-    from pathlib import Path
 
-    from belegung import speicher
 
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / "Inventar_Zimmer.xlsx"
-    iv.excel_speichern(pfad, iv.laden(), zimmer)
-    return f"Excel gespeichert: {pfad.name}", str(pfad)
+    from . import export_ziel as ez
+
+    inv = iv.laden()
+    pfad = ez.speichern("Inventar_Zimmer.xlsx", lambda p: iv.excel_speichern(p, inv, zimmer))
+    return f"Excel gespeichert: {pfad.name}{ez.hinweis(pfad, 'Inventar_Zimmer.xlsx')}", str(pfad)
 
 
 async def _excel(a) -> None:
     try:
         text, pfad = await run.io_bound(excel_speichern, a.daten["zimmer"])
-    except PermissionError:
-        a.toast("Die Datei ist noch geöffnet – bitte in Excel schließen und erneut versuchen.", fehler=True)
+    except PermissionError as exc:
+        from .export_ziel import meldung
+
+        a.toast(meldung(exc), fehler=True)   # 1.63
         return
     a.toast(text if seiten._datei_oeffnen(pfad) else f"{text} – {pfad}", rueck=False)
 

@@ -33,7 +33,20 @@ class NZeile:
     hinweis: str          # Hinweis zum Zimmer (Notiz) und Merkmale
 
 
-ART_TEXT = {"im_haus": "", "geplant": "geplant – Anreise prüfen", "mieter": "Mieter", "unbekannt": "Name unbekannt"}
+ART_TEXT = {"im_haus": "", "geplant": "geplant – Anreise prüfen", "mieter": "Mieter", "unbekannt": "Name unbekannt",
+            "abwesend": "abwesend – nicht im Haus"}
+
+
+def abwesende_markieren(zs: list[NZeile], abw: list, tag: date, zimmer_id=lambda kurz: kurz) -> list[NZeile]:
+    """1.63: Wer laut Abwesenheiten heute weg ist (Heimfahrt, Urlaub …), wird „abwesend“ – getrennt aufgeführt und nicht
+    als Person im Haus gezählt."""
+    from .haus_kern import abwesend_am
+
+    for z in zs:
+        if z.art in ("im_haus", "geplant", "mieter") and (a := abwesend_am(abw, z.name, zimmer_id(z.zimmer), tag)):
+            z.art = "abwesend"
+            z.hinweis = " · ".join(t for t in (a.text, z.hinweis) if t)
+    return zs
 
 
 def zeilen(stand: zp.Planstand, tag: date, haus: str = "") -> list[NZeile]:
@@ -51,6 +64,8 @@ def zeilen(stand: zp.Planstand, tag: date, haus: str = "") -> list[NZeile]:
             elif b.art in ("belegt", "geplant"):
                 unbekannt = not b.name or b.name == zp.PIVOT_NAME or zp.name_fehlt(b.name)
                 art = "unbekannt" if unbekannt else ("geplant" if b.art == "geplant" else "im_haus")
+                if art == "geplant" and (b.person or "").startswith("mv:") and b.von <= tag:
+                    art = "mieter"                  # 1.63: Mietvertrag läuft – der Mieter wohnt dort, nicht „nur geplant“
                 if (b.massnahme or "").lower().startswith("mieter") and art == "im_haus":
                     art = "mieter"
                 erg.append(NZeile(z.haus, etage, z.kurz, "belegt, Name unbekannt" if unbekannt else zp.anzeige_name(b.name),
@@ -62,10 +77,10 @@ def zaehlen(zs: list[NZeile]) -> dict[str, dict[str, int]]:
     """Je Haus: Personen sicher im Haus, geplant (unsicher), Zimmer mit Personen."""
     erg: dict[str, dict[str, int]] = {}
     for z in zs:
-        h = erg.setdefault(z.haus, {"personen": 0, "geplant": 0, "zimmer": 0})
-        h["geplant" if z.art == "geplant" else "personen"] += 1
+        h = erg.setdefault(z.haus, {"personen": 0, "geplant": 0, "zimmer": 0, "abwesend": 0})
+        h[z.art if z.art in ("geplant", "abwesend") else "personen"] += 1
     for haus, h in erg.items():
-        h["zimmer"] = len({z.zimmer for z in zs if z.haus == haus})
+        h["zimmer"] = len({z.zimmer for z in zs if z.haus == haus and z.art != "abwesend"})
     return erg
 
 
@@ -105,7 +120,8 @@ def druck_html(zs: list[NZeile], jetzt: datetime, standort: str = "", haus: str 
 
     for haus in dict.fromkeys(z.haus for z in zs):          # Reihenfolge wie sortiert
         h = n[haus]
-        sicher_ = [z for z in zs if z.haus == haus and z.art != "geplant"]
+        sicher_ = [z for z in zs if z.haus == haus and z.art not in ("geplant", "abwesend")]
+        weg = [z for z in zs if z.haus == haus and z.art == "abwesend"]
         offen = [z for z in zs if z.haus == haus and z.art == "geplant"]
         plus = f" (+{h['geplant']} geplant)" if h["geplant"] else ""
         teile.append(f"<section class='haus'><h2>Haus {escape(haus)} – {h['personen']} Person"
@@ -118,6 +134,9 @@ def druck_html(zs: list[NZeile], jetzt: datetime, standort: str = "", haus: str 
             # ohne vorher zu klären)
             teile.append("<h3 class='warn'>⚠ Nur geplant – Anreise NICHT bestätigt</h3><table>" + kopf
                          + "".join(zeile(z) for z in offen) + "</table>")
+        if weg:                                             # 1.63: eingetragene Abwesenheiten
+            teile.append("<h3>Abwesend – laut Eintrag nicht im Haus</h3><table>" + kopf
+                         + "".join(zeile(z) for z in weg) + "</table>")
         teile.append(seitenfuss + "</section>")
     return "".join(teile)
 

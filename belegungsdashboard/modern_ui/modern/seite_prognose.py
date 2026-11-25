@@ -1233,8 +1233,10 @@ def _export_menue(a, pg, zustand, box, ex) -> None:
     async def daten_(art: str):
         try:
             pfad = await run.io_bound(ak.prognose_export, pg, zustand["kap"], zustand["offset"], a.aw_standort, a.aw_brutto, art)
-        except PermissionError:
-            a.toast("Die Datei ist noch geöffnet – bitte schließen und erneut versuchen.", fehler=True)
+        except PermissionError as exc:
+            from .export_ziel import meldung
+
+            a.toast(meldung(exc), fehler=True)   # 1.63
             return
         a.toast(("Excel" if art == "xlsx" else "CSV") + " gespeichert" if seiten._datei_oeffnen(pfad) else f"Gespeichert: {pfad}",
                 rueck=False)

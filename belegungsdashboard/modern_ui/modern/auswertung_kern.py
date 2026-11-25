@@ -447,7 +447,6 @@ def jahresvergleich(pg: Prognose) -> dict[int, tuple[list, list]]:
 
 def prognose_export(pg: Prognose, kapazitaet: int, offset: float, standort: str, brutto: bool, art: str = "xlsx") -> str:
     """Prognosedaten als Excel (mit Blatt „Info“) oder CSV in den Export-Ordner. Gibt den Pfad zurück."""
-    from pathlib import Path
 
     import pandas as pd
 
@@ -458,39 +457,38 @@ def prognose_export(pg: Prognose, kapazitaet: int, offset: float, standort: str,
                         "95 % oben": round(z.hi95, 1), "Gesichert": None if z.gesichert is None else round(z.gesichert, 1),
                         "Kapazität": kapazitaet or None, "Reserve": None if z.reserve is None else round(z.reserve, 1),
                         "Einschätzung": z.text} for z in zs])
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
+    from . import export_ziel as ez
+
     name = f"Prognose_{STANDORTE.get(standort, standort).replace(' ', '_')}_{'Brutto' if brutto else 'Netto'}_{date.today():%Y-%m-%d}"
     if art == "csv":
-        pfad = ziel / f"{name}.csv"
-        df.to_csv(pfad, sep=";", decimal=",", index=False, encoding="utf-8-sig")
-        return str(pfad)
-    pfad = ziel / f"{name}.xlsx"
+        return str(ez.speichern(f"{name}.csv", lambda p: df.to_csv(p, sep=";", decimal=",", index=False,
+                                                                  encoding="utf-8-sig")))
     info = pd.DataFrame({"Angabe": ["Standort", "Zählweise", "Kapazität (Szenario)", "Auslastungs-Offset", "Modell",
                                     "Trefferquote 80 %-Spanne", "Erstellt"],
                          "Wert": [STANDORTE.get(standort, standort), "Brutto" if brutto else "Netto", kapazitaet,
                                   f"{offset:+g} %", pg.modell or "–",
                                   f"{round(100 * pg.abdeckung80)} %" if pg.abdeckung80 is not None else "–",
                                   f"{date.today():%d.%m.%Y}"]})
-    with pd.ExcelWriter(pfad) as w:
-        df.to_excel(w, sheet_name="Prognose", index=False)
-        info.to_excel(w, sheet_name="Info", index=False)
-        for blatt in w.sheets.values():
-            for spalte in blatt.columns:
-                blatt.column_dimensions[spalte[0].column_letter].width = max(12, max(len(str(c.value or "")) for c in spalte) + 2)
-    return str(pfad)
+    def schreiben(pfad):
+        with pd.ExcelWriter(pfad) as w:
+            df.to_excel(w, sheet_name="Prognose", index=False)
+            info.to_excel(w, sheet_name="Info", index=False)
+            for blatt in w.sheets.values():
+                for spalte in blatt.columns:
+                    blatt.column_dimensions[spalte[0].column_letter].width = max(
+                        12, max(len(str(c.value or "")) for c in spalte) + 2)
+    return str(ez.speichern(f"{name}.xlsx", schreiben))
 
 
 def png_speichern(daten_url: str, standort: str) -> str:
     """Diagramm-Bild (data:image/png;base64,…) im Export-Ordner ablegen."""
     import base64
-    from pathlib import Path
 
     kopf, _, b64 = daten_url.partition(",")
     if "image/png" not in kopf:
         raise ValueError("Das Diagramm konnte nicht als Bild gelesen werden.")
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / f"Prognose_{STANDORTE.get(standort, standort).replace(' ', '_')}_{date.today():%Y-%m-%d}.png"
-    pfad.write_bytes(base64.b64decode(b64))
-    return str(pfad)
+    from . import export_ziel as ez
+
+    roh = base64.b64decode(b64)
+    return str(ez.speichern(f"Prognose_{STANDORTE.get(standort, standort).replace(' ', '_')}_{date.today():%Y-%m-%d}.png",
+                            lambda p: p.write_bytes(roh)))

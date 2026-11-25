@@ -175,15 +175,14 @@ def liste_tsv(stand: zp.Planstand, f: zl.Filter, tag: date) -> tuple[str, int]:
 
 def belegung_excel(stand: zp.Planstand, tag: date):
     """Excel-Liste (Zimmer, Etagen, freie Zimmer) am Stichtag – wie „Belegung am Tag als Excel“."""
-    from pathlib import Path
 
-    from belegung import speicher, zimmerexport
+    from belegung import zimmerexport
 
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / f"Freie_Zimmer_{tag:%Y-%m-%d}.xlsx"
-    zimmerexport.exportieren(pfad, f"Belegung am {tag:%d.%m.%Y}", [], stand.lage, tag)
-    return f"Excel gespeichert: {pfad.name}", pfad
+    from . import export_ziel as ez
+
+    name = f"Freie_Zimmer_{tag:%Y-%m-%d}.xlsx"
+    pfad = ez.speichern(name, lambda p: zimmerexport.exportieren(p, f"Belegung am {tag:%d.%m.%Y}", [], stand.lage, tag))
+    return f"Excel gespeichert: {pfad.name}{ez.hinweis(pfad, name)}", pfad
 
 
 # ---------------------------------------------------------------------------------------
@@ -885,16 +884,17 @@ def fm_sammelauftrag(stand: zp.Planstand, eintraege: list[tuple[str, str]], heut
 
 
 def fm_excel(stand: zp.Planstand, heute: date):
-    from pathlib import Path
 
-    from belegung import speicher
 
     k = _kurz_map(stand)
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("FM"))
-    ziel.mkdir(parents=True, exist_ok=True)
-    pfad = ziel / f"Maengel_FM_{heute:%Y-%m-%d}.xlsx"
-    n = mg.fm_excel(pfad, mg.offen(), lambda zid: k.get(zid, kurz(zid)), _status_heute(stand, heute), heute)
-    return f"FM-Liste mit {n} Mängeln gespeichert", pfad
+    from . import export_ziel as ez
+
+    name, n = f"Maengel_FM_{heute:%Y-%m-%d}.xlsx", [0]
+
+    def schreiben(p):
+        n[0] = mg.fm_excel(p, mg.offen(), lambda zid: k.get(zid, kurz(zid)), _status_heute(stand, heute), heute)
+    pfad = ez.speichern(name, schreiben, "FM")
+    return f"FM-Liste mit {n[0]} Mängeln gespeichert{ez.hinweis(pfad, name, 'FM')}", pfad
 
 
 def fm_erledigte_lesen(pfad):
@@ -1195,11 +1195,10 @@ def druck_html(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kach
 def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kachel=None,
                 namen: bool = True, maengel=None):
     """Dieselbe Auswahl als Excel-Tabelle (sortier- und filterbar), mit den Spalten „frei ab“, „frei bis“, „freie Tage“."""
-    from pathlib import Path
 
     from openpyxl import Workbook
 
-    from belegung import speicher, zimmerexport
+    from belegung import zimmerexport
 
     kopf = ["Haus", "Etage", "Zimmer", "Betten", "Status"] + (["Bewohner"] if namen else []) + \
         ["belegt bis", "frei ab", "frei bis", "freie Tage", "Merkmale", "Boden", "Renoviert", "Mängel", "Notiz"]
@@ -1218,9 +1217,9 @@ def druck_excel(zeilen: list[DZeile], tag: date, f: zl.Filter | None = None, kac
     zimmerexport._tabelle(ws, f"Zimmer am {tag:%d.%m.%Y}",
                           f"{_auswahl_text(f, kachel, maengel)} · {len(zeilen)} Zimmer · {n_frei} frei · „frei bis“ = letzter freier "
                           "Tag vor der nächsten bekannten Belegung (offen = keine bekannt)", kopf, daten, breiten, markierung)
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    ziel.mkdir(parents=True, exist_ok=True)
+    from . import export_ziel as ez
+
     teil = "_".join(k for k in KACHEL_STATUS + KACHEL_EIGENSCHAFT if k in kacheln(kachel)) or "Auswahl"
-    pfad = ziel / f"Zimmer_{teil}{'_Maengelart' if maengel else ''}_{tag:%Y-%m-%d}{'' if namen else '_ohne_Namen'}.xlsx"
-    wb.save(pfad)
-    return f"Excel gespeichert: {pfad.name} ({len(zeilen)} Zimmer)", pfad
+    name = f"Zimmer_{teil}{'_Maengelart' if maengel else ''}_{tag:%Y-%m-%d}{'' if namen else '_ohne_Namen'}.xlsx"
+    pfad = ez.speichern(name, wb.save)                  # 1.63: belegt/gesperrt → freier Name bzw. persönlicher Ordner
+    return f"Excel gespeichert: {pfad.name} ({len(zeilen)} Zimmer){ez.hinweis(pfad, name)}", pfad

@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from belegung import speicher
 from belegung import zimmerplan as zp
 
 from .renovierung_kern import (  # baut auf renovierung_kern auf
@@ -395,9 +394,9 @@ def excel(stand: zp.Planstand, jahr: int, pfad, zeilen: list[PlanZeile] | None =
 
 
 def excel_speichern(stand: zp.Planstand, jahr: int) -> tuple[str, object]:
-    from pathlib import Path
 
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Exporte"))
-    pfad = ziel / f"Renovierungsplan_{jahr}.xlsx"
-    excel(stand, jahr, pfad)
-    return "Renovierungsplan gespeichert", pfad
+    from . import export_ziel as ez
+
+    name = f"Renovierungsplan_{jahr}.xlsx"
+    pfad = ez.speichern(name, lambda p: excel(stand, jahr, p), "Exporte")
+    return f"Renovierungsplan gespeichert{ez.hinweis(pfad, name, 'Exporte')}", pfad

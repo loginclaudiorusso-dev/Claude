@@ -20,7 +20,44 @@ MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August"
 
 
 def daten(a) -> None:
-    a.daten = {"termine": tm.alle()}
+    a.daten = {"termine": tm.alle(), "zimmer": termin_zimmer(a)}
+
+
+def termin_zimmer(a) -> dict:
+    """1.63: Termin-ID → [(Name, Zimmer, Zimmer-ID)] für An-/Abreisen und Notizen (nur wenn ein Plan geladen ist)."""
+    if getattr(a, "stand", None) is None:
+        return {}
+    try:
+        from belegung import anreiseliste
+
+        from . import termin_zimmer as tz
+        from .kern import kurz
+
+        personen, _ = anreiseliste.laden()
+        return {t.id: zs for t in tm.alle() if t.art in ("anreise", "abreise", "notiz")
+                and (zs := tz.zeilen(t.id, personen, a.stand.lage, kurz))}
+    except Exception:                          # noqa: BLE001 – Zusatzinfo
+        return {}
+
+
+def zimmer_menue(a, zs: list) -> None:
+    """1.63: Knopf „Zimmer 2-101 ▾“ – Klick öffnet die Liste Name → Zimmer, Klick auf ein Zimmer öffnet die Zimmerkarte."""
+    from . import termin_zimmer as tz
+
+    b = ui.element("button").classes("m-tz-knopf")
+    attr(b, title=tz.tooltip(zs))
+    with b:
+        ui.icon("meeting_room")
+        ui.label(tz.kurztext(zs))
+        with ui.menu().props('class="m-ob-menue"'):
+            for name, zim, zid in zs:
+                async def los(zid=zid):
+                    from .seite_zimmer import karte_oeffnen
+
+                    await karte_oeffnen(a, zid)
+                with ui.menu_item(on_click=los if zid else None).classes("m-ob-mpunkt"):
+                    ui.icon("meeting_room" if zid else "help_outline")
+                    ui.label(f"{zim} – {name}")
 
 
 # ---- Ändern -----------------------------------------------------------------------------
@@ -70,7 +107,15 @@ def _zeile(a, t, heute: date) -> None:
             b.on("click", lambda t=t: a.aendern(erledigt_setzen, t.id, not t.erledigt))
         ui.label(f"{WT[t.datum.weekday()]} {t.datum:%d.%m.%y}").classes("m-mono" + (" m-warn" if faellig else ""))
         attr(ui.label(t.titel).classes("m-name"), title=t.titel)
-        attr(ui.label(t.text).classes("m-zweite"), title=t.text)
+        zs = (a.daten.get("zimmer") or {}).get(t.id) or []
+        if zs:                                       # 1.63: Zimmer zum Termin – Tooltip und Menü
+            from . import termin_zimmer as tz
+
+            with ui.element("div").classes("m-tz-zelle"):
+                attr(ui.label(t.text).classes("m-zweite"), title=t.text + "\n\n" + tz.tooltip(zs))
+                zimmer_menue(a, zs)
+        else:
+            attr(ui.label(t.text).classes("m-zweite"), title=t.text)
         with ui.element("div"):
             ui.label(tm.ARTEN.get(t.art, t.art)).classes(f"m-pille {FARBE.get(t.art, '')}")
         with ui.element("div"):
@@ -151,6 +196,19 @@ def termin_oeffnen(a, t) -> None:
         ui.label(t.titel).classes("m-name")
         if t.text:
             ui.label(t.text).classes("m-ptext")
+        zs = (a.daten.get("zimmer") or {}).get(t.id) if isinstance(a.daten, dict) else None
+        if zs:                                       # 1.63: Zimmer der Personen
+            ui.label("Zimmer").classes("m-abschnitt")
+            for name, zim, zid in zs:
+                with ui.element("div").classes("m-paktionen").style("align-items:center"):
+                    ui.label(zim).classes("m-mono m-name").style("min-width:90px")
+                    ui.label(name).classes("m-ptext")
+                    if zid:
+                        async def karte(zid=zid):
+                            from .seite_zimmer import karte_oeffnen
+
+                            await karte_oeffnen(a, zid)
+                        knopf("", karte, "leise", "open_in_new", "Zimmerkarte öffnen")
         ui.label("Dieser Eintrag kommt aus Anreiseliste/UWT und wird dort geändert – hier nur abhaken.").classes("m-zweite")
 
         async def umschalten():

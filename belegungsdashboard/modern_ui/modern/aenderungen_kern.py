@@ -112,10 +112,10 @@ def excel(pfad: Path, eintraege: list[Aenderung], von: date, bis: date) -> int:
 
 
 def excel_speichern(von: date, bis: date, art: str = "alle") -> tuple[str, Path]:
-    from belegung import speicher
 
     eintraege = liste(von, bis, art)
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Exporte"))
-    pfad = ziel / f"Aenderungen_{von:%Y-%m-%d}_bis_{bis:%Y-%m-%d}.xlsx"
-    n = excel(pfad, eintraege, von, bis)
-    return f"{n} Änderungen gespeichert", pfad
+    from . import export_ziel as ez
+
+    name = f"Aenderungen_{von:%Y-%m-%d}_bis_{bis:%Y-%m-%d}.xlsx"
+    pfad = ez.speichern(name, lambda p: excel(p, eintraege, von, bis), "Exporte")
+    return f"{len(eintraege)} Änderungen gespeichert{ez.hinweis(pfad, name, 'Exporte')}", pfad

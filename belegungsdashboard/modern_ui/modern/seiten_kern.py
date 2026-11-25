@@ -380,8 +380,9 @@ class MZeile:
 STUFE_MIETER = {"ok": "ok", "knapp": "warn", "neutral": "neutral", "akzent": "akzent"}
 
 
-def mieter(heute: date | None = None) -> tuple[list[MZeile], list[tuple[str, str, str]]]:
-    """(Verträge im Programm, weitere Mieter laut Gebäudeplan ohne Vertrag hier: (Name, Zimmer, Zeitraum))."""
+def mieter(heute: date | None = None) -> tuple[list[MZeile], list[tuple]]:
+    """(Verträge im Programm, weitere Mieter laut Gebäudeplan ohne Vertrag hier: (Name, Zimmer, Zeitraum, Zimmer-ID,
+    von, bis) – 1.63: mit ID und Daten, damit „Vertrag anlegen“ alles vorbelegen kann)."""
     from belegung import mieter as mt
 
     heute = heute or date.today()
@@ -391,7 +392,7 @@ def mieter(heute: date | None = None) -> tuple[list[MZeile], list[tuple[str, str
         erg.append(MZeile(mv.nr, mv.name, mv.zimmer_kurz, mv.von, mv.bis, text, STUFE_MIETER.get(stufe, "neutral"),
                           mt.mail_offen(mv, heute), mv.email, mv.mail_ende))
     try:
-        weitere = [(b.name, kurz(b.zimmer), f"{b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y}")
+        weitere = [(b.name, kurz(b.zimmer), f"{b.von:%d.%m.%Y} – {b.bis:%d.%m.%Y}", b.zimmer, b.von, b.bis)
                    for b in mt.weitere_mieter(zp.laden(), heute)]
     except Exception:                      # noqa: BLE001
         weitere = []

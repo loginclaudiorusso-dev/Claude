@@ -77,6 +77,17 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from .seite_heute import nachricht_neu
 
         nachricht_neu(a)
+    elif name in ("im_haus", "abwesenheiten", "schluessel_ausgabe"):   # 1.63
+        from . import haus_ui
+
+        if a.stand is None:
+            a.toast("Erst Daten laden.", fehler=True)
+        elif name == "im_haus":
+            await haus_ui.im_haus_panel(a)
+        elif name == "abwesenheiten":
+            await haus_ui.abwesenheiten_panel(a)
+        else:
+            await haus_ui.schluessel_liste_panel(a)
     elif name == "versandprotokoll":                        # 1.59: wer hat wann was an wen verschickt
         from . import versand_ui
 
@@ -372,9 +383,10 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
                                                   and getattr(a, "_ob_seite", None) != a.seite):
             tab = mb.reiter_von(a.seite, _ansichten(), a.ansicht.get(a.seite))   # Sprung: das Band folgt der Seite
             aktuell = next((r for r in alle if r.key == tab), alle[0])
-    if nach_zeichnen and getattr(a, "_ob_sprung", False) and oben and hat_werkzeuge(a):
-        a._ob_sprung = False                        # (erst wenn die Seite fertig ist – nicht beim „Lädt …“)
-        tab = "seite"                               # wie Office: Ansicht gewählt → ihre Registerkarte öffnet sich
+    if nach_zeichnen and getattr(a, "_ob_sprung", False):
+        # 1.63: KEIN automatischer Wechsel mehr auf die Werkzeug-Registerkarte – das Band bleibt, wo geklickt wurde
+        # (die Kontext-Registerkarte der Seite erscheint farbig und öffnet sich erst per Klick, wie in Office)
+        a._ob_sprung = False
     if tab == "seite":
         aktuell = mb.Reiter("seite", seiten_reiter_titel(a), [])
     a.band_tab, a._ob_seite = tab, a.seite
@@ -764,10 +776,9 @@ body.lay-office.ob-oben.ob-hat-werkzeuge:not(.ob-seite-an) .m-kz { display: none
 body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) { overflow-y: auto; align-content: flex-start; padding-top: 8px; }
 body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-chip, body.lay-office.ob-oben.ob-seite-an .m-kz:not(:has(.m-bg)) .m-knopf {
   min-height: 28px; }
-body.lay-office.ob-oben.ob-seite-an .m-kz:has(.m-bg) .m-kopf > .m-titel { display: none !important; }
-body.lay-office.ob-oben.ob-seite-an .m-kz .m-kopf > .m-titel { font-size: 13px !important; font-weight: 600 !important;
-  color: var(--ob-text2); padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--ob-rand); align-self: stretch;
-  display: flex; align-items: center; }
+/* 1.63: kein Seitentitel links im Werkzeug-Band – der farbige Reiter zeigt, wo man ist (wie Office); so beginnt jedes
+   Band an derselben Stelle und nichts verrutscht je nach Seite */
+body.lay-office.ob-oben.ob-seite-an .m-kz .m-kopf > .m-titel { display: none !important; }
 .m-ob-tab.kontext.seite { color: #0284c7 !important; }
 .m-ob-tab.kontext.seite::before { background: #0284c7 !important; }
 .m-ob-tab.hier::before { content: none; }           /* 0.99: Punkt rechts neben dem Wort („Start •“), nicht darüber */

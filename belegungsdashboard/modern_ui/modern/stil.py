@@ -1032,6 +1032,14 @@ CSS += """
 .m-pf-symbol.dringend { color: var(--rot); } .m-pf-symbol.bald { color: var(--orange); }
 .m-pf-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .m-pf-titel { font-size: 13px; font-weight: 600; line-height: 1.3; }
+/* 1.63: Zimmer zu An-/Abreise-Terminen */
+.m-tz-zelle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.m-tz-zelle > .m-zweite { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.m-tz-knopf { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 8px; border-radius: 6px;
+  border: 1px solid var(--rand); background: var(--flaeche2, transparent); color: var(--text2); font-size: 12px;
+  cursor: pointer; font-family: inherit; }
+.m-tz-knopf:hover { border-color: var(--akzent); color: var(--akzent); }
+.m-tz-knopf .q-icon { font-size: 15px; }
 .m-pf-unter { font-size: 12px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-pf-gruppe { font-size: 11.5px; color: var(--text3); padding: 12px 10px 4px; }
 .m-pf-leer { font-size: 12.5px; color: var(--text3); padding: 10px; }

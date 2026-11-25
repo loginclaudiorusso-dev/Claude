@@ -117,12 +117,16 @@ def excel_schreiben(tabellen: list[dict], titel: str, pfad: Path) -> int:
 
 def speichern(tabellen: list[dict], titel: str, tag: date) -> tuple[str, Path]:
     """In den Export-Ordner (wie die übrigen Excel-Listen) – Text für die Meldung und Pfad."""
-    from belegung import speicher
 
-    ziel = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Export"))
-    pfad = ziel / dateiname(titel, tag)
-    n = excel_schreiben(tabellen, titel, pfad)
-    return f"Excel gespeichert: {pfad.name} ({n} Zeilen)", pfad
+    from . import export_ziel as ez
+
+    name = dateiname(titel, tag)
+    n = [0]
+
+    def schreiben(p):
+        n[0] = excel_schreiben(tabellen, titel, p)
+    pfad = ez.speichern(name, schreiben)                # 1.63
+    return f"Excel gespeichert: {pfad.name} ({n[0]} Zeilen){ez.hinweis(pfad, name)}", pfad
 
 
 # JavaScript, das die angezeigten Tabellen der Arbeitsfläche ausliest (HTML-Tabellen und die Zeilen-Raster der
