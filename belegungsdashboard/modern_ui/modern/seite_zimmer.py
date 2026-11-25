@@ -1123,6 +1123,7 @@ def _maengel(a) -> None:
                 ui.menu_item("FM-Bericht drucken", lambda: _fm(a, "druck"))
                 ui.menu_item("FM-Liste als Excel", lambda: _fm(a, "excel"))
                 ui.menu_item("Liste für Mail kopieren", lambda: _fm(a, "mail"))
+                ui.menu_item("FM-Tickets …", lambda: _tickets(a))          # 1.60
         # 1.55: Sammelmail – markierte Mängel, sonst alle hier angezeigten, in EINER Mail an FM
         sichtbar = [(z.zimmer, m[0]) for st in zk.STUFEN for z in zs
                     if z.stufe == st and (a.dz_filter is None or a.dz_filter == st)
@@ -1137,6 +1138,12 @@ def _maengel(a) -> None:
         knopf("Sammelmail an FM", lambda: _fm_sammel(a, [e for e in sichtbar if e in a.dz_auswahl] or sichtbar),
               "primaer", "mail", "Eine Mail an FM mit allen markierten Mängeln – ohne Markierung mit allen angezeigten")
     sp = "116px 80px minmax(110px, .7fr) minmax(260px, 2.2fr) 120px 110px 40px"
+    try:                                               # 1.60: FM-Ticket je Mangel (neuestes)
+        from . import fm_ticket_kern as tk
+
+        tickets = tk.je_mangel(tk.laden())
+    except Exception:                                  # noqa: BLE001 – ohne Tickets weiter wie bisher
+        tickets = {}
     with a.inhalt:
         qr_ui.bereich(a)
         if not zs:
@@ -1169,7 +1176,13 @@ def _maengel(a) -> None:
                                                                                  else a.dz_auswahl.discard(k), zaehlen()))
                                 attr(ui.label(f"{'!' * stufe} {name}").classes("m-ptext " + ("m-krit" if unbew else "m-warn" if stufe == 2 else "")),
                                      title=notiz or name)
-                                ui.label(f"seit {seit:%d.%m.}").classes("m-zweite")
+                                nr_ = tickets.get((z.zimmer, art))
+                                if nr_:
+                                    tl = ui.label(nr_).classes("m-zweite m-link m-mono").style("font-size:11px")
+                                    attr(tl, title="FM-Ticket öffnen")
+                                    tl.on("click", lambda nr_=nr_: _ticket(a, nr_))
+                                else:
+                                    ui.label(f"seit {seit:%d.%m.}").classes("m-zweite")
                                 knopf("", lambda z=z, art=art: a.aendern(zk.mangel_setzen, z.zimmer, art, False), "leise", "check",
                                       "Behoben")
                                 knopf("", lambda z=z, art=art: _fm_mangel(a, z.zimmer, art),
@@ -1332,10 +1345,27 @@ async def _fm_mangel(a, zimmer: str, art: str) -> None:
         except Exception:                      # noqa: BLE001
             wer = ""
         vorlage = await run.io_bound(zk.fm_auftrag, a.stand, zimmer, art, a.heute, wer)
-        fm_mail(a, vorlage=vorlage)
+        fm_mail(a, vorlage=vorlage, ticket=[(zimmer, art)], ticket_zimmer=[_kurz_von(a, zimmer)])
     except Exception as exc:                   # noqa: BLE001
         logging.getLogger(__name__).exception("Mail an FM")
         a.toast(f"Mail an FM konnte nicht geöffnet werden: {exc}", fehler=True)
+
+
+async def _ticket(a, nr: str) -> None:
+    from . import fm_ticket_ui
+
+    await fm_ticket_ui.ticket_panel(a, nr)
+
+
+async def _tickets(a) -> None:
+    from . import fm_ticket_ui
+
+    await fm_ticket_ui.liste_panel(a)
+
+
+def _kurz_von(a, zid: str) -> str:
+    z = a.stand.lage.zimmer.get(zid) if a.stand is not None else None
+    return z.kurz if z is not None else zid.removeprefix("GS-")
 
 
 async def _fm_sammel(a, eintraege: list[tuple[str, str]]) -> None:
@@ -1358,7 +1388,8 @@ async def _fm_sammel(a, eintraege: list[tuple[str, str]]) -> None:
         async def nach():                      # gesendet/geöffnet: Markierung zurücksetzen
             a.dz_auswahl.clear()
             await a.setzen(laden=False)
-        fm_mail(a, vorlage=vorlage, nach=nach)
+        fm_mail(a, vorlage=vorlage, nach=nach, ticket=list(eintraege),
+                ticket_zimmer=sorted({_kurz_von(a, z) for z, _art in eintraege}))
     except Exception as exc:                   # noqa: BLE001
         logging.getLogger(__name__).exception("Sammelmail an FM")
         a.toast(f"Sammelmail an FM konnte nicht geöffnet werden: {exc}", fehler=True)

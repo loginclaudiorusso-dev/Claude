@@ -82,9 +82,24 @@ def befehle(a, text: str) -> list[tuple[str, str, str, tuple]]:
     if bk.ist_frage(q):
         erg.append((f"Fragen: „{q}“", "Antwort aus den Daten (Start → Assistenz → Fragen & Zahlen)", "help_center",
                     ("frage", q)))
+    erg += ticket_treffer(q)                         # 1.60: „FM-42“ → FM-Ticket
     erg += massnahmen_treffer(a, q)                  # 1.58: „KBM“ → Neuanmeldungen dieser Maßnahme
     erg += [(b.titel, b.bereich, b.icon, b.ziel) for b in bk.suchen(q, kat)]
     return erg
+
+
+def ticket_treffer(q: str) -> list[tuple[str, str, str, tuple]]:
+    """1.60: „FM-42“, „FM-2026-0042“, „Ticket 42“ → das FM-Ticket (Status, Zimmer)."""
+    from . import fm_ticket_kern as tk
+
+    if tk.suchbegriff(q) is None:
+        return []
+    try:
+        treffer = tk.finden(q, tk.laden())[:3]
+    except Exception:                                  # noqa: BLE001
+        return []
+    return [(f"{t.nr} · " + (", ".join(f"Zimmer {z}" for z in t.zimmer[:3]) or "FM-Ticket"),
+             t.betreff.split("] ", 1)[-1][:80], "build", ("fm_ticket", t.nr)) for t in treffer]
 
 
 def massnahmen_treffer(a, q: str, anzahl: int = 3) -> list[tuple[str, str, str, tuple]]:
@@ -110,6 +125,11 @@ async def ausfuehren(a, ziel: tuple) -> None:
     from . import menueband_ui
 
     art = ziel[0]
+    if art == "fm_ticket":                           # 1.60
+        from . import fm_ticket_ui
+
+        await fm_ticket_ui.ticket_panel(a, ziel[1])
+        return
     if art == "massnahme":                           # 1.58
         from .seite_massnahmen import massnahme_zeigen
 

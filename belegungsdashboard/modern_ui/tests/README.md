@@ -37,6 +37,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_prognose_v158_laiendiagramm.py` – 1.58 – feste Diagrammfarben, 95 % optional, ≤ 5 Beschriftungen, Achse, Fenster, Nahtstelle, alle Bewohner
 - `test_massnahmen_v158_schnellzugang.py` – 1.58 – Maßnahme in Strg+K, Schnellzugang, Suche und Linie in der Teilnehmer-Prognose
 - `test_szenarien_v159.py` – 1.59 – zusätzliche Belegung je Monat, Szenario-Vergleich, wirtschaftliche Lage, Versandprotokoll
+- `test_fm_ticket_v160.py` – 1.60 – Ticketnummern je Jahr, Betreff/Text, Suche, Status, Anlegen/Zurücknehmen
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

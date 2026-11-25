@@ -543,9 +543,12 @@ def nachricht_neu(a) -> None:
 FM_WARTEN = 25          # 1.55: Sekunden – antwortet Outlook nicht (z. B. Sicherheitsabfrage hinter dem Fenster)
 
 
-def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorlage: tuple[str, str] | None = None) -> None:
+def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorlage: tuple[str, str] | None = None,
+            ticket: list | None = None, ticket_zimmer: list | None = None) -> None:
     """1.36: Mail an FM – Entwurf in Outlook (zum Prüfen und Senden), sonst Standard-Mailprogramm.
-    1.55: ``vorlage`` = fertiger (Betreff, Text), z. B. der vollständige Auftrag zu einem Mangel."""
+    1.55: ``vorlage`` = fertiger (Betreff, Text), z. B. der vollständige Auftrag zu einem Mangel.
+    1.60: ``ticket`` = [(Zimmer-ID, Mangelart), …] – beim Senden bzw. Öffnen bekommt die Mail eine FM-Ticketnummer
+    (Betreff und Text); schlägt der Versand fehl, wird die Nummer zurückgenommen."""
     import asyncio
     import json
     import logging
@@ -554,6 +557,7 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
 
     from . import benutzer_kern
     from . import fm_mail_kern as fk
+    from . import fm_ticket_kern as tk
     from . import versand_protokoll as vp
 
     try:
@@ -594,18 +598,41 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
                 return False
             return True
 
+        async def nummer_vergeben():
+            """1.60: Ticketnummer holen und in Betreff/Text setzen – None ohne Ticket (z. B. allgemeine Mail)."""
+            if not ticket:
+                return None
+            try:
+                t = await run.io_bound(tk.anlegen, ticket, ticket_zimmer or [], betreff.value or "", an.value or "",
+                                       absender_name)
+            except Exception as exc:           # noqa: BLE001 – ohne Nummer ginge die Mail trotzdem raus
+                a.toast(f"Ticketnummer konnte nicht vergeben werden ({exc}) – die Mail geht ohne Nummer.", fehler=True)
+                return None
+            vorher["b"], vorher["t"] = betreff.value, text.value
+            betreff.value, text.value = tk.mit_nummer(t.nr, betreff.value or "", text.value or "")
+            return t.nr
+
+        vorher: dict = {}
+
+        async def zuruecknehmen(nr) -> None:
+            await run.io_bound(tk.zuruecknehmen, nr)
+            betreff.value, text.value = vorher.get("b", betreff.value), vorher.get("t", text.value)
+
         async def senden():                    # 1.38: direkt über das eigene Outlook senden (landet in „Gesendet“)
             if not await merken():
                 return
+            nr = await nummer_vergeben()
             fehler = await outlook(fk.senden, an.value or "", betreff.value or "", text.value or "",
                                    (von.value or "").strip())
+            if fehler and nr:
+                await zuruecknehmen(nr)
             await run.io_bound(vp.eintragen, "fm", "Outlook gesendet", an.value or "", betreff.value or "",
                                text.value or "", f"Fehler: {fehler}" if fehler else "ok", (von.value or "").strip())
             if fehler:
                 a.toast(fehler, fehler=True)
                 return
-            a.toast(f"Gesendet aus {von.value.strip()}" if (von.value or "").strip() else
-                    "Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“", rueck=False)
+            a.toast((f"{nr} · " if nr else "") + (f"Gesendet aus {von.value.strip()}" if (von.value or "").strip() else
+                    "Gesendet über Ihr Outlook – die Mail steht in „Gesendete Elemente“"), rueck=False)
             a.panel_zu()
             if nach:                           # 1.46: z. B. QR-Meldung „an FM weitergeleitet“ vermerken
                 await nach()
@@ -613,8 +640,11 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
         async def los():
             if not await merken():
                 return
+            nr = await nummer_vergeben()
             fehler = await outlook(fk.entwurf, an.value or "", betreff.value or "", text.value or "",
                                    (von.value or "").strip())
+            if fehler and not fk.adresse() and nr:
+                await zuruecknehmen(nr)
             await run.io_bound(vp.eintragen, "fm", "Standard-Mailprogramm" if fehler and fk.adresse() else
                                "Outlook-Entwurf", an.value or "", betreff.value or "", text.value or "",
                                "ok" if not fehler or fk.adresse() else f"Fehler: {fehler}", (von.value or "").strip())
@@ -625,7 +655,7 @@ def fm_mail(a, zimmer: str = "", art: str = "", notiz: str = "", nach=None, vorl
                 a.toast(fehler, fehler=True)
                 return
             else:
-                a.toast("Mail in Outlook geöffnet – bitte prüfen und senden", rueck=False)
+                a.toast((f"{nr} · " if nr else "") + "Mail in Outlook geöffnet – bitte prüfen und senden", rueck=False)
             a.panel_zu()
             if nach:
                 await nach()
