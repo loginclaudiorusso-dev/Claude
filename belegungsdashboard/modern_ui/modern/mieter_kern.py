@@ -302,8 +302,68 @@ def zimmer_grund(person: str, mv: mt.Mietvertrag) -> str | None:
     return zp.passt(stand.lage, z, b, {person})
 
 
+# ---- 1.69: Anschrift vor Einzug, Auswahl der Vordrucke, Nummer automatisch -------------------------------------
+
+ANSCHRIFT_DATEI = f"{speicher.IMPORT_ORDNER}/modern_mieter_anschrift.json"
+DOKUMENTE = {mt.WOHNUNGSGEBER: "Wohnungsgeberbestätigung", mt.SEPA: "SEPA-Lastschriftmandat",
+             mt.MIETSCHULDEN: "Mietschuldenfreiheitsbescheinigung"}
+DOKU_EINSTELLUNG = "mieter_dokumente"
+DOKU_STANDARD = [mt.WOHNUNGSGEBER, mt.SEPA]          # Mietschuldenfreiheit nur bei Bedarf
+
+
+def anschrift(nr: str) -> str:
+    return str((speicher.lesen(ANSCHRIFT_DATEI, {}) or {}).get(nr, ""))
+
+
+def _anschrift_setzen(nr: str, text: str) -> None:
+    d = dict(speicher.lesen(ANSCHRIFT_DATEI, {}) or {})
+    if text.strip():
+        d[nr] = text.strip()
+    else:
+        d.pop(nr, None)
+    speicher.schreiben(ANSCHRIFT_DATEI, d)
+
+
+def text_vorbereiten(text: str, mv, anschrift_: str = "") -> str:
+    """Platzhalter, die das Hauptprogramm nicht kennt: {anschrift}, {name_anschrift} (Vorname Nachname, Anschrift)."""
+    a = (anschrift_ or "").strip()
+    return (text.replace("{name_anschrift}", f"{mv.vorname} {mv.nachname}" + (f", {a}" if a else ""))
+            .replace("{anschrift}", a))
+
+
+def dokumente_vorhanden() -> list[str]:
+    o = mt.vorlagen_ordner()
+    return [d for d in DOKUMENTE if o is not None and (o / d).is_file()]
+
+
+def dokumente_standard() -> list[str]:
+    gemerkt = speicher.einstellungen().get(DOKU_EINSTELLUNG)
+    return [d for d in (gemerkt if isinstance(gemerkt, list) else DOKU_STANDARD) if d in DOKUMENTE]
+
+
+def _paket(mv, pdf, ziel: Path, ordner: Path | None, auswahl: list[str] | None) -> list[str]:
+    """Unterlagen-PDF; ``auswahl`` = Dateinamen der Vordrucke, die angehängt werden (None = alle vorhandenen)."""
+    if auswahl is None or ordner is None:
+        return mt.paket_erstellen(mv, pdf, ziel, ordner)
+    with tempfile.TemporaryDirectory() as tmp:
+        for d in auswahl:
+            if d in DOKUMENTE and (ordner / d).is_file():
+                shutil.copy2(ordner / d, Path(tmp) / d)
+        return mt.paket_erstellen(mv, pdf, ziel, Path(tmp))
+
+
 def neuer_vertrag(werte: dict) -> tuple[str, Path]:
+    """1.69: unter der Schreibsperre – die automatische Nummer kann so kein zweiter PC gleichzeitig vergeben."""
+    from . import netz_kern
+
+    with netz_kern.sperre():
+        return _neuer_vertrag(werte)
+
+
+def _neuer_vertrag(werte: dict) -> tuple[str, Path]:
     """Vertrag anlegen, Unterlagen erstellen. (Meldung, Pfad der PDF/HTML)."""
+    if werte.get("nr_auto", False) or not str(werte.get("nr", "")).strip():
+        werte = {**werte, "nr": nummer_vorschlag(werte["von"])[0]}    # 1.69: immer die nächste freie Nummer
     mv = mt.Mietvertrag(werte["nr"].strip(), werte["anrede"], werte["vorname"].strip(), werte["nachname"].strip(),
                         werte["zimmer"] or "", werte["von"], werte["bis"], round(float(werte["miete"]), 2),
                         int(werte["flaeche"]), int(werte["schluessel"]), werte["kaution_bis"] if werte["kaution"] else None,
@@ -325,10 +385,13 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
         raise ValueError("Bitte prüfen: " + " ".join(fehler))
     ordner = mt.vorlagen_ordner()
     flex = bool(werte.get("flexibel"))
-    html = mt.vertrag_html(mv, vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"), flex), ordner / mt.LOGO)
+    adr = str(werte.get("anschrift", "") or "")
+    html = mt.vertrag_html(mv, text_vorbereiten(vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"), flex),
+                                                mv, adr), ordner / mt.LOGO)
     ziel = ablage() / f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
     pdf = html_als_pdf(html)
-    teile = mt.paket_erstellen(mv, pdf, ziel, ordner)
+    auswahl = werte.get("dokumente")
+    teile = _paket(mv, pdf, ziel, ordner, list(auswahl) if auswahl is not None else None)
     extra = ""
     if pdf is None:                           # Vertrag als HTML daneben – im Browser drucken/als PDF speichern
         h = ziel.with_name(ziel.stem.replace("Mietunterlagen", "Mietvertrag") + ".html")
@@ -337,13 +400,17 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     def anlegen():
         mt.anlegen(mv)
         _flex_setzen(mv.nr, flex)
+        if adr.strip():
+            _anschrift_setzen(mv.nr, adr)
+        if auswahl is not None:
+            speicher.einstellung_setzen(DOKU_EINSTELLUNG, [d for d in auswahl if d in DOKUMENTE])
         if trotz:
             from belegung import protokoll
 
             protokoll.eintragen([{"aktion": "Zimmer trotz Hinweis gewählt", "name": f"{mv.nachname}, {mv.vorname}",
                                   "person": mv.person, "alt": "", "neu": mv.zimmer, "von": mv.von.isoformat(),
                                   "quelle": f"Mieter · {trotz}"}])
-    _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI])
+    _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI, ANSCHRIFT_DATEI])
     return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt"
             + (": " + ", ".join(teile) if teile else "") + "." + extra + ablage_hinweis(ziel.parent)
             + _vorlagen_hinweis()), ziel
@@ -454,15 +521,15 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
     return f"{text} · {t2}", pfad
 
 
-def unterlagen_neu(nr: str) -> tuple[str, Path]:
+def unterlagen_neu(nr: str, dokumente: list[str] | None = None) -> tuple[str, Path]:
     mv = mt.nach_nummer(nr)
     if mv is None:
         raise ValueError("Den Vertrag gibt es nicht mehr.")
     ordner = mt.vorlagen_ordner()
     if ordner is None:
         raise ValueError("Vorlagen fehlen im Ordner „Vorlagen/Mieter“.")
-    html = mt.vertrag_html(mv, vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"), nr in flexible()),
-                           ordner / mt.LOGO)
+    html = mt.vertrag_html(mv, text_vorbereiten(vorlage_fuer((ordner / mt.VERTRAG).read_text(encoding="utf-8"),
+                                                           nr in flexible()), mv, anschrift(nr)), ordner / mt.LOGO)
     ziel = ablage() / f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
-    teile = mt.paket_erstellen(mv, html_als_pdf(html), ziel, ordner)
+    teile = _paket(mv, html_als_pdf(html), ziel, ordner, dokumente if dokumente is not None else dokumente_standard())
     return f"Unterlagen neu erstellt: {', '.join(teile)}", ziel

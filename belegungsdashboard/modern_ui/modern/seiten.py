@@ -962,12 +962,15 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
     def bauen():
         from . import vorlagen_mieter_ui                  # 1.68: Vertragstext fehlt → gleich hier sagen, nicht erst beim Speichern
         vorlagen_mieter_ui.hinweis(a, True)
-        ui.label("Alle Unterlagen in einer PDF (Mietvertrag, Wohnungsgeberbestätigung, SEPA, Mietschuldenfreiheit) – "
-                 "der Mieter wird im Zimmerplan eingetragen.").classes("m-ptext")
+        ui.label("Mietvertrag und die angehakten Vordrucke in einer PDF – der Mieter wird im Zimmerplan eingetragen. "
+                 "Die Vertragsnummer vergibt das Programm beim Erstellen (fortlaufend, ohne Doppelte).").classes("m-ptext")
         with ui.element("div").classes("m-zweispaltig"):
             anrede = ui.select(mk.ANREDEN, value="Frau", label="Anrede").classes("m-feld").props(
                 'dense outlined dark options-dense popup-content-class="m-popup"')
-            nr = ui.input("Vertragsnummer", value=mt.naechste_nummer()).classes("m-feld").props("dense outlined dark")
+            nr = ui.input("Vertragsnummer (automatisch)", value=mt.naechste_nummer()).classes("m-feld").props(
+                "dense outlined dark readonly")
+            attr(nr, title="Wird beim Erstellen fest vergeben – immer die nächste freie Nummer, auch wenn gerade an "
+                           "einem anderen PC ein Vertrag entsteht")
             vg = vorgabe or {}
             vor = ui.input("Vorname", value=vg.get("vorname", "")).classes("m-feld").props("dense outlined dark")
             nach = ui.input("Nachname", value=vg.get("nachname", "")).classes("m-feld").props("dense outlined dark")
@@ -980,7 +983,11 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
                 "dense outlined dark")
             schl = ui.number("Schlüssel", value=1, min=0, step=1, format="%d").classes("m-feld").props("dense outlined dark")
             mail = ui.input("E-Mail (optional)").classes("m-feld").props("dense outlined dark")
+        adresse = ui.input("Anschrift vor Einzug (optional, steht im Vertrag)",
+                           placeholder="Straße Nr., PLZ Ort").classes("m-feld").props("dense outlined dark")
         woher = ui.label("Vertragsnummer wird abgeglichen …").classes("m-zweite")
+        hand = ui.switch("Nummer von Hand vergeben (Ausnahme)").props("dense color=orange")
+        hand.on_value_change(lambda e: nr.props(remove="readonly") if e.value else nr.props(add="readonly"))
         with ui.expansion("Nummern mit bisherigen Verträgen abgleichen").classes("m-ptext").props("dense"):
             ui.label("Verträge, die nicht mit diesem Programm erstellt wurden, kennt die Zählung sonst nicht. Ordner mit den "
                      "bisherigen Verträgen (Dateinamen mit Nummer, z. B. „MV 26-047 …“) und/oder die zuletzt vergebene "
@@ -1017,6 +1024,14 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
         alle = ui.switch("auch Zimmer zeigen, die nicht passen").props("dense color=primary")
         kaution = ui.switch("Mietsicherheit (Kaution) vereinbaren", value=False).props("dense color=primary")
         flex = ui.switch("Flexibler Mietvertrag (abweichende Textstellen)", value=False).props("dense color=primary")
+        vorhanden = mk.dokumente_vorhanden()                # 1.69: welche Vordrucke kommen in die Unterlagen?
+        standard = mk.dokumente_standard()
+        doks = {}
+        if vorhanden:
+            ui.label("Anhängen:").classes("m-zweite")
+            with ui.element("div").classes("m-zeile-flex").style("gap:4px 14px;flex-wrap:wrap"):
+                for d in vorhanden:
+                    doks[d] = ui.checkbox(mk.DOKUMENTE[d], value=d in standard).props("dense color=primary")
         attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")
         trotz = ui.checkbox("Zimmer trotzdem nehmen, obwohl es laut Plan nicht passt (z. B. bis dahin fertig renoviert) – "
                             "ich habe es geprüft", value=bool(vorgabe)).props("dense color=orange")
@@ -1060,7 +1075,8 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
             werte = {"nr": nr.value or "", "anrede": anrede.value, "vorname": vor.value or "", "nachname": nach.value or "",
                      "zimmer": zimmer.value, "von": v, "bis": b, "miete": miete.value or 0, "flaeche": flaeche.value or 1,
                      "schluessel": schl.value or 0, "kaution": kaution.value, "kaution_bis": v, "email": mail.value or "",
-                     "flexibel": bool(flex.value), "trotzdem": bool(trotz.value)}
+                     "flexibel": bool(flex.value), "trotzdem": bool(trotz.value), "nr_auto": not hand.value,
+                     "anschrift": adresse.value or "", "dokumente": [d for d, cb in doks.items() if cb.value]}
             if await _mit_datei(a, mk.neuer_vertrag, werte):
                 a.panel_zu()
 
