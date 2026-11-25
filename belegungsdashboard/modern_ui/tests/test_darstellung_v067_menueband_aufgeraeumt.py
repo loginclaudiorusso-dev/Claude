@@ -42,8 +42,11 @@ def test_jeder_befehl_nur_einmal():
     je_knopf += [{_schluessel(p.ziel)} for p in mb.DATEI if p.ziel and p.ziel[0] == "seite"]
     doppelt = [k for k, n in Counter(z for menge in je_knopf for z in menge).items() if n > 1]
     assert doppelt == []
+    # 1.61: Die Diagramm-Einstellungen stehen auf der Belegungsprognose in „Prognose“ (eine Schaltfläche) – dort ist „Diagramm“ ausgeblendet,
+    # sie erscheinen also nie zweimal gleichzeitig; gezählt wird die Registerkarte „Diagramm“
     aktionen = Counter(q.ziel[1] for r in mb.reiter(ANS) for g in r.gruppen for p in g.punkte
-                       for q in [p] + p.menue if q.ziel and q.ziel[0] == "aktion")
+                       for q in [p] + p.menue if q.ziel and q.ziel[0] == "aktion"
+                       and not (r.key == "prognose" and g.titel == "Diagramm"))
     aktionen.update(p.ziel[1] for p in mb.DATEI + mb.TITELLEISTE + mb.STATUSLEISTE if p.ziel and p.ziel[0] == "aktion")
     assert [k for k, n in aktionen.items() if n > 1] == []
 

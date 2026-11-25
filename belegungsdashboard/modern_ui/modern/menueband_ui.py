@@ -186,6 +186,12 @@ def _menue(a, punkte: list[mb.Punkt]) -> None:
             if q.ziel and q.ziel[0] == "aktion" and q.ziel[1].startswith("dg:") and not mb.linien_option_sichtbar(
                     q.ziel[1][3:], a.seite, _ansicht(a), a.design.get("dg_typ", "auto")):
                 continue
+            if q.icon == "kopf":                          # 1.61: Zwischenüberschrift im Menü (leer = Trennlinie)
+                if q.text:
+                    ui.label(q.text).classes("m-menue-kopf")
+                else:
+                    ui.separator()
+                continue
             an = _menue_an(a, q)
             if q.icon == "haken":
                 icon = "check_box" if an else "check_box_outline_blank"

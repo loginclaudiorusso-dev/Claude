@@ -105,6 +105,7 @@ TEXT_SYMBOLE: dict[str, tuple] = {   # Schaltflächen ohne eigenes Ziel (Ausklap
     "Elemente": ("layer", VIOLETT), "Legende": ("tag", VIOLETT), "Steuerung": ("target_arrow", BASIS),
     "Inventar": ("box", BLAU),
     "Betten": ("bed", BLAU), "Vergleich": ("layout_column_three", TEAL), "Sicherheit": ("p:a_sicherheit", BASIS),
+    "Einblenden": ("layout_column_three", TEAL), "Diagramm": ("data_line", VIOLETT),          # 1.61: Prognose kompakt
 }
 
 
@@ -275,11 +276,11 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
     def p(text: str, sym: str, ziel: tuple, tipp: str) -> Punkt:
         return Punkt(trenn(text), f"p:{sym}", ziel, True, tipp)
 
-    planung_haus = [p("Reinigungs­vorschau", "reinigungsvorschau", S("reinigung", "last"),
-                      "Wie viel in den nächsten 6 Wochen zu reinigen ist")]
+    planung_haus = []                                # 1.61: Reinigungsvorschau steht jetzt bei der Reinigung
     if leitung:
         planung_haus.append(p("Renovierung & Budget", "renovierung", S("steuerung", "cockpit"),
                               "Renovierungsvorhaben, Zeitplan, Kapazität und Finanzen (Leitung)"))
+    diagramm_gruppen = _diagramm_gruppen()
     return [
         Reiter("uebersicht", "Übersicht", [
             Gruppe("Cockpit", [p("Cockpit", "uebersicht", S("heute", heute_ansicht="postfach"),
@@ -305,8 +306,10 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
             Gruppe("Zimmer", [p("Zimmer­übersicht", "zimmeruebersicht", S("zimmer", "uebersicht"),
                                 "Alle Zimmer je Etage – Darstellung Raster oder Karten in der Registerkarte „Zimmer“"),
                               p("Zimmer­liste", "zimmerliste", S("zimmer", "liste"), "Alle Zimmer als Tabelle")]),
-            Gruppe("Pflege", [p("Reinigung", "reinigung", S("reinigung", "liste"), "Reinigungsliste"),
-                              p("Facility-Checks", "facility", S("reinigung", "facility"), "Prüfgänge im Haus")]),
+            Gruppe("Reinigung", [p("Reinigung", "reinigung", S("reinigung", "liste"), "Reinigungsliste"),   # 1.61: alles an einer Stelle
+                                 p("Reinigungs­vorschau", "reinigungsvorschau", S("reinigung", "last"),
+                                   "Wie viel in den nächsten 6 Wochen zu reinigen ist"),
+                                 p("Facility-Checks", "facility", S("reinigung", "facility"), "Prüfgänge im Haus")]),
             Gruppe("Schäden", [p("Defekte Zimmer", "defekt", S("zimmer", "maengel"), "Gemeldete Mängel, Sperren, FM-Aufträge"),
                                p("QR-Meldungen", "qr", S("zimmer", "qr"), "Per QR-Code am Zimmer gemeldete Mängel")]),
             Gruppe("Ausstattung", [p("Inventar", "inventar", S("inventar", "gegenstaende"),
@@ -317,8 +320,7 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                   "Zeitstrahl: wer wann in welchem Zimmer wohnt")]),
             Gruppe("Termine", [p("Kalender", "kalender", S("termine", "liste"),
                                  "Termine und Wiedervorlagen – Liste oder Monat in der Registerkarte „Kalender“")]),
-            Gruppe("Haus", planung_haus),
-        ], symbol="p:planung"),
+        ] + ([Gruppe("Haus", planung_haus)] if planung_haus else []), symbol="p:planung"),
         Reiter("auswertung", "Auswertung", [
             Gruppe("Berichte", [p("Belegung", "belegung", S("auswertung", "belegung"),   # 1.41: mit den Kennzahlen
                                   "Belegung im Zeitraum: Kennzahlen, Verlauf, Häuser, Personentage"),
@@ -359,34 +361,64 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
         Reiter("prognose", "Prognose", [
             Gruppe("Daten", _daten_punkte(standorte)),
             Gruppe("Ansicht", [Punkt(t, i, A(f"aw:aw_chart={k}"), tipp=t) for k, (t, i) in PROGNOSE_DIAGRAMME.items()]
-                   + [Punkt("Vergleich", "layout_column_three", None, True, "Weitere Linien bei „Trend & Prognose“",
-                            [Punkt("Mit UWT und Mietern", "haken", A("awt:aw_status"), False),
-                             Punkt("Standorte einzeln", "haken", A("awt:aw_parallel"), False)])]),
-            Gruppe("Sicherheit", [Punkt("Sicherheit", "verified", None, True, "Wie sicher die Vorhersage ist",
-                                        [Punkt("95-%-Band", "haken", A("awt:aw_95"), False),
-                                         Punkt("Prognose-Genauigkeit (frühere Vorhersagen)", "haken",
-                                               A("awt:aw_backtest"), False)])]),
-        ], kontext=("auswertung",), ohne=tuple(("auswertung", k) for k in ("lage", "belegung", "massnahmen", "zimmer"))),
-        Reiter("diagramm", "Diagramm", [                 # 0.96: wie die Kontext-Registerkarte in Excel; 1.39 verschlankt
-            Gruppe("Form", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
-                                  "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
-                                  "Säulen stellen alle Verläufe um",
-                                  [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()],
-                                  nur=MIT_DIAGRAMMTYP),
-                            Punkt("Anteile", "donut_large", None, True,
-                                  "Anteils-Diagramme: links Ring oder Kreis (wie viel insgesamt), rechts 100 %-Säulen oder "
-                                  "100 %-Fläche (wann) – beides lässt sich getrennt wählen",
-                                  [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()],
-                                  nur=MIT_ANTEILEN),
-                            Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
-                                  [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
-                                   for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])]),
-            Gruppe("Details", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
-                                     [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
-                                      _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN), _haken("Gitternetzlinien", "dg_gitter"),
-                                      _haken("Animation", "dg_anim")])],
-                   starter=A("optionen:diagramme")),
-        ], kontext=KONTEXT_DIAGRAMM, ohne=OHNE_DIAGRAMM),
+                   + [Punkt("Einblenden", "layout_column_three", None, True,    # 1.61: Vergleich + Sicherheit in einem Menü
+                            "Weitere Linien und wie sicher die Vorhersage ist",
+                            [Punkt("Vergleich", "kopf", None, False),
+                             Punkt("Mit UWT und Mietern", "haken", A("awt:aw_status"), False),
+                             Punkt("Standorte einzeln", "haken", A("awt:aw_parallel"), False),
+                             Punkt("Sicherheit", "kopf", None, False),
+                             Punkt("95-%-Band", "haken", A("awt:aw_95"), False),
+                             Punkt("Prognose-Genauigkeit (frühere Vorhersagen)", "haken", A("awt:aw_backtest"), False)])]),
+            _diagramm_kompakt(),                         # 1.61: Diagramm-Einstellungen hier statt eigener Registerkarte
+        ],
+            kontext=("auswertung",), ohne=tuple(("auswertung", k) for k in ("lage", "belegung", "massnahmen", "zimmer"))),
+        Reiter("diagramm", "Diagramm", diagramm_gruppen,  # 0.96: wie die Kontext-Registerkarte in Excel; 1.39 verschlankt
+               kontext=KONTEXT_DIAGRAMM, ohne=OHNE_DIAGRAMM + DIAGRAMM_IM_REITER),
+    ]
+
+
+# 1.61: Seiten, auf denen die Diagramm-Einstellungen in einer anderen Kontext-Registerkarte stehen (höchstens zwei
+# Kontext-Registerkarten je Seite: Belegungsprognose = „Prognose“ + Werkzeuge der Seite)
+DIAGRAMM_IM_REITER = (("auswertung", "prognose"),)
+
+
+def _diagramm_kompakt() -> Gruppe:
+    """1.61: Alle Diagramm-Einstellungen als EINE Schaltfläche „Diagramm ▾“ (Registerkarte „Prognose“) – so bleibt es
+    bei höchstens 8 Schaltflächen und zwei Kontext-Registerkarten."""
+    def kopf(t: str) -> Punkt:
+        return Punkt(t, "kopf", None, False)
+    menue = ([kopf("Diagrammtyp")] + [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()]
+             + [kopf("Legende")] + [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
+                                    for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))]
+             + [kopf("Elemente")] + [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
+                                     _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN),
+                                     _haken("Gitternetzlinien", "dg_gitter"), _haken("Animation", "dg_anim")]
+             + [kopf(""), Punkt("Weitere Diagramm-Optionen …", "tune", A("optionen:diagramme"), False)])
+    return Gruppe("Diagramm", [Punkt("Diagramm", "show_chart", None, True,
+                                     "Diagrammtyp, Legende und Elemente – gilt für alle Diagramme", menue)])
+
+
+def _diagramm_gruppen() -> list:
+    """Gruppen „Form“ und „Details“ der Diagramm-Registerkarte – auch Teil der Registerkarte „Prognose“."""
+    return [
+        Gruppe("Form", [Punkt("Diagrammtyp", "show_chart", None, True,           # 1.12: wie „Diagrammtyp ändern“ in Excel
+                              "Gilt für alle Diagramme: Automatisch = jedes in seiner eigenen Form; Linie, Fläche oder "
+                              "Säulen stellen alle Verläufe um",
+                              [Punkt(t, "radio_button_unchecked", A(f"dg_typ:{k}"), False) for k, (t, _i) in _dg_typen()],
+                              nur=MIT_DIAGRAMMTYP),
+                        Punkt("Anteile", "donut_large", None, True,
+                              "Anteils-Diagramme: links Ring oder Kreis (wie viel insgesamt), rechts 100 %-Säulen oder "
+                              "100 %-Fläche (wann) – beides lässt sich getrennt wählen",
+                              [Punkt(t, "radio_button_unchecked", A(f"dg_anteil:{k}"), False) for k, (t, _i) in _dg_anteile()],
+                              nur=MIT_ANTEILEN),
+                        Punkt("Legende", "legend_toggle", None, True, "Position der Legende",
+                              [Punkt(t, "radio_button_unchecked", A(f"dg_legende:{k}"), False)
+                               for k, t in (("oben", "Oben"), ("unten", "Unten"), ("aus", "Keine"))])]),
+        Gruppe("Details", [Punkt("Elemente", "checklist", None, True, "Diagrammelemente ein- und ausblenden",
+                                 [_haken("Linien glätten", "dg_glatt"), _haken("Datenpunkte", "dg_punkte"),
+                                  _haken("Datenbeschriftungen", "dg_werte", MIT_WERTEN), _haken("Gitternetzlinien", "dg_gitter"),
+                                  _haken("Animation", "dg_anim")])],
+               starter=A("optionen:diagramme")),
     ]
 
 

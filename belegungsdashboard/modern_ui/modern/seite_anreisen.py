@@ -69,24 +69,33 @@ def mehr_menue(a) -> None:
 
 
 def mehr_menue_inhalt(a) -> None:
-    """Inhalt des Menüs „Mehr“ (Kopfzeile und Menüband)."""
+    """Inhalt des Menüs „Mehr“ (Kopfzeile und Menüband). 1.61: nach Häufigkeit – Alltägliches oben, Umplanen unten."""
     with ui.menu().props('dark class="m-menue"'):
-        ui.menu_item("Anreiseliste drucken", lambda: _drucken(a, "anreise"))
-        ui.menu_item("Schlüsselliste drucken", lambda: _drucken(a, "schluessel"))
-        ui.menu_item("Zimmerschilder drucken", lambda: _drucken(a, "schilder"))
-        ui.menu_item("Zimmerliste als Excel …", lambda: _excel(a))
-        ui.separator()
-        ui.menu_item("Vergangene Anreisen ausblenden" if a.zu_vergangene else "Auch vergangene Anreisen zeigen (12 Monate)",
-                     lambda: a.setzen(zu_vergangene=not a.zu_vergangene))
-        ui.menu_item("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a))
-        ui.separator()
-        ui.menu_item("Person hinzufügen …", lambda: person_neu_panel(a))
-        ui.menu_item("Nichtanreisen ansehen / zurücknehmen …", lambda: nichtanreisen_panel(a))
-        ui.menu_item("Planung dieser Anreise zurücknehmen", lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))
-        ui.separator()
-        ui.menu_item("Belegung optimieren …", lambda: optimieren_panel(a))
-        ui.menu_item("Kommende UWT automatisch zuteilen", lambda: a.aendern(ank.uwt_zuteilen, a.heute))
-        ui.menu_item("Kommende UWT-Planungen zurücknehmen", lambda: a.aendern(ank.uwt_zuruecknehmen, a.heute))
+        for kopf, eintraege in mehr_eintraege(a):
+            ui.label(kopf).classes("m-menue-kopf")
+            for text, tun in eintraege:
+                ui.menu_item(text, tun)
+
+
+def mehr_eintraege(a) -> list[tuple[str, list[tuple[str, object]]]]:
+    """Abschnitte des Menüs „Mehr“: (Überschrift, [(Text, Aktion), …]) – häufig zuerst, selten und folgenreich zuletzt."""
+    return [
+        ("Täglich", [("Person hinzufügen …", lambda: person_neu_panel(a)),
+                     ("Anreiseliste drucken", lambda: _drucken(a, "anreise")),
+                     ("Schlüsselliste drucken", lambda: _drucken(a, "schluessel")),
+                     ("Zimmerschilder drucken", lambda: _drucken(a, "schilder")),
+                     ("Nichtanreisen ansehen / zurücknehmen …", lambda: nichtanreisen_panel(a))]),
+        ("Suchen & Export", [("Archiv: frühere Anreisen suchen …", lambda: archiv_panel(a)),
+                             ("Vergangene Anreisen ausblenden" if a.zu_vergangene
+                              else "Auch vergangene Anreisen zeigen (12 Monate)",
+                              lambda: a.setzen(zu_vergangene=not a.zu_vergangene)),
+                             ("Zimmerliste als Excel …", lambda: _excel(a))]),
+        ("Selten – Umplanen", [("Belegung optimieren …", lambda: optimieren_panel(a)),
+                               ("Kommende UWT automatisch zuteilen", lambda: a.aendern(ank.uwt_zuteilen, a.heute)),
+                               ("Kommende UWT-Planungen zurücknehmen", lambda: a.aendern(ank.uwt_zuruecknehmen, a.heute)),
+                               ("Planung dieser Anreise zurücknehmen",
+                                lambda: a.aendern(ank.anreise_zuruecknehmen, a.kennung))]),
+    ]
 
 
 async def _drucken(a, art: str) -> None:

@@ -97,7 +97,8 @@ def test_planung_und_haus_sauber_getrennt():
     rs = {r.key: r for r in _feste()}
     def ziele(key):
         return {(p.ziel[1], p.ziel[2]) for g in rs[key].gruppen for p in g.punkte if p.ziel[0] == "seite"}
-    assert ("zimmer", "zeitstrahl") in ziele("planung") and ("reinigung", "last") in ziele("planung")
+    assert ("zimmer", "zeitstrahl") in ziele("planung")
+    assert {("reinigung", "liste"), ("reinigung", "last"), ("reinigung", "facility")} <= ziele("zimmer")   # 1.61: gebündelt
     assert ("termine", "liste") in ziele("planung") and ("steuerung", "cockpit") in ziele("planung")
     assert ("reinigung", "liste") in ziele("zimmer") and ("inventar", "gegenstaende") in ziele("zimmer")
     assert ("auswertung", "prognose") in ziele("auswertung")             # Prognose wird gelesen, nicht geplant

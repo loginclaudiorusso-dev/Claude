@@ -11,7 +11,9 @@ def _alle(reiter):
 
 def test_diagrammentwurf_nur_auf_seiten_mit_diagrammen():
     r = next(r for r in mb.reiter({}) if r.key == "diagramm")
-    assert mb.sichtbar(r, "auswertung", "prognose") and mb.sichtbar(r, "steuerung", "finanzen")
+    assert mb.sichtbar(r, "auswertung", "belegung") and mb.sichtbar(r, "steuerung", "finanzen")
+    # 1.61: auf der Belegungsprognose stehen die Diagramm-Einstellungen in „Prognose“ (höchstens zwei Kontextkarten)
+    assert not mb.sichtbar(r, "auswertung", "prognose")
     for s, a in (("auswertung", "zimmer"), ("steuerung", "vorhaben"), ("steuerung", "grundlagen"), ("heute", None)):
         assert not mb.sichtbar(r, s, a)
 

@@ -40,6 +40,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_fm_ticket_v160.py` – 1.60 – Ticketnummern je Jahr, Betreff/Text, Suche, Status, Anlegen/Zurücknehmen
 - `test_ki_erkennung_v161.py` – 1.61 – KI-Mail-Erkennung: aus als Standard, nur lokal, Prüfen/Zusammenführen, Prompt, Beispiele
 - `test_audit_v161.py` – 1.61 – Zimmerbefehl je Standort, Häuser aus Gebäudeplan, Gäste-Filter, Druck überall, Admin-Prüfung
+- `test_navigation_v161_schritte.py` – 1.62 – Prognose höchstens zwei Kontextkarten, „Mehr“ nach Häufigkeit, Reinigung an einer Stelle
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

@@ -122,7 +122,7 @@ def test_diagrammentwurf_wie_excel():
     anteile = next(p for p in d.gruppen[0].punkte if p.text == "Anteile")
     assert [q.ziel[1] for q in anteile.menue] == [f"dg_anteil:{k}" for k in dk.DG_ANTEILE]
     prog = next(r for r in mb.reiter({}, standorte={"G": "Gesamt", "A": "Alpha"}) if r.key == "prognose")
-    sicher = [q.ziel[1] for g in prog.gruppen for p in g.punkte for q in p.menue]
+    sicher = [q.ziel[1] for g in prog.gruppen for p in g.punkte for q in p.menue if q.ziel]   # 1.61: mit Überschriften
     assert "awt:aw_95" in sicher and "awt:aw_backtest" in sicher
 
 
