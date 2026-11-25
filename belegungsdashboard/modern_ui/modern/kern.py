@@ -1340,3 +1340,7 @@ _gaeste.installieren()                             # 1.49: Gäste-Paare im Doppe
 from . import gleiche_person as _gleiche_person  # noqa: E402
 
 _gleiche_person.installieren()                     # 1.67: bestätigte „gleiche Person“ (Gebäudeplan ↔ Anreiseliste)
+
+from . import vorlagen_mieter as _vorlagen_mieter  # noqa: E402
+
+_vorlagen_mieter.installieren()                    # 1.68: Vertragsvorlagen im gemeinsamen Datenordner, nur Vertragstext Pflicht

@@ -132,6 +132,19 @@ def ablage() -> Path:
     raise PermissionError("Kein Ordner für die Mietunterlagen beschreibbar: " + ", ".join(str(o) for o in kand))
 
 
+def _vorlagen_hinweis() -> str:
+    """1.68: fehlende Vordrucke bzw. Muster-Vertragstext in der Meldung nennen."""
+    from . import vorlagen_mieter as vm
+
+    try:
+        t = " Achtung: Der Vertrag nutzt noch den MUSTER-Text." if vm.ist_muster() else ""
+        if fehlt := vm.fehlende_optional():
+            t += f" Nicht angehängt (Vorlage fehlt): {', '.join(fehlt)}."
+        return t
+    except Exception:                          # noqa: BLE001 – nur ein Hinweis
+        return ""
+
+
 def ablage_hinweis(ordner: Path) -> str:
     """Zusatz zur Meldung, wenn die Unterlagen nicht im üblichen Ordner liegen."""
     erster = ablage_kandidaten()[0]
@@ -295,7 +308,9 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
                         werte["zimmer"] or "", werte["von"], werte["bis"], round(float(werte["miete"]), 2),
                         int(werte["flaeche"]), int(werte["schluessel"]), werte["kaution_bis"] if werte["kaution"] else None,
                         kaution=bool(werte["kaution"]), email=werte.get("email", "").strip())
-    fehler = mt.pruefen(mv) + [f"Vorlage fehlt: {v}" for v in mt.fehlende_vorlagen()]
+    fehler = mt.pruefen(mv) + (["Der Vertragstext (Mietvertrag.vorlage) ist noch nicht eingerichtet – Mieter → "
+                                 "„Vorlagen“ (eigene Datei hochladen oder Muster anlegen)."]
+                                if mt.fehlende_vorlagen() else [])
     if not any("Vertragsnummer" in f for f in fehler) and (j := _jahr_pruefen(mv.nr, mv.von)):
         fehler.append(j)
     elif not any("Vertragsnummer" in f for f in fehler) and (wo := vergeben(mv.nr)):
@@ -329,8 +344,9 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
                                   "person": mv.person, "alt": "", "neu": mv.zimmer, "von": mv.von.isoformat(),
                                   "quelle": f"Mieter · {trotz}"}])
     _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI])
-    return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: "
-            + ", ".join(teile) + "." + extra + ablage_hinweis(ziel.parent)), ziel
+    return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt"
+            + (": " + ", ".join(teile) if teile else "") + "." + extra + ablage_hinweis(ziel.parent)
+            + _vorlagen_hinweis()), ziel
 
 
 def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:

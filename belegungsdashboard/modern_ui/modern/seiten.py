@@ -857,7 +857,10 @@ def mt_zeichnen(a) -> None:
                     ("weitere", len(weitere), "weitere laut Gebäudeplan", "neutral")], a.mt_filter,
                    lambda f: a.setzen(mt_filter=None if f == a.mt_filter else f, laden=False))
         knopf("Neuer Mieter", lambda: mieter_neu_panel(a), "primaer", "person_add").style("margin-left:auto")
+        knopf("Vorlagen", lambda: _vorlagen(a), "leise", "description", "Vertragstext, Vordrucke und Logo für Mietverträge")
     with a.inhalt:
+        from . import vorlagen_mieter_ui                  # 1.68: fehlt der Vertragstext, steht es hier gleich oben
+        vorlagen_mieter_ui.hinweis(a)
         if not vertraege and not weitere:
             leer("Keine Mieter.")
             return
@@ -943,6 +946,12 @@ async def _unterlagen(a, nr: str) -> None:
     await _mit_datei(a, mk.unterlagen_neu, nr)
 
 
+async def _vorlagen(a) -> None:
+    from . import vorlagen_mieter_ui
+
+    await vorlagen_mieter_ui.panel(a)
+
+
 def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
     """``vorgabe`` (1.63): Werte aus dem Gebäudeplan (Vorname, Nachname, Zimmer, von, bis)."""
     from belegung import mieter as mt
@@ -951,6 +960,8 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
     from . import mieter_kern as mk
 
     def bauen():
+        from . import vorlagen_mieter_ui                  # 1.68: Vertragstext fehlt → gleich hier sagen, nicht erst beim Speichern
+        vorlagen_mieter_ui.hinweis(a, True)
         ui.label("Alle Unterlagen in einer PDF (Mietvertrag, Wohnungsgeberbestätigung, SEPA, Mietschuldenfreiheit) – "
                  "der Mieter wird im Zimmerplan eingetragen.").classes("m-ptext")
         with ui.element("div").classes("m-zweispaltig"):
