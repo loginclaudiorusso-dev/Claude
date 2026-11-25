@@ -37,3 +37,16 @@ def test_keine_doppelten_und_nur_internat_im_zeitraum():
 def test_ohne_zimmer():
     erg = abk.ergaenzen([], [_p("x", "Probehaus, Alex", H)], NS(belegungen={}), H, H)
     assert erg[0].zimmer == "" and erg[0].art == abk.ART_LISTE
+
+
+def test_kachel_gruppe_v166():
+    from modern import zimmer_kern as zk
+
+    def b(massnahme, person="p", art="belegt"):
+        return NS(art=art, name="X", massnahme=massnahme, person=person)
+    assert zk.kachel_gruppe([b("RVL 2611")]) == "tn"
+    assert zk.kachel_gruppe([b("UWT CUA26")]) == "uwt"
+    assert zk.kachel_gruppe([b("Miete Goslar MV 26-001", "mv:26-001")]) == "mieter"
+    assert zk.kachel_gruppe([b("Gast Gästehaus")]) == "gast"
+    assert zk.kachel_gruppe([b("RVL 2611"), b("UWT CUA26")]) == "uwt"           # gemischt: auffälligere Gruppe
+    assert zk.kachel_gruppe([b("", art="gesperrt")]) == ""

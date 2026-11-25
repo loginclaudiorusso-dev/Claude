@@ -1063,7 +1063,8 @@ def _uebersicht(a) -> None:
                                         and (pf is None or k.zimmer in pf)
                                     kl = f"m-kachel {k.status}" + (" unbew" if k.unbewohnbar else "") + ("" if passt else " aus") \
                                         + (" nn" if zu[k.zimmer] == "nicht_nutzbar" else "") \
-                                        + (" strittig" if k.strittig else "") + (" emr" if k.emr else "")
+                                        + (" strittig" if k.strittig else "") + (" emr" if k.emr else "") \
+                                        + (f" g-{k.gruppe}" if k.gruppe else "")      # 1.66: Farbe je Personengruppe
                                     b = ui.element("button").classes(kl)
                                     attr(b, title=("Doppelzimmer: ein Bett belegt bzw. zugeteilt, ein Bett frei\n" if k.status == "teilweise"
                                                    else "") + k.titel)
@@ -1084,7 +1085,10 @@ def _uebersicht(a) -> None:
 LEGENDE = (("frei", "", "frei – mindestens ein Bett frei"),
            ("teilweise", "", "Doppelzimmer – ein Bett frei"),
            ("geplant", "", "geplant – Einzug steht bevor"),
-           ("belegt", "", "belegt – alle Betten belegt"),
+           ("belegt g-tn", "", "belegt – Teilnehmende"),                     # 1.66: Farbe je Gruppe
+           ("belegt g-uwt", "", "belegt – UWT"),
+           ("belegt g-mieter", "", "belegt – Mieter"),
+           ("belegt g-gast", "", "belegt – Gäste"),
            ("belegt emr", "", "EMR-Zimmer (schraffiert) – Farbe zeigt, ob belegt"),
            ("nn", "", "gesperrt – geplant laut Gebäudeplan (z. B. Renovierung)"),
            ("nn unbew", "", "unbewohnbar – Mangel (rot = handeln)"))

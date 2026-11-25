@@ -34,7 +34,8 @@ def test_kacheln_kraeftig_und_lesbar():
 
 def test_legende_erklaert_jeden_zustand():
     klassen = [k for k, _z, _t in sz.LEGENDE]
-    assert klassen == ["frei", "teilweise", "geplant", "belegt", "belegt emr", "nn", "nn unbew"]   # 1.53: EMR-Zimmer
+    assert klassen == ["frei", "teilweise", "geplant", "belegt g-tn", "belegt g-uwt", "belegt g-mieter", "belegt g-gast",
+                       "belegt emr", "nn", "nn unbew"]           # 1.53: EMR-Zimmer · 1.66: belegt je Personengruppe
     texte = " ".join(t for _k, _z, t in sz.LEGENDE) + " ".join(t for _z, t in sz.ZEICHEN)
     for wort in ("frei", "geplant", "belegt", "gesperrt", "Mangel", "bezugsfertig", "Gebäudeplan"):
         assert wort in texte, wort

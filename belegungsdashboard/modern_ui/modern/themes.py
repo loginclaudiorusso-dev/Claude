@@ -264,6 +264,23 @@ body.pro .m-kachel.geplant, body.pro .m-legende i.geplant { background: var(--zi
 body.pro .m-kachel.nn, body.pro .m-kachel.gesperrt { background: repeating-linear-gradient(135deg, var(--zi-nn1) 0 5px, var(--zi-nn2) 5px 10px);
   color: var(--zi-sperr-text); border: 1px solid var(--zi-sperr-rand); box-shadow: none; font-weight: 600; }
 /* 1.64: geplante Sperre (Renovierung …) ruhig schiefergrau gestreift wie auf „Heute“ – Rot nur für Mängel und Konflikte */
+/* 1.66: belegte Zimmer je Personengruppe – Teilnehmende blau, UWT gelb-orange, Mieter pink, Gäste petrol (Grün bleibt
+   „frei“). Hintergrundfarbe + Verlauf getrennt, damit die EMR-Schraffur darüber liegen kann. Doppelzimmer halb belegt:
+   die belegte Hälfte in der Gruppenfarbe. Geplant: violett gestrichelt mit einem Streifen in der Gruppenfarbe. */
+body.pro .m-kachel.belegt.g-tn { background-color: #1D5BB8; background-image: linear-gradient(160deg, #3B82E0, #1D4E9E);
+  border-color: #1D4E9E; color: #fff; }
+body.pro .m-kachel.belegt.g-uwt { background-color: #F59E0B; background-image: linear-gradient(160deg, #FCD34D, #F59E0B);
+  border-color: #D97706; color: #3B2600; }
+body.pro .m-kachel.belegt.g-mieter { background-color: #DB2777; background-image: linear-gradient(160deg, #F472B6, #DB2777);
+  border-color: #BE185D; color: #fff; }
+body.pro .m-kachel.belegt.g-gast { background-color: #0D9488; background-image: linear-gradient(160deg, #2DD4BF, #0D9488);
+  border-color: #0F766E; color: #fff; }
+body.pro .m-kachel.teilweise.g-uwt { --zi-halb: #F5B32A; } body.pro .m-kachel.teilweise.g-mieter { --zi-halb: #EC5FA4; }
+body.pro .m-kachel.teilweise.g-gast { --zi-halb: #22B8A8; } body.pro .m-kachel.teilweise.g-tn { --zi-halb: #5B93E3; }
+body.pro .m-kachel.geplant.g-uwt { box-shadow: inset 0 -4px 0 #F59E0B; }
+body.pro .m-kachel.geplant.g-mieter { box-shadow: inset 0 -4px 0 #DB2777; }
+body.pro .m-kachel.geplant.g-gast { box-shadow: inset 0 -4px 0 #0D9488; }
+body.pro .m-kachel.geplant.g-tn { box-shadow: inset 0 -4px 0 #3B82E0; }
 /* 1.53: EMR-Zimmer – Farbe des Zustands (frei/belegt …), darüber eine helle Schraffur */
 body.pro .m-kachel.emr:not(.nn) { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 3px,
   transparent 3px 8px); }

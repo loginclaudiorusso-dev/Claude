@@ -925,6 +925,21 @@ class Kachel:
     nicht_fertig: str = ""           # frei, aber nicht bezugsfertig: Grund (Reinigung offen, dringender Mangel)
     strittig: str = ""               # eigene Planung widerspricht dem Gebäudeplan (Text) – Zimmer erst klären
     emr: bool = False                # 1.53: EMR-Zimmer (laut Gebäudeplan für EMR reserviert) – Schraffur, nicht gesperrt
+    gruppe: str = ""                 # 1.66: tn | uwt | mieter | gast – Farbe der belegten Kachel
+
+
+def kachel_gruppe(bs: list) -> str:
+    """1.66: Personengruppe der Bewohner (für die Kachelfarbe): Mieter > UWT > Gast > Teilnehmende. Leer = niemand."""
+    gr = set()
+    for b in bs:
+        if b.art not in ("belegt", "geplant") or not b.name:
+            continue
+        if (b.person or "").startswith("mv:"):
+            gr.add("mieter")
+            continue
+        g = zp.gruppe_von(b.massnahme or "")
+        gr.add({"Mieter": "mieter", "UWT": "uwt", "Gast": "gast"}.get(g, "tn"))
+    return next((g for g in ("mieter", "uwt", "gast", "tn") if g in gr), "")
 
 
 def _seither_bezogen(stand: zp.Planstand, zid: str, gereinigt: date, tag: date) -> bool:
@@ -1024,7 +1039,7 @@ def uebersicht(stand: zp.Planstand, tag: date) -> dict[str, dict[str, list[Kache
         erg.setdefault(z.haus, {}).setdefault(zp.etage_text(z.etage), []).append(
             Kachel(z.id, z.kurz, z.nr, status, mg.stufe(ms), z.id in stand.lage.unbewohnbar,
                    titel + (f"\n⚠ {strittig[z.id]} – bitte klären" if z.id in strittig else ""),
-                   frozenset(m.art for m in ms), unfertig.get(z.id, ""), strittig.get(z.id, ""), emr))
+                   frozenset(m.art for m in ms), unfertig.get(z.id, ""), strittig.get(z.id, ""), emr, kachel_gruppe(bs)))
     return erg
 
 
