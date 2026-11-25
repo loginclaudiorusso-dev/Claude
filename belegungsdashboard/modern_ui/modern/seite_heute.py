@@ -741,7 +741,7 @@ def _symbol(kid: str) -> str:
 # Tageszentrale: der Tag auf einer Seite – priorisiert, mit direkter Aktion
 # ---------------------------------------------------------------------------------------
 
-KATEGORIE = {"anreise": "Anreise", "reinigung": "Reinigung", "strittig": "Gebäudeplan", "unbewohnbar": "Zimmer",
+KATEGORIE = {"anreise": "Anreise", "reinigung": "Reinigung", "strittig": "Gebäudeplan", "gleich": "Gebäudeplan", "unbewohnbar": "Zimmer",
              "konflikte": "Zimmer", "fm": "FM-Auftrag", "allergie": "Allergiker", "eintragen": "Belegungssystem",
              "mail": "Mail", "termin": "Termin", "maengel": "Mängel", "facility": "Facility", "abreisen": "Abreise",
              "umzug": "Umzug", "mieterende": "Mieter", "engpass": "Engpass", "gebaeudeplan": "Gebäudeplan"}

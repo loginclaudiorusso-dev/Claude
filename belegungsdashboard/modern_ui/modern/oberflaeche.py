@@ -795,7 +795,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
     @staticmethod
     def _hat_details(k: kern.Karte) -> bool:
-        return k.id in ("unbewohnbar", "konflikte", "allergie", "strittig", "fm") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
+        return k.id in ("unbewohnbar", "konflikte", "allergie", "strittig", "fm", "gleich") or bool(k.zweite) or bool(k.aktion and k.aktion.zeigen)
 
     async def _karte_details(self, k: kern.Karte) -> None:
         if k.id in ("unbewohnbar", "konflikte"):
@@ -804,6 +804,10 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             await self._allergie_panel()
         elif k.id == "strittig":
             await self._strittig_panel()
+        elif k.id == "gleich":                                  # 1.67
+            from . import gleiche_person_ui
+
+            await gleiche_person_ui.panel(self)
         elif k.id == "fm":
             await self._fm_panel()
         elif k.zweite:
@@ -813,7 +817,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
     # ---- Postfach auf „Heute“: Fälle der gewählten Aufgabe rechts ---------------------------
 
-    PF_LISTEN = ("unbewohnbar", "konflikte", "allergie", "strittig", "fm")
+    PF_LISTEN = ("unbewohnbar", "konflikte", "allergie", "strittig", "fm", "gleich")
 
 
     async def _karte_loesen(self, k: kern.Karte) -> None:
@@ -822,6 +826,11 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             return
         if k.aktion.schluessel == "strittig":
             await self._strittig_panel()
+            return
+        if k.aktion.schluessel == "gleich":                    # 1.67
+            from . import gleiche_person_ui
+
+            await gleiche_person_ui.panel(self)
             return
         if k.aktion.schluessel == "fm":
             await self._fm_panel()

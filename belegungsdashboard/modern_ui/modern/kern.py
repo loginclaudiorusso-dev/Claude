@@ -136,6 +136,7 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
     fuer_allergiker_nicht = hk.meiden(mg.offen_je_zimmer())
     schnell = schnell_zimmer()
     vergeben = set(fest.values()) | {zt.zimmer.id for zt in zuteilungen if zt.zimmer}
+    gleich = _gleich_je_person(stand, heute)
     erg = []
     for zt in zuteilungen:
         b = zt.bedarf
@@ -219,11 +220,32 @@ def zeilen(stand: zp.Planstand, kennung: str | None, heute: date | None = None) 
             status, stufe = "handeln", "krit"
             grund = (f"Gebäudeplan: {kurz(eigen.gebucht)} · eigene Planung: {kurz(eigen.geplant)} – widerspricht sich, "
                      "bitte klären (Heute)")
+        if (gv := gleich.get(b.schluessel)) is not None:          # 1.67: steht vermutlich schon im Gebäudeplan
+            status, stufe = "handeln", "krit"
+            grund = gleich_text(gv)
         zweite = b.massnahme.removeprefix("UWT ") if b.gruppe == "UWT" else b.massnahme
         erg.append(Zeile(b.schluessel, b.name, zweite, GRUPPE_KURZ.get(b.gruppe, b.gruppe), b.von, b.bis, gespeichert, status,
                          stufe, grund,
                          vorschlag, opts, m, hinweise, b.bemerkung))
     return erg
+
+
+def _gleich_je_person(stand: zp.Planstand, heute: date) -> dict:
+    """1.67: Person → erster Vorschlag „Ist das dieselbe Person?“ (Gebäudeplan-Eintrag mit ähnlichem Namen)."""
+    from . import gleiche_person as gp
+
+    try:
+        erg = {}
+        for v in gp.vorschlaege(stand, heute):
+            erg.setdefault(v.person, v)
+        return erg
+    except Exception:                          # noqa: BLE001 – Zusatzprüfung, das Zuteilen bleibt
+        return {}
+
+
+def gleich_text(v) -> str:
+    return (f"Steht vermutlich schon im Gebäudeplan: „{v.gp_name}“ in {kurz(v.zimmer)} ({v.gp_von:%d.%m.} – "
+            f"{v.gp_bis:%d.%m.}) – erst klären: Anreisen → Abgleich → Gleiche Person?")
 
 
 @dataclass
@@ -410,6 +432,8 @@ def _zuteilung(stand: zp.Planstand, schluessel: str, zimmer: str) -> zp.Zuteilun
     b = next((x for x in stand.bedarf if x.schluessel == schluessel), None)
     if b is None:
         raise ValueError("Die Person ist nicht mehr in den Listen.")
+    if (gv := _gleich_je_person(stand, date.today()).get(schluessel)) is not None:
+        raise ValueError(gleich_text(gv) + " – sonst stünde die Person doppelt im Plan.")
     if (st_ := strittig_im_weg(stand, zimmer, b.von, b.bis, schluessel)) is not None:
         raise ValueError(strittig_text(st_))
     zeile = next((z for z in zeilen(stand, b.von.isoformat()) if z.schluessel == schluessel), None)
@@ -836,6 +860,15 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                             "; ".join(f"{x.name}: Planung {kurz(x.geplant)}, Gebäudeplan {kurz(x.gebucht)}" for x in sts[:2])
                             + (" …" if len(sts) > 2 else "") + " – bis zur Klärung wird das geplante Zimmer niemandem angeboten",
                             Aktion("strittig", "Klären")))
+    if stand is not None and "gleich" not in weg and (gvs := _gleich_liste(stand, heute)):   # 1.67
+        erg.insert(len([x for x in erg if x.stufe == "dringend"]) if all(v.von > heute + timedelta(days=2) for v in gvs)
+                   else 0,
+                   Karte("gleich", "bald" if all(v.von > heute + timedelta(days=2) for v in gvs) else "dringend",
+                         f"{len({v.person for v in gvs})} Anreise{'n' if len({v.person for v in gvs}) > 1 else ''} "
+                         "vermutlich schon im Gebäudeplan – gleiche Person?",
+                         "; ".join(f"{v.name} ↔ {v.gp_name} ({kurz(v.zimmer)})" for v in gvs[:2])
+                         + (" …" if len(gvs) > 2 else "") + " – bitte bestätigen, sonst steht die Person doppelt im Plan",
+                         Aktion("gleich", "Prüfen")))
     if stand is not None and "mieter_plan" not in weg and (k := mieter_plan_karte(stand, heute)) is not None:
         erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
     if "mieter_auto" not in weg and (k := mieter_auto_karte(heute)) is not None:
@@ -848,6 +881,15 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
             erg.insert(0 if k.stufe == "dringend" else len([x for x in erg if x.stufe == "dringend"]), k)
     termin_zimmer_setzen(erg, stand)
     return erg
+
+
+def _gleich_liste(stand: zp.Planstand, heute: date) -> list:
+    from . import gleiche_person as gp
+
+    try:
+        return gp.vorschlaege(stand, heute)
+    except Exception:                          # noqa: BLE001 – Zusatz
+        return []
 
 
 def termin_zimmer_setzen(karten_: list, stand: zp.Planstand | None) -> None:
@@ -1294,3 +1336,7 @@ _mietbindung.einrichten()                          # 1.48: Mietvertrag gilt – 
 from . import gaeste_kern as _gaeste  # noqa: E402
 
 _gaeste.installieren()                             # 1.49: Gäste-Paare im Doppelzimmer (Begleitperson)
+
+from . import gleiche_person as _gleiche_person  # noqa: E402
+
+_gleiche_person.installieren()                     # 1.67: bestätigte „gleiche Person“ (Gebäudeplan ↔ Anreiseliste)

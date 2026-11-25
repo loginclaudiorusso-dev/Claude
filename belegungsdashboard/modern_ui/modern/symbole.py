@@ -152,7 +152,7 @@ PIKTO_FARBIG = {
     "planung": "inn_planung", "auswertung": "inn_auswertung", "ki": "inn_ki", "verwaltung": "inn_verwaltung",
     "datei": "document", "nachrichten": "inn_nachrichten", "nachricht_neu": "inn_nachricht_neu", "fm_mail": "inn_fm_mail",
     "aufgaben": "clipboard_task", "zuteilen": "inn_zuteilen", "teilnehmer": "inn_teilnehmer",
-    "datenabgleich": "inn_datenabgleich", "mieter": "inn_mieter", "zimmeruebersicht": "inn_zimmeruebersicht",
+    "datenabgleich": "inn_datenabgleich", "gleiche_person": "inn_gleiche_person", "mieter": "inn_mieter", "zimmeruebersicht": "inn_zimmeruebersicht",
     "zimmerliste": "inn_zimmerliste", "defekt": "inn_defekt", "reinigung": "inn_reinigung", "qr": "inn_qr",   # 1.65: eigene
     "facility": "inn_facility", "inventar": "inn_inventar", "belegungsplan": "inn_belegungsplan",
     "kalender": "inn_kalender", "reinigungsvorschau": "inn_reinigungsvorschau", "renovierung": "inn_renovierung",

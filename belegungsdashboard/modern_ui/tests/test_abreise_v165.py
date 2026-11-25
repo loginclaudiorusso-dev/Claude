@@ -50,3 +50,10 @@ def test_kachel_gruppe_v166():
     assert zk.kachel_gruppe([b("Gast Gästehaus")]) == "gast"
     assert zk.kachel_gruppe([b("RVL 2611"), b("UWT CUA26")]) == "uwt"           # gemischt: auffälligere Gruppe
     assert zk.kachel_gruppe([b("", art="gesperrt")]) == ""
+
+
+def test_anreiseliste_datum_gilt_vor_plan_v167():
+    """1.67: Plan (Gebäudeplan, verbunden) führt die Person bis 28.12., die Anreiseliste sagt 25.11. → Abreise am 25.11."""
+    plan = [cockpit.Abreise(date(2026, 12, 28), "Beispiel Erika Maria", "EMR", "GS-2-101", None, "belegt", None, "a")]
+    erg = abk.ergaenzen(plan, [_p("a", "Beispiel, Erika", H)], LAGE, H, date(2026, 12, 31))
+    assert [(a.tag, a.art, a.zimmer) for a in erg] == [(H, abk.ART_LISTE, "GS-2-101")]

@@ -28,13 +28,18 @@ def ergaenzen(aus_plan: list, personen: list, lage, von: date, bis: date) -> lis
     """``aus_plan`` (cockpit.Abreise) + Abreisen laut Anreiseliste, die dort fehlen – nach Tag und Name sortiert."""
     from .termin_zimmer import zimmer_von
 
-    schon = {a.schluessel for a in aus_plan if getattr(a, "schluessel", "")}
+    # 1.67: Nennt die Anreiseliste für eine Person aus dem Plan ein anderes Abreisedatum, gilt die Liste (EMR, früheres
+    # Ende) – die Plan-Zeile am alten Tag entfällt, die Person steht am richtigen Tag (unten ergänzt).
+    liste = {p.schluessel: p.abreise for p in personen if p.abreise and p.internat}
+    aus_plan = [a for a in aus_plan if not (getattr(a, "schluessel", "") in liste
+                                            and liste[a.schluessel] != a.tag)]
+    schon = {(a.schluessel, a.tag) for a in aus_plan if getattr(a, "schluessel", "")}
     namen = {(a.tag, _woerter(a.name)) for a in aus_plan}
     erg = list(aus_plan)
     for p in personen:
         if not p.abreise or not (von <= p.abreise <= bis) or not p.internat:
             continue
-        if p.schluessel in schon or (p.abreise, _woerter(p.name)) in namen:
+        if (p.schluessel, p.abreise) in schon or (p.abreise, _woerter(p.name)) in namen:
             continue
         zid = zimmer_von(lage, p.schluessel, p.name, p.abreise)
         erg.append(cockpit.Abreise(p.abreise, p.name, p.massnahme or p.gruppe, zid or "", anreiseliste.ankunft(p),

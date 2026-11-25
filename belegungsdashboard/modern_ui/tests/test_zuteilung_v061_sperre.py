@@ -68,9 +68,11 @@ def test_sperre_zuruecknehmen_und_rueckgaengig(goslar):
 
 def test_lage_bauen_ist_umgeleitet(goslar):
     from belegung import zimmerplan as zp
+    from modern import gleiche_person as gp
     from modern import sperre_kern as sk
 
-    assert zp.lage_bauen is sk._lage_bauen
+    # 1.67: in Kette – „gleiche Person“ ruft die Sperre-Umleitung, die das Original
+    assert sk._lage_bauen in (zp.lage_bauen, gp._ORIG.get("lage_bauen"))
     zp.laden()                                                               # läuft ohne Fehler durch
 
 

@@ -88,6 +88,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
             await haus_ui.abwesenheiten_panel(a)
         else:
             await haus_ui.schluessel_liste_panel(a)
+    elif name == "gleiche_person":                          # 1.67: Gebäudeplan ↔ Anreiseliste
+        from . import gleiche_person_ui
+
+        await gleiche_person_ui.panel(a)
     elif name == "versandprotokoll":                        # 1.59: wer hat wann was an wen verschickt
         from . import versand_ui
 

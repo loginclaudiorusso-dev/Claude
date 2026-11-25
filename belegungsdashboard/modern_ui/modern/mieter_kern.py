@@ -56,7 +56,7 @@ def nummern_abgleich(heute: date | None = None) -> tuple[str, str]:
     if (m := _NR.fullmatch(str(e.get(EINSTELLUNG_LETZTE, "")).strip())) and m.group(1) == jj:
         gefunden.setdefault(int(m.group(2)), "von Hand festgelegt")
     ordner = [(Path(e[EINSTELLUNG_ORDNER]), False)] if e.get(EINSTELLUNG_ORDNER) else []
-    for o, nur_mv in ordner + [(ablage(), True)]:
+    for o, nur_mv in ordner + [(x, True) for x in ablage_lesen()]:
         try:
             if o.is_dir():
                 for lfd, datei in _nummern_in(o, jj, nur_mv).items():
@@ -79,7 +79,7 @@ def vergeben(nr: str, heute: date | None = None) -> str | None:
     if (x := _NR.fullmatch(str(e.get(EINSTELLUNG_LETZTE, "")).strip())) and x.group(1) == m.group(1) and lfd <= int(x.group(2)):
         return f"bis {x.group(1)}-{int(x.group(2)):03d} als vergeben festgelegt"
     ordner = [(Path(e[EINSTELLUNG_ORDNER]), False)] if e.get(EINSTELLUNG_ORDNER) else []
-    for o, nur_mv in ordner + [(ablage(), True)]:
+    for o, nur_mv in ordner + [(x, True) for x in ablage_lesen()]:
         try:
             if o.is_dir() and (d := _nummern_in(o, m.group(1), nur_mv).get(lfd)):
                 return f"Datei {Path(d).name}"
@@ -103,11 +103,52 @@ def abgleich_einstellen(ordner: str, letzte: str) -> str:
     return f"Nächste Vertragsnummer {nr} – {woher}"
 
 
+def ablage_kandidaten() -> list[Path]:
+    """1.67: Reihenfolge der Ablage – eingestellter Ordner, „Mietunterlagen“ im Datenordner, persönlicher Ordner."""
+    from . import export_ziel
+
+    e = speicher.einstellungen().get("export_ordner")
+    erg = [Path(e)] if e else []
+    erg.append(Path(speicher.pfad("Mietunterlagen")))
+    erg.append(export_ziel.privat().parent / "INNternat Mietunterlagen")
+    return list(dict.fromkeys(erg))
+
+
 def ablage() -> Path:
-    """Ordner für erstellte Unterlagen (wie im Hauptprogramm gemerkt, sonst „Mietunterlagen“ im Datenordner)."""
-    ordner = Path(speicher.einstellungen().get("export_ordner") or speicher.pfad("Mietunterlagen"))
-    ordner.mkdir(parents=True, exist_ok=True)
-    return ordner
+    """Ordner für erstellte Unterlagen (wie im Hauptprogramm gemerkt, sonst „Mietunterlagen“ im Datenordner).
+
+    1.67: Darf dieser PC/diese Person dort nicht schreiben (z. B. Mitarbeiter ohne Rechte auf den Export-Ordner der
+    Leitung), wird der nächste Ordner genommen – vorher scheiterte schon das Formular „Neuer Mieter“ daran."""
+    from .export_ziel import _ordner_beschreibbar
+
+    kand = ablage_kandidaten()
+    for o in kand:
+        try:
+            o.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            continue
+        if _ordner_beschreibbar(o):
+            return o
+    raise PermissionError("Kein Ordner für die Mietunterlagen beschreibbar: " + ", ".join(str(o) for o in kand))
+
+
+def ablage_hinweis(ordner: Path) -> str:
+    """Zusatz zur Meldung, wenn die Unterlagen nicht im üblichen Ordner liegen."""
+    erster = ablage_kandidaten()[0]
+    return "" if Path(ordner) == erster else (f" Gespeichert in {ordner}, weil dieser PC nicht in {erster} schreiben "
+                                              "darf – bitte bei Bedarf dorthin verschieben.")
+
+
+def ablage_lesen() -> list[Path]:
+    """Alle Ablageorte, die es gibt (für die Suche nach vergebenen Vertragsnummern – ohne anzulegen)."""
+    erg = []
+    for o in ablage_kandidaten():
+        try:
+            if o.is_dir():
+                erg.append(o)
+        except OSError:
+            continue
+    return erg
 
 
 def _edge() -> str | None:
@@ -289,7 +330,7 @@ def neuer_vertrag(werte: dict) -> tuple[str, Path]:
                                   "quelle": f"Mieter · {trotz}"}])
     _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI])
     return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt: "
-            + ", ".join(teile) + "." + extra), ziel
+            + ", ".join(teile) + "." + extra + ablage_hinweis(ziel.parent)), ziel
 
 
 def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
