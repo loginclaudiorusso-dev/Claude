@@ -37,8 +37,15 @@ def ablage(monkeypatch):
 
 def test_woerter_ohne_umlaut_und_schreibweise():
     assert gp.woerter("Müller-Lüdenscheidt, Jörg") == gp.woerter("MUELLER Luedenscheidt Joerg")
-    assert gp.aehnlich("Beispiel, Erika", "Beispiel, Erika Maria")[0] == 1.0
+    assert gp.aehnlich("Beispiel, Erika", "Beispiel, Erika Maria")[0] == 1.0          # zweiter Vorname stört nicht
     assert gp.aehnlich("Beispiel, Erika", "Probehaus, Kim")[0] == 0.0
+
+
+def test_v170_mindestens_75_prozent_je_namensteil():
+    assert gp.aehnlich("Schmidt, Erika", "Schmitt, Erica")[0] >= gp.SCHWELLE            # 2–3 Buchstaben anders
+    assert gp.aehnlich("Meyer, Anna", "Meyer, Paul")[0] == 0.0                         # nur Nachname gleich
+    assert gp.aehnlich("Probehaus, Kim", "Musterhoff, Kim")[0] == 0.0                  # nur Vorname gleich
+    assert gp.aehnlich("Meyer", "Meyer, Paul")[0] == 0.0                               # ein Namensteil reicht nie
 
 
 def test_vorschlag_bei_anderer_schreibweise_und_emr_zeitraum():

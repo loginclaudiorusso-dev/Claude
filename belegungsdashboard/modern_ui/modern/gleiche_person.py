@@ -8,7 +8,7 @@ und wer sie von Hand zuteilt, belegt das Zimmer doppelt.
 
 Hier:
 * ``vorschlaege``: Gebäudeplan-Einträge ohne verbundene Person, zu denen eine Person der Anreiseliste ähnlich heißt
-  (Umlaute und Groß-/Kleinschreibung egal, mindestens die Hälfte der Namensteile gleich) und zeitlich passt (bis 14 Tage
+  (Umlaute und Groß-/Kleinschreibung egal, jeder Namensteil zu mind. 75 % gleich) und zeitlich passt (bis 14 Tage
   Abweichung). Nur solche Fälle werden gefragt – eindeutige verbindet das Hauptprogramm weiter selbst.
 * ``verbinden``: „Ja, dieselbe Person“ – gespeichert je Standort (``importe/modern_gleiche_person.json``), übersteht ein
   neues Einlesen des Gebäudeplans. Die eigene Planung der Person wird auf das Zimmer laut Gebäudeplan gesetzt (der
@@ -42,13 +42,35 @@ def woerter(name: str) -> frozenset[str]:
     return frozenset(w for w in re.split(r"[^a-z0-9]+", s) if len(w) > 1)
 
 
+SCHWELLE = 0.75                     # 1.70: je Namensteil mindestens 75 % gleiche Buchstaben
+
+
+def _teil_aehnlich(x: str, y: str) -> float:
+    from difflib import SequenceMatcher
+
+    return 1.0 if x == y else SequenceMatcher(None, x, y).ratio()
+
+
 def aehnlich(person: str, eintrag: str) -> tuple[float, frozenset[str]]:
-    """(Anteil gleicher Namensteile – bezogen auf den kürzeren Namen, gleiche Teile)."""
+    """(Übereinstimmung 0–1, passende Namensteile).
+
+    1.70: Jeder Teil des kürzeren Namens (Nachname UND Vorname) braucht im anderen Namen einen Teil mit mindestens
+    75 % gleichen Buchstaben – „Schmidt/Schmitt“, „Erika/Erica“ passen, „Meyer, Anna“/„Meyer, Paul“ nicht. Ein
+    zusätzlicher zweiter Vorname stört nicht. Ein einzelner Namensteil reicht nie (sonst jeder „Meyer“).
+    Ergebnis: Mittelwert der Teil-Übereinstimmungen, 0 wenn ein Teil nicht passt."""
     a, b = woerter(person), woerter(eintrag)
-    if not a or not b:
+    kurz, lang = (a, b) if len(a) <= len(b) else (b, a)
+    if len(kurz) < 2:
         return 0.0, frozenset()
-    gleich = a & b
-    return len(gleich) / min(len(a), len(b)), gleich
+    werte, gleich = [], set()
+    for w in kurz:
+        bester = max(lang, key=lambda v: _teil_aehnlich(w, v))
+        q = _teil_aehnlich(w, bester)
+        if q < SCHWELLE:
+            return 0.0, frozenset()
+        werte.append(q)
+        gleich.add(w)
+    return sum(werte) / len(werte), frozenset(gleich)
 
 
 def gleicher_name(a: str, b: str) -> bool:
@@ -108,7 +130,8 @@ class Vorschlag:
 
     @property
     def grund(self) -> str:
-        t = "Namen gleich (andere Schreibweise)" if self.anteil >= 1 else f"{round(self.anteil * 100)} % der Namensteile gleich"
+        t = ("Namen gleich (andere Schreibweise)" if self.anteil >= 1
+             else f"Namen zu {round(self.anteil * 100)} % gleich (wenige Buchstaben anders)")
         t += " · Zeitraum überschneidet sich" if self.tage == 0 else f" · Zeitraum {self.tage} Tage auseinander"
         return t
 
@@ -159,7 +182,7 @@ def vorschlaege(stand, heute: date, daten: dict | None = None) -> list[Vorschlag
             if b.schluessel in geklaert_p or (b.schluessel, _gp_kennung(e.name, e.zimmer)) in nein:
                 continue
             anteil, gleich = aehnlich(b.name, e.name)
-            if anteil < 0.5 or not any(len(w) >= 3 for w in gleich):
+            if anteil < SCHWELLE or not any(len(w) >= 3 for w in gleich):
                 continue
             tage = _abstand(b.von, b.bis, e.von, e.bis)
             if tage > TOLERANZ.days:

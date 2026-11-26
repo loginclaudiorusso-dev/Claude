@@ -47,7 +47,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_grafik_v164.py` – 1.64 – farbige Symbole/Piktogramme, neue Motive, Bereichsfarben/Signal, ruhige Sperre, Chat neben Panel, keine Farb-Altlasten
 - `test_abreise_v165.py` – 1.65 – Abreisen laut Anreiseliste ergänzt (EMR), keine Doppelten, ohne Zimmer (1.66: Kachelgruppe; 1.67: Abreise laut Anreiseliste vor Plan)
 - `test_grafik_v166.py` – 1.66 – eigene Symbole aller Reiter (groß/klein, eindeutige Verlaufs-IDs), Gruppenfarben im CSS
-- `test_gleiche_person_v167.py` – 1.67 – Gebäudeplan ↔ Anreiseliste (Namen, Zeitraum, Ja/Nein, Wirkung im Planstand), Ausweichordner Mietunterlagen, Mietverträge ohne Admin-Prüfung
+- `test_gleiche_person_v167.py` – 1.67/1.70 (75 % je Namensteil) – Gebäudeplan ↔ Anreiseliste (Namen, Zeitraum, Ja/Nein, Wirkung im Planstand), Ausweichordner Mietunterlagen, Mietverträge ohne Admin-Prüfung
 - `test_vorlagen_mieter_v168.py` – 1.68 – Vertragsvorlagen: Suchreihenfolge, nur Vertragstext Pflicht, Muster ohne offene Platzhalter, Ersetzen mit Kopie, falsche Dateien abgelehnt
 - `test_mietvertrag_v169.py` – 1.69 – Nummer automatisch (auch gegen Eingabe) unter Sperre, Name/Anschrift-Platzhalter, nur ausgewählte Vordrucke, Standardauswahl
 
