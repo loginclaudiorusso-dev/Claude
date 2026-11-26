@@ -71,3 +71,17 @@ def test_neuer_vertrag_unter_sperre(monkeypatch):
     monkeypatch.setattr(netz_kern, "sperre", sperre)
     monkeypatch.setattr(mk, "_neuer_vertrag", lambda w: ("ok", None))
     assert mk.neuer_vertrag({}) == ("ok", None) and aufrufe == ["sperre"]
+
+
+def test_v171_jahr_folgt_dem_mietbeginn(monkeypatch):
+    """Erstellt 2026, Beginn 2027 → Nummer „27-…“; die Oberfläche ruft die Neuberechnung wirklich auf."""
+    import re
+    from pathlib import Path
+
+    gesehen = {}
+    monkeypatch.setattr(mk, "nummern_abgleich", lambda heute=None: gesehen.setdefault("jahr", heute.year) and ("x", ""))
+    mk.nummer_vorschlag(date(2027, 1, 15), date(2026, 11, 26))
+    assert gesehen["jahr"] == 2027
+    quelle = (Path(mk.__file__).parent / "seiten.py").read_text(encoding="utf-8")
+    # Tupel aus Aufrufen in einem Handler: asynchrone Funktionen darin liefen nie (Nummer blieb im alten Jahr)
+    assert not re.search(r"on_value_change\(lambda[^)]*: \(.*\(\), .*\(\)\)", quelle)

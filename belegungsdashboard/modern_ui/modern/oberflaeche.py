@@ -744,6 +744,15 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
     # ---- Toast ---------------------------------------------------------------------------
 
+    async def _extra(self, fn) -> None:
+        """1.71: Zusatzknopf der Meldung – auch asynchrone Aktionen (z. B. „Chat öffnen“) wirklich ausführen."""
+        import inspect
+
+        self.toast_box.clear()
+        erg = fn()
+        if inspect.isawaitable(erg):
+            await erg
+
     def toast(self, text: str, rueck: bool = True, fehler: bool = False, extra: tuple | None = None,
               dauer: int = TOAST_S) -> None:
         """Kurzer Hinweis unten; ``extra`` = (Text, Klick) für einen zusätzlichen Knopf, z. B. „Was hat sich geändert?“."""
@@ -754,7 +763,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                     ui.icon("check_circle").classes("m-toast-ok")      # Haptik: die Bestätigung rastet ein
                 ui.label(text)
                 if extra:
-                    knopf(extra[0], lambda: (self.toast_box.clear(), extra[1]()), "primaer")
+                    knopf(extra[0], lambda: self._extra(extra[1]), "primaer")
                 if rueck and not fehler:
                     knopf("Rückgängig", self.rueckgaengig, icon="undo")
             ui.timer(dauer, self.toast_box.clear, once=True)

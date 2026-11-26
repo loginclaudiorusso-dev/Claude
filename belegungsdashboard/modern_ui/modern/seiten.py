@@ -1060,7 +1060,11 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
             except (TypeError, ValueError):
                 pass
 
-        von.on_value_change(lambda _e: (beginn(), zimmer_fuellen(), nummer_holen()))
+        async def beginn_geaendert(_e=None):            # 1.71: beide abwarten – sonst liefen sie nie (Nummer blieb im alten Jahr)
+            beginn()
+            await zimmer_fuellen()
+            await nummer_holen()
+        von.on_value_change(beginn_geaendert)
         bis.on_value_change(lambda _e: zimmer_fuellen())
         alle.on_value_change(lambda _e: zimmer_fuellen())
         anrede.on_value_change(lambda _e: zimmer_fuellen())
