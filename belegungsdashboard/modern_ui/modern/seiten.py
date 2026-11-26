@@ -946,6 +946,18 @@ async def _unterlagen(a, nr: str) -> None:
     await _mit_datei(a, mk.unterlagen_neu, nr)
 
 
+async def _akte(a, m) -> None:
+    from belegung import mieter as mt
+
+    from . import mieter_akte_ui
+
+    mv = await run.io_bound(mt.nach_nummer, m.nr)               # die Zeile der Liste ist nicht der Vertrag selbst
+    if mv is None:
+        a.toast("Den Vertrag gibt es nicht mehr.", fehler=True, rueck=False)
+        return
+    await mieter_akte_ui.panel(a, mv)
+
+
 async def _vorlagen(a) -> None:
     from . import vorlagen_mieter_ui
 
@@ -1215,6 +1227,7 @@ def _mt_optionen(a, m) -> None:
                 ui.menu_item("Automatische Verlängerung aus", lambda m=m: a.aendern(mb.auto_setzen, m.nr, None))
             ui.separator()
             ui.menu_item("Vertrag bearbeiten (z. B. Zimmer) …", lambda m=m: vertrag_bearbeiten_panel(a, m.nr))
+            ui.menu_item("Mieter-Akte (Unterlagen) …", lambda m=m: _akte(a, m))          # 1.72
             ui.menu_item("Unterlagen neu erstellen", lambda m=m: _unterlagen(a, m.nr))
             ui.menu_item("Mail zum Vertragsende …", lambda m=m: _mail_panel(a, m))
             ui.separator()                                  # 1.63

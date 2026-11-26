@@ -361,7 +361,9 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                 p("Änderungs­verlauf", "verlauf", S("zimmer", "aenderungen"),
                                   "Wer hat wann was geändert – auch als Excel"),
                                 p("Versand­protokoll", "a_mail", A("versandprotokoll"),         # 1.59
-                                  "Welche Mails INNternat wann an wen verschickt oder vorbereitet hat")]),
+                                  "Welche Mails INNternat wann an wen verschickt oder vorbereitet hat"),
+                                p("Lade­zeiten", "ladezeiten", A("ladezeiten"),                  # 1.72
+                                  "Welche Fenster auf diesem PC langsam laden – zum Ansehen und Weitergeben")]),
         ], symbol="p:verwaltung"),
         # ---- Kontext-Registerkarten: erscheinen nur, solange sie gebraucht werden. Die Ansichtswahl einer Seite
         # (Raster | Karten, Liste | Monat, Inventar, Renovierung) steht in ihrer Werkzeug-Registerkarte (KONTEXT_TITEL).

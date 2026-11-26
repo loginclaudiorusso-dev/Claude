@@ -22,6 +22,7 @@ Rein bis auf Lesen und Schreiben der Dateien.
 
 from __future__ import annotations
 
+import functools
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ _ORIG: dict = {}
 
 # ---- Namen vergleichen ------------------------------------------------------------------------------------------------
 
+@functools.lru_cache(maxsize=8192)
 def woerter(name: str) -> frozenset[str]:
     """Namensteile ohne Umlaut-/Akzent- und Schreibweisen-Unterschiede („Müller“ = „Mueller“ = „MÜLLER“)."""
     s = (name or "").lower().replace("ß", "ss").replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
@@ -45,6 +47,7 @@ def woerter(name: str) -> frozenset[str]:
 SCHWELLE = 0.75                     # 1.70: je Namensteil mindestens 75 % gleiche Buchstaben
 
 
+@functools.lru_cache(maxsize=65536)
 def _teil_aehnlich(x: str, y: str) -> float:
     from difflib import SequenceMatcher
 
@@ -158,34 +161,58 @@ def gp_eintraege(stand, heute: date) -> list:
 
 
 def vorschlaege(stand, heute: date, daten: dict | None = None) -> list[Vorschlag]:
-    """Mögliche gleiche Personen – je Gebäudeplan-Eintrag ohne Verbindung alle passenden Personen."""
-    daten = daten if daten is not None else laden()
+    """Mögliche gleiche Personen – je Gebäudeplan-Eintrag ohne Verbindung alle passenden Personen.
+
+    1.72: je Datenstand nur einmal berechnet (Cockpit und jede Anreise im Zuteilen fragten sonst jedes Mal neu – bei
+    vielen Gebäudeplan-Einträgen dauerte das Sekunden je Aufruf)."""
+    if daten is not None:
+        return _vorschlaege(stand, heute, daten)
+    d = laden()
+    schluessel = (heute, repr(d))
+    alt = getattr(stand, "_gleich_cache", None)
+    if alt is not None and alt[0] == schluessel:
+        return list(alt[1])
+    erg = _vorschlaege(stand, heute, d)
+    try:
+        stand._gleich_cache = (schluessel, erg)
+    except AttributeError:                         # z. B. Testobjekte ohne Attribute
+        pass
+    return list(erg)
+
+
+def _vorschlaege(stand, heute: date, daten: dict) -> list[Vorschlag]:
+    from belegung import zimmerplan as zp
+
     nein = {(x["person"], x.get("gp", "")) for x in daten["nein"]}
     verbunden_p = {x["person"] for x in daten["verbunden"]}
     verbunden_gp = {_gp_kennung(x.get("gp_name", ""), x.get("zimmer", "")) for x in daten["verbunden"]}
     personen = [b for b in stand.bedarf if not b.schluessel.startswith("mv:") and b.schluessel not in verbunden_p
                 and b.bis >= heute - timedelta(days=7)]
     eintraege = gp_eintraege(stand, heute)
+    # 1.72: Namensteile nur einmal zerlegen; zuerst der (billige) Zeitraum, dann der Name
+    p_streng = [(b, zp._namenswoerter(b.name)) for b in personen]
+    e_streng = [(e, zp._namenswoerter(e.name)) for e in eintraege]
+    drei = timedelta(days=3)
     # Wen das Hauptprogramm schon verbindet, der ist geklärt – Person wie Eintrag
     geklaert_p, geklaert_e = set(), set()
-    for e in eintraege:
-        for b in personen:
-            if _streng(b, e):
+    for e, ew in e_streng:
+        for b, bw in p_streng:
+            if b.von <= e.bis + drei and e.von - drei <= b.bis and bw and bw <= ew:
                 geklaert_p.add(b.schluessel)
                 geklaert_e.add(id(e))
     geplant = {z["person"]: z["zimmer"] for z in stand.zuweisungen}
+    offen_p = [b for b in personen if b.schluessel not in geklaert_p]
     erg = []
     for e in eintraege:
-        if id(e) in geklaert_e or _gp_kennung(e.name, e.zimmer) in verbunden_gp:
+        kennung = _gp_kennung(e.name, e.zimmer)
+        if id(e) in geklaert_e or kennung in verbunden_gp:
             continue
-        for b in personen:
-            if b.schluessel in geklaert_p or (b.schluessel, _gp_kennung(e.name, e.zimmer)) in nein:
+        for b in offen_p:
+            tage = _abstand(b.von, b.bis, e.von, e.bis)
+            if tage > TOLERANZ.days or (b.schluessel, kennung) in nein:
                 continue
             anteil, gleich = aehnlich(b.name, e.name)
             if anteil < SCHWELLE or not any(len(w) >= 3 for w in gleich):
-                continue
-            tage = _abstand(b.von, b.bis, e.von, e.bis)
-            if tage > TOLERANZ.days:
                 continue
             erg.append(Vorschlag(e.name, e.zimmer, e.von, e.bis, e.massnahme or "", b.schluessel, b.name, b.von, b.bis,
                                  b.massnahme, b.gruppe, anteil, tage, geplant.get(b.schluessel, "")))

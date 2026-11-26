@@ -311,6 +311,14 @@ DOKU_EINSTELLUNG = "mieter_dokumente"
 DOKU_STANDARD = [mt.WOHNUNGSGEBER, mt.SEPA]          # Mietschuldenfreiheit nur bei Bedarf
 
 
+def _in_akte(mv, pfade) -> None:
+    """1.72: erstellte Unterlagen zusätzlich in die Mieter-Akte."""
+    from . import mieter_akte
+
+    for p in pfade:
+        mieter_akte.kopie_ablegen(mv.nr, mv.nachname, p)
+
+
 def anschrift(nr: str) -> str:
     return str((speicher.lesen(ANSCHRIFT_DATEI, {}) or {}).get(nr, ""))
 
@@ -411,6 +419,7 @@ def _neuer_vertrag(werte: dict) -> tuple[str, Path]:
                                   "person": mv.person, "alt": "", "neu": mv.zimmer, "von": mv.von.isoformat(),
                                   "quelle": f"Mieter · {trotz}"}])
     _schritt(f"Mietvertrag {mv.nr}", anlegen, [mt.DATEI, FLEX_DATEI, ANSCHRIFT_DATEI])
+    _in_akte(mv, [ziel, ziel.with_name(ziel.stem.replace("Mietunterlagen", "Mietvertrag") + ".html")])
     return (f"{'Flexibler ' if flex else ''}Mietvertrag {mv.nr} für {mv.name} ({mv.zimmer_kurz}) erstellt"
             + (": " + ", ".join(teile) if teile else "") + "." + extra + ablage_hinweis(ziel.parent)
             + _vorlagen_hinweis()), ziel
@@ -430,6 +439,7 @@ def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
     if pdf:
         ziel.with_suffix(".pdf").write_bytes(pdf)
     _schritt(f"Verlängerung {mv.nr}", lambda: mt.verlaengern(mv.nr, bis_neu), [mt.DATEI])
+    _in_akte(mv, [ziel, ziel.with_suffix(".pdf")])
     return f"Nebenabrede für MV {mv.nr} bis {bis_neu:%d.%m.%Y} gespeichert ({'Word + PDF' if pdf else 'Word'}) – Zimmerplan verlängert", ziel
 
 
@@ -532,4 +542,5 @@ def unterlagen_neu(nr: str, dokumente: list[str] | None = None) -> tuple[str, Pa
                                                            nr in flexible()), mv, anschrift(nr)), ordner / mt.LOGO)
     ziel = ablage() / f"Mietunterlagen_MV{mv.nr}_{mv.nachname.replace(' ', '_')}.pdf"
     teile = _paket(mv, html_als_pdf(html), ziel, ordner, dokumente if dokumente is not None else dokumente_standard())
+    _in_akte(mv, [ziel])
     return f"Unterlagen neu erstellt: {', '.join(teile)}", ziel

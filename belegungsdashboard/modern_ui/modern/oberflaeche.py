@@ -60,6 +60,9 @@ def _stempel() -> tuple:
     return tuple(erg)
 
 
+_VORGEWAERMT = {"an": False}
+
+
 class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
     def __init__(self) -> None:
         self.heute = date.today()
@@ -207,6 +210,13 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         try:
             await run.io_bound(self._laden, voll)
             self.fehler = ""
+            if not _VORGEWAERMT["an"]:                    # 1.72: Auswertung/Prognose im Hintergrund vorladen
+                _VORGEWAERMT["an"] = True
+                import threading
+
+                from . import auswertung_kern
+
+                threading.Thread(target=auswertung_kern.vorwaermen, name="vorwaermen", daemon=True).start()
         except Exception as exc:              # noqa: BLE001 – Fehler sichtbar machen statt leerer Seite
             log.exception("Laden fehlgeschlagen")
             self.fehler = f"Die Daten konnten nicht geladen werden: {exc}"
@@ -1175,3 +1185,7 @@ async def startseite() -> None:
         eingelesen_melden(a, eingelesen, aenderungen)
     if await run.io_bound(kern.automatisch_oeffnen, a.karten, a.heute) and a.seite != "heute":
         a.center_umschalten(True)              # einmal am Tag von selbst, wenn Dringendes neu ist (Heute zeigt sie schon)
+
+from . import leistung_messung as _leistung_messung  # noqa: E402
+
+_leistung_messung.installieren()                     # 1.72: Ladezeiten messen (Hilfe für langsame PCs/Netze)

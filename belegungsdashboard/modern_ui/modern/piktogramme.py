@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 SYMBOLE: dict[str, str] = {
+    'ladezeiten': '<path class="s" d="M4 22a12 12 0 1 1 24 0"/><path class="s" d="M7.5 22h-2M26.5 22h-2M16 10V8M8.5 14.5 7 13M23.5 14.5 25 13"/><path class="sa w" d="M16 22l5.5-6.5"/><circle class="f" cx="16" cy="22" r="2.2"/><circle class="s" cx="16" cy="22" r="2.2"/>',   # 1.72
     'gleiche_person': '<circle class="f" cx="9" cy="9" r="3.6"/><circle class="s" cx="9" cy="9" r="3.6"/><path class="s" d="M3 24.5a6 6 0 0 1 12 0"/><circle class="s" cx="23" cy="9" r="3.6"/><path class="s" d="M17 24.5a6 6 0 0 1 12 0"/><path class="sa w" d="M13.8 12.2h4.4M13.8 15.6h4.4"/>',   # 1.67
     'uebersicht': '<rect class="f" x="4" y="5" width="14" height="12" rx="2.5"/><rect class="s" x="4" y="5" width="14" height="12" rx="2.5"/><path class="sa" d="M7.5 14a3.5 3.5 0 0 1 7 0"/><path class="s" d="M11 14l1.9-2.1"/><rect class="s" x="21" y="5" width="7" height="12" rx="2.5"/><path class="s" d="M23.5 9.5h2M23.5 12.5h2"/><rect class="s" x="4" y="20" width="9" height="7" rx="2.5"/><rect class="s" x="16" y="20" width="12" height="7" rx="2.5"/><path class="sa" d="M19.5 24.3v-1.2M22 24.3v-2.4M24.5 24.3v-.8"/>',
     'anreisen': '<path class="s" d="M3 27h26M18.5 27V5.5h9.5V27"/><path class="f" d="M28 5.5 24.6 7.4V27H28z"/><path class="s" d="M28 5.5 24.6 7.4V27"/><path class="sa w" d="M4 16.5h11.5M12 13l3.5 3.5-3.5 3.5"/>',

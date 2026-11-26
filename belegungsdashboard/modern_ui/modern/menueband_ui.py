@@ -92,6 +92,10 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
         from . import gleiche_person_ui
 
         await gleiche_person_ui.panel(a)
+    elif name == "ladezeiten":                              # 1.72
+        from . import leistung_ui
+
+        leistung_ui.panel(a)
     elif name == "versandprotokoll":                        # 1.59: wer hat wann was an wen verschickt
         from . import versand_ui
 

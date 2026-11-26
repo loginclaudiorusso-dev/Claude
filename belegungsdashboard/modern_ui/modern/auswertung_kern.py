@@ -18,6 +18,9 @@ MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt",
 STANDORTE = {konfig.GESAMT: konfig.STANDORT_LABEL[konfig.GESAMT],
              **{s: konfig.STANDORT_LABEL[s] for s in konfig.STANDORTE}}
 
+import logging
+
+log = logging.getLogger(__name__)
 _ZWISCHEN: dict = {"schluessel": None, "ds": None, "fehler": ""}
 _SPERRE = threading.Lock()
 
@@ -50,6 +53,9 @@ def datenstand(neu: bool = False):
         quelle, schluessel = _schluessel()
         if not neu and schluessel == _ZWISCHEN["schluessel"]:
             return _ZWISCHEN["ds"], _ZWISCHEN["fehler"]
+        if not neu and quelle is not None and (ds := _platte_lesen(schluessel)) is not None:
+            _ZWISCHEN.update(schluessel=schluessel, ds=ds, fehler="")    # 1.72: ohne Pivot erneut übers Netz zu lesen
+            return ds, ""
         if quelle is None:
             ds, fehler = None, ("Keine Pivot-Datei gefunden. Unter „Verwaltung → Daten einlesen → Pivot“ die Excel-Datei mit der "
                                 "Belegungs-Pivot wählen.")
@@ -59,7 +65,61 @@ def datenstand(neu: bool = False):
             except Exception as exc:       # noqa: BLE001 – Fehler sichtbar machen
                 ds, fehler = None, f"Die Pivot-Datei „{quelle.name}“ konnte nicht gelesen werden: {exc}"
         _ZWISCHEN.update(schluessel=schluessel, ds=ds, fehler=fehler)
+        if ds is not None and not fehler:
+            _platte_schreiben(schluessel, ds)
         return ds, fehler
+
+
+# ---- 1.72: Pivot-Ergebnis auf diesem PC zwischenspeichern -----------------------------------------------------------
+# Das Einlesen der Pivot-Datei (Excel, oft über das Netzlaufwerk) samt Prognose-Backtest lief nach jedem Programmstart
+# beim ersten Öffnen von Auswertung/Prognose/Diagrammen – je nach Datei und Netz sehr lange. Jetzt liegt das Ergebnis
+# lokal (``%LOCALAPPDATA%\INNternat\zwischenspeicher``) und gilt, solange Pivot, Listen, Kapazitäten und die
+# Programmversion gleich sind (Schlüssel aus Pfad und Änderungszeiten). Fehler beim Zwischenspeicher: einfach neu lesen.
+
+def _platte_pfad():
+    from .netz_kern import lokal_ordner
+
+    return lokal_ordner() / "zwischenspeicher" / "auswertung_datenstand.pkl"
+
+
+def _platte_lesen(schluessel):
+    import pickle
+
+    from . import __version__
+
+    try:
+        with open(_platte_pfad(), "rb") as f:
+            d = pickle.load(f)
+        if d.get("version") == __version__ and d.get("schluessel") == schluessel:
+            return d["ds"]
+    except Exception:                          # noqa: BLE001 – fehlt/veraltet/beschädigt → neu lesen
+        return None
+    return None
+
+
+def _platte_schreiben(schluessel, ds) -> None:
+    import os
+    import pickle
+
+    from . import __version__
+
+    try:
+        p = _platte_pfad()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        with open(tmp, "wb") as f:
+            pickle.dump({"version": __version__, "schluessel": schluessel, "ds": ds}, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, p)
+    except Exception:                          # noqa: BLE001 – nur ein Beschleuniger
+        log.warning("Zwischenspeicher der Auswertung nicht geschrieben", exc_info=True)
+
+
+def vorwaermen() -> None:
+    """1.72: Nach dem Start im Hintergrund – der erste Klick auf Auswertung/Prognose wartet dann nicht."""
+    try:
+        datenstand()
+    except Exception:                          # noqa: BLE001
+        log.warning("Vorladen der Auswertung", exc_info=True)
 
 
 def _f(x) -> float:
