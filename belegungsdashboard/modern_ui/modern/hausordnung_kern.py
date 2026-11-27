@@ -316,7 +316,7 @@ def aushang_setzen(hausordnung: str, internatsordnung: str) -> str:
     return f"{n} Link(s) für den Aushang gespeichert" if n else "Links für den Aushang entfernt"
 
 
-def aushang_html(links: dict[str, str], logo: str = "", standort: str = "") -> str:
+def aushang_html(links: dict[str, str], logo: str = "", standort: str = "", telefon: str | None = None) -> str:
     """A4 hochkant: Überschrift, je Dokument ein großer QR-Code mit Beschriftung, kurzer Hinweis."""
     from html import escape
 
@@ -330,6 +330,9 @@ def aushang_html(links: dict[str, str], logo: str = "", standort: str = "") -> s
         f'<div class="b"><div class="q">{svg(url, modul=1)}</div><div class="t">{escape(titel)}</div></div>'
         for titel, url in eintraege)
     titel = " und ".join(t for t, _u in eintraege)
+    from . import qr_meldungen_kern as qm
+
+    tel = qm.telefon_text(telefon)
     return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>Aushang</title><style>"
             "@page{size:A4 portrait;margin:14mm}body{font-family:Segoe UI,Arial,sans-serif;margin:0;color:#1f2a33;"
             "text-align:center}"
@@ -339,18 +342,20 @@ def aushang_html(links: dict[str, str], logo: str = "", standort: str = "") -> s
             f".q svg{{width:{'120mm' if gross else '78mm'};height:{'120mm' if gross else '78mm'}}}"
             ".t{font-size:18pt;font-weight:700;margin-top:3mm}"
             ".h{font-size:12pt;color:#45525c;margin-top:12mm;line-height:1.5}"
+            ".p{font-size:15pt;font-weight:700;margin-top:8mm}"
             "</style><body>"
             + (f"<div class='k'><img src='{logo}' alt=''></div>" if logo else "")
             + f"<h1>{escape(titel)}</h1><div class='u'>{escape(standort) if standort else ''}</div>"
             + f"<div class='r'>{bloecke}</div>"
             + "<div class='h'>Mit der Handy-Kamera scannen – das Dokument öffnet sich im Browser.<br>"
-              "Bitte lesen Sie es aufmerksam. Bei Fragen hilft Ihnen der Internatsdienst.</div></body></html>")
+              "Bitte lesen Sie es aufmerksam. Bei Fragen hilft Ihnen der Internatsdienst.</div>"
+            + (f"<div class='p'>{escape(tel)}</div>" if tel else "") + "</body></html>")
 
 
 # ---- 1.53: Zimmer-Aushang – Mängel-QR und Ordnungen auf einem Blatt -------------------------------------------------
 
 def zimmer_aushang_html(maengel_link: str, zimmer: list[tuple[str, str]], links: dict[str, str], logo: str = "",
-                        standort: str = "") -> str:
+                        standort: str = "", telefon: str | None = None) -> str:
     """Je Zimmer ein halbes A4-Blatt (A5 quer, zwei je Seite zum Teilen): Träger-Logo, Zimmernummer, QR „Etwas kaputt?“
     (Mängel-Formular mit Zimmer und Prüfcode) und je ein QR für Hausordnung und Internatsordnung."""
     from html import escape
@@ -362,6 +367,7 @@ def zimmer_aushang_html(maengel_link: str, zimmer: list[tuple[str, str]], links:
         raise ValueError("Zuerst den Formular-Link für die Mängelmeldung speichern (1 · Formular-Link).")
     ordnungen = [(AUSHANG[k], v) for k, v in links.items() if v and k in AUSHANG]
     g = qm.geheim() if qm.CODE_PLATZHALTER in maengel_link else ""
+    tel = qm.telefon_text(telefon)
     blaetter = []
     for zid, kurz in zimmer:
         url = qm.zimmer_link(maengel_link, kurz, qm.code_fuer(zid, g) if g else "")
@@ -372,6 +378,7 @@ def zimmer_aushang_html(maengel_link: str, zimmer: list[tuple[str, str]], links:
             "<div class='s'><div class='k'>" + (f"<img src='{logo}' alt=''>" if logo else "<span></span>")
             + f"<div class='n'><small>Zimmer</small>{escape(kurz)}</div></div>"
             + f"<div class='r'>{bloecke}</div>"
+            + (f"<div class='p'>{escape(tel)}</div>" if tel else "")
             + f"<div class='f'>{escape(standort)} · Mit der Handy-Kamera scannen – bei Fragen hilft der Internatsdienst."
               "</div></div>")
     return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>Zimmer-Aushang</title><style>"
@@ -385,5 +392,5 @@ def zimmer_aushang_html(maengel_link: str, zimmer: list[tuple[str, str]], links:
             ".r{display:flex;justify-content:space-around;align-items:flex-start;gap:6mm}"
             ".b{text-align:center;width:56mm}.q svg{width:48mm;height:48mm}"
             ".t{font-size:14pt;font-weight:700;margin-top:2mm}.z{font-size:9.5pt;color:#45525c}"
-            ".f{font-size:9pt;color:#45525c;text-align:center}"
+            ".f{font-size:9pt;color:#45525c;text-align:center}.p{font-size:13pt;font-weight:700;text-align:center}"
             "</style><body>" + "".join(blaetter) + "</body></html>")

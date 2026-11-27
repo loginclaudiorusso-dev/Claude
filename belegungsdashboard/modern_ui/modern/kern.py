@@ -871,6 +871,8 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
                          Aktion("gleich", "Prüfen")))
     if stand is not None and "mieter_plan" not in weg and (k := mieter_plan_karte(stand, heute)) is not None:
         erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
+    if "mieter_check" not in weg and (k := mieter_check_karte(heute)) is not None:     # 1.74
+        erg.append(k)
     if "mieter_auto" not in weg and (k := mieter_auto_karte(heute)) is not None:
         erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
     if "qr" not in weg and (k := qr_karte()) is not None:          # 1.28: Meldungen per QR-Code
@@ -926,6 +928,25 @@ def mieter_plan_karte(stand: zp.Planstand, heute: date) -> Karte | None:
                  "; ".join(f"{x.name}: Vertrag {kurz(x.vertrag)}, Gebäudeplan {kurz(x.gebaeudeplan)}" for x in ab[:3])
                  + (" …" if len(ab) > 3 else "") + " – im Programm gilt der Mietvertrag; bitte den Gebäudeplan korrigieren",
                  zweite=Aktion("mieter_plan", "Mieter ansehen", "mieter"))
+
+
+def mieter_check_karte(heute: date) -> Karte | None:
+    """1.74: Mietverträge, bei denen zwei Wochen nach Einzug noch Punkte der Checkliste offen sind."""
+    from belegung import mieter as mt
+
+    from . import mieter_checkliste as mc
+
+    try:
+        fs = mc.offen_im_cockpit(mt.laden(), heute)
+    except Exception:                          # noqa: BLE001
+        return None
+    if not fs:
+        return None
+    return Karte("mieter_check", "bald",
+                 f"{len(fs)} Mietvertr{'ag' if len(fs) == 1 else 'äge'}: Checkliste zum Einzug noch offen",
+                 "; ".join(f"MV {mv.nr} {mv.nachname}: {', '.join(p.text for p in offen[:2])}"
+                           + (" …" if len(offen) > 2 else "") for mv, offen in fs[:2]) + (" …" if len(fs) > 2 else ""),
+                 zweite=Aktion("mieter_check", "Mieter ansehen", "mieter"))
 
 
 def mieter_auto_karte(heute: date) -> Karte | None:
@@ -1344,3 +1365,7 @@ _gleiche_person.installieren()                     # 1.67: bestätigte „gleich
 from . import vorlagen_mieter as _vorlagen_mieter  # noqa: E402
 
 _vorlagen_mieter.installieren()                    # 1.68: Vertragsvorlagen im gemeinsamen Datenordner, nur Vertragstext Pflicht
+
+from . import zimmer_halten as _zimmer_halten  # noqa: E402
+
+_zimmer_halten.installieren()                      # 1.74: Zimmer bei Unterbrechung (Praktikum) gehalten, nicht frei

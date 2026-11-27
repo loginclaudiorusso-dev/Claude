@@ -59,6 +59,10 @@ def plan_bis(lage, zid: str, schluessel: str, name: str) -> date | None:
 def abreisen(stand, von: date, bis: date, personen: list | None = None) -> list:
     """Alle Abreisen von … bis – Plan und Anreiseliste. Fehler beim Lesen der Liste → nur der Plan."""
     plan = cockpit.abreiseliste(stand, von, bis)
+    # 1.74: Ende einer gehaltenen Unterbrechung (Praktikum) ist keine Abreise
+    gehalten = {(zid, b.bis) for zid, bs in (getattr(stand.lage, "belegungen", None) or {}).items() for b in bs
+                if (getattr(b, "grund", "") or "").startswith("gehalten")}
+    plan = [a for a in plan if (a.zimmer, a.tag) not in gehalten]
     try:
         if personen is None:
             personen, _ = anreiseliste.laden()

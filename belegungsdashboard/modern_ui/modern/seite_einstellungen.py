@@ -22,6 +22,7 @@ ZAHLEN = {   # Einstellung → (Text, Standard, min, max)
     "zimmer_puffer": ("Tage zwischen Abreise und nächster Belegung (1 = nicht am Abreisetag)", 1, 0, 7),
     "facility_monate": ("Facility-Check nach einem Aufenthalt ab … Monaten (Elektrik, Fenster)", 6, 1, 36),
     "anreise_standard_wochen": ("Anreisen ohne Abreise: angenommene Dauer in Wochen (0 = nur Termin)", 0, 0, 104),
+    "zimmer_halten_monate": ("Zimmer bei Unterbrechung (z. B. Praktikum) halten – bis … Monate (0 = aus)", 9, 0, 24),  # 1.74
 }
 ERINNERUNG = {"notiz_tage": "Notiz zur Anreise … Tage vorher", "abreise_tage": "Abreise-Erinnerung … Tage vorher",
               "abreise_tage_emr": "Abreise-Erinnerung EMR … Tage vorher"}
@@ -31,7 +32,7 @@ def daten(a) -> None:
     ansicht = a.ansicht_von("einstellungen", "allgemein")
     if ansicht == "allgemein":
         e = speicher.einstellungen()
-        a.daten = {"zahlen": {k: int(e.get(k, s) or s) for k, (_t, s, _a, _b) in ZAHLEN.items()},
+        a.daten = {"zahlen": {k: int(s if e.get(k) in (None, "") else e.get(k)) for k, (_t, s, _a, _b) in ZAHLEN.items()},
                    "bool": sk.einstellungen(), "termine": tm.einstellungen(), "grenzen": eintragen.grenzen(),
                    "ki": e.get("ki", {}), "ki_mail": bool((e.get("ki_mail") or {}).get("an"))}
     elif ansicht == "benutzer":                    # 1.33

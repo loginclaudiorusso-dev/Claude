@@ -24,7 +24,7 @@ def test_schnellzugang_je_monat_zwei_jahre():
     assert sm.SCHNELL == {"mn_takt": "monat", "mn_darstellung": "ein", "mn_vor": 4}
     src = (MOD / "seite_massnahmen.py").read_text(encoding="utf-8")
     assert "Maßnahme ansehen – tippen, z. B. KBM" in src
-    assert '"Maßnahme ansehen", "suche", A("mn_suche")' in (MOD / "menueband.py").read_text(encoding="utf-8")
+    assert '"Maßnahme ansehen", "suche", A("mn_suche")' not in (MOD / "menueband.py").read_text(encoding="utf-8")  # 1.74: doppelt
     assert 'name == "mn_suche"' in (MOD / "menueband_ui.py").read_text(encoding="utf-8")
 
 

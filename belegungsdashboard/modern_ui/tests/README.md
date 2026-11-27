@@ -52,6 +52,8 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_mietvertrag_v169.py` – 1.69/1.71 (Jahr des Mietbeginns) – Nummer automatisch (auch gegen Eingabe) unter Sperre, Name/Anschrift-Platzhalter, nur ausgewählte Vordrucke, Standardauswahl
 - `test_akte_leistung_v172.py` – 1.72 – Mieter-Akte (Ablegen, Namen, Papierkorb, gesperrte Dateitypen, Kopie ohne Doppelte), Ladezeiten-Bericht, Pivot-Zwischenspeicher, „Gleiche Person?“ einmal je Stand
 - `test_reinigung_suche_v173.py` – 1.73 – überholte Reinigungszeilen weg, Abhaken mit geladenem Stand, Suche ohne doppelte Person
+- `test_halten_checkliste_v174.py` – 1.74 – Lücke gehalten (Name/Reihenfolge, zu lang, Anschluss, aus, Doppelzimmer), keine Abreise am Lückenende, Checkliste (Punkte, Haken, eigene, Cockpit nach 14 Tagen)
+- `test_qr_telefon_v174.py` – 1.74 – Pforten-Nummer: speichern/prüfen, auf Etiketten, Zimmer- und Flur-Aushang
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

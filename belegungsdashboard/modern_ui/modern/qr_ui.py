@@ -350,8 +350,22 @@ def fenster(a) -> None:
 
             html_drucken(a, html, "QR-Etiketten")
 
+        # 1.74: Nummer, die immer erreichbar ist (Pforte) – steht auf Etiketten und Aushängen
+        tel = ui.input(value=qm.telefon(), label="Telefon Pforte (immer erreichbar) – steht auf Etiketten und Aushängen",
+                       placeholder="z. B. 01234/567-0").classes("m-feld w-full").props("dense outlined dark")
+
+        async def tel_speichern():
+            if (tel.value or "").strip() == qm.telefon():
+                return True
+            return await a.aendern(qm.telefon_setzen, tel.value or "")
+
+        async def drucken_mit_tel():
+            if await tel_speichern():
+                await drucken()
+
         with ui.element("div").classes("m-paktionen"):
-            knopf("Etiketten drucken", drucken, "primaer", "print")
+            knopf("Nummer speichern", tel_speichern, "", "call")
+            knopf("Etiketten drucken", drucken_mit_tel, "primaer", "print")
         ui.label("A4, 12 Etiketten je Seite (6 × 6 cm). Tipp: laminieren oder auf wetterfeste Etiketten drucken.") \
             .classes("m-ptext")
 

@@ -61,6 +61,11 @@ def zeilen(stand: zp.Planstand, tag: date, haus: str = "") -> list[NZeile]:
         for b in r.belegungen:
             if b.art == "gesperrt" and "mieter" in (b.grund or "").lower():
                 erg.append(NZeile(z.haus, etage, z.kurz, "Mieter (Name im Mietvertrag)", "Mieter", b.bis, "mieter", hinweis))
+            elif b.art in ("belegt", "geplant") and (b.grund or "").startswith("gehalten"):
+                # 1.74: Unterbrechung (z. B. Praktikum) – Zimmer gehalten, die Person ist nicht im Haus
+                erg.append(NZeile(z.haus, etage, z.kurz, zp.anzeige_name(b.name), zp.GRUPPE_LABEL.get(b.massnahme, b.massnahme or ""),
+                                  b.bis, "abwesend", " · ".join(t for t in ("Unterbrechung (z. B. Praktikum) – Zimmer gehalten",
+                                                                            hinweis) if t)))
             elif b.art in ("belegt", "geplant"):
                 unbekannt = not b.name or b.name == zp.PIVOT_NAME or zp.name_fehlt(b.name)
                 art = "unbekannt" if unbekannt else ("geplant" if b.art == "geplant" else "im_haus")

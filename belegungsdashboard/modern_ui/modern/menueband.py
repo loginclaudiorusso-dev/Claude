@@ -333,10 +333,9 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                                   "Belegung im Zeitraum: Kennzahlen, Verlauf, Häuser, Personentage"),
                                 p("Belegungs­prognose", "prognose", S("auswertung", "prognose"),
                                   "Vorhersage der Belegung mit Sicherheitsband"),
-                                p("Maßnahmen", "massnahmen", S("auswertung", "massnahmen"), "Teilnehmende je Maßnahme"),
-                                # 1.58: der schnellste Weg zu einer Maßnahme – Neuanmeldungen je Monat, 2 Jahre
-                                p("Maßnahme ansehen", "suche", A("mn_suche"),
-                                  "Eine Maßnahme suchen (z. B. KBM) – Neuanmeldungen je Monat, angemeldet + erwartet"),
+                                p("Maßnahmen", "massnahmen", S("auswertung", "massnahmen"),
+                                  "Teilnehmende je Maßnahme – oben eine Maßnahme suchen (z. B. KBM)"),
+                                # 1.74: „Maßnahme ansehen“ entfernt – das Suchfeld steht oben auf der Maßnahmen-Seite
                                 p("Zimmer-Engpässe", "engpaesse", S("auswertung", "zimmer"), "Wo Betten knapp werden")]),
         ], symbol="p:auswertung"),
         Reiter("ki", "KI-Assistent", [

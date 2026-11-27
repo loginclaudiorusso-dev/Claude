@@ -131,6 +131,30 @@ def link() -> str:
     return _platzhalter_norm(str(_lesen().get("link") or ""))
 
 
+def telefon() -> str:
+    """1.74: Nummer, die immer erreichbar ist (z. B. Pforte) – steht auf Etiketten und Aushängen."""
+    return str(_lesen().get("telefon") or "").strip()
+
+
+def telefon_text(nr: str | None = None) -> str:
+    nr = telefon() if nr is None else (nr or "").strip()
+    return f"Dringend? Pforte – immer erreichbar: {nr}" if nr else ""
+
+
+def telefon_setzen(wert: str) -> str:
+    wert = re.sub(r"\s+", " ", (wert or "").strip())[:40]
+    if wert and not re.fullmatch(r"[0-9+()/ .\-]{3,40}", wert):
+        raise ValueError("Bitte nur die Telefonnummer eingeben (Ziffern, Leerzeichen, / - + ( )).")
+    from .kern import _schritt
+
+    def aktion():
+        d = _lesen()
+        d["telefon"] = wert
+        _schreiben(d)
+    _schritt("QR-Telefonnummer", aktion, [DATEI])
+    return f"Telefonnummer für Etiketten und Aushänge: {wert}" if wert else "Telefonnummer entfernt"
+
+
 def link_setzen(wert: str) -> str:
     wert = _platzhalter_norm((wert or "").strip())
     if wert and not re.match(r"^https://", wert, re.I):
@@ -613,8 +637,9 @@ def kurztext(m: Meldung, kurz=lambda z: z.removeprefix("GS-")) -> str:
 # ---- Etiketten (Druckbogen) ---------------------------------------------------------------------------------------
 
 def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Etwas kaputt?",
-                   zeile: str = "Hier scannen und melden – anonym") -> str:
-    """Druckbogen A4: 3 × 4 Etiketten je Seite (Zimmernummer, QR-Code, Hinweis). ``zimmer`` = [(ID, kurz)]."""
+                   zeile: str = "Hier scannen und melden – anonym", telefon: str | None = None) -> str:
+    """Druckbogen A4: 3 × 4 Etiketten je Seite (Zimmernummer, QR-Code, Hinweis, 1.74: Nummer der Pforte).
+    ``zimmer`` = [(ID, kurz)]."""
     from html import escape
 
     from .qr_kern import svg
@@ -622,11 +647,13 @@ def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Et
     if not vorlage:
         raise ValueError("Zuerst den Forms-Link eintragen.")
     g = geheim() if CODE_PLATZHALTER in vorlage else ""
+    tel = telefon_text(telefon)
+    tel_html = f'<div class="p">{escape(tel)}</div>' if tel else ""
     karten = []
     for zid, kurz in zimmer:
         url = zimmer_link(vorlage, kurz, code_fuer(zid, g) if g else "")
         karten.append(f'<div class="e"><div class="n">{escape(kurz)}</div>{svg(url, modul=1)}'
-                      f'<div class="t">{escape(titel)}</div><div class="z">{escape(zeile)}</div></div>')
+                      f'<div class="t">{escape(titel)}</div><div class="z">{escape(zeile)}</div>{tel_html}</div>')
     return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>QR-Etiketten</title><style>"
             "@page{size:A4;margin:10mm}body{font-family:Segoe UI,Arial,sans-serif;margin:0}"
             ".b{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm}"
@@ -634,6 +661,7 @@ def etiketten_html(vorlage: str, zimmer: list[tuple[str, str]], titel: str = "Et
             "height:62mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center}"
             ".e svg{width:36mm;height:36mm}.n{font-size:16pt;font-weight:700;margin-bottom:1mm}"
             ".t{font-size:11pt;font-weight:600;margin-top:1mm}.z{font-size:8pt;color:#444}"
+            ".p{font-size:8pt;font-weight:700;margin-top:1.5mm;border-top:0.2mm solid #bbb;padding-top:1mm}"
             f"</style><body><div class='b'>{''.join(karten)}</div></body></html>")
 
 

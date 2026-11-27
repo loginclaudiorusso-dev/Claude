@@ -831,6 +831,13 @@ def mt_daten(a) -> None:
         a.mt_kuendigungen = kk.laden()
     except Exception:                          # noqa: BLE001
         a.mt_kuendigungen = {}
+    try:                                       # 1.74: Checkliste je Vertrag (erledigt/gesamt)
+        from . import mieter_checkliste as mc
+
+        cl = mc.laden()
+        a.mt_check = {mv.nr: mc.stand(mv, a.heute, cl, mv.nr in a.mt_kuendigungen) for mv in mt.laden()}
+    except Exception:                          # noqa: BLE001
+        a.mt_check = {}
     try:                                       # 1.48: automatische Verlängerung je Vertrag, fällige
         a.mt_auto = mb.auto()
         a.mt_faellig = {f.nr: f for f in mb.auto_faellig(mt.laden(), a.heute, a.mt_auto)}
@@ -885,6 +892,11 @@ def mt_zeichnen(a) -> None:
                     ui.label(f"{m.von:%d.%m.%Y} – {m.bis:%d.%m.%Y}").classes("m-mono")
                     with ui.element("div"):
                         ui.label(m.status).classes("m-zweite")
+                        if (ck := (getattr(a, "mt_check", None) or {}).get(m.nr)) and m.bis >= a.heute:   # 1.74
+                            fertig, gesamt = ck
+                            pill = ui.label(f"Checkliste {fertig}/{gesamt}").classes(
+                                "m-pille " + ("ok" if fertig == gesamt else "warn")).style("cursor:pointer")
+                            pill.on("click", lambda m=m: _checkliste(a, m))
                         if (kd := (getattr(a, "mt_kuendigungen", None) or {}).get(m.nr)) is not None:     # 1.63
                             from . import kuendigung_kern as kk
 
@@ -962,6 +974,18 @@ async def _unterlagen(a, nr: str) -> None:
             knopf("Abbrechen", a.panel_zu, "leise")
 
     a.panel(f"Unterlagen neu erstellen – MV {nr}", bauen)
+
+
+async def _checkliste(a, m) -> None:
+    from belegung import mieter as mt
+
+    from . import mieter_checkliste_ui
+
+    mv = await run.io_bound(mt.nach_nummer, m.nr)
+    if mv is None:
+        a.toast("Den Vertrag gibt es nicht mehr.", fehler=True, rueck=False)
+        return
+    await mieter_checkliste_ui.panel(a, mv)
 
 
 async def _akte(a, m) -> None:
@@ -1247,6 +1271,7 @@ def _mt_optionen(a, m) -> None:
                 ui.menu_item("Automatische Verlängerung aus", lambda m=m: a.aendern(mb.auto_setzen, m.nr, None))
             ui.separator()
             ui.menu_item("Vertrag bearbeiten (z. B. Zimmer) …", lambda m=m: vertrag_bearbeiten_panel(a, m.nr))
+            ui.menu_item("Checkliste (Einzug/Auszug) …", lambda m=m: _checkliste(a, m))   # 1.74
             ui.menu_item("Mieter-Akte (Unterlagen) …", lambda m=m: _akte(a, m))          # 1.72
             ui.menu_item("Unterlagen neu erstellen", lambda m=m: _unterlagen(a, m.nr))
             ui.menu_item("Mail zum Vertragsende …", lambda m=m: _mail_panel(a, m))
