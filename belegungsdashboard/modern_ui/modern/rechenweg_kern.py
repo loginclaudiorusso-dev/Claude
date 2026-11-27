@@ -24,6 +24,8 @@ class Schritt:
     formel: str = ""
     rechnung: str = ""                       # Formel mit eingesetzten Zahlen = Ergebnis
     details: list[str] = field(default_factory=list)
+    kurz: str = ""                           # 1.76: Überschrift in Alltagssprache
+    einfach: str = ""                        # 1.76: Erklärung für Laien – mit den echten Zahlen
 
 
 def _z(x: float | None, n: int = 1) -> str:
@@ -109,7 +111,12 @@ def _modell_schritte(r: _Reihe, name: str, H: int) -> list[Schritt]:
             "Modell = Niveau + Saisonindex",
             f"Niveau = Ø({'; '.join(f'{_z(v)} − {_k(s)}' for _m_, v, s in teile)}) = {_z(niveau)} · "
             f"Saisonindex = {_z(s_h)} → {_z(niveau)} + {_k(s_h)} = {_z(niveau + s_h)}",
-            ["Letzte 6 Monate: " + ", ".join(f"{_m(m_)} {_z(v)}" for m_, v, _s in teile)]))
+            ["Letzte 6 Monate: " + ", ".join(f"{_m(m_)} {_z(v)}" for m_, v, _s in teile)],
+            "Typischer Verlauf im Jahr",
+            f"Jeder Monat hat sein eigenes Muster – in manchen Monaten ist mehr los, in anderen weniger. Ohne dieses "
+            f"Monatsmuster lag die Belegung zuletzt bei rund {_z(niveau, 0)} Plätzen. In diesem Monat sind es "
+            f"erfahrungsgemäß {_z(abs(s_h), 0)} Plätze {'mehr' if s_h >= 0 else 'weniger'}. Ergebnis: rund "
+            f"{_z(niveau + s_h, 0)}."))
         return niveau + s_h
 
     def ets() -> float:
@@ -135,13 +142,21 @@ def _modell_schritte(r: _Reihe, name: str, H: int) -> list[Schritt]:
             f"α = {_z(a, 3)}, β = {_z(b, 3)}, γ = {_z(g, 3)}, φ = {_z(phi, 3)} (geschätzt nach kleinster Fehlerquadratsumme) · "
             f"ℓ = {_z(lev)}, b = {_z(tr, 2)}, Σφ^j (j=1…{H}) = {_z(summe_phi, 2)}, s = {_z(s)} → "
             f"{_z(lev)} + {_z(summe_phi, 2)}·{_k(tr, 2)} + {_k(s)} = {_z(wert)}",
-            [f"Fehlerquadratsumme der Anpassung: {_z(float(fit.sse), 0)}"]))
+            [f"Fehlerquadratsumme der Anpassung: {_z(float(fit.sse), 0)}"],
+            "Niveau, Trend und Jahreszeit",
+            f"Das Verfahren betrachtet drei Dinge: wo die Belegung gerade steht (rund {_z(lev, 0)} Plätze), ob sie "
+            f"eher steigt oder fällt ({'steigend' if tr > 0.05 else 'fallend' if tr < -0.05 else 'gleichbleibend'} – "
+            f"dieser Trend wird für die Zukunft vorsichtig abgeschwächt) und das typische Muster dieses Monats "
+            f"({_z(s, 0) if s < 0 else '+' + _z(s, 0)} Plätze). Neuere Monate zählen mehr als ältere. Zusammen: rund "
+            f"{_z(wert, 0)}."))
         return wert
 
     if name.startswith("Kombination"):
         e, sn = ets(), saison_niveau()
         erg.append(Schritt("Kombination", "Modell = (Holt-Winters + Saisonprofil) ÷ 2",
-                           f"({_z(e)} + {_z(sn)}) ÷ 2 = {_z((e + sn) / 2)}"))
+                           f"({_z(e)} + {_z(sn)}) ÷ 2 = {_z((e + sn) / 2)}", kurz="Beide Verfahren gemittelt",
+                           einfach=f"Beide Verfahren werden zu gleichen Teilen gemittelt – so gleichen sich ihre "
+                                   f"Schwächen aus: ({_z(e, 0)} + {_z(sn, 0)}) ÷ 2 = rund {_z((e + sn) / 2, 0)}."))
     elif name.startswith("Holt"):
         ets()
     elif name.startswith("Saisonprofil"):
@@ -149,11 +164,16 @@ def _modell_schritte(r: _Reihe, name: str, H: int) -> list[Schritt]:
     elif name.startswith("Vorjahres"):
         i = n - 12 + (H - 1) % 12
         erg.append(Schritt("Vorjahresmonat", "Modell = Wert desselben Monats ein Jahr vorher",
-                           f"{_m(r.monate[i])}: {_z(float(y[i]))}"))
+                           f"{_m(r.monate[i])}: {_z(float(y[i]))}", kurz="Wie im Vorjahr",
+                           einfach=f"Es wird der Wert desselben Monats im Vorjahr genommen: {_m(r.monate[i])} waren "
+                                   f"es rund {_z(float(y[i]), 0)} Plätze."))
     elif name.startswith("Mittel"):
         xs = y[-6:]
         erg.append(Schritt("Mittel der letzten 6 Monate", "Modell = (x₁ + … + x₆) ÷ 6",
-                           f"({' + '.join(_z(float(v)) for v in xs)}) ÷ 6 = {_z(float(np.mean(xs)))}"))
+                           f"({' + '.join(_z(float(v)) for v in xs)}) ÷ 6 = {_z(float(np.mean(xs)))}",
+                           kurz="Durchschnitt der letzten Monate",
+                           einfach=f"Es wird der Durchschnitt der letzten 6 Monate genommen: rund "
+                                   f"{_z(float(np.mean(xs)), 0)} Plätze."))
     return erg
 
 
@@ -179,7 +199,12 @@ def _fehler_statistik(bt, H: int, anteil: float = 1.0) -> tuple[Schritt, float, 
          f"Standardabweichung der normierten Fehler σ = {_z(sig, 2)} → bei Normalverteilung wäre k80 = 1,282·σ = "
          f"{_z(Z80 * sig, 2)} und k95 = 1,960·σ = {_z(Z95 * sig, 2)}. Verwendet werden die echten Quantile, weil die "
          "Fehler selten normalverteilt sind (Ausreißer, Schiefe).",
-         f"Probe: im Rückwärtstest lagen {_z(100 * abd, 0)} % der Fälle im 80-%-Band."])
+         f"Probe: im Rückwärtstest lagen {_z(100 * abd, 0)} % der Fälle im 80-%-Band."],
+        "Wie sicher ist das?",
+        f"Keine Vorhersage trifft genau. Wie weit das Programm früher danebenlag, zeigt, wie unsicher es jetzt ist. "
+        f"Bei {H} Monat{'en' if H != 1 else ''} Abstand lag der echte Wert in 8 von 10 Fällen höchstens "
+        f"{_z(b80, 0)} Plätze neben der Vorhersage, in 19 von 20 Fällen höchstens {_z(b95, 0)}. Je weiter ein Monat "
+        f"in der Zukunft liegt, desto größer wird dieser Spielraum.")
     return st, b80, b95
 
 
@@ -198,19 +223,31 @@ def rechenweg(ds, standort: str, monat: date, vertraege: float = 0.0, angezeigt:
         return []
     r = _reihe(ds, standort)
     if r.bester is None:
-        return [Schritt("Zu wenig Historie", "Mittel der letzten Monate, Band aus der Streuung der letzten 12 Monate")]
+        return [Schritt("Zu wenig Historie", "Mittel der letzten Monate, Band aus der Streuung der letzten 12 Monate",
+                        kurz="Noch zu wenig Erfahrungswerte",
+                        einfach="Für diesen Standort gibt es noch zu wenige Monate, um Rechenwege zu vergleichen. "
+                                "Verwendet wird der Durchschnitt der letzten Monate.")]
     k, H = _horizont(r, monat, ds.stichtag)
     erg = [Schritt(
         "Datenbasis",
         "Monatsmittel der belegten Plätze (Teilnehmende laut Pivot) je abgeschlossenem Monat",
         f"{len(r.y)} Monate ({_m(r.monate[0])} – {_m(r.monate[-1])}) · {_m(monat)} liegt H = {H} Monat(e) nach dem "
         f"letzten abgeschlossenen Monat",
-        ["Letzte 12 Monate: " + ", ".join(f"{_m(m_)} {_z(float(v))}" for m_, v in zip(r.monate[-12:], r.y[-12:]))])]
+        ["Letzte 12 Monate: " + ", ".join(f"{_m(m_)} {_z(float(v))}" for m_, v in zip(r.monate[-12:], r.y[-12:]))],
+        "Woher kommen die Zahlen?",
+        f"Grundlage sind die tatsächlich belegten Plätze der letzten {len(r.y)} Monate (Durchschnitt je Monat). Daraus "
+        f"lernt das Programm, wie sich die Belegung üblicherweise entwickelt. {_m(monat)} liegt {H} Monat"
+        f"{'e' if H != 1 else ''} nach dem letzten abgeschlossenen Monat – je weiter weg, desto unsicherer.")]
     erg.append(Schritt(
         "Modellwahl im Rückwärtstest",
         "Jedes Modell sagt von 18 früheren Zeitpunkten aus 1–12 Monate voraus, nur mit den Daten, die damals bekannt "
         "waren · MAE = Ø |Prognose − Ist| · gewählt wird das Modell mit dem kleinsten MAE",
-        " · ".join(f"{b.kandidat.name}: MAE {_z(b.mae, 2)}" for b in r.alle) + f" → {r.bester.kandidat.name}"))
+        " · ".join(f"{b.kandidat.name}: MAE {_z(b.mae, 2)}" for b in r.alle) + f" → {r.bester.kandidat.name}",
+        kurz="Welcher Rechenweg passt am besten?",
+        einfach=f"Es gibt mehrere Rechenwege – zum Beispiel „wie im Vorjahr“ oder „Durchschnitt der letzten Monate“. "
+                f"Jeder wurde an der Vergangenheit ausprobiert: Was hätte er damals vorhergesagt, und was kam wirklich? "
+                f"Am besten traf „{r.bester.kandidat.name}“ – im Schnitt nur {_z(r.bester.mae, 1)} Plätze daneben. "
+                f"Dieser Rechenweg wird verwendet."))
     erg += _modell_schritte(r, r.bester.kandidat.name, H)
     modell = float(w.modell) if w.modell is not None else None
     anteil = 1.0
@@ -221,12 +258,20 @@ def rechenweg(ds, standort: str, monat: date, vertraege: float = 0.0, angezeigt:
         erg.append(Schritt(
             "Laufender Monat",
             "Erwartet = Ist-Mittel × (Ist-Tage ÷ Tage) + Rest × (Resttage ÷ Tage) · Rest = max(Modell; gebucht)",
-            f"{_z(ist_m)} × {n_ist}/{n_t} + {_z(rest)} × {n_t - n_ist}/{n_t} = {_z(w.erwartet)}"))
+            f"{_z(ist_m)} × {n_ist}/{n_t} + {_z(rest)} × {n_t - n_ist}/{n_t} = {_z(w.erwartet)}",
+            kurz="Der Monat hat schon begonnen",
+            einfach=f"Von {n_t} Tagen sind {n_ist} schon vorbei – dort ist die Belegung bekannt (im Schnitt "
+                    f"{_z(ist_m, 0)}). Für die restlichen {n_t - n_ist} Tage wird geschätzt (rund {_z(rest, 0)}). "
+                    f"Beides zusammen ergibt rund {_z(w.erwartet, 0)}."))
     else:
         erg.append(Schritt(
             "Gebuchter Bestand als Untergrenze",
             "Erwartet = max(Modellwert; Ø gebuchte Plätze im Monat) – was schon gebucht ist, steht fest",
-            f"max({_z(modell)}; {_z(w.gesichert)}) = {_z(w.erwartet)}"))
+            f"max({_z(modell)}; {_z(w.gesichert)}) = {_z(w.erwartet)}",
+            kurz="Was schon gebucht ist",
+            einfach=(f"Für diesen Monat sind schon rund {_z(w.gesichert, 0)} Plätze fest gebucht – darunter kann die "
+                     f"Vorhersage nicht liegen. " if w.gesichert else "Für diesen Monat ist noch nichts fest gebucht. ")
+                    + f"Der Rechenweg ergibt rund {_z(modell, 0)}, verwendet wird deshalb rund {_z(w.erwartet, 0)}."))
     st, b80, b95 = _fehler_statistik(r.bester, H, anteil)
     erg.append(st)
     erg.append(_schluss(w.erwartet, b80, b95, vertraege, w.gesichert, angezeigt))
@@ -245,7 +290,13 @@ def _schluss(erw: float, b80: float, b95: float, v: float, gesichert: float | No
         det.append("Im Diagramm: erwartet {e}, 80 % {a} – {b}, 95 % {c} – {d}".format(
             e=_z(angezeigt.get("erwartet")), a=_z(angezeigt.get("lo80")), b=_z(angezeigt.get("hi80")),
             c=_z(angezeigt.get("lo95")), d=_z(angezeigt.get("hi95"))))
-    return Schritt("Ergebnis", "Angezeigt = Reha-Prognose + Verträge; Band = erwartet ± Halbbreite", rech, t[1:] + det)
+    einfach = (f"Erwartet werden rund {_z(erw + v, 0)} belegte Plätze. Sehr wahrscheinlich (8 von 10 Fällen) sind es "
+               f"zwischen {_z(max(erw - b80, 0) + v, 0)} und {_z(erw + b80 + v, 0)}, fast sicher (19 von 20 Fällen) "
+               f"zwischen {_z(max(erw - b95, 0) + v, 0)} und {_z(erw + b95 + v, 0)}.")
+    if v:
+        einfach += f" Darin sind rund {_z(v, 0)} Plätze aus Verträgen (Mieter, Gäste) enthalten, die fest eingeplant sind."
+    return Schritt("Ergebnis", "Angezeigt = Reha-Prognose + Verträge; Band = erwartet ± Halbbreite", rech, t[1:] + det,
+                   "Ergebnis", einfach)
 
 
 def _gesamt(ds, monat: date, vertraege: float, angezeigt: dict | None) -> list[Schritt]:
@@ -269,7 +320,12 @@ def _gesamt(ds, monat: date, vertraege: float, angezeigt: dict | None) -> list[S
         "Gesamt erwartet = Σ erwartet je Standort (jeder Standort hat sein eigenes, im Rückwärtstest gewähltes Modell)",
         " + ".join(f"{n} {_z(w.erwartet)}" for n, w, _r in teile) + f" = {_z(erw_sum)}",
         [f"{n}: {r.bester.kandidat.name if r.bester else '–'}" for n, _w, r in teile]
-        + ["Den Rechenweg je Standort (Modell, Saison, Parameter) zeigt die Auswahl eines Standorts oben."])]
+        + ["Den Rechenweg je Standort (Modell, Saison, Parameter) zeigt die Auswahl eines Standorts oben."],
+        "Alle Standorte zusammen",
+        "Die Gesamtzahl ist die Summe der drei Standorte: " + ", ".join(f"{n} rund {_z(w.erwartet, 0)}"
+                                                                         for n, w, _r in teile)
+        + f" – zusammen rund {_z(erw_sum, 0)}. Jeder Standort wird mit dem Rechenweg vorhergesagt, der dort am "
+          "besten passt. Wählen Sie oben einen Standort, um seinen Rechenweg im Einzelnen zu sehen.")]
     if len(je_monat) == len(teile) and je_monat:
         gemeinsam = sorted(set(je_monat[0]).intersection(*je_monat[1:]))
         summe = {}
@@ -306,8 +362,18 @@ def _gesamt(ds, monat: date, vertraege: float, angezeigt: dict | None) -> list[S
             + ([f"Daraus mittlere Korrelation der Standortfehler ρ ≈ (B² − Σb²) ÷ Σ bᵢ·bⱼ = {_z(rho, 2)}"
                 + (" – sie schwanken gemeinsam, das Band ist breiter als bei Unabhängigkeit." if rho and rho > 0.1 else
                    " – kaum gemeinsames Schwanken.")] if rho is not None else [])
-            + paare))
+            + paare,
+            "Wie sicher ist die Gesamtzahl?",
+            f"Die Standorte schwanken nicht völlig unabhängig voneinander. Deshalb wird die Unsicherheit der Gesamtzahl "
+            f"direkt daraus berechnet, wie weit die Summe früher danebenlag: in 8 von 10 Fällen höchstens "
+            f"{_z(B80, 0)} Plätze."
+            + (" Die Standorte schwanken dabei oft gemeinsam – der Spielraum ist deshalb etwas größer, als wenn sie "
+               "unabhängig wären." if rho is not None and rho > 0.1 else
+               " Die Standorte gleichen sich dabei teilweise aus." if rho is not None and rho < -0.1 else "")))
         hi80 = angezeigt.get("hi80") if angezeigt else None
         erg.append(_schluss(erw_sum, B80, band.breite(H, 95), vertraege, None, angezeigt) if hi80 is not None else
-                   Schritt("Ergebnis", "", f"{_z(erw_sum)} ± {_z(B80)}"))
+                   Schritt("Ergebnis", "", f"{_z(erw_sum)} ± {_z(B80)}", kurz="Ergebnis",
+                           einfach=f"Erwartet werden rund {_z(erw_sum, 0)} belegte Plätze. Sehr wahrscheinlich "
+                                   f"(8 von 10 Fällen) sind es zwischen {_z(max(erw_sum - B80, 0), 0)} und "
+                                   f"{_z(erw_sum + B80, 0)}."))
     return erg
