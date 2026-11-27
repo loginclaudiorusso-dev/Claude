@@ -92,7 +92,7 @@ SYMBOLE: dict[tuple, tuple] = {   # (Seite, Ansicht) → (Fluent-Symbol, Bedeutu
 AKTION_SYMBOLE: dict[str, tuple] = {   # Aktionsname (Präfix) → (Fluent-Symbol, Farbe)
     "nachricht_neu": ("people_team", VIOLETT), "fm_mail": ("send", BLAU), "mn_suche": ("search", VIOLETT),       # 1.58      # 1.36
     "aw:aw_chart=trend": ("arrow_trending_lines", BLAU), "aw:aw_chart=reserve": ("battery_charge", GRUEN),
-    "aw:aw_chart=jahr": ("arrow_swap", AMBER), "awt:aw_status": ("people_add", TEAL),
+    "aw:aw_chart=jahr": ("arrow_swap", AMBER), "aw:aw_chart=rechnung": ("p:a_berechnung", VIOLETT), "awt:aw_status": ("people_add", TEAL),
     "awt:aw_parallel": ("layout_column_three", TEAL), "aw:aw_brutto=false": ("person", BLAU),
     "aw:aw_brutto=true": ("people", BLAU),
     "dg_modus:karte": ("content_view", BLAU), "dg_modus:klassisch": ("chart_multiple", BLAU),
@@ -227,7 +227,8 @@ def _v(ansichten: dict, seite: str, k: str, text: str | None = None, icon: str |
 
 PROGNOSE = (("auswertung", "prognose"),)
 PROGNOSE_DIAGRAMME = {"trend": ("Trend & Prognose", "trending_up"), "reserve": ("Reserve", "align_vertical_bottom"),
-                      "jahr": ("Vorjahr", "compare_arrows")}
+                      "jahr": ("Vorjahr", "compare_arrows"),
+                      "rechnung": ("Berechnung", "functions")}           # 1.75: genauer Rechenweg je Monat
 ZEITRAEUME = {12: "12 Monate", 24: "24 Monate"}
 
 
@@ -294,7 +295,9 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
                 p("Aktuell im Haus", "a_personenliste", A("im_haus"),
                   "Wer ist heute im Haus, wer ist abwesend – mit Suche und Notfallliste"),
                 p("Abwesen­heiten", "a_person_weiter", A("abwesenheiten"), "Heimfahrt, Urlaub, Krankenhaus eintragen"),
-                p("Schlüssel", "a_schluessel", A("schluessel_ausgabe"), "Schlüssel ausgeben und zurücknehmen")]),
+                p("Schlüssel", "a_schluessel", A("schluessel_ausgabe"), "Schlüssel ausgeben und zurücknehmen"),
+                p("Kurs abwesend", "kurs_abwesend", A("kurs_abwesend"),                     # 1.75
+                  "Abwesenheit für einen ganzen Kurs (Ferien, Außenpraktikum) – und Kursliste drucken")]),
         ], symbol="p:uebersicht"),
         Reiter("anreisen", "Anreisen", [
             Gruppe("Anreisen", [p("Zuteilen", "zuteilen", S("anreisen", "zuteilen"), "Anreisenden Zimmer zuteilen"),
@@ -324,9 +327,13 @@ def _reiter(ansichten: dict[str, dict[str, str]], leitung: bool = True, standort
         ], symbol="p:zimmer"),
         Reiter("planung", "Planung", [
             Gruppe("Belegung", [p("Belegungs­plan", "belegungsplan", S("zimmer", "zeitstrahl"),
-                                  "Zeitstrahl: wer wann in welchem Zimmer wohnt")]),
+                                  "Zeitstrahl: wer wann in welchem Zimmer wohnt"),
+                                p("Gruppe blockieren", "kontingent", A("kontingent"),               # 1.75
+                                  "Zimmer für eine Gruppe reservieren, auch ohne Namen (Kontingent)")]),
             Gruppe("Termine", [p("Kalender", "kalender", S("termine", "liste"),
-                                 "Termine und Wiedervorlagen – Liste oder Monat in der Registerkarte „Kalender“")]),
+                                 "Termine und Wiedervorlagen – Liste oder Monat in der Registerkarte „Kalender“"),
+                               p("Feiertage", "feiertage", A("feiertage"),                          # 1.75
+                                 "Feiertage des Bundeslands und eigene Schließzeiten")]),
         ] + ([Gruppe("Haus", planung_haus)] if planung_haus else []), symbol="p:planung"),
         Reiter("auswertung", "Auswertung", [
             Gruppe("Berichte", [p("Belegung", "belegung", S("auswertung", "belegung"),   # 1.41: mit den Kennzahlen

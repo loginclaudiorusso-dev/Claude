@@ -992,6 +992,12 @@ async def _akte(a, m) -> None:
     from belegung import mieter as mt
 
     from . import mieter_akte_ui
+    from . import rechte_kern
+
+    if not rechte_kern.darf("mieter_akte"):                       # 1.75
+        a.toast("Die Mieter-Akte ist für Ihr Konto nicht freigegeben – bitte den Administrator fragen.", fehler=True,
+                rueck=False)
+        return
 
     mv = await run.io_bound(mt.nach_nummer, m.nr)               # die Zeile der Liste ist nicht der Vertrag selbst
     if mv is None:

@@ -198,6 +198,8 @@ def zeichnen(a) -> None:
     if a.aw_kap is None or a.aw_kap_basis != kap_echt:      # neuer Standort/Netto-Brutto → echte Kapazität
         a.aw_kap, a.aw_kap_basis = kap_echt, kap_echt
     praes = a.aw_modus == "praes"
+    if praes and a.aw_chart == "rechnung":                  # 1.75: die Berechnung ist keine Präsentationsansicht
+        a.aw_chart = "trend"
     _praes_klasse(a, praes)
     from . import diagramm_karte
 
@@ -264,6 +266,9 @@ def zeichnen(a) -> None:
         with a.leiste:
             with ui.element("div").classes("m-xbereich"):
                 segmente(BEREICHE, a.aw_bereich, lambda v: a.setzen(aw_bereich=v, laden=False))
+            knopf("Berechnung", lambda: a.setzen(aw_chart="trend" if a.aw_chart == "rechnung" else "rechnung",
+                                                 nur_seite=True), "leise", "functions",
+                  "Genauer Rechenweg der Prognose je Monat (nochmal klicken: zurück zum Diagramm)")
             knopf("Teilnehmer je Maßnahme", lambda: a.oeffnen("auswertung", ansicht="massnahmen", mn_ansicht="prognose",
                                            von=("Belegungs\u00adprognose", "auswertung", "prognose")),
                   "leise", "groups", "Teilnehmer-Prognose je Maßnahmeart (Bestandsmodell) – die zweite Sicht")
@@ -271,6 +276,11 @@ def zeichnen(a) -> None:
                   "Reduzierte Ansicht für Bildschirmfreigabe und Beamer (P) – Esc beendet").style("margin-left:auto")
             _export_menue(a, pg, zustand, box, ex)
 
+    if a.aw_chart == "rechnung":                            # 1.75: Ansicht „Berechnung“ – genauer Rechenweg
+        from . import prognose_berechnung_ui
+
+        prognose_berechnung_ui.zeichnen(a, pg, zustand["kap"])
+        return
     with a.inhalt:
         wurzel = ui.element("div").classes("m-ex" + (" praes" if praes else "") + (" still" if getattr(a, "_still", False) else ""))
     a._still = False

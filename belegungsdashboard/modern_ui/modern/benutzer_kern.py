@@ -6,7 +6,8 @@
   Passwort nötig, Windows hat schon geprüft) – sonst mit Anmeldename und Passwort. Nach vom Administrator gesetztem
   Passwort muss man es beim ersten Anmelden ändern.
 * **Rollen:** Administrator (alles, auch Benutzer verwalten, alle Standorte) und Mitarbeiter/in (nur die freigegebenen
-  Standorte).
+  Standorte). 1.75: Für Mitarbeitende legt der Administrator zusätzlich per Häkchen fest, was sie tun dürfen
+  (``rechte_kern``: Katalog und Vorlagen Leitung, Empfang, Haustechnik …).
 * **Solange es kein Konto gibt,** läuft INNternat wie bisher ohne Anmeldung; der erste Administrator wird unter
   Einstellungen → Benutzer angelegt. Notfall (Administrator-Passwort vergessen): eine leere Datei
   ``ADMIN_ZURUECKSETZEN.txt`` in den Datenordner legen – dann darf beim nächsten Start ein neuer Administrator angelegt
@@ -52,6 +53,7 @@ class Konto:
     aktiv: bool = True
     erstellt: str = ""
     zuletzt: str = ""
+    rechte: list[str] | None = None  # 1.75: Häkchen je Recht (rechte_kern); None = Vorlage „Mitarbeiter/in“ (wie bis 1.74)
 
     @property
     def admin(self) -> bool:
@@ -246,6 +248,35 @@ def _admin_noetig() -> None:
         raise ValueError("Nur ein Administrator darf Benutzer verwalten.")
 
 
+# ---- 1.75: eigene Startansicht (je Person, bei Anmeldung im Konto, sonst je PC) ---------------------------------------
+
+STARTSEITEN = {"heute": "Cockpit", "anreisen/zuteilen": "Zuteilen", "zimmer/uebersicht": "Zimmerübersicht",
+               "reinigung/liste": "Reinigung", "mieter/mieter": "Mieter", "termine/liste": "Kalender",
+               "auswertung/prognose": "Belegungsprognose"}
+
+
+def startseite() -> str:
+    from . import netz_kern
+
+    try:
+        w = netz_kern.persoenlich("startseite", "heute", je_standort=False)
+    except Exception:              # noqa: BLE001
+        return "heute"
+    return w if w in STARTSEITEN else "heute"
+
+
+def startseite_setzen(wert: str) -> str:
+    from . import netz_kern
+
+    if wert not in STARTSEITEN:
+        raise ValueError("Unbekannte Startansicht.")
+    netz_kern.persoenlich_setzen("startseite", wert, je_standort=False)
+    return f"Startansicht: {STARTSEITEN[wert]} (ab dem nächsten Start)"
+
+
+startseite_setzen.ohne_rueckgaengig = True
+
+
 # ---- Anmelden ------------------------------------------------------------------------------------------------------
 
 def windows_konto(windows: str | None = None) -> Konto | None:
@@ -346,7 +377,16 @@ def ersten_admin_anlegen(kennung: str, name: str, pw: str, wiederholung: str, wi
     return k
 
 
-def anlegen(kennung: str, name: str, rolle: str, standorte, windows: str = "", start_pw: str = "") -> str:
+def _rechte(rechte) -> list[str] | None:
+    from .rechte_kern import STANDARD, bereinigt, vorlage
+
+    if rechte is None or set(bereinigt(rechte)) == set(vorlage(STANDARD)):
+        return None                                   # wie „Mitarbeiter/in“ – künftige neue Rechte gelten dann mit
+    return bereinigt(rechte)
+
+
+def anlegen(kennung: str, name: str, rolle: str, standorte, windows: str = "", start_pw: str = "",
+            rechte: list[str] | None = None) -> str:
     _admin_noetig()
     k_ = _kennung_pruefen(kennung)
     if not (name or "").strip():
@@ -363,12 +403,13 @@ def anlegen(kennung: str, name: str, rolle: str, standorte, windows: str = "", s
             raise ValueError("Bitte ein Startpasswort vergeben oder ein Windows-Konto zuordnen – sonst kann sich "
                              "niemand anmelden.")
         ks.append(Konto(k_, name.strip(), rolle, st, w, hash_bilden(start_pw) if start_pw else "", bool(start_pw),
-                        True, _jetzt(), ""))
+                        True, _jetzt(), "", _rechte(rechte)))
     _aendern(f)
     return f"Benutzer „{name.strip()}“ angelegt"
 
 
-def bearbeiten(kennung: str, name: str, rolle: str, standorte, windows: str, aktiv: bool) -> str:
+def bearbeiten(kennung: str, name: str, rolle: str, standorte, windows: str, aktiv: bool,
+               rechte: list[str] | None = None) -> str:
     _admin_noetig()
     k_ = norm(kennung)
     st = _standorte_pruefen(rolle, standorte)
@@ -386,6 +427,8 @@ def bearbeiten(kennung: str, name: str, rolle: str, standorte, windows: str, akt
         if not w and not x.pw:
             raise ValueError("Ohne Windows-Konto braucht der Benutzer ein Passwort – bitte zuerst eins vergeben.")
         x.name, x.rolle, x.standorte, x.windows, x.aktiv = name.strip(), rolle, st, w, bool(aktiv)
+        if rechte is not None:                        # 1.75: None = Rechte unverändert lassen
+            x.rechte = _rechte(rechte)
         _admins_bleiben(ks)
         return x
     x = _aendern(f)

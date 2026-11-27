@@ -165,7 +165,10 @@ async def abwesenheiten_panel(a) -> None:
     kurz = {z.id: z.kurz for z in a.stand.zimmer} if a.stand else {}
 
     def bauen():
-        knopf("Neue Abwesenheit", lambda: abwesend_panel(a), "primaer", "add")
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Neue Abwesenheit", lambda: abwesend_panel(a), "primaer", "add")
+            knopf("Für ganzen Kurs …", lambda: kurs_panel(a), "", "groups",
+                  "Eine Abwesenheit für alle eines Kurses (z. B. Ferienwoche, Außenpraktikum) – und Kursliste drucken")
         aktuell = [x for x in alle if x.bis_d >= a.heute - timedelta(days=30)]
         if not aktuell:
             leer("Keine Abwesenheiten eingetragen.")
@@ -276,3 +279,72 @@ async def schluessel_liste_panel(a, nur_offen: bool = True) -> None:
             knopf("Aktuell im Haus", lambda: im_haus_panel(a), "leise", "groups")
 
     a.panel("Schlüssel", bauen)
+
+
+def kurs_panel(a, kurs: str = "", von: date | None = None, bis: date | None = None) -> None:
+    """1.75: Abwesenheit für einen ganzen Kurs (Ferien, Außenpraktikum, Brückentag) und Kursliste drucken."""
+    von = von or a.heute
+    bis = bis or von + timedelta(days=6)
+    kurse = hk.kurse(a.stand.lage, von, bis) if a.stand else {}
+    kurz = {z.id: z.kurz for z in a.stand.zimmer} if a.stand else {}
+
+    def bauen():
+        with ui.element("div").classes("m-zweispaltig"):
+            f_von = ui.input("Abwesend ab", value=von.isoformat()).classes("m-feld").props("dense outlined dark type=date")
+            f_bis = ui.input("bis einschließlich", value=bis.isoformat()).classes("m-feld").props(
+                "dense outlined dark type=date")
+        if not kurse:
+            leer("Im Zeitraum wohnt niemand mit einer Maßnahme im Haus.")
+            knopf("Zurück", lambda: abwesenheiten_panel(a), "leise")
+            return
+        k = kurs if kurs in kurse else next(iter(kurse))
+        wahl = ui.select({n: f"{n} ({len(p)})" for n, p in kurse.items()}, value=k, label="Kurs / Maßnahme",
+                         with_input=True).classes("m-feld w-full").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        ui.label("Wer ist betroffen? (alle angehakt – einzelne abwählen)").classes("m-abschnitt")
+        haken = {}
+        for name, zid in kurse[k]:
+            haken[(name, zid)] = ui.checkbox(f"{name} · {kurz.get(zid, zid)}", value=True).props("dense")
+        grund = ui.select(hk.GRUENDE, value="ferien", label="Grund").classes("m-feld").props(
+            'dense outlined dark options-dense popup-content-class="m-popup"')
+        notiz = ui.input("Notiz (optional)").classes("m-feld w-full").props("dense outlined dark")
+        ui.label("Die Zimmer bleiben belegt. Wer im Zeitraum schon abwesend eingetragen ist, wird nicht doppelt "
+                 "eingetragen. Ein Klick auf „Rückgängig“ nimmt alle wieder heraus.").classes("m-zweite")
+
+        def zeitraum():
+            try:
+                return date.fromisoformat(f_von.value), date.fromisoformat(f_bis.value)
+            except (TypeError, ValueError):
+                a.toast("Bitte beide Daten wählen.", fehler=True, rueck=False)
+                return None
+
+        def neu_bauen(_e=None):
+            z = zeitraum()
+            if z:
+                kurs_panel(a, wahl.value, *z)
+        wahl.on_value_change(neu_bauen)
+        f_von.on("change", neu_bauen)
+        f_bis.on("change", neu_bauen)
+
+        async def eintragen():
+            z = zeitraum()
+            if not z:
+                return
+            wer = [p for p, h in haken.items() if h.value]
+            if await a.aendern(hk.abw_sammel_anlegen, wer, z[0], z[1], grund.value, notiz.value or "", wahl.value):
+                await abwesenheiten_panel(a)
+
+        def drucken():
+            from .seiten import html_drucken
+
+            z = zeitraum() or (von, bis)
+            wer = [(n, kurz.get(zid, zid)) for (n, zid), h in haken.items() if h.value]
+            html_drucken(a, hk.kursliste_html(wahl.value, wer, "Kursliste",
+                                              f"{z[0]:%d.%m.} – {z[1]:%d.%m.%Y} · {len(wer)} Personen"), "Kursliste")
+
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Abwesenheit eintragen", eintragen, "primaer", "check")
+            knopf("Kursliste drucken", drucken, "", "print", "Name, Zimmer und eine Spalte zum Unterschreiben")
+            knopf("Zurück", lambda: abwesenheiten_panel(a), "leise")
+
+    a.panel("Abwesenheit für einen ganzen Kurs", bauen)

@@ -23,7 +23,25 @@ ZAHLEN = {   # Einstellung → (Text, Standard, min, max)
     "facility_monate": ("Facility-Check nach einem Aufenthalt ab … Monaten (Elektrik, Fenster)", 6, 1, 36),
     "anreise_standard_wochen": ("Anreisen ohne Abreise: angenommene Dauer in Wochen (0 = nur Termin)", 0, 0, 104),
     "zimmer_halten_monate": ("Zimmer bei Unterbrechung (z. B. Praktikum) halten – bis … Monate (0 = aus)", 9, 0, 24),  # 1.74
+    "ampel_gelb_prozent": ("Auslastungs-Ampel: „wird knapp“ ab … % der Kapazität", 70, 40, 99),        # 1.75
+    "ampel_rot_prozent": ("Auslastungs-Ampel: „kaum Reserve“ ab … % der Kapazität", 85, 41, 100),     # 1.75
 }
+
+
+def ampel_anwenden(e: dict | None = None) -> tuple[float, float]:
+    """1.75: Ampel-Grenzen aus den Einstellungen übernehmen (gelten für Prognose, Auswertung, Engpässe)."""
+    from belegung import konfig
+
+    try:
+        e = speicher.einstellungen() if e is None else e
+        g = int(e.get("ampel_gelb_prozent") or 70)
+        r = int(e.get("ampel_rot_prozent") or 85)
+    except (TypeError, ValueError, OSError):
+        g, r = 70, 85
+    if not 40 <= g < r <= 100:
+        g, r = 70, 85
+    konfig.AMPEL_GELB, konfig.AMPEL_ROT = g / 100, r / 100
+    return konfig.AMPEL_GELB, konfig.AMPEL_ROT
 ERINNERUNG = {"notiz_tage": "Notiz zur Anreise … Tage vorher", "abreise_tage": "Abreise-Erinnerung … Tage vorher",
               "abreise_tage_emr": "Abreise-Erinnerung EMR … Tage vorher"}
 
@@ -63,6 +81,12 @@ def zahl_setzen(k: str, wert: int) -> str:
     text, _s, mi, ma = ZAHLEN[k]
     if not mi <= wert <= ma:
         raise ValueError(f"Bitte {mi} bis {ma}.")
+    if k in ("ampel_gelb_prozent", "ampel_rot_prozent"):                    # 1.75: gelb muss unter rot liegen
+        e = speicher.einstellungen()
+        g = int(wert if k == "ampel_gelb_prozent" else e.get("ampel_gelb_prozent") or 70)
+        r = int(wert if k == "ampel_rot_prozent" else e.get("ampel_rot_prozent") or 85)
+        if g >= r:
+            raise ValueError(f"„Wird knapp“ ({g} %) muss unter „kaum Reserve“ ({r} %) liegen.")
     _schritt(text, lambda: speicher.einstellung_setzen(k, int(wert)), [speicher.EINSTELLUNGEN])
     return "Gespeichert"
 

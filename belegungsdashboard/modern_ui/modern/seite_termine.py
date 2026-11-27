@@ -23,6 +23,16 @@ def daten(a) -> None:
     a.daten = {"termine": tm.alle(), "zimmer": termin_zimmer(a)}
 
 
+def _feiertage_von(von: date, bis: date) -> dict:
+    """1.75: Feiertage und Schließtage im Zeitraum (Fehler beim Lesen → keine)."""
+    from . import feiertage_kern as fk
+
+    try:
+        return fk.tage(von, bis)
+    except Exception:                             # noqa: BLE001
+        return {}
+
+
 def termin_zimmer(a) -> dict:
     """1.63: Termin-ID → [(Name, Zimmer, Zimmer-ID)] für An-/Abreisen und Notizen (nur wenn ein Plan geladen ist)."""
     if getattr(a, "stand", None) is None:
@@ -92,6 +102,8 @@ def zeichnen(a) -> None:
     with a.werkzeuge:
         segmente(ANSICHTEN, ansicht, lambda v: a.oeffnen("termine", ansicht=v))   # 1.39: in der Registerkarte „Kalender“
         knopf("Neuer Termin", lambda: termin_panel(a, None, a.heute), "primaer", "add")
+        knopf("Feiertage & Schließzeiten", lambda: _feiertage(a), "", "event_busy",
+              "Bundesland für die Feiertage und eigene Schließzeiten (z. B. Weihnachtsschließung)")
     (_liste if ansicht == "liste" else _monat)(a)
 
 
@@ -133,9 +145,23 @@ def _liste(a) -> None:
         ui.html(f'<span class="m-kpi"><b style="color:var(--orange)">{len(faellig)}</b> fällig'
                 f'<span class="m-punktt">·</span><b>{len(bald)}</b> in den nächsten {a.tm_tage} Tagen</span>', sanitize=False)
         segmente({14: "14 Tage", 30: "30 Tage", 90: "90 Tage"}, a.tm_tage, lambda d: a.setzen(tm_tage=d, laden=False))
+    ft = list(_feiertage_von(heute, heute + timedelta(days=a.tm_tage)).items())
     with a.inhalt:
+        if ft:                                    # 1.75
+            ui.label("Feiertage und Schließzeiten").classes("m-abschnitt")
+            for d, n in ft:
+                with ui.element("div").classes("m-raster m-zeile").style(
+                        "grid-template-columns: 36px 100px minmax(180px, 1.4fr) minmax(160px, 1.6fr) 130px 40px"):
+                    ui.icon("event_busy").classes("m-zweite")
+                    ui.label(f"{WT[d.weekday()]} {d:%d.%m.%y}").classes("m-mono")
+                    ui.label(n).classes("m-name")
+                    ui.label("An- und Abreisen an diesem Tag mit Pforte und Reinigung klären").classes("m-zweite")
+                    with ui.element("div"):
+                        ui.label("Schließzeit" if n.startswith("Schließzeit") else "Feiertag").classes("m-pille warn")
+                    ui.label("")
         if not (faellig or bald or erledigt):
-            leer("Keine Termine.")
+            if not ft:
+                leer("Keine Termine.")
             return
         for titel, liste in (("Fällig – Erinnerung ist da", faellig), ("Demnächst", bald), ("Erledigt (letzte 14 Tage)", erledigt)):
             if liste:
@@ -157,6 +183,7 @@ def _monat(a) -> None:
                   "chevron_right", "Nächster Monat")
             knopf("Heute", lambda: a.setzen(tm_monat=a.heute.replace(day=1), laden=False), "leise")
         ui.label("Klick auf einen Tag: neuer Termin · Klick auf einen Eintrag: öffnen").classes("m-zweite m-monat-tipp")
+    feiertage = _feiertage_von(m - timedelta(days=7), m + timedelta(days=45))     # 1.75
     je_tag: dict[date, list] = {}
     for t in a.daten["termine"]:
         je_tag.setdefault(t.datum, []).append(t)
@@ -174,6 +201,8 @@ def _monat(a) -> None:
                         with ui.element("div").classes("m-monat-zk"):
                             ui.label(str(d.day)).classes("m-monat-nr")
                             ui.icon("add").classes("m-monat-plus")
+                        if (ft := feiertage.get(d)):      # 1.75
+                            attr(ui.label(ft).classes("m-chip warn"), title=ft)
                         ts = je_tag.get(d, [])
                         for t in ts[:4]:
                             c = ui.label(t.titel).classes(f"m-chip {FARBE.get(t.art, '')}" + (" fertig" if t.erledigt else ""))
@@ -184,6 +213,12 @@ def _monat(a) -> None:
                             mehr.on("click.stop", lambda d=d: tag_panel(a, d))
                     zelle.on("click", lambda d=d: termin_panel(a, None, d))
                     zelle.on("keydown.enter", lambda d=d: termin_panel(a, None, d))
+
+
+def _feiertage(a) -> None:
+    from . import feiertage_ui
+
+    feiertage_ui.panel(a)
 
 
 def termin_oeffnen(a, t) -> None:

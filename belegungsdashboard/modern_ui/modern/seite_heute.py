@@ -744,7 +744,8 @@ def _symbol(kid: str) -> str:
 KATEGORIE = {"anreise": "Anreise", "reinigung": "Reinigung", "strittig": "Gebäudeplan", "gleich": "Gebäudeplan", "unbewohnbar": "Zimmer",
              "konflikte": "Zimmer", "fm": "FM-Auftrag", "allergie": "Allergiker", "eintragen": "Belegungssystem",
              "mail": "Mail", "termin": "Termin", "maengel": "Mängel", "facility": "Facility", "abreisen": "Abreise",
-             "umzug": "Umzug", "mieterende": "Mieter", "engpass": "Engpass", "gebaeudeplan": "Gebäudeplan"}
+             "umzug": "Umzug", "mieterende": "Mieter", "engpass": "Engpass", "gebaeudeplan": "Gebäudeplan",
+             "feiertag": "Feiertag"}
 STUFE_TEXT = {"dringend": "dringend", "bald": "als Nächstes", "info": "zur Info"}
 STUFE_ICON = {"dringend": "priority_high", "bald": "schedule", "info": "info"}
 

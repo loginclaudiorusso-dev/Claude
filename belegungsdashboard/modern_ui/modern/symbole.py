@@ -180,6 +180,8 @@ PIKTO_FARBIG = {
     "a_pruefbericht": "clipboard_task", "a_pdf": "document_text", "a_export": "table", "a_kopieren": "document_add",
     "a_bearbeiten": "edit", "a_anzeigen": "search_visual", "a_neu_plus": "add_circle", "a_aufraeumen": "document_folder",
     "a_einlesen": "arrow_sync", "a_hochladen": "arrow_square",
+    "a_berechnung": "inn_berechnung", "kontingent": "inn_kontingent", "feiertage": "inn_feiertage",   # 1.75
+    "kurs_abwesend": "inn_kurs_abwesend",
 }
 VARIANTE = {"art": "fluent"}          # gilt im ganzen Programm (ein Prozess = eine Person); setzt die Oberfläche
 VORSCHAU = (("calendar", BLAU), ("people", BLAU), ("building_multiple", BLAU), ("warning", AMBER), ("wrench", AMBER))

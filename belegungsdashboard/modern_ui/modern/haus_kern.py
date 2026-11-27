@@ -21,7 +21,7 @@ from datetime import date, datetime
 ABW_DATEI = "importe/modern_abwesenheiten.json"
 SCHL_DATEI = "importe/modern_schluessel.json"
 GRUENDE = {"heimfahrt": "Heimfahrt", "urlaub": "Urlaub", "krank": "Krankenhaus / krank", "praktikum": "Praktikum",
-           "sonst": "Sonstiges"}
+           "ferien": "Ferien / unterrichtsfrei", "sonst": "Sonstiges"}          # 1.75: Ferien (Kurs-Abwesenheit)
 
 
 def _norm(name: str) -> str:
@@ -103,6 +103,68 @@ def abw_anlegen(name: str, zimmer: str, von: date, bis: date, grund: str = "heim
                       grund if grund in GRUENDE else "sonst", notiz.strip(), datetime.now().isoformat(timespec="seconds"))
     _schritt(f"Abwesenheit {name.strip()}", lambda: _abw_speichern(abw_laden() + [neu]), [ABW_DATEI])
     return f"{name.strip()}: {neu.text} eingetragen"
+
+
+def kurse(lage, von: date, bis: date) -> dict[str, list[tuple[str, str]]]:
+    """1.75: Wer wohnt im Zeitraum im Haus – je Kurs/Maßnahme: {Maßnahme: [(Name, Zimmer-ID)]} (ohne Mieter,
+    Kontingente und gehaltene Lücken)."""
+    erg: dict[str, dict[str, str]] = {}
+    for zid, bs in (getattr(lage, "belegungen", None) or {}).items():
+        for b in bs:
+            if b.art not in ("belegt", "geplant") or not (b.name or "").strip() or not (b.massnahme or "").strip():
+                continue
+            if (b.person or "").startswith(("kontingent:", "mv:")) or (b.grund or "").startswith("gehalten"):
+                continue
+            if (b.massnahme or "").lower().startswith("mieter") or not (b.von <= bis and b.bis >= von):
+                continue
+            erg.setdefault(b.massnahme.strip(), {}).setdefault(b.name.strip(), zid)
+    return {k: sorted(v.items(), key=lambda x: x[0].lower()) for k, v in sorted(erg.items(), key=lambda x: x[0].lower())}
+
+
+def abw_sammel_anlegen(eintraege: list[tuple[str, str]], von: date, bis: date, grund: str = "sonst", notiz: str = "",
+                       kurs: str = "") -> str:
+    """1.75: Eine Abwesenheit für viele (z. B. ganzer Kurs im Außenpraktikum, Ferienwoche) – ein Schritt, ein
+    „Rückgängig“. Wer im Zeitraum schon abwesend eingetragen ist, wird nicht doppelt eingetragen."""
+    from .kern import _schritt
+
+    eintraege = [(n.strip(), z or "") for n, z in eintraege if (n or "").strip()]
+    if not eintraege:
+        raise ValueError("Bitte mindestens eine Person auswählen.")
+    if f := abw_pruefen(eintraege[0][0], von, bis):
+        raise ValueError(" ".join(f))
+    jetzt = datetime.now().isoformat(timespec="seconds")
+    notiz = (notiz.strip() + (f" (Kurs {kurs})" if kurs else "")).strip()
+    n = {"neu": 0, "schon": 0}
+
+    def tun():
+        alle = abw_laden()
+        for name, zid in eintraege:
+            if any(_gleich(x.name, name) and x.von_d <= bis and x.bis_d >= von for x in alle):
+                n["schon"] += 1
+                continue
+            alle.append(Abwesenheit(uuid.uuid4().hex[:10], name, zid, von.isoformat(), bis.isoformat(),
+                                    grund if grund in GRUENDE else "sonst", notiz, jetzt))
+            n["neu"] += 1
+        _abw_speichern(alle)
+    _schritt(f"Abwesenheit für {kurs or 'mehrere'} ({len(eintraege)})", tun, [ABW_DATEI])
+    return (f"{n['neu']} Abwesenheit(en) eingetragen ({von:%d.%m.} – {bis:%d.%m.%Y})"
+            + (f" · {n['schon']} waren schon eingetragen" if n["schon"] else ""))
+
+
+def kursliste_html(kurs: str, personen: list[tuple[str, str]], titel: str = "Anwesenheit", unter: str = "") -> str:
+    """1.75: Liste eines Kurses zum Drucken – Name, Zimmer, Spalte zum Unterschreiben."""
+    from html import escape
+
+    zeilen = "".join(f"<tr><td>{i}</td><td>{escape(n)}</td><td>{escape(z)}</td><td></td></tr>"
+                     for i, (n, z) in enumerate(personen, 1))
+    return ("<!doctype html><html lang='de'><meta charset='utf-8'><title>Kursliste</title><style>"
+            "@page{size:A4;margin:14mm}body{font-family:Segoe UI,Arial,sans-serif;color:#1f2a33}"
+            "h1{font-size:18pt;margin:0}.u{color:#45525c;margin:2mm 0 6mm}table{width:100%;border-collapse:collapse}"
+            "th,td{border-bottom:0.3mm solid #bbb;padding:2.5mm 2mm;text-align:left;font-size:11pt}"
+            "th{font-size:9pt;color:#45525c;text-transform:uppercase}td:last-child{width:45%}"
+            f"</style><body><h1>{escape(titel)} · {escape(kurs)}</h1><div class='u'>{escape(unter)}</div>"
+            "<table><tr><th>#</th><th>Name</th><th>Zimmer</th><th>Unterschrift</th></tr>" + zeilen
+            + "</table></body></html>")
 
 
 def abw_entfernen(aid: str) -> str:

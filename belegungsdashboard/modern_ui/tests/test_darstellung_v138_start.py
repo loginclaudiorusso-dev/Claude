@@ -12,7 +12,7 @@ def test_kommunikation_in_der_uebersicht():
     assert len(ziele) == len(set(ziele))
     texte = [p.text for g in ueb.gruppen for p in g.punkte]
     assert texte == ["Cockpit", "Nachrichten", "Neue Nachricht", "Mail an FM", "Aktuell im Haus", "Abwesen\xadheiten",
-                     "Schlüssel"]                                                 # 1.63: Gruppe „Im Haus“
+                     "Schlüssel", "Kurs abwesend"]                                # 1.63: Gruppe „Im Haus“ (1.75: Kurs)
 
 
 def test_senden_prueft_vorher_und_startet_outlook_nie():

@@ -873,6 +873,8 @@ def karten(stand: zp.Planstand | None, heute: date | None = None, vorgaenge_: li
         erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
     if "mieter_check" not in weg and (k := mieter_check_karte(heute)) is not None:     # 1.74
         erg.append(k)
+    if stand is not None and "feiertag" not in weg and (k := feiertag_karte(stand, heute)) is not None:   # 1.75
+        erg.append(k)
     if "mieter_auto" not in weg and (k := mieter_auto_karte(heute)) is not None:
         erg.insert(len([x for x in erg if x.stufe == "dringend"]), k)
     if "qr" not in weg and (k := qr_karte()) is not None:          # 1.28: Meldungen per QR-Code
@@ -947,6 +949,39 @@ def mieter_check_karte(heute: date) -> Karte | None:
                  "; ".join(f"MV {mv.nr} {mv.nachname}: {', '.join(p.text for p in offen[:2])}"
                            + (" …" if len(offen) > 2 else "") for mv, offen in fs[:2]) + (" …" if len(fs) > 2 else ""),
                  zweite=Aktion("mieter_check", "Mieter ansehen", "mieter"))
+
+
+def feiertag_karte(stand, heute: date) -> Karte | None:
+    """1.75: An- oder Abreisen der nächsten zwei Wochen an einem Feiertag oder in einer Schließzeit."""
+    from . import feiertage_kern as fk
+
+    try:
+        termine = []
+        ende = heute + timedelta(days=fk.VORSCHAU_TAGE)
+        for bs in stand.lage.belegungen.values():
+            for b in bs:
+                if b.art not in ("belegt", "geplant") or not b.name or b.name == zp.PIVOT_NAME:
+                    continue
+                if (b.person or "").startswith(("kontingent:", "mv:")) or (b.grund or "").startswith("gehalten"):
+                    continue
+                if heute <= b.von <= ende:
+                    termine.append((b.von, "Anreise", zp.anzeige_name(b.name)))
+                if heute <= b.bis <= ende:
+                    termine.append((b.bis, "Abreise", zp.anzeige_name(b.name)))
+        treffer = fk.termine_im_zeitraum(termine, heute)
+    except Exception:                          # noqa: BLE001
+        return None
+    if not treffer:
+        return None
+    n = sum(len(x[2]) for x in treffer)
+    return Karte("feiertag", "bald",
+                 f"{n} An-/Abreise{'n' if n > 1 else ''} an Feiertag oder Schließtag",
+                 "; ".join(f"{t:%d.%m.} {name.split(' · ')[0]}: "
+                           + ", ".join(f"{sum(1 for a, _n in ps if a == art)} {art}{'n' if sum(1 for a, _n in ps if a == art) > 1 else ''}"
+                                       for art in ("Anreise", "Abreise") if any(a == art for a, _n in ps))
+                           for t, name, ps in treffer[:3]) + (" …" if len(treffer) > 3 else "")
+                 + " – Pforte, Schlüssel und Reinigung rechtzeitig klären",
+                 zweite=Aktion("feiertag", "Kalender ansehen", "termine/liste"))
 
 
 def mieter_auto_karte(heute: date) -> Karte | None:
@@ -1369,3 +1404,7 @@ _vorlagen_mieter.installieren()                    # 1.68: Vertragsvorlagen im g
 from . import zimmer_halten as _zimmer_halten  # noqa: E402
 
 _zimmer_halten.installieren()                      # 1.74: Zimmer bei Unterbrechung (Praktikum) gehalten, nicht frei
+
+from . import kontingent_kern as _kontingent  # noqa: E402
+
+_kontingent.installieren()                         # 1.75: Zimmer für Gruppen blockiert (Kontingent, ohne Namen)

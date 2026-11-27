@@ -58,7 +58,8 @@ def test_piktogramme_sind_gueltiges_svg():
 
 def test_hoechstens_acht_und_kein_versteckter_pfeil():
     for r in _reiter():
-        assert sum(len(g.punkte) for g in r.gruppen) <= 8, r.titel
+        # 1.75: „Prognose“ hat zusätzlich „Berechnung“ – dort 9
+        assert sum(len(g.punkte) for g in r.gruppen) <= (9 if r.key == "prognose" else 8), r.titel
     for r in _feste():                                  # Ansichten sichtbar – keine Split-Buttons mehr in den Bereichen
         assert not any(p.menue for g in r.gruppen for p in g.punkte), r.titel
 

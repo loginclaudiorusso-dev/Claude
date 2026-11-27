@@ -360,8 +360,15 @@ def _paket(mv, pdf, ziel: Path, ordner: Path | None, auswahl: list[str] | None) 
         return mt.paket_erstellen(mv, pdf, ziel, Path(tmp))
 
 
+def _recht() -> None:
+    from .rechte_kern import pruefen
+
+    pruefen("mieter")                                # 1.75: Recht „Mietverträge anlegen, ändern, kündigen“
+
+
 def neuer_vertrag(werte: dict) -> tuple[str, Path]:
     """1.69: unter der Schreibsperre – die automatische Nummer kann so kein zweiter PC gleichzeitig vergeben."""
+    _recht()
     from . import netz_kern
 
     with netz_kern.sperre():
@@ -426,6 +433,7 @@ def _neuer_vertrag(werte: dict) -> tuple[str, Path]:
 
 
 def verlaengern(nr: str, bis_neu: date) -> tuple[str, Path]:
+    _recht()
     mv = mt.nach_nummer(nr)
     if mv is None:
         raise ValueError("Den Vertrag gibt es nicht mehr.")
@@ -464,6 +472,7 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
     """Einen erstellten Vertrag korrigieren: Name, Zimmer, Zeitraum, Miete … (die Vertragsnummer bleibt). Der
     Zimmerplan zieht mit; im Verlauf steht, was sich geändert hat. ``unterlagen``: Vertrags-PDF gleich neu erstellen.
     Ein Zimmer, das im Zeitraum nicht passt (belegt, falsche Gruppe …), wird abgelehnt."""
+    _recht()
     from dataclasses import replace
 
     from belegung import protokoll
@@ -532,6 +541,7 @@ def vertrag_aendern(nr: str, werte: dict, unterlagen: bool = True) -> tuple[str,
 
 
 def unterlagen_neu(nr: str, dokumente: list[str] | None = None) -> tuple[str, Path]:
+    _recht()
     mv = mt.nach_nummer(nr)
     if mv is None:
         raise ValueError("Den Vertrag gibt es nicht mehr.")

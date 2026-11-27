@@ -54,6 +54,7 @@ PYTHONPATH=.. python3 -m pytest -q tests/test_netz_*.py         # ein Thema
 - `test_reinigung_suche_v173.py` – 1.73 – überholte Reinigungszeilen weg, Abhaken mit geladenem Stand, Suche ohne doppelte Person
 - `test_halten_checkliste_v174.py` – 1.74 – Lücke gehalten (Name/Reihenfolge, zu lang, Anschluss, aus, Doppelzimmer), keine Abreise am Lückenende, Checkliste (Punkte, Haken, eigene, Cockpit nach 14 Tagen)
 - `test_qr_telefon_v174.py` – 1.74 – Pforten-Nummer: speichern/prüfen, auf Etiketten, Zimmer- und Flur-Aushang
+- `test_v175_rechte_kontingent_feiertage.py` – 1.75 – Rechte (Vorlagen, Zuordnung der Aktionen, Seiten), Kontingent (blockiert freie Betten, füllt sich selbst, Speichern), Kurs-Abwesenheit, Feiertage (Ostern, Länder, Schließzeit), Ampel, Startansicht, Berechnung im Menüband, Symbole
 
 ## austausch – Austauschdatei altes ⇄ neues Programm
 

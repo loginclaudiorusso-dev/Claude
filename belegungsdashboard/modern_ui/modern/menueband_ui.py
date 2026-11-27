@@ -88,6 +88,20 @@ async def ausfuehren(a, ziel: tuple | None) -> None:
             await haus_ui.abwesenheiten_panel(a)
         else:
             await haus_ui.schluessel_liste_panel(a)
+    elif name in ("kontingent", "kurs_abwesend") and a.stand is None:      # 1.75
+        a.toast("Erst Daten laden.", fehler=True)
+    elif name == "kontingent":                              # 1.75: Gruppe blockieren
+        from . import kontingent_ui
+
+        await kontingent_ui.panel(a)
+    elif name == "feiertage":                               # 1.75
+        from . import feiertage_ui
+
+        feiertage_ui.panel(a)
+    elif name == "kurs_abwesend":                           # 1.75: Abwesenheit für einen ganzen Kurs
+        from . import haus_ui
+
+        haus_ui.kurs_panel(a)
     elif name == "gleiche_person":                          # 1.67: Gebäudeplan ↔ Anreiseliste
         from . import gleiche_person_ui
 
@@ -377,6 +391,13 @@ def fuellen(a, erzwingen: bool = False, nach_zeichnen: bool = False) -> None:
     """Menüband in ``a.topnav`` bauen – nur neu, wenn sich etwas Sichtbares geändert hat (ein Klick bleibt stehen).
     ``nach_zeichnen``: Aufruf nach dem Zeichnen der Seite – erst dann ist bekannt, ob sie Werkzeuge hat."""
     alle = mb.reiter(_ansichten(), a.design.get("leitung", True), _standorte())
+    from . import rechte_kern                                 # 1.75: ohne „sehen“-Recht keine Auswertung/Prognose
+    try:
+        ohne_auswertung = not rechte_kern.darf("auswertung")
+    except Exception:                                       # noqa: BLE001
+        ohne_auswertung = False
+    if ohne_auswertung:
+        alle = [r for r in alle if r.key not in ("auswertung", "prognose")]
     oben = werkzeuge_oben(a)
     ort = (a.seite, a.ansicht_von(a.seite, STANDARD_ANSICHT.get(a.seite, "")))
     if getattr(a, "_ob_ort", None) not in (None, ort) and oben:

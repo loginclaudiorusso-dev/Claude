@@ -110,6 +110,7 @@ def konto_panel(a) -> None:
         if k is None:
             ui.label("Es gibt noch keine Benutzerkonten – INNternat läuft ohne Anmeldung. Den ersten Administrator legen "
                      "Sie unter Verwaltung → Benutzer & Rechte an.").classes("m-ptext")
+            _startseite(a)
             with ui.element("div").classes("m-paktionen"):
                 knopf("Benutzer einrichten", verwalten, "primaer", "manage_accounts")
                 knopf("Optionen", lambda: _optionen(a), "", "tune", "Darstellung, Farben, Diagramme")
@@ -120,6 +121,14 @@ def konto_panel(a) -> None:
         ui.label(f"Rolle: {bk.ROLLEN.get(k.rolle, k.rolle)}").classes("m-zweite")
         ui.label("Standorte: " + ", ".join(STANDORT_NAMEN[s] for s in k.erlaubt())).classes("m-zweite")
         ui.label(f"Windows-Konto: {k.windows}" if k.windows else "Anmeldung mit Passwort").classes("m-zweite")
+        if not k.admin:                                # 1.75: was darf ich?
+            from . import rechte_kern as rk
+
+            r = rk.von_konto(k)
+            ui.label("Sie dürfen: " + (", ".join(rk.NAMEN[x] for x in rk.KEYS if x in r) or "nur lesen")).classes(
+                "m-zweite").style("white-space:normal")
+
+        _startseite(a)
 
         async def pw():
             if await passwort_dialog():
@@ -133,6 +142,19 @@ def konto_panel(a) -> None:
             knopf("Schließen", a.panel_zu, "leise")
 
     a.panel("Konto", bauen)
+
+
+def _startseite(a) -> None:
+    """1.75: eigene Startansicht beim Programmstart (je Person bzw. je PC)."""
+    start = ui.select(bk.STARTSEITEN, value=bk.startseite(), label="Startansicht beim Programmstart").classes(
+        "m-feld w-full").props('dense outlined dark options-dense popup-content-class="m-popup"')
+
+    async def setzen(e):
+        try:
+            a.toast(await run.io_bound(bk.startseite_setzen, e.value), rueck=False)
+        except ValueError as exc:
+            a.toast(str(exc), fehler=True, rueck=False)
+    start.on_value_change(setzen)
 
 
 def abmelden(a) -> None:
@@ -169,13 +191,13 @@ def zeichnen(a) -> None:
         if not bk.ist_admin():
             ui.label("Benutzer verwalten darf nur ein Administrator.").classes("m-ptext").style("padding:14px 20px")
             return
-        sp = "minmax(140px,1.2fr) minmax(120px,1fr) 130px minmax(150px,1fr) minmax(110px,.8fr) 120px"
+        sp = "minmax(140px,1.2fr) minmax(120px,1fr) 130px minmax(150px,1fr) minmax(130px,1fr) minmax(110px,.8fr) 120px"
         with ui.element("div").classes("m-zeile-flex").style("padding: 14px 20px 4px"):
             ui.label("Jede Person meldet sich mit ihrem Konto an. Mitarbeitende sehen nur ihre Standorte. Klick auf eine "
                      "Zeile zum Ändern, Sperren oder neuen Startpasswort.").classes("m-ptext")
             knopf("Neuer Benutzer …", lambda: _panel(a, None), "primaer", "person_add").style("margin-left:auto")
         with ui.element("div").classes("m-raster m-tkopf").style(f"grid-template-columns:{sp}"):
-            for t in ("Name", "Anmeldename", "Rolle", "Standorte", "Windows-Konto", "Zuletzt"):
+            for t in ("Name", "Anmeldename", "Rolle", "Standorte", "Rechte", "Windows-Konto", "Zuletzt"):
                 ui.label(t)
         for k in sorted(d.get("konten") or [], key=lambda k: (not k.admin, k.name.lower())):
             r = ui.element("div").classes("m-raster m-zeile m-klick" + ("" if k.aktiv else " fertig")).style(
@@ -185,9 +207,21 @@ def zeichnen(a) -> None:
                 ui.label(k.kennung).classes("m-zweite")
                 ui.label(bk.ROLLEN.get(k.rolle, k.rolle)).classes("m-zweite")
                 ui.label("alle" if k.admin else ", ".join(STANDORT_NAMEN[s] for s in k.erlaubt())).classes("m-zweite")
+                ui.label(_rechte_text(k)).classes("m-zweite")
                 ui.label(k.windows or "–").classes("m-zweite")
                 ui.label(_zeit(k.zuletzt) + (" · Passwort neu" if k.muss_aendern else "")).classes("m-zweite")
             r.on("click", lambda k=k: _panel(a, k))
+
+
+def _rechte_text(k: bk.Konto) -> str:
+    """1.75: „alle“ · Name der Vorlage · „angepasst (7)“."""
+    from . import rechte_kern as rk
+
+    if k.admin:
+        return "alle"
+    r = sorted(rk.von_konto(k))
+    v = rk.passende_vorlage(r)
+    return rk.VORLAGEN[v][0].split(" (")[0] if v else f"angepasst ({len(r)})"
 
 
 def _zeit(t: str) -> str:
@@ -244,6 +278,39 @@ def _panel(a, k: bk.Konto | None) -> None:
                  "in INNternat kein Passwort. Leer lassen, wenn sich mehrere Personen ein Windows-Konto teilen.") \
             .classes("m-ptext")
         windows = ui.input("Windows-Anmeldename", value=k.windows if k else "").classes("m-feld w-full").props(FELD)
+        # 1.75: Rechte per Häkchen – eine Vorlage belegt sie vor, danach jedes einzeln änderbar
+        from . import rechte_kern as rk
+
+        rechte_box = ui.element("div")
+        with rechte_box:
+            ui.label("Rechte – was darf die Person tun?").classes("m-abschnitt")
+            ist = sorted(rk.von_konto(k)) if k and not k.admin else rk.vorlage(rk.STANDARD)
+            vorlage = ui.select({n: t for n, (t, _r) in rk.VORLAGEN.items()} | {"": "angepasst"},
+                                value=rk.passende_vorlage(ist), label="Vorlage").classes("m-feld w-full").props(FELD)
+            r_haken: dict = {}
+            gruppe = None
+            for r in rk.RECHTE:
+                if r.gruppe != gruppe:
+                    gruppe = r.gruppe
+                    ui.label(gruppe).classes("m-zweite").style("margin-top:6px; font-weight:600")
+                r_haken[r.key] = ui.checkbox(r.text, value=r.key in ist).props("dense")
+                attr(r_haken[r.key], title=r.hilfe)
+            ui.label("Heikle Stammdaten, Sicherungen und Benutzer bleiben immer beim Administrator. Die Rechte schützen "
+                     "das Programm, nicht die Dateien im Netzwerkordner.").classes("m-zweite").style("white-space:normal")
+
+        def vorlage_setzen(e):
+            if e.value:
+                for key, h in r_haken.items():
+                    h.value = key in rk.vorlage(e.value)
+        vorlage.on_value_change(vorlage_setzen)
+
+        def haken_geaendert(_e=None):
+            v = rk.passende_vorlage([key for key, h in r_haken.items() if h.value])
+            if vorlage.value != v:
+                vorlage.set_value(v)
+        for h in r_haken.values():
+            h.on_value_change(haken_geaendert)
+        rechte_box.bind_visibility_from(rolle, "value", backward=lambda v: v != "admin")
         start = None
         aktiv = None
         if neu:
@@ -256,13 +323,16 @@ def _panel(a, k: bk.Konto | None) -> None:
         def standorte():
             return [s for s, h in haken.items() if h.value]
 
+        def rechte():
+            return [key for key, h in r_haken.items() if h.value]
+
         async def speichern():
             if neu:
                 ok = await _tun(a, bk.anlegen, kennung.value or "", name.value or "", rolle.value, standorte(),
-                                windows.value or "", start.value or "")
+                                windows.value or "", start.value or "", rechte())
             else:
                 ok = await _tun(a, bk.bearbeiten, k.kennung, name.value or "", rolle.value, standorte(),
-                                windows.value or "", aktiv.value)
+                                windows.value or "", aktiv.value, rechte())
             if ok:
                 a.panel_zu()
 

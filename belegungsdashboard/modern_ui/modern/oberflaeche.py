@@ -63,6 +63,23 @@ def _stempel() -> tuple:
 _VORGEWAERMT = {"an": False}
 
 
+
+def _recht_pruefen(aktion) -> None:
+    """1.75: Darf der angemeldete Benutzer diese Änderung? Sonst ValueError mit Text (erscheint als Hinweis)."""
+    from . import rechte_kern
+
+    rechte_kern.pruefen(rechte_kern.recht_fuer(aktion))
+
+
+def _seite_erlaubt(seite: str) -> bool:
+    from . import rechte_kern
+
+    try:
+        return rechte_kern.seite_erlaubt(seite)
+    except Exception:                                  # noqa: BLE001 – Benutzerdatei nicht lesbar: nicht aussperren
+        return True
+
+
 class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
     def __init__(self) -> None:
         self.heute = date.today()
@@ -124,6 +141,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
         self.aw_standort, self.aw_brutto, self.aw_horizont = konfig.GESAMT, False, 12   # 0.94: 12 Monate Standard
         self.aw_95, self.aw_backtest = True, False           # 1.23: 95 %-Band an (abschaltbar) – in jeder Darstellung gleich
+        self.aw_rw_monat = None                 # 1.75: Prognose → Berechnung: gewählter Monat (Index)
         self.aw_chart, self.aw_summary = "trend", True          # Prognose: Diagrammart, Kernaussagen offen
         self.aw_kap, self.aw_kap_basis, self.aw_offset = None, None, 0.0   # Was-wäre-wenn (Kapazität, Auslastung ±%)
         self.aw_von, self.aw_bis = self.heute.replace(day=1), self.heute
@@ -161,6 +179,12 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from belegung import zimmerplan as zp
 
         self.heute = date.today()
+        try:                                   # 1.75: Ampel-Grenzen aus den Einstellungen
+            from .seite_einstellungen import ampel_anwenden
+
+            ampel_anwenden()
+        except Exception:                      # noqa: BLE001
+            log.exception("Ampel-Grenzen")
         self.stand = zp.laden()
         try:
             from . import regeln_kern
@@ -187,6 +211,9 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
             self.neu_liste, self.ungelesen = [], 0
 
     def _seite_laden(self) -> None:
+        if not _seite_erlaubt(self.seite):     # 1.75: ohne Recht nichts laden (z. B. Pivot der Auswertung)
+            self.daten = {}
+            return
         if self.seite == "anreisen" and self.ansicht_von("anreisen", "zuteilen") != "zuteilen":
             seite_anreisen.daten(self)
         elif self.seite == "anreisen":
@@ -397,6 +424,9 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         from . import diagramm_ui
 
         ui.add_css(diagramm_ui.CSS)            # 0.75: Diagramme – Größe ziehen, Tabelle, ƒx Berechnung, Klick → Panel
+        from . import prognose_berechnung_ui
+
+        ui.add_css(prognose_berechnung_ui.CSS)  # 1.75: Prognose → Berechnung
         from . import versand_ui
 
         ui.add_css(versand_ui.CSS)              # 1.59: Versandprotokoll
@@ -553,6 +583,10 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
                                                             or self.ansicht_von("anreisen", "zuteilen") != "zuteilen")):
             with self.inhalt:
                 leer("Lädt …")
+        elif not _seite_erlaubt(self.seite):     # 1.75: „sehen“-Recht fehlt
+            with self.inhalt:
+                leer("Diese Seite ist für Ihr Konto nicht freigegeben – bitte den Administrator fragen "
+                     "(Verwaltung → Benutzer und Rechte).")
         elif self.seite == "anreisen":
             self._anreisen()
         else:
@@ -795,6 +829,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         self.body.classes(add="m-arbeitet")
         try:
             try:
+                _recht_pruefen(aktion)                 # 1.75
                 text = await run.io_bound(aktion, *args)
             except ValueError as exc:
                 self.toast(str(exc), fehler=True)
@@ -818,6 +853,7 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
 
     async def _aendern(self, aktion, *args) -> bool:
         try:
+            _recht_pruefen(aktion)                     # 1.75: Rechte je Benutzer
             text = await run.io_bound(aktion, *args)
         except ValueError as exc:
             self.toast(str(exc), fehler=True)
@@ -1189,6 +1225,15 @@ async def startseite() -> None:
             ui.navigate.reload()
             return
         await run.io_bound(standort_kern.merken, kurz)
+    try:                                       # 1.75: eigene Startansicht (wenn erlaubt)
+        start = await run.io_bound(bk.startseite)
+        seite_, _, ansicht_ = start.partition("/")
+        if start != "heute" and seite_ in register.SEITEN and _seite_erlaubt(seite_):
+            a.seite = seite_
+            if ansicht_:
+                a.ansicht[seite_] = ansicht_
+    except Exception:                          # noqa: BLE001 – Startansicht ist Zusatz
+        log.exception("Startansicht")
     a.zeichnen()                               # sofort Rahmen zeigen („Lädt …“), dann Daten
     await ui.context.client.connected()
     try:

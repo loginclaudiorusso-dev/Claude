@@ -55,7 +55,8 @@ def test_aufgeraeumt_hoechstens_acht():
     for r in mb.reiter(ANS):
         n = sum(len(g.punkte) for g in r.gruppen)
         # 1.39: auch Kontext-Registerkarten höchstens 8 (Diagramm verschlankt, Prognose eigene Karte)
-        assert n <= 8, (r.titel, n)
+        # 1.75: „Prognose“ hat zusätzlich „Berechnung“ (genauer Rechenweg als eigene Ansicht) – dort 9
+        assert n <= (9 if r.key == "prognose" else 8), (r.titel, n)
         assert len(r.gruppen) <= 5, r.titel
 
 

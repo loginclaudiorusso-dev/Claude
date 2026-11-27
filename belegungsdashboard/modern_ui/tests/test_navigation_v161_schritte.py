@@ -11,7 +11,7 @@ def test_prognose_hoechstens_zwei_kontextkarten():
     kontext = [r for r in mb.reiter({}) if r.kontext and mb.sichtbar(r, "auswertung", "prognose")]
     assert [r.key for r in kontext] == ["prognose"]      # + Werkzeug-Karte der Seite = zwei
     prog = kontext[0]
-    assert sum(len(g.punkte) for g in prog.gruppen) <= 8
+    assert sum(len(g.punkte) for g in prog.gruppen) <= 9               # 1.75: + „Berechnung“
     ziele = {q.ziel[1] for g in prog.gruppen for p in g.punkte for q in p.menue if q.ziel}
     assert {"dg_typ:auto", "dg_legende:oben", "dg:dg_glatt", "optionen:diagramme", "awt:aw_95", "awt:aw_backtest"} <= ziele
     # andere Diagrammseiten behalten ihre Registerkarte „Diagramm“
