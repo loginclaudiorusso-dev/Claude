@@ -98,7 +98,15 @@ def nur_aktuell(treffer: list[tuple[object, str]], heute: date) -> list[tuple[ob
             aktuell.setdefault(_wer(t), i)
     out: list[tuple[object, str]] = []
     vorher: dict[int, list[str]] = {}
+    # 1.73: dieselbe Person „noch kein Zimmer“ neben einem Eintrag MIT Zimmer (zweiter Listeneintrag, z. B. alte
+    # Anreise): weg, wenn er schon vorbei ist oder sich mit dem Aufenthalt mit Zimmer überschneidet
+    mit_zimmer: dict[tuple, list] = {}
+    for t, _h in treffer:
+        if getattr(t, "zimmer_id", "") and not getattr(t, "frei", False) and not getattr(t, "gesperrt", False):
+            mit_zimmer.setdefault(_wer(t), []).append(t)
     for i, (t, h) in enumerate(treffer):
+        if not getattr(t, "zimmer_id", "") and _wer(t) in mit_zimmer and _ueberholt(t, mit_zimmer[_wer(t)], heute):
+            continue
         j = aktuell.get(_wer(t))
         if (j is not None and j != i and getattr(t, "zimmer_id", "") and not getattr(t, "frei", False)
                 and not getattr(t, "gesperrt", False) and t.bis is not None and t.bis < heute
@@ -110,6 +118,18 @@ def nur_aktuell(treffer: list[tuple[object, str]], heute: date) -> list[tuple[ob
         idx = {id(t): i for i, (t, _h) in enumerate(treffer)}
         out = [(t, h if h else " · ".join(vorher.get(idx[id(t)], []))) for t, h in out]
     return out
+
+
+def _ueberholt(t, andere: list, heute: date) -> bool:
+    """Eintrag ohne Zimmer, der neben Aufenthalten MIT Zimmer nichts Neues sagt: vorbei oder überschneidend."""
+    von, bis = getattr(t, "von", None), getattr(t, "bis", None)
+    if bis is not None and bis < heute:
+        return True
+    for u in andere:
+        uv, ub = getattr(u, "von", None), getattr(u, "bis", None)
+        if von is None or uv is None or ((ub is None or von <= ub) and (bis is None or uv <= bis)):
+            return True
+    return False
 
 
 def aktuelle_namen(treffer: list[tuple[object, str]], heute: date) -> set[tuple]:

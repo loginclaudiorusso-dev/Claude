@@ -1,4 +1,4 @@
-# INNternat – Feature-Liste (neue Oberfläche, Version 1.72)
+# INNternat – Feature-Liste (neue Oberfläche, Version 1.73)
 
 Desktop-Programm zur Belegungs- und Zimmerplanung eines Internats mit mehreren Häusern (Reha-Teilnehmende,
 Umschüler/UWT, Mieter). Neue Oberfläche in Python/NiceGUI (eigenes Fenster per pywebview), läuft lokal unter Windows;
@@ -301,3 +301,4 @@ Fachlogik und Daten teilt sie mit dem bisherigen PySide6-Programm. Alles läuft 
 - „Gleiche Person?“ nur bei mind. 75 % Übereinstimmung je Namensteil (Nachname und Vorname) (1.70)
 - Vertragsnummer springt mit dem Mietbeginn ins richtige Jahr; Zimmerliste aktualisiert sich (1.71)
 - Schneller: „Gleiche Person?“ einmal je Stand, Pivot lokal zwischengespeichert + vorgeladen; Ladezeiten-Messung; Mieter-Akte je Vertrag (1.72)
+- Reinigungsliste ohne überholte Doppelzeilen, Abhaken ohne volles Neuladen, Suche ohne doppelte Personen, Unterlagen neu erstellen mit Auswahl (1.73)

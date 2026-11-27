@@ -151,6 +151,8 @@ def reinigung(stand: zp.Planstand, von: date, bis: date, heute: date | None = No
     erg = []
     for r in rl.sortiert(_reinigungen(stand, von, bis), heute, fertig):
         p = rl.prioritaet(r, heute, fertig)
+        if p == 4:                     # 1.73: Anreise schon vorbei (Person eingezogen) – überholt, nicht doppelt zeigen
+            continue
         erg.append(RZeile(rl.schluessel(r), r.zimmer.kurz, zp.flur_text(r.zimmer), r.art, rl.auszug_datum(r),
                           rl.einzug_text(r, True), rl.frist_text(r), p, rl.prio_text(r, heute, fertig), p == 9,
                           rl.notiz(r), rl.details(r, True), r.manuell_id, _zustand_heute(stand, r.zimmer.id, heute)))
@@ -203,9 +205,14 @@ def reinigung_zaehlen(zs: list[RZeile]) -> dict[str, int]:
 
 
 @unter_sperre                                  # 1.26: Laden, Prüfen und Speichern unter einer Sperre
-def reinigung_setzen(schluessel: list[str], an: bool, von: date, bis: date) -> str:
-    stand = zp.laden()
-    rs = [r for r in _reinigungen(stand, von, bis) if rl.schluessel(r) in set(schluessel)]
+def reinigung_setzen(schluessel: list[str], an: bool, von: date, bis: date, stand: zp.Planstand | None = None) -> str:
+    """1.73: ``stand`` = der schon geladene Stand (Abhaken ohne den Zimmerplan erneut übers Netz zu lesen); fehlt eine
+    Reinigung darin, wird wie bisher frisch geladen."""
+    gesucht = set(schluessel)
+    rs = [r for r in _reinigungen(stand, von, bis) if rl.schluessel(r) in gesucht] if stand is not None else []
+    if len(rs) < len(gesucht):
+        stand = zp.laden()
+        rs = [r for r in _reinigungen(stand, von, bis) if rl.schluessel(r) in gesucht]
     if not rs:
         raise ValueError("Diese Reinigung gibt es nicht mehr.")
     titel = f"{len(rs)} Reinigung{'en' if len(rs) > 1 else ''} {'erledigt' if an else 'wieder offen'}"

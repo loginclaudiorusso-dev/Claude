@@ -583,7 +583,7 @@ def rg_zeichnen(a) -> None:
         ui.label(f"{a.rg_von:%d.%m.} – {a.rg_bis:%d.%m.}").classes("m-kpi")
         if eilig:
             knopf(f"Alle {len(eilig)} eiligen als gereinigt markieren" if len(eilig) > 1 else "Eilige als gereinigt markieren",
-                  lambda: a.aendern(sk.reinigung_setzen, [z.schluessel for z in eilig], True, a.rg_von, a.rg_bis),
+                  lambda: a.aendern_leicht(sk.reinigung_setzen, [z.schluessel for z in eilig], True, a.rg_von, a.rg_bis, a.stand),
                   "gruen", "done_all")
     zs = [z for z in a.daten if a.rg_filter == "alle" or (a.rg_filter == "erledigt" and z.erledigt)
           or (a.rg_filter == "offen" and not z.erledigt) or (a.rg_filter == "eilig" and not z.erledigt and z.prio <= 1)]
@@ -617,7 +617,7 @@ def rg_zeichnen(a) -> None:
                     attr(b, title="Als gereinigt markieren" if not z.erledigt else "Wieder offen", aria_pressed=str(z.erledigt).lower())
                     with b:
                         ui.icon("check")
-                    b.on("click", lambda z=z: a.aendern(sk.reinigung_setzen, [z.schluessel], not z.erledigt, a.rg_von, a.rg_bis))
+                    b.on("click", lambda z=z: a.aendern_leicht(sk.reinigung_setzen, [z.schluessel], not z.erledigt, a.rg_von, a.rg_bis, a.stand))
                 attr(ui.label(z.zimmer).classes("m-name"), title=z.details)
                 ui.label(z.lage).classes("m-zweite")
                 with ui.element("div"):                 # 0.80: belegt oder frei – auf einen Blick
@@ -647,7 +647,7 @@ def _mehrere_menue(a, offen: list) -> None:
         flure.setdefault(z.lage, []).append(z)
 
     def setzen(liste):
-        return a.aendern(sk.reinigung_setzen, [z.schluessel for z in liste], True, a.rg_von, a.rg_bis)
+        return a.aendern_leicht(sk.reinigung_setzen, [z.schluessel for z in liste], True, a.rg_von, a.rg_bis, a.stand)
 
     with knopf("Mehrere abhaken", None, "", "playlist_add_check").style("margin-left:auto"):
         with ui.menu().props('dark class="m-menue"').style("max-height:70vh"):
@@ -941,9 +941,27 @@ async def _mit_datei(a, aktion, *args) -> bool:
 
 
 async def _unterlagen(a, nr: str) -> None:
+    """1.73: vorher abhaken, was in die Unterlagen soll (wie bei „Neuer Mieter“)."""
     from . import mieter_kern as mk
 
-    await _mit_datei(a, mk.unterlagen_neu, nr)
+    vorhanden = await run.io_bound(mk.dokumente_vorhanden)
+    standard = await run.io_bound(mk.dokumente_standard)
+
+    def bauen():
+        ui.label("Bitte abhaken, was in die Unterlagen soll. Der Mietvertrag ist immer dabei.").classes("m-ptext")
+        ui.checkbox("Mietvertrag", value=True).props("dense color=primary disable")
+        doks = {d: ui.checkbox(mk.DOKUMENTE[d], value=d in standard).props("dense color=primary") for d in vorhanden}
+        if not vorhanden:
+            ui.label("Keine Vordrucke eingerichtet (Mieter → Vorlagen).").classes("m-zweite")
+
+        async def los():
+            if await _mit_datei(a, mk.unterlagen_neu, nr, [d for d, cb in doks.items() if cb.value]):
+                a.panel_zu()
+        with ui.element("div").classes("m-paktionen"):
+            knopf("Unterlagen erstellen", los, "primaer", "description")
+            knopf("Abbrechen", a.panel_zu, "leise")
+
+    a.panel(f"Unterlagen neu erstellen – MV {nr}", bauen)
 
 
 async def _akte(a, m) -> None:
@@ -1040,8 +1058,10 @@ def mieter_neu_panel(a, vorgabe: dict | None = None) -> None:
         standard = mk.dokumente_standard()
         doks = {}
         if vorhanden:
-            ui.label("Anhängen:").classes("m-zweite")
+            ui.label("Unterlagen – bitte abhaken, was dazu soll (der Mietvertrag ist immer dabei):").classes(
+                "m-ktitel")
             with ui.element("div").classes("m-zeile-flex").style("gap:4px 14px;flex-wrap:wrap"):
+                ui.checkbox("Mietvertrag", value=True).props("dense color=primary disable")
                 for d in vorhanden:
                     doks[d] = ui.checkbox(mk.DOKUMENTE[d], value=d in standard).props("dense color=primary")
         attr(flex, title="Nur für die Ausnahme: nimmt die Zeilen mit „?flexibel“ aus der Vorlage Mietvertrag.vorlage")

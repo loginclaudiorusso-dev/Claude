@@ -788,6 +788,34 @@ class Ansicht(NavigationMixin, AnreisenMixin, PostfachMixin):
         finally:
             self.body.classes(remove="m-arbeitet")
 
+    async def aendern_leicht(self, aktion, *args) -> bool:
+        """1.73: Kleine Änderung, die nur die aktuelle Seite betrifft (z. B. Reinigung abhaken): speichern, dann nur
+        die Seitendaten neu – ohne das volle Laden (Zimmerplan, Cockpit, Zähler) über das Netz. Die anderen Seiten
+        holen den neuen Stand beim nächsten vollen Laden."""
+        self.body.classes(add="m-arbeitet")
+        try:
+            try:
+                text = await run.io_bound(aktion, *args)
+            except ValueError as exc:
+                self.toast(str(exc), fehler=True)
+                await self.laden()
+                return False
+            except Exception as exc:                  # noqa: BLE001
+                log.exception("Speichern fehlgeschlagen")
+                self.toast(f"Nicht gespeichert: {exc}", fehler=True)
+                await self.laden()
+                return False
+            try:
+                self.stempel = await run.io_bound(_stempel)         # eigene Änderung – kein volles Neuladen auslösen
+                await run.io_bound(self._seite_laden)
+            except Exception:                          # noqa: BLE001 – dann eben voll
+                await self.laden(zeichnen=False)
+            self.zeichnen()
+            self.toast(text, rueck=not getattr(aktion, "ohne_rueckgaengig", False))
+            return True
+        finally:
+            self.body.classes(remove="m-arbeitet")
+
     async def _aendern(self, aktion, *args) -> bool:
         try:
             text = await run.io_bound(aktion, *args)
